@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Button } from '../components/ui/Button';
 import { format, parse, isValid } from 'date-fns';
+import * as XLSX from 'xlsx';
 
 interface ImportRow {
   studentName: string;
@@ -83,42 +84,80 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
     const lines = text.split('\n').filter(line => line.trim());
     if (lines.length < 2) return [];
 
-    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    // Detect delimiter: check if first line has tabs or commas
+    const delimiter = lines[0].includes('\t') ? '\t' : ',';
+    
+    const headers = lines[0].split(delimiter).map(h => h.trim().toLowerCase().replace(/\s+/g, '_'));
     const rows: ImportRow[] = [];
 
     for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim());
+      const values = lines[i].split(delimiter).map(v => v.trim());
       const row: Record<string, string> = {};
 
       headers.forEach((header, index) => {
         row[header] = values[index] || '';
       });
 
-      // Map CSV columns to ImportRow interface
-      rows.push({
-        studentName: row['student_name'] || row['studentname'] || '',
-        studentEmail: row['student_email'] || row['studentemail'] || '',
-        studentPhone: row['student_phone'] || row['studentphone'] || undefined,
-        courseName: row['course_name'] || row['coursename'] || '',
-        courseCategory: row['course_category'] || row['coursecategory'] || row['category'] || undefined,
-        instructorName: row['instructor_name'] || row['instructorname'] || row['teacher_name'] || '',
-        instructorEmail: row['instructor_email'] || row['instructoremail'] || row['teacher_email'] || '',
-        instructorPhone: row['instructor_phone'] || row['instructorphone'] || row['teacher_phone'] || undefined,
-        sessionStartDate: normalizeDate(row['session_start_date'] || row['start_date'] || row['startdate'] || ''),
-        sessionEndDate: normalizeDate(row['session_end_date'] || row['end_date'] || row['enddate'] || ''),
-        sessionDay: row['session_day'] || row['day'] || undefined,
-        sessionTime: row['session_time'] || row['time'] || undefined,
-        sessionLocation: row['session_location'] || row['location'] || undefined,
-        attendanceDate: normalizeDate(row['attendance_date'] || row['date'] || ''),
-        status: (row['status'] || 'present').toLowerCase() as 'present' | 'absent' | 'late' | 'excused',
-        gpsLatitude: row['gps_latitude'] || row['latitude'] ? parseFloat(row['gps_latitude'] || row['latitude']) : undefined,
-        gpsLongitude: row['gps_longitude'] || row['longitude'] ? parseFloat(row['gps_longitude'] || row['longitude']) : undefined,
-        gpsAccuracy: row['gps_accuracy'] || row['accuracy'] ? parseFloat(row['gps_accuracy'] || row['accuracy']) : undefined,
-        notes: row['notes'] || undefined,
-      });
+      const mappedRow = mapRowToImportRow(row);
+      if (mappedRow) rows.push(mappedRow);
     }
 
     return rows;
+  };
+
+  const parseExcel = (buffer: ArrayBuffer): ImportRow[] => {
+    try {
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(firstSheet, { raw: false }) as Record<string, string>[];
+
+      const rows: ImportRow[] = [];
+      for (const row of jsonData) {
+        // Normalize header names: convert to lowercase and replace spaces with underscores
+        const normalizedRow: Record<string, string> = {};
+        Object.keys(row).forEach(key => {
+          const normalizedKey = key.trim().toLowerCase().replace(/\s+/g, '_');
+          normalizedRow[normalizedKey] = row[key] || '';
+        });
+
+        const mappedRow = mapRowToImportRow(normalizedRow);
+        if (mappedRow) rows.push(mappedRow);
+      }
+
+      return rows;
+    } catch (error) {
+      console.error('Failed to parse Excel file:', error);
+      throw new Error('Failed to parse Excel file. Please ensure it is a valid .xlsx file.');
+    }
+  };
+
+  const mapRowToImportRow = (row: Record<string, string>): ImportRow | null => {
+    // Skip empty rows
+    if (!row['student_name'] && !row['studentname'] && !row['student_email'] && !row['studentemail']) {
+      return null;
+    }
+
+    return {
+      studentName: row['student_name'] || row['studentname'] || '',
+      studentEmail: row['student_email'] || row['studentemail'] || '',
+      studentPhone: row['student_phone'] || row['studentphone'] || undefined,
+      courseName: row['course_name'] || row['coursename'] || '',
+      courseCategory: row['course_category'] || row['coursecategory'] || row['category'] || undefined,
+      instructorName: row['instructor_name'] || row['instructorname'] || row['teacher_name'] || '',
+      instructorEmail: row['instructor_email'] || row['instructoremail'] || row['teacher_email'] || '',
+      instructorPhone: row['instructor_phone'] || row['instructorphone'] || row['teacher_phone'] || undefined,
+      sessionStartDate: normalizeDate(row['session_start_date'] || row['start_date'] || row['startdate'] || ''),
+      sessionEndDate: normalizeDate(row['session_end_date'] || row['end_date'] || row['enddate'] || ''),
+      sessionDay: row['session_day'] || row['day'] || undefined,
+      sessionTime: row['session_time'] || row['time'] || undefined,
+      sessionLocation: row['session_location'] || row['location'] || undefined,
+      attendanceDate: normalizeDate(row['attendance_date'] || row['date'] || ''),
+      status: (row['status'] || 'present').toLowerCase() as 'present' | 'absent' | 'late' | 'excused',
+      gpsLatitude: row['gps_latitude'] || row['latitude'] ? parseFloat(row['gps_latitude'] || row['latitude']) : undefined,
+      gpsLongitude: row['gps_longitude'] || row['longitude'] ? parseFloat(row['gps_longitude'] || row['longitude']) : undefined,
+      gpsAccuracy: row['gps_accuracy'] || row['accuracy'] ? parseFloat(row['gps_accuracy'] || row['accuracy']) : undefined,
+      notes: row['notes'] || undefined,
+    };
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -129,11 +168,25 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
     setFileName(file.name);
 
     try {
-      const text = await file.text();
-      const rows = parseCSV(text);
+      let rows: ImportRow[] = [];
+      
+      // Check file type and parse accordingly
+      const fileExtension = file.name.split('.').pop()?.toLowerCase();
+      
+      if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+        // Parse Excel file
+        const buffer = await file.arrayBuffer();
+        rows = parseExcel(buffer);
+      } else if (fileExtension === 'csv') {
+        // Parse CSV file
+        const text = await file.text();
+        rows = parseCSV(text);
+      } else {
+        throw new Error('Unsupported file format. Please upload a .csv or .xlsx file.');
+      }
 
       if (rows.length === 0) {
-        throw new Error('No valid data found in CSV file');
+        throw new Error('No valid data found in file');
       }
 
       // Show preview instead of importing immediately
@@ -437,7 +490,7 @@ Mary Smith,mary@example.com,1234567891,Web Development,Programming,Jane Teacher,
         <div>
           <h2 className="text-xl font-bold text-gray-900">Bulk Import Attendance</h2>
           <p className="text-sm text-gray-600 mt-1">
-            Import attendance records from CSV file. The system will automatically create teachers, students, courses, sessions, and enrollments as needed.
+            Import attendance records from CSV or Excel file. The system will automatically create teachers, students, courses, sessions, and enrollments as needed.
           </p>
         </div>
         <Button
@@ -452,7 +505,7 @@ Mary Smith,mary@example.com,1234567891,Web Development,Programming,Jane Teacher,
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
           <h3 className="font-semibold text-blue-900 mb-2">📋 Import Instructions</h3>
           <ol className="list-decimal list-inside space-y-2 text-sm text-blue-800">
-            <li>Download the CSV template using the button below</li>
+            <li>Download the CSV template using the button below (or prepare your own Excel/CSV file)</li>
             <li>Fill in your attendance data following the template format</li>
             <li>Required fields: student_name, student_email, course_name, instructor_name, instructor_email, session_start_date, session_end_date, attendance_date, status</li>
             <li>Optional fields: student_phone, course_category, instructor_phone, session_day, session_time, session_location, gps_latitude, gps_longitude, gps_accuracy, notes</li>
@@ -471,7 +524,7 @@ Mary Smith,mary@example.com,1234567891,Web Development,Programming,Jane Teacher,
         <label className="inline-block cursor-pointer">
           <input
             type="file"
-            accept=".csv"
+            accept=".csv,.xlsx,.xls"
             onChange={handleFileUpload}
             disabled={importing}
             className="hidden"
@@ -483,7 +536,7 @@ Mary Smith,mary@example.com,1234567891,Web Development,Programming,Jane Teacher,
                 : 'bg-blue-600 hover:bg-blue-700 cursor-pointer'
             }`}
           >
-            {importing ? '⏳ Importing...' : '📤 Upload CSV File'}
+            {importing ? '⏳ Importing...' : '📤 Upload CSV/Excel File'}
           </span>
         </label>
       </div>
