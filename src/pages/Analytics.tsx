@@ -197,7 +197,8 @@ export function Analytics() {
         const rawRate = student.total_records > 0
           ? (student.present_count / student.total_records) * 100
           : 0;
-        const effectiveBase = student.total_records - student.vacation_count - student.excused_count;
+        // Effective base: All dates covered minus vacation and excused (students accountable for all dates)
+        const effectiveBase = daysCovered - student.vacation_count - student.excused_count;
         // Count 'late' as attended (they showed up, just not on time)
         const attendedCount = student.present_count + student.late_count;
         const effectiveRate = effectiveBase > 0
@@ -207,8 +208,8 @@ export function Analytics() {
 
         // Weighted score calculation (3-component formula) - MATCHES AttendanceRecords.tsx
         // 80% Attendance Rate + 10% Effective Days Coverage + 10% Punctuality
-        // effectiveBase = records excluding vacation and excused (matches AttendanceRecords logic)
-        // daysCovered = unique dates in the filtered period (matches AttendanceRecords logic)
+        // effectiveBase = daysCovered - vacation - excused (all students accountable for all dates)
+        // daysCovered = unique dates in the filtered period
         const effectiveDaysPercent = daysCovered > 0 
           ? (effectiveBase / daysCovered) * 100 
           : 0;

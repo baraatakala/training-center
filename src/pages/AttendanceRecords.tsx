@@ -503,14 +503,15 @@ const AttendanceRecords = () => {
       const unexcusedAbsent = absentCount; // 'absent' status already means unexcused
 
       // Calculate rates (no vacation status in AttendanceRecords)
-      const totalRecords = studentRecords.length;
-      const effectiveBase = totalRecords - excusedCount; // Excused days don't count
+      // Effective base: All dates covered minus excused days (students are accountable for all dates)
+      const effectiveBase = daysCovered - excusedCount;
       // Attendance rate: Present (On Time + Late) / Effective Days
       const totalPresent = presentCount + lateCount;
       const attendanceRate = effectiveBase > 0 ? (totalPresent / effectiveBase) * 100 : 0;
 
       // Calculate weighted score (3-component formula)
       // 80% Attendance Rate + 10% Effective Days Coverage + 10% Punctuality
+      // Effective days percentage: now always 100% since effectiveBase = daysCovered - excusedCount
       const effectiveDaysPercentage = daysCovered > 0 ? (effectiveBase / daysCovered) * 100 : 0;
       const punctualityPercentage = totalPresent > 0 ? (presentCount / totalPresent) * 100 : 0;
       const weightedScore = (0.8 * attendanceRate) + (0.1 * effectiveDaysPercentage) + (0.1 * punctualityPercentage);
@@ -567,10 +568,22 @@ const AttendanceRecords = () => {
       const excusedCount = excusedRecords.length;
       const lateCount = lateRecords.length;
       
-      // Unexcused absents are 'absent' status only (not just missing records)
-      const unexcusedAbsentCount = absentCount;
-      // Total accountable = all who had a record and weren't excused
-      const totalAccountable = presentCount + absentCount + lateCount;
+      // Calculate unmarked students (students with no record for this date)
+      const studentsWithRecords = new Set(dateRecords.map(r => r.student_id));
+      const unmarkedStudents = uniqueStudents.filter(sid => !studentsWithRecords.has(sid));
+      const unmarkedCount = unmarkedStudents.length;
+      
+      // Get names of unmarked students
+      const unmarkedNames = unmarkedStudents.map(sid => {
+        const record = filteredRecords.find(r => r.student_id === sid);
+        return record?.student_name || 'Unknown';
+      });
+      
+      // Unexcused absents = explicitly marked absent + unmarked students
+      const unexcusedAbsentCount = absentCount + unmarkedCount;
+      // Total accountable = all students minus excused
+      const totalStudentsOnDate = uniqueStudents.length;
+      const totalAccountable = totalStudentsOnDate - excusedCount;
       // Attendance rate: (Present + Late) / Total Accountable
       const attendanceRate = totalAccountable > 0 ? ((presentCount + lateCount) / totalAccountable) * 100 : 0;
 
@@ -584,7 +597,7 @@ const AttendanceRecords = () => {
         presentNames: presentRecords.map(r => r.student_name),
         lateNames: lateRecords.map(r => r.student_name),
         excusedNames: excusedRecords.map(r => r.student_name),
-        absentNames: absentRecords.map(r => r.student_name),
+        absentNames: [...absentRecords.map(r => r.student_name), ...unmarkedNames],
       };
     }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
