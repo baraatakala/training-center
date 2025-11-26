@@ -13,8 +13,8 @@ export function Table({ children, className = '' }: TableProps) {
   );
 }
 
-export function TableHeader({ children }: { children: React.ReactNode }) {
-  return <thead className="bg-gray-50">{children}</thead>;
+export function TableHeader({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return <thead className={`bg-gray-50 ${className}`}>{children}</thead>;
 }
 
 export function TableBody({ children }: { children: React.ReactNode }) {
