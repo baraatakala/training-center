@@ -84,29 +84,29 @@ export function Teachers() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-4 md:space-y-6 p-4 md:p-0">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Teachers Management</h1>
-          <p className="text-gray-600 mt-1">{teachers.length} total teachers</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Teachers Management</h1>
+          <p className="text-sm md:text-base text-gray-600 mt-1">{teachers.length} total teachers</p>
         </div>
-        <Button onClick={openAddModal} variant="primary">
+        <Button onClick={openAddModal} variant="primary" className="w-full sm:w-auto">
           <span className="mr-2">+</span> Add Teacher
         </Button>
       </div>
 
-      <div className="bg-white p-6 rounded-lg shadow">
+      <div className="bg-white p-4 md:p-6 rounded-lg shadow">
         <SearchBar
           value={searchQuery}
           onChange={setSearchQuery}
-          placeholder="Search by name, email, or phone..."
+          placeholder="Search teachers..."
         />
       </div>
 
       {loading ? (
         <div className="text-center py-12">Loading teachers...</div>
       ) : (
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-white rounded-lg shadow overflow-hidden">
           {filteredTeachers.length === 0 ? (
             <div className="py-12 text-center text-gray-500">
               {searchQuery
@@ -114,39 +114,47 @@ export function Teachers() {
                 : 'No teachers found. Click "Add Teacher" to get started.'}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredTeachers.map((teacher) => (
-                  <TableRow key={teacher.teacher_id}>
-                    <TableCell className="font-medium text-gray-900">{teacher.name}</TableCell>
-                    <TableCell className="text-gray-600">{teacher.email}</TableCell>
-                    <TableCell className="text-gray-600">{teacher.phone || '-'}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-2 justify-end">
-                        <Button size="sm" variant="secondary" onClick={() => openEditModal(teacher)}>
-                          Edit
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="danger"
-                          onClick={() => handleDeleteTeacher(teacher.teacher_id)}
-                        >
-                          Delete
-                        </Button>
-                      </div>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="whitespace-nowrap">Name</TableHead>
+                    <TableHead className="whitespace-nowrap hidden md:table-cell">Email</TableHead>
+                    <TableHead className="whitespace-nowrap hidden lg:table-cell">Phone</TableHead>
+                    <TableHead className="text-right whitespace-nowrap">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredTeachers.map((teacher) => (
+                    <TableRow key={teacher.teacher_id}>
+                      <TableCell className="font-medium text-gray-900 min-w-[150px]">
+                        <div className="flex flex-col">
+                          <span>{teacher.name}</span>
+                          <span className="text-xs text-gray-500 md:hidden">{teacher.email}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-gray-600 hidden md:table-cell min-w-[200px]">{teacher.email}</TableCell>
+                      <TableCell className="text-gray-600 hidden lg:table-cell whitespace-nowrap">{teacher.phone || '-'}</TableCell>
+                      <TableCell>
+                        <div className="flex gap-1 md:gap-2 justify-end flex-nowrap">
+                          <Button size="sm" variant="secondary" onClick={() => openEditModal(teacher)} className="text-xs md:text-sm px-2 md:px-3">
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="danger"
+                            onClick={() => handleDeleteTeacher(teacher.teacher_id)}
+                            className="text-xs md:text-sm px-2 md:px-3"
+                          >
+                            Del
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </div>
       )}

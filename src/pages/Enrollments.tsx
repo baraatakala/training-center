@@ -98,13 +98,13 @@ export function Enrollments() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 p-4 md:p-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Enrollments Management</h1>
-          <p className="text-gray-600 mt-1">{enrollments.length} total enrollments</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Enrollments Management</h1>
+          <p className="text-sm sm:text-base text-gray-600 mt-1">{enrollments.length} total enrollments</p>
         </div>
-        <Button onClick={() => setIsModalOpen(true)} variant="primary">
+        <Button onClick={() => setIsModalOpen(true)} variant="primary" className="w-full sm:w-auto">
           <span className="mr-2">+</span> Enroll Student
         </Button>
       </div>
@@ -120,7 +120,7 @@ export function Enrollments() {
       {loading ? (
         <div className="text-center py-12">Loading enrollments...</div>
       ) : (
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-white rounded-lg shadow overflow-hidden">
           {filteredEnrollments.length === 0 ? (
             <div className="py-12 text-center text-gray-500">
               {searchQuery
@@ -128,6 +128,7 @@ export function Enrollments() {
                 : 'No enrollments found. Click "Enroll Student" to get started.'}
             </div>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -185,6 +186,7 @@ export function Enrollments() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </div>
       )}

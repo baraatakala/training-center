@@ -92,24 +92,24 @@ export function Students() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6 p-4 md:p-0">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Students Management</h1>
-          <p className="text-gray-600 mt-1">{students.length} total students</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Students Management</h1>
+          <p className="text-sm md:text-base text-gray-600 mt-1">{students.length} total students</p>
         </div>
-        <Button onClick={openAddModal} variant="primary">
+        <Button onClick={openAddModal} variant="primary" className="w-full sm:w-auto">
           <span className="mr-2">+</span> Add Student
         </Button>
       </div>
 
       {/* Search Bar */}
-      <div className="bg-white p-6 rounded-lg shadow">
+      <div className="bg-white p-4 md:p-6 rounded-lg shadow">
         <SearchBar
           value={searchQuery}
           onChange={setSearchQuery}
-          placeholder="Search by name, email, phone, or nationality..."
+          placeholder="Search students..."
         />
       </div>
 
@@ -126,12 +126,12 @@ export function Students() {
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-gray-50">
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Nationality</TableHead>
-                  <TableHead>Age</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="whitespace-nowrap">Name</TableHead>
+                  <TableHead className="whitespace-nowrap hidden md:table-cell">Email</TableHead>
+                  <TableHead className="whitespace-nowrap hidden lg:table-cell">Phone</TableHead>
+                  <TableHead className="whitespace-nowrap hidden lg:table-cell">Nationality</TableHead>
+                  <TableHead className="whitespace-nowrap hidden xl:table-cell">Age</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -139,22 +139,28 @@ export function Students() {
                   .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                   .map((student) => (
                     <TableRow key={student.student_id}>
-                      <TableCell className="font-medium text-gray-900">{student.name}</TableCell>
-                      <TableCell className="text-gray-600">{student.email}</TableCell>
-                      <TableCell className="text-gray-600">{student.phone || '-'}</TableCell>
-                      <TableCell className="text-gray-600">{student.nationality || '-'}</TableCell>
-                      <TableCell className="text-gray-600">{student.age || '-'}</TableCell>
+                      <TableCell className="font-medium text-gray-900 min-w-[150px]">
+                        <div className="flex flex-col">
+                          <span>{student.name}</span>
+                          <span className="text-xs text-gray-500 md:hidden">{student.email}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-gray-600 hidden md:table-cell min-w-[200px]">{student.email}</TableCell>
+                      <TableCell className="text-gray-600 hidden lg:table-cell whitespace-nowrap">{student.phone || '-'}</TableCell>
+                      <TableCell className="text-gray-600 hidden lg:table-cell whitespace-nowrap">{student.nationality || '-'}</TableCell>
+                      <TableCell className="text-gray-600 hidden xl:table-cell">{student.age || '-'}</TableCell>
                       <TableCell className="text-right">
-                        <div className="flex gap-2 justify-end">
-                          <Button size="sm" variant="secondary" onClick={() => openEditModal(student)}>
+                        <div className="flex gap-1 md:gap-2 justify-end flex-nowrap">
+                          <Button size="sm" variant="secondary" onClick={() => openEditModal(student)} className="text-xs md:text-sm px-2 md:px-3">
                             Edit
                           </Button>
                           <Button
                             size="sm"
                             variant="danger"
                             onClick={() => handleDeleteStudent(student.student_id)}
+                            className="text-xs md:text-sm px-2 md:px-3"
                           >
-                            Delete
+                            Del
                           </Button>
                         </div>
                       </TableCell>

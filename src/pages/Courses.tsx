@@ -95,29 +95,29 @@ export function Courses() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-4 md:space-y-6 p-4 md:p-0">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Courses Management</h1>
-          <p className="text-gray-600 mt-1">{courses.length} total courses</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Courses Management</h1>
+          <p className="text-sm md:text-base text-gray-600 mt-1">{courses.length} total courses</p>
         </div>
-        <Button onClick={openAddModal} variant="primary">
+        <Button onClick={openAddModal} variant="primary" className="w-full sm:w-auto">
           <span className="mr-2">+</span> Add Course
         </Button>
       </div>
 
-      <div className="bg-white p-6 rounded-lg shadow">
+      <div className="bg-white p-4 md:p-6 rounded-lg shadow">
         <SearchBar
           value={searchQuery}
           onChange={setSearchQuery}
-          placeholder="Search by course name, category, or instructor..."
+          placeholder="Search courses..."
         />
       </div>
 
       {loading ? (
         <div className="text-center py-12">Loading courses...</div>
       ) : (
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-white rounded-lg shadow overflow-hidden">
           {filteredCourses.length === 0 ? (
             <div className="py-12 text-center text-gray-500">
               {searchQuery
@@ -125,41 +125,49 @@ export function Courses() {
                 : 'No courses found. Click "Add Course" to get started.'}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Course Name</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Instructor</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredCourses.map((course) => (
-                  <TableRow key={course.course_id}>
-                    <TableCell className="font-medium text-gray-900">{course.course_name}</TableCell>
-                    <TableCell>
-                      <Badge variant="info">{course.category}</Badge>
-                    </TableCell>
-                    <TableCell className="text-gray-600">{course.teacher?.name || 'No instructor'}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-2 justify-end">
-                        <Button size="sm" variant="secondary" onClick={() => openEditModal(course)}>
-                          Edit
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="danger"
-                          onClick={() => handleDeleteCourse(course.course_id)}
-                        >
-                          Delete
-                        </Button>
-                      </div>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="whitespace-nowrap">Course Name</TableHead>
+                    <TableHead className="whitespace-nowrap hidden lg:table-cell">Category</TableHead>
+                    <TableHead className="whitespace-nowrap hidden md:table-cell">Instructor</TableHead>
+                    <TableHead className="text-right whitespace-nowrap">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredCourses.map((course) => (
+                    <TableRow key={course.course_id}>
+                      <TableCell className="font-medium text-gray-900 min-w-[150px]">
+                        <div className="flex flex-col">
+                          <span>{course.course_name}</span>
+                          <span className="text-xs text-gray-500 md:hidden">{course.teacher?.name || 'No instructor'}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        <Badge variant="info">{course.category}</Badge>
+                      </TableCell>
+                      <TableCell className="text-gray-600 hidden md:table-cell min-w-[150px]">{course.teacher?.name || 'No instructor'}</TableCell>
+                      <TableCell>
+                        <div className="flex gap-1 md:gap-2 justify-end flex-nowrap">
+                          <Button size="sm" variant="secondary" onClick={() => openEditModal(course)} className="text-xs md:text-sm px-2 md:px-3">
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="danger"
+                            onClick={() => handleDeleteCourse(course.course_id)}
+                            className="text-xs md:text-sm px-2 md:px-3"
+                          >
+                            Del
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </div>
       )}

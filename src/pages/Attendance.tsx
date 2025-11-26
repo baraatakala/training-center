@@ -407,9 +407,9 @@ export function Attendance() {
   const courseName = sessionInfo?.course_name || 'Unknown Course';
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4 md:p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Mark Attendance</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold">Mark Attendance</h1>
       </div>
 
       <Card>
@@ -447,32 +447,32 @@ export function Attendance() {
                     Course: {courseName}
                   </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   {selectedStudents.size > 0 ? (
                     <>
                       <Button
                         onClick={() => handleBulkUpdate('present')}
-                        className="bg-green-600 hover:bg-green-700"
+                        className="bg-green-600 hover:bg-green-700 text-xs sm:text-sm"
                       >
-                        Mark Selected Present ({selectedStudents.size})
+                        Present ({selectedStudents.size})
                       </Button>
                       <Button
                         onClick={() => handleBulkUpdate('absent')}
-                        className="bg-red-600 hover:bg-red-700"
+                        className="bg-red-600 hover:bg-red-700 text-xs sm:text-sm"
                       >
-                        Mark Selected Absent ({selectedStudents.size})
+                        Absent ({selectedStudents.size})
                       </Button>
                       <Button
                         onClick={() => handleBulkUpdate('late')}
-                        className="bg-yellow-600 hover:bg-yellow-700"
+                        className="bg-yellow-600 hover:bg-yellow-700 text-xs sm:text-sm"
                       >
-                        Mark Selected Late ({selectedStudents.size})
+                        Late ({selectedStudents.size})
                       </Button>
                     </>
                   ) : (
                     <Button
                       onClick={handleSelectAll}
-                      className="bg-blue-600 hover:bg-blue-700"
+                      className="bg-blue-600 hover:bg-blue-700 text-xs sm:text-sm"
                     >
                       Select All ({attendance.length})
                     </Button>
@@ -488,31 +488,31 @@ export function Attendance() {
               ) : (
                 <div className="space-y-4">
                   {/* Summary Stats */}
-                  <div className="grid grid-cols-5 gap-3 p-4 bg-gray-50 rounded-lg">
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-3 p-3 sm:p-4 bg-gray-50 rounded-lg">
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-gray-900">{attendance.length}</div>
+                      <div className="text-xl sm:text-2xl font-bold text-gray-900">{attendance.length}</div>
                       <div className="text-xs text-gray-600">Total</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-green-600">
+                      <div className="text-xl sm:text-2xl font-bold text-green-600">
                         {attendance.filter(a => a.status === 'present').length}
                       </div>
                       <div className="text-xs text-gray-600">Present</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-red-600">
+                      <div className="text-xl sm:text-2xl font-bold text-red-600">
                         {attendance.filter(a => a.status === 'absent').length}
                       </div>
                       <div className="text-xs text-gray-600">Absent</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-yellow-600">
+                      <div className="text-xl sm:text-2xl font-bold text-yellow-600">
                         {attendance.filter(a => a.status === 'late').length}
                       </div>
                       <div className="text-xs text-gray-600">Late</div>
                     </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-gray-400">
+                    <div className="text-center col-span-3 sm:col-span-1">
+                      <div className="text-xl sm:text-2xl font-bold text-gray-400">
                         {attendance.filter(a => a.status === 'pending').length}
                       </div>
                       <div className="text-xs text-gray-600">Not Marked</div>
@@ -532,18 +532,18 @@ export function Attendance() {
                   {attendance.map((record) => (
                     <div
                       key={record.attendance_id}
-                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
+                      className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg hover:bg-gray-50 gap-3"
                     >
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-4 flex-1">
                         <input
                           type="checkbox"
                           checked={selectedStudents.has(record.attendance_id)}
                           onChange={() => handleSelectStudent(record.attendance_id)}
                           className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                         />
-                        <div>
-                          <h3 className="font-medium">{record.student.name}</h3>
-                          <p className="text-sm text-gray-500">{record.student.email}</p>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-medium truncate">{record.student.name}</h3>
+                          <p className="text-sm text-gray-500 truncate">{record.student.email}</p>
                           {record.check_in_time && (
                             <p className="text-xs text-gray-400 mt-1">
                               Checked in: {format(new Date(record.check_in_time), 'HH:mm:ss')}
@@ -551,29 +551,29 @@ export function Attendance() {
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                         {getStatusBadge(record.status)}
                         <Button
                           onClick={() => updateAttendance(record.attendance_id, 'present')}
-                          className="bg-green-600 hover:bg-green-700"
+                          className="bg-green-600 hover:bg-green-700 text-xs sm:text-sm px-2 sm:px-4"
                         >
                           Present
                         </Button>
                         <Button
                           onClick={() => updateAttendance(record.attendance_id, 'absent')}
-                          className="bg-red-600 hover:bg-red-700"
+                          className="bg-red-600 hover:bg-red-700 text-xs sm:text-sm px-2 sm:px-4"
                         >
                           Absent
                         </Button>
                         <Button
                           onClick={() => updateAttendance(record.attendance_id, 'late')}
-                          className="bg-yellow-600 hover:bg-yellow-700"
+                          className="bg-yellow-600 hover:bg-yellow-700 text-xs sm:text-sm px-2 sm:px-4"
                         >
                           Late
                         </Button>
                         <Button
                           onClick={() => updateAttendance(record.attendance_id, 'excused')}
-                          className="bg-blue-600 hover:bg-blue-700"
+                          className="bg-blue-600 hover:bg-blue-700 text-xs sm:text-sm px-2 sm:px-4"
                           size="sm"
                         >
                           Excused

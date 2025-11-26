@@ -165,13 +165,13 @@ export function Sessions() {
   }).length;
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 p-4 md:p-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Sessions</h1>
-          <p className="text-gray-600 mt-1">Manage training sessions and schedules</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Sessions</h1>
+          <p className="text-sm sm:text-base text-gray-600 mt-1">Manage training sessions and schedules</p>
         </div>
-        <Button onClick={openAddModal}>+ Add Session</Button>
+        <Button onClick={openAddModal} className="w-full sm:w-auto">+ Add Session</Button>
       </div>
 
       {/* Summary Cards */}
@@ -194,15 +194,15 @@ export function Sessions() {
         </div>
       </div>
 
-      <div className="flex gap-4">
+      <div className="flex flex-col sm:flex-row gap-4">
         <div className="flex-1">
           <SearchBar
             value={searchQuery}
             onChange={setSearchQuery}
-            placeholder="Search sessions by course, teacher, or category..."
+            placeholder="Search sessions..."
           />
         </div>
-        <div className="w-48">
+        <div className="w-full sm:w-48">
           <Select
             value={statusFilter}
             onChange={(value) => setStatusFilter(value as typeof statusFilter)}
@@ -221,7 +221,8 @@ export function Sessions() {
           <div className="text-gray-400">Loading sessions...</div>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -317,6 +318,7 @@ export function Sessions() {
               )}
             </TableBody>
           </Table>
+          </div>
         </div>
       )}
 

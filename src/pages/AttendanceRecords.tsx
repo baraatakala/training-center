@@ -6,6 +6,8 @@ import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { BulkImport } from '../components/BulkImport';
 import { Pagination } from '../components/ui/Pagination';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface AttendanceRecord {
   attendance_id: string;
@@ -57,7 +59,12 @@ interface DateAnalytics {
   presentCount: number;
   unexcusedAbsentCount: number;
   excusedAbsentCount: number;
+  lateCount: number;
   absenteeismRate: number;
+  presentNames: string[];
+  lateNames: string[];
+  excusedNames: string[];
+  absentNames: string[];
 }
 
 interface FilterOptions {
@@ -362,6 +369,87 @@ const AttendanceRecords = () => {
     a.click();
   };
 
+  const exportAnalyticsToPDF = () => {
+    if (!showAnalytics || studentAnalytics.length === 0 || dateAnalytics.length === 0) {
+      alert('Please show analytics first to export PDF report');
+      return;
+    }
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.width;
+    
+    // Title
+    doc.setFontSize(18);
+    doc.text('Attendance Analytics Report', pageWidth / 2, 15, { align: 'center' });
+    
+    doc.setFontSize(10);
+    doc.text(`Generated: ${format(new Date(), 'MMM dd, yyyy HH:mm')}`, pageWidth / 2, 22, { align: 'center' });
+    doc.text(`Date Range: ${format(new Date(filters.startDate), 'MMM dd, yyyy')} - ${format(new Date(filters.endDate), 'MMM dd, yyyy')}`, pageWidth / 2, 28, { align: 'center' });
+
+    // Student Performance Table
+    doc.setFontSize(14);
+    doc.text('Student Performance Summary', 14, 38);
+    
+    autoTable(doc, {
+      startY: 42,
+      head: [['Rank', 'Student', 'Present', 'On Time', 'Late', 'Absent', 'Excused', 'Rate %', 'Score', 'Trend']],
+      body: studentAnalytics.slice(0, 20).map((student, index) => [
+        index + 1,
+        student.student_name,
+        student.presentCount + student.lateCount,
+        student.presentCount,
+        student.lateCount,
+        student.unexcusedAbsent,
+        student.excusedCount,
+        `${student.attendanceRate}%`,
+        student.weightedScore.toFixed(1),
+        student.trend.classification
+      ]),
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [59, 130, 246], fontSize: 8 },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+    });
+
+    // Date Analytics Table
+    const finalY = (doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || 42;
+    doc.setFontSize(14);
+    doc.text('Attendance by Date', 14, finalY + 15);
+
+    autoTable(doc, {
+      startY: finalY + 19,
+      head: [['Date', 'Present', 'Late', 'Excused', 'Absent', 'Rate %', 'Present Names', 'Late Names', 'Excused Names', 'Absent Names']],
+      body: dateAnalytics.map((dateData) => [
+        format(new Date(dateData.date), 'MMM dd, yyyy'),
+        dateData.presentCount,
+        dateData.lateCount,
+        dateData.excusedAbsentCount,
+        dateData.unexcusedAbsentCount,
+        `${dateData.absenteeismRate}%`,
+        dateData.presentNames.join(', ') || '-',
+        dateData.lateNames.join(', ') || '-',
+        dateData.excusedNames.join(', ') || '-',
+        dateData.absentNames.join(', ') || '-'
+      ]),
+      styles: { fontSize: 7, cellPadding: 2 },
+      headStyles: { fillColor: [59, 130, 246], fontSize: 7 },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+      columnStyles: {
+        0: { cellWidth: 20 },
+        1: { cellWidth: 12 },
+        2: { cellWidth: 12 },
+        3: { cellWidth: 12 },
+        4: { cellWidth: 12 },
+        5: { cellWidth: 15 },
+        6: { cellWidth: 'auto' },
+        7: { cellWidth: 'auto' },
+        8: { cellWidth: 'auto' },
+        9: { cellWidth: 'auto' }
+      },
+    });
+
+    doc.save(`analytics-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+  };
+
   const resetFilters = () => {
     setFilters({
       student_id: '',
@@ -417,9 +505,9 @@ const AttendanceRecords = () => {
       // Calculate rates (no vacation status in AttendanceRecords)
       const totalRecords = studentRecords.length;
       const effectiveBase = totalRecords - excusedCount; // Excused days don't count
-      // Attendance rate: count 'late' as attended (they showed up, just not on time)
-      const attendedCount = presentCount + lateCount;
-      const attendanceRate = effectiveBase > 0 ? (attendedCount / effectiveBase) * 100 : 0;
+      // Attendance rate: count 'present' as 1.0, 'late' as 0.75 (penalty for lateness)
+      const attendedScore = presentCount + (lateCount * 0.75);
+      const attendanceRate = effectiveBase > 0 ? (attendedScore / effectiveBase) * 100 : 0;
 
       // Calculate weighted score (2-component formula - no vacation tracking in this page)
       // 80% Attendance Rate + 20% Excuse Discipline
@@ -471,10 +559,15 @@ const AttendanceRecords = () => {
     // Calculate date analytics
     const dateStats: DateAnalytics[] = uniqueDates.map(date => {
       const dateRecords = filteredRecords.filter(r => r.attendance_date === date);
-      const presentCount = dateRecords.filter(r => r.status === 'present').length;
-      const absentCount = dateRecords.filter(r => r.status === 'absent').length;
-      const excusedCount = dateRecords.filter(r => r.status === 'excused').length;
-      const lateCount = dateRecords.filter(r => r.status === 'late').length;
+      const presentRecords = dateRecords.filter(r => r.status === 'present');
+      const absentRecords = dateRecords.filter(r => r.status === 'absent');
+      const excusedRecords = dateRecords.filter(r => r.status === 'excused');
+      const lateRecords = dateRecords.filter(r => r.status === 'late');
+      
+      const presentCount = presentRecords.length;
+      const absentCount = absentRecords.length;
+      const excusedCount = excusedRecords.length;
+      const lateCount = lateRecords.length;
       
       // Unexcused absents are 'absent' status only (not just missing records)
       const unexcusedAbsentCount = absentCount;
@@ -487,7 +580,12 @@ const AttendanceRecords = () => {
         presentCount,
         unexcusedAbsentCount,
         excusedAbsentCount: excusedCount,
+        lateCount,
         absenteeismRate: Math.round(absenteeismRate * 10) / 10,
+        presentNames: presentRecords.map(r => r.student_name),
+        lateNames: lateRecords.map(r => r.student_name),
+        excusedNames: excusedRecords.map(r => r.student_name),
+        absentNames: absentRecords.map(r => r.student_name),
       };
     }).sort((a, b) => b.absenteeismRate - a.absenteeismRate);
 
@@ -568,34 +666,39 @@ const AttendanceRecords = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Attendance Records</h1>
-          <p className="text-gray-600 mt-1">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Attendance Records</h1>
+          <p className="text-sm sm:text-base text-gray-600 mt-1">
             View all attendance records with GPS location tracking
           </p>
         </div>
-        <div className="flex gap-3">
-          <Button variant="outline" onClick={() => setShowAnalytics(!showAnalytics)}>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => setShowAnalytics(!showAnalytics)} className="text-xs sm:text-sm">
             {showAnalytics ? 'Hide' : 'Show'} Analytics
           </Button>
           {showAnalytics && (
-            <Button variant="outline" onClick={exportAnalyticsToCSV}>
-              📊 Export Analytics
-            </Button>
+            <>
+              <Button variant="outline" onClick={exportAnalyticsToCSV} className="text-xs sm:text-sm">
+                📊 Export CSV
+              </Button>
+              <Button variant="outline" onClick={exportAnalyticsToPDF} className="text-xs sm:text-sm">
+                📄 Export PDF
+              </Button>
+            </>
           )}
-          <Button variant="outline" onClick={() => setShowBulkImport(!showBulkImport)}>
-            {showBulkImport ? 'Hide' : 'Show'} Bulk Import
+          <Button variant="outline" onClick={() => setShowBulkImport(!showBulkImport)} className="text-xs sm:text-sm">
+            {showBulkImport ? 'Hide' : 'Show'} Import
           </Button>
-          <Button variant="outline" onClick={resetFilters}>
-            Reset Filters
+          <Button variant="outline" onClick={resetFilters} className="text-xs sm:text-sm">
+            Reset
           </Button>
-          <Button onClick={exportToCSV}>
-            📥 Export Records
+          <Button onClick={exportToCSV} className="text-xs sm:text-sm">
+            📥 Export
           </Button>
-          <Button onClick={loadRecords}>
+          <Button onClick={loadRecords} className="text-xs sm:text-sm">
             🔄 Refresh
           </Button>
         </div>
@@ -611,18 +714,18 @@ const AttendanceRecords = () => {
 
       {/* Advanced Analytics Dashboard */}
       {showAnalytics && (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {/* Summary Statistics */}
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-lg font-semibold mb-4">📊 Summary Statistics</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="border-l-4 border-blue-500 pl-4">
-                <div className="text-sm text-gray-600">Total Students</div>
-                <div className="text-2xl font-bold">{studentAnalytics.length}</div>
+          <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
+            <h2 className="text-base sm:text-lg font-semibold mb-4">📊 Summary Statistics</h2>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              <div className="border-l-4 border-blue-500 pl-3 sm:pl-4">
+                <div className="text-xs sm:text-sm text-gray-600">Total Students</div>
+                <div className="text-xl sm:text-2xl font-bold">{studentAnalytics.length}</div>
               </div>
-              <div className="border-l-4 border-green-500 pl-4">
-                <div className="text-sm text-gray-600">Class Avg Rate</div>
-                <div className="text-2xl font-bold">
+              <div className="border-l-4 border-green-500 pl-3 sm:pl-4">
+                <div className="text-xs sm:text-sm text-gray-600">Class Avg Rate</div>
+                <div className="text-xl sm:text-2xl font-bold">
                   {studentAnalytics.length > 0
                     ? Math.round(
                         studentAnalytics.reduce((sum, s) => sum + s.attendanceRate, 0) /
@@ -632,9 +735,9 @@ const AttendanceRecords = () => {
                   %
                 </div>
               </div>
-              <div className="border-l-4 border-purple-500 pl-4">
-                <div className="text-sm text-gray-600">Avg Weighted Score</div>
-                <div className="text-2xl font-bold">
+              <div className="border-l-4 border-purple-500 pl-3 sm:pl-4">
+                <div className="text-xs sm:text-sm text-gray-600">Avg Weighted Score</div>
+                <div className="text-xl sm:text-2xl font-bold">
                   {studentAnalytics.length > 0
                     ? Math.round(
                         studentAnalytics.reduce((sum, s) => sum + s.weightedScore, 0) /
@@ -643,9 +746,9 @@ const AttendanceRecords = () => {
                     : 0}
                 </div>
               </div>
-              <div className="border-l-4 border-red-500 pl-4">
-                <div className="text-sm text-gray-600">Avg Absenteeism</div>
-                <div className="text-2xl font-bold">
+              <div className="border-l-4 border-red-500 pl-3 sm:pl-4">
+                <div className="text-xs sm:text-sm text-gray-600">Avg Absenteeism</div>
+                <div className="text-xl sm:text-2xl font-bold">
                   {dateAnalytics.length > 0
                     ? Math.round(
                         dateAnalytics.reduce((sum, d) => sum + d.absenteeismRate, 0) /
@@ -759,22 +862,23 @@ const AttendanceRecords = () => {
 
           {/* Student Performance Table */}
           <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="px-6 py-4 bg-gray-50 border-b">
-              <h2 className="text-lg font-semibold">🎓 Student Performance Analytics</h2>
+            <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 border-b">
+              <h2 className="text-base sm:text-lg font-semibold">🎓 Student Performance Analytics</h2>
             </div>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Present</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">On Time</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Late</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Absent</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Excused</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Effective Days</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Rate</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Weighted Score</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">CI</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Trend</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Weekly Δ</th>
                   </tr>
@@ -784,7 +888,9 @@ const AttendanceRecords = () => {
                     <tr key={student.student_id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-900">{index + 1}</td>
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">{student.student_name}</td>
-                      <td className="px-4 py-3 text-sm text-center text-green-600 font-medium">{student.presentCount}</td>
+                      <td className="px-4 py-3 text-sm text-center text-green-600 font-medium">{student.presentCount + student.lateCount}</td>
+                      <td className="px-4 py-3 text-sm text-center text-green-700 font-medium">{student.presentCount}</td>
+                      <td className="px-4 py-3 text-sm text-center text-yellow-600 font-medium">{student.lateCount}</td>
                       <td className="px-4 py-3 text-sm text-center text-red-600 font-medium">{student.unexcusedAbsent}</td>
                       <td className="px-4 py-3 text-sm text-center text-blue-600 font-medium">{student.excusedCount}</td>
                       <td className="px-4 py-3 text-sm text-center text-gray-900">{student.effectiveDays}</td>
@@ -798,9 +904,6 @@ const AttendanceRecords = () => {
                       </td>
                       <td className="px-4 py-3 text-sm text-center font-semibold text-purple-600">
                         {student.weightedScore}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-center text-gray-700">
-                        {student.consistencyIndex.toFixed(2)}
                       </td>
                       <td className="px-4 py-3 text-sm text-center">
                         <div className="flex flex-col items-center">
@@ -832,36 +935,44 @@ const AttendanceRecords = () => {
 
           {/* Date Analytics Table */}
           <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="px-6 py-4 bg-gray-50 border-b">
-              <h2 className="text-lg font-semibold">📅 Attendance by Date (Highest Absenteeism)</h2>
+            <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 border-b">
+              <h2 className="text-base sm:text-lg font-semibold">📅 Attendance by Date</h2>
             </div>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Present</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Unexcused Absent</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Late</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Excused</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Absenteeism Rate</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Absent</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Rate</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Present Names</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Late Names</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Excused Names</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Absent Names</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {dateAnalytics.slice(0, 10).map((dateData) => (
+                  {dateAnalytics.map((dateData) => (
                     <tr key={dateData.date} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900 whitespace-nowrap">
                         {format(new Date(dateData.date), 'MMM dd, yyyy')}
                       </td>
                       <td className="px-4 py-3 text-sm text-center text-green-600 font-medium">
                         {dateData.presentCount}
                       </td>
-                      <td className="px-4 py-3 text-sm text-center text-red-600 font-medium">
-                        {dateData.unexcusedAbsentCount}
+                      <td className="px-4 py-3 text-sm text-center text-yellow-600 font-medium">
+                        {dateData.lateCount}
                       </td>
                       <td className="px-4 py-3 text-sm text-center text-blue-600 font-medium">
                         {dateData.excusedAbsentCount}
                       </td>
-                      <td className="px-4 py-3 text-sm text-center">
+                      <td className="px-4 py-3 text-sm text-center text-red-600 font-medium">
+                        {dateData.unexcusedAbsentCount}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-center whitespace-nowrap">
                         <span className={`font-semibold px-3 py-1 rounded-full ${
                           dateData.absenteeismRate >= 50 ? 'bg-red-100 text-red-800' :
                           dateData.absenteeismRate >= 30 ? 'bg-yellow-100 text-yellow-800' :
@@ -869,6 +980,18 @@ const AttendanceRecords = () => {
                         }`}>
                           {dateData.absenteeismRate}%
                         </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-600 max-w-xs">
+                        {dateData.presentNames.length > 0 ? dateData.presentNames.join(', ') : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-600 max-w-xs">
+                        {dateData.lateNames.length > 0 ? dateData.lateNames.join(', ') : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-600 max-w-xs">
+                        {dateData.excusedNames.length > 0 ? dateData.excusedNames.join(', ') : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-600 max-w-xs">
+                        {dateData.absentNames.length > 0 ? dateData.absentNames.join(', ') : '-'}
                       </td>
                     </tr>
                   ))}
@@ -936,7 +1059,7 @@ const AttendanceRecords = () => {
             </button>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Student
@@ -1015,30 +1138,30 @@ const AttendanceRecords = () => {
 
       {/* Records Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+        <div className="overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                   Date
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                   Student
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                   Course
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                   Instructor
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                   Location
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  GPS Coordinates
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                  GPS
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Marked At
@@ -1071,38 +1194,38 @@ const AttendanceRecords = () => {
                     onClick={() => navigate(`/attendance/${record.session_id}`, { state: { selectedDate: record.attendance_date } })}
                     title="Click to view/edit attendance for this date"
                   >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
                       {format(new Date(record.attendance_date), 'MMM dd, yyyy')}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
                       {record.student_name}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
                       {record.course_name}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
                       {record.instructor_name}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(record.status)}`}>
                         {record.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
                       {record.session_location || '-'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
                       {record.gps_latitude && record.gps_longitude ? (
                         <div className="space-y-1">
-                          <div>{record.gps_latitude.toFixed(6)}°, {record.gps_longitude.toFixed(6)}°</div>
+                          <div className="text-xs">{record.gps_latitude.toFixed(4)}°, {record.gps_longitude.toFixed(4)}°</div>
                           {record.gps_accuracy && (
                             <div className="text-xs text-gray-500">
-                              ±{record.gps_accuracy.toFixed(0)}m accuracy
+                              ±{record.gps_accuracy.toFixed(0)}m
                             </div>
                           )}
                         </div>
                       ) : (
-                        <span className="text-gray-400">No GPS data</span>
+                        <span className="text-gray-400 text-xs">No GPS</span>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
@@ -1119,16 +1242,16 @@ const AttendanceRecords = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       {record.gps_latitude && record.gps_longitude && (
-                        <Button
-                          variant="outline"
+                        <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             openMapLocation(record);
                           }}
-                          className="text-xs px-2 py-1"
+                          className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50"
                         >
                           🗺️ View Map
-                        </Button>
+                        </button>
                       )}
                     </td>
                   </tr>

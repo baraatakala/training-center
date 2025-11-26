@@ -478,24 +478,25 @@ export function Analytics() {
     : 0;
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="p-4 md:p-6 space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Attendance Analytics Dashboard</h1>
-          <p className="text-gray-600 mt-1">Comprehensive performance metrics with visual insights</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Attendance Analytics</h1>
+          <p className="text-sm sm:text-base text-gray-600 mt-1">Performance metrics with insights</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <Button 
             onClick={() => setShowAdvancedMetrics(!showAdvancedMetrics)}
             variant="outline"
+            className="text-xs sm:text-sm"
           >
-            {showAdvancedMetrics ? 'Hide' : 'Show'} Advanced Metrics
+            {showAdvancedMetrics ? 'Hide' : 'Show'} Advanced
           </Button>
-          <Button onClick={handleExportPDF} className="bg-red-600 hover:bg-red-700">
-            📄 Export PDF
+          <Button onClick={handleExportPDF} className="bg-red-600 hover:bg-red-700 text-xs sm:text-sm">
+            📄 PDF
           </Button>
-          <Button onClick={handleExportExcel} className="bg-green-600 hover:bg-green-700">
-            📊 Export Excel
+          <Button onClick={handleExportExcel} className="bg-green-600 hover:bg-green-700 text-xs sm:text-sm">
+            📊 Excel
           </Button>
         </div>
       </div>
