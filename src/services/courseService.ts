@@ -1,0 +1,57 @@
+import { supabase } from '../lib/supabase';
+import { Tables, type CreateCourse, type UpdateCourse } from '../types/database.types';
+
+export const courseService = {
+  async getAll() {
+    return await supabase
+      .from(Tables.COURSE)
+      .select(`
+        *,
+        teacher:teacher_id(name)
+      `)
+      .order('course_name');
+  },
+
+  async getById(courseId: string) {
+    return await supabase
+      .from(Tables.COURSE)
+      .select(`
+        *,
+        teacher:teacher_id(name)
+      `)
+      .eq('course_id', courseId)
+      .single();
+  },
+
+  async create(data: CreateCourse) {
+    return await supabase
+      .from(Tables.COURSE)
+      .insert([data])
+      .select()
+      .single();
+  },
+
+  async update(courseId: string, data: UpdateCourse) {
+    return await supabase
+      .from(Tables.COURSE)
+      .update(data)
+      .eq('course_id', courseId)
+      .select()
+      .single();
+  },
+
+  async delete(courseId: string) {
+    return await supabase
+      .from(Tables.COURSE)
+      .delete()
+      .eq('course_id', courseId);
+  },
+
+  async getSessions(courseId: string) {
+    return await supabase
+      .from(Tables.SESSION)
+      .select('*')
+      .eq('course_id', courseId)
+      .order('start_date', { ascending: false });
+  },
+};

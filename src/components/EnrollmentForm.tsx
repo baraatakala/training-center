@@ -1,0 +1,135 @@
+import { useState, useEffect, type FormEvent } from 'react';
+import { Select } from './ui/Select';
+import { Input } from './ui/Input';
+import { Button } from './ui/Button';
+import { supabase } from '../lib/supabase';
+import { Tables, type CreateEnrollment } from '../types/database.types';
+
+interface Student {
+  student_id: string;
+  name: string;
+  email: string;
+}
+
+interface Session {
+  session_id: string;
+  start_date: string;
+  course: {
+    course_name: string;
+  };
+}
+
+interface EnrollmentFormProps {
+  onSubmit: (data: CreateEnrollment) => Promise<void>;
+  onCancel: () => void;
+}
+
+export function EnrollmentForm({ onSubmit, onCancel }: EnrollmentFormProps) {
+  const [formData, setFormData] = useState<CreateEnrollment>({
+    student_id: '',
+    session_id: '',
+    enrollment_date: new Date().toISOString().split('T')[0],
+    status: 'active',
+  });
+
+  const [students, setStudents] = useState<Student[]>([]);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const loadData = async () => {
+    const [studentsRes, sessionsRes] = await Promise.all([
+      supabase.from(Tables.STUDENT).select('student_id, name, email').order('name'),
+      supabase.from(Tables.SESSION).select(`
+        session_id,
+        start_date,
+        course:course_id(course_name)
+      `).order('start_date', { ascending: false }),
+    ]);
+
+    if (studentsRes.data) setStudents(studentsRes.data);
+    if (sessionsRes.data) setSessions(sessionsRes.data as unknown as Session[]);
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      await onSubmit(formData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          {error}
+        </div>
+      )}
+
+      <Select
+        label="Student"
+        value={formData.student_id}
+        onChange={(value) => setFormData({ ...formData, student_id: value })}
+        options={students.map(s => ({ 
+          value: s.student_id, 
+          label: `${s.name} (${s.email})` 
+        }))}
+        placeholder="Select a student"
+        required
+      />
+
+      <Select
+        label="Session"
+        value={formData.session_id}
+        onChange={(value) => setFormData({ ...formData, session_id: value })}
+        options={sessions.map(s => ({ 
+          value: s.session_id, 
+          label: `${s.course.course_name} - ${new Date(s.start_date).toLocaleDateString()}` 
+        }))}
+        placeholder="Select a session"
+        required
+      />
+
+      <Input
+        label="Enrollment Date"
+        type="date"
+        value={formData.enrollment_date}
+        onChange={(value) => setFormData({ ...formData, enrollment_date: value })}
+        required
+      />
+
+      <Select
+        label="Status"
+        value={formData.status}
+        onChange={(value) => setFormData({ ...formData, status: value as 'active' | 'completed' | 'dropped' | 'pending' })}
+        options={[
+          { value: 'active', label: 'Active' },
+          { value: 'pending', label: 'Pending' },
+          { value: 'completed', label: 'Completed' },
+          { value: 'dropped', label: 'Dropped' },
+        ]}
+        required
+      />
+
+      <div className="flex gap-3 justify-end pt-4">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={loading}>
+          {loading ? 'Enrolling...' : 'Enroll Student'}
+        </Button>
+      </div>
+    </form>
+  );
+}
