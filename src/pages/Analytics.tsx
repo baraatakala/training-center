@@ -141,6 +141,10 @@ export function Analytics() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         : validAttendanceData.filter((a: any) => a.session_id === selectedSession);
 
+      // Calculate unique dates covered for effective days percentage
+      const allUniqueDates = [...new Set(filteredData.map((r: any) => r.attendance_date))].filter(Boolean);
+      const daysCovered = allUniqueDates.length;
+
       // Aggregate by enrollment (student + session combination)
       const enrollmentMap = new Map<string, StudentAnalytics & { course_name: string; teacher_name: string }>();
 
@@ -180,7 +184,6 @@ export function Analytics() {
 
         const enrollmentData = enrollmentMap.get(enrollmentKey)!;
         enrollmentData.total_records++;
-        enrollmentData.total_days++;
 
         if (record.status === 'present') enrollmentData.present_count++;
         if (record.status === 'absent') enrollmentData.absent_count++;
@@ -191,7 +194,6 @@ export function Analytics() {
 
       // Calculate rates and scores
       const studentsArray = Array.from(enrollmentMap.values()).map((student) => {
-        const effectiveDays = student.total_days - student.vacation_count;
         const rawRate = student.total_records > 0
           ? (student.present_count / student.total_records) * 100
           : 0;
@@ -205,8 +207,10 @@ export function Analytics() {
 
         // Weighted score calculation (3-component formula) - MATCHES AttendanceRecords.tsx
         // 80% Attendance Rate + 10% Effective Days Coverage + 10% Punctuality
-        const effectiveDaysPercent = student.total_days > 0 
-          ? (effectiveDays / student.total_days) * 100 
+        // effectiveBase = records excluding vacation and excused (matches AttendanceRecords logic)
+        // daysCovered = unique dates in the filtered period (matches AttendanceRecords logic)
+        const effectiveDaysPercent = daysCovered > 0 
+          ? (effectiveBase / daysCovered) * 100 
           : 0;
         const punctualityPercentage = attendedCount > 0
           ? (student.present_count / attendedCount) * 100
@@ -215,7 +219,8 @@ export function Analytics() {
 
         return {
           ...student,
-          effective_days: effectiveDays,
+          effective_days: effectiveBase,
+          total_days: daysCovered,
           raw_attendance_rate: parseFloat(rawRate.toFixed(2)),
           effective_attendance_rate: parseFloat(effectiveRate.toFixed(2)),
           unexcused_absent: unexcusedAbsent,
