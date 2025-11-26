@@ -203,15 +203,15 @@ export function Analytics() {
           : 0;
         const unexcusedAbsent = student.absent_count; // 'absent' status already means unexcused
 
-        // Weighted score calculation (3-component formula)
-        // 70% Attendance Rate + 20% Effective Days + 10% Excuse Discipline
+        // Weighted score calculation (3-component formula) - MATCHES AttendanceRecords.tsx
+        // 80% Attendance Rate + 10% Effective Days Coverage + 10% Punctuality
         const effectiveDaysPercent = student.total_days > 0 
           ? (effectiveDays / student.total_days) * 100 
           : 0;
-        const excuseDiscipline = student.total_records > 0
-          ? (1 - student.excused_count / student.total_records) * 100
-          : 100;
-        const weightedScore = (0.7 * effectiveRate) + (0.2 * effectiveDaysPercent) + (0.1 * excuseDiscipline);
+        const punctualityPercentage = attendedCount > 0
+          ? (student.present_count / attendedCount) * 100
+          : 0;
+        const weightedScore = (0.8 * effectiveRate) + (0.1 * effectiveDaysPercent) + (0.1 * punctualityPercentage);
 
         return {
           ...student,

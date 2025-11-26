@@ -60,7 +60,7 @@ interface DateAnalytics {
   unexcusedAbsentCount: number;
   excusedAbsentCount: number;
   lateCount: number;
-  absenteeismRate: number;
+  attendanceRate: number;
   presentNames: string[];
   lateNames: string[];
   excusedNames: string[];
@@ -424,7 +424,7 @@ const AttendanceRecords = () => {
         dateData.lateCount,
         dateData.excusedAbsentCount,
         dateData.unexcusedAbsentCount,
-        `${dateData.absenteeismRate}%`,
+        `${dateData.attendanceRate}%`,
         dateData.presentNames.join(', ') || '-',
         dateData.lateNames.join(', ') || '-',
         dateData.excusedNames.join(', ') || '-',
@@ -580,7 +580,7 @@ const AttendanceRecords = () => {
         unexcusedAbsentCount,
         excusedAbsentCount: excusedCount,
         lateCount,
-        absenteeismRate: Math.round(attendanceRate * 10) / 10,
+        attendanceRate: Math.round(attendanceRate * 10) / 10,
         presentNames: presentRecords.map(r => r.student_name),
         lateNames: lateRecords.map(r => r.student_name),
         excusedNames: excusedRecords.map(r => r.student_name),
@@ -745,12 +745,12 @@ const AttendanceRecords = () => {
                     : 0}
                 </div>
               </div>
-              <div className="border-l-4 border-red-500 pl-3 sm:pl-4">
-                <div className="text-xs sm:text-sm text-gray-600">Avg Absenteeism</div>
+              <div className="border-l-4 border-blue-500 pl-3 sm:pl-4">
+                <div className="text-xs sm:text-sm text-gray-600">Avg Attendance by Date</div>
                 <div className="text-xl sm:text-2xl font-bold">
                   {dateAnalytics.length > 0
                     ? Math.round(
-                        dateAnalytics.reduce((sum, d) => sum + d.absenteeismRate, 0) /
+                        dateAnalytics.reduce((sum, d) => sum + d.attendanceRate, 0) /
                           dateAnalytics.length
                       )
                     : 0}
@@ -973,11 +973,11 @@ const AttendanceRecords = () => {
                       </td>
                       <td className="px-4 py-3 text-sm text-center whitespace-nowrap">
                         <span className={`font-semibold px-3 py-1 rounded-full ${
-                          dateData.absenteeismRate >= 90 ? 'bg-green-100 text-green-800' :
-                          dateData.absenteeismRate >= 70 ? 'bg-yellow-100 text-yellow-800' :
+                          dateData.attendanceRate >= 90 ? 'bg-green-100 text-green-800' :
+                          dateData.attendanceRate >= 70 ? 'bg-yellow-100 text-yellow-800' :
                           'bg-red-100 text-red-800'
                         }`}>
-                          {dateData.absenteeismRate}%
+                          {dateData.attendanceRate}%
                         </span>
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-600 max-w-xs">
