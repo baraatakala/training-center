@@ -3,6 +3,7 @@ import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { SearchBar } from '../components/ui/SearchBar';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
+import { Pagination } from '../components/ui/Pagination';
 import { StudentForm } from '../components/StudentForm';
 import { studentService } from '../services/studentService';
 import type { Student, CreateStudent } from '../types/database.types';
@@ -14,6 +15,8 @@ export function Students() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | undefined>();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
 
   const loadStudents = async () => {
     setLoading(true);
@@ -118,44 +121,62 @@ export function Students() {
             : 'No students found. Click "Add Student" to get started.'}
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Nationality</TableHead>
-                <TableHead>Age</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredStudents.map((student) => (
-                <TableRow key={student.student_id}>
-                  <TableCell className="font-medium text-gray-900">{student.name}</TableCell>
-                  <TableCell className="text-gray-600">{student.email}</TableCell>
-                  <TableCell className="text-gray-600">{student.phone || '-'}</TableCell>
-                  <TableCell className="text-gray-600">{student.nationality || '-'}</TableCell>
-                  <TableCell className="text-gray-600">{student.age || '-'}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex gap-2 justify-end">
-                      <Button size="sm" variant="secondary" onClick={() => openEditModal(student)}>
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        onClick={() => handleDeleteStudent(student.student_id)}
-                      >
-                        Delete
-                      </Button>
-                    </div>
-                  </TableCell>
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+            <Table>
+              <TableHeader className="sticky top-0 z-10 bg-gray-50">
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Nationality</TableHead>
+                  <TableHead>Age</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredStudents
+                  .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                  .map((student) => (
+                    <TableRow key={student.student_id}>
+                      <TableCell className="font-medium text-gray-900">{student.name}</TableCell>
+                      <TableCell className="text-gray-600">{student.email}</TableCell>
+                      <TableCell className="text-gray-600">{student.phone || '-'}</TableCell>
+                      <TableCell className="text-gray-600">{student.nationality || '-'}</TableCell>
+                      <TableCell className="text-gray-600">{student.age || '-'}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex gap-2 justify-end">
+                          <Button size="sm" variant="secondary" onClick={() => openEditModal(student)}>
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="danger"
+                            onClick={() => handleDeleteStudent(student.student_id)}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </div>
+          
+          {filteredStudents.length > 0 && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(filteredStudents.length / itemsPerPage)}
+              totalItems={filteredStudents.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={(page) => setCurrentPage(page)}
+              onItemsPerPageChange={(items) => {
+                setItemsPerPage(items);
+                setCurrentPage(1);
+              }}
+            />
+          )}
         </div>
       )}
 

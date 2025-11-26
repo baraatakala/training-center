@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { format, subDays } from 'date-fns';
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { BulkImport } from '../components/BulkImport';
+import { Pagination } from '../components/ui/Pagination';
 
 interface AttendanceRecord {
   attendance_id: string;
@@ -68,6 +70,7 @@ interface FilterOptions {
 }
 
 const AttendanceRecords = () => {
+  const navigate = useNavigate();
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -75,6 +78,10 @@ const AttendanceRecords = () => {
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [studentAnalytics, setStudentAnalytics] = useState<StudentAnalytics[]>([]);
   const [dateAnalytics, setDateAnalytics] = useState<DateAnalytics[]>([]);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
   
   // Filter state
   const [filters, setFilters] = useState<FilterOptions>({
@@ -1008,9 +1015,9 @@ const AttendanceRecords = () => {
 
       {/* Records Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Date
@@ -1055,8 +1062,15 @@ const AttendanceRecords = () => {
                   </td>
                 </tr>
               ) : (
-                filteredRecords.map((record) => (
-                  <tr key={record.attendance_id} className="hover:bg-gray-50">
+                filteredRecords
+                  .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                  .map((record) => (
+                  <tr 
+                    key={record.attendance_id} 
+                    className="hover:bg-gray-50 cursor-pointer transition-colors"
+                    onClick={() => navigate(`/attendance/${record.session_id}`, { state: { selectedDate: record.attendance_date } })}
+                    title="Click to view/edit attendance for this date"
+                  >
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {format(new Date(record.attendance_date), 'MMM dd, yyyy')}
                     </td>
@@ -1107,7 +1121,10 @@ const AttendanceRecords = () => {
                       {record.gps_latitude && record.gps_longitude && (
                         <Button
                           variant="outline"
-                          onClick={() => openMapLocation(record)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openMapLocation(record);
+                          }}
                           className="text-xs px-2 py-1"
                         >
                           🗺️ View Map
@@ -1120,11 +1137,21 @@ const AttendanceRecords = () => {
             </tbody>
           </table>
         </div>
-      </div>
-
-      {/* Records Count */}
-      <div className="text-center text-sm text-gray-600">
-        Showing {filteredRecords.length} of {records.length} total records
+        
+        {/* Pagination */}
+        {filteredRecords.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={Math.ceil(filteredRecords.length / itemsPerPage)}
+            totalItems={filteredRecords.length}
+            itemsPerPage={itemsPerPage}
+            onPageChange={(page) => setCurrentPage(page)}
+            onItemsPerPageChange={(items) => {
+              setItemsPerPage(items);
+              setCurrentPage(1);
+            }}
+          />
+        )}
       </div>
     </div>
   );

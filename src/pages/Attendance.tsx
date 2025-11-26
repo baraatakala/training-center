@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -29,9 +29,11 @@ type AttendanceRecord = {
 
 export function Attendance() {
   const { sessionId } = useParams<{ sessionId: string }>();
+  const location = useLocation();
+  const passedDate = (location.state as { selectedDate?: string })?.selectedDate;
   const [session, setSession] = useState<Session | null>(null);
   const [availableDates, setAvailableDates] = useState<Array<{ value: string; label: string }>>([]);
-  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useState<string>(passedDate || '');
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
@@ -91,13 +93,16 @@ export function Attendance() {
       const dates = getAttendanceDateOptions(data);
       setAvailableDates(dates);
       
-      // Select today's date if available, otherwise first date
-      const today = new Date().toISOString().split('T')[0];
-      const todayDate = dates.find(d => d.value === today);
-      setSelectedDate(todayDate ? todayDate.value : (dates[0]?.value || ''));
+      // If a date was passed via navigation, use it; otherwise select today or first date
+      if (!passedDate) {
+        const today = new Date().toISOString().split('T')[0];
+        const todayDate = dates.find(d => d.value === today);
+        setSelectedDate(todayDate ? todayDate.value : (dates[0]?.value || ''));
+      }
+      // If passedDate exists, it's already set in the initial state
     }
     setLoading(false);
-  }, [sessionId]);
+  }, [sessionId, passedDate]);
 
   const loadAttendance = useCallback(async () => {
     if (!sessionId || !selectedDate) return;
