@@ -5,9 +5,9 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Select } from '../components/ui/Select';
 import { supabase } from '../lib/supabase';
-import { Tables, type Session, type Enrollment } from '../types/database.types';
+import { Tables, type Session } from '../types/database.types';
 import { format } from 'date-fns';
-import { generateAttendanceDates, getAttendanceDateOptions } from '../utils/attendanceGenerator';
+import { getAttendanceDateOptions } from '../utils/attendanceGenerator';
 
 type AttendanceRecord = {
   attendance_id: string;
@@ -398,7 +398,7 @@ export function Attendance() {
     );
   }
 
-  const sessionInfo = session.course as any;
+  const sessionInfo = (session as any).course;
   const courseName = sessionInfo?.course_name || 'Unknown Course';
 
   return (

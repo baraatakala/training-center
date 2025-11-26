@@ -9,10 +9,8 @@ import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { supabase } from '../lib/supabase';
 import { Tables } from '../types/database.types';
-import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
+import { format, subDays } from 'date-fns';
 import {
-  BarChart,
-  Bar,
   LineChart,
   Line,
   PieChart,
@@ -342,7 +340,9 @@ export function Analytics() {
         notes: record.notes,
         gps_latitude: record.gps_latitude,
         gps_longitude: record.gps_longitude,
-        gps_accuracy: record.gps_accuracy
+        gps_accuracy: record.gps_accuracy,
+        marked_at: record.marked_at || null,
+        marked_by: record.marked_by || null
       };
     });
 
