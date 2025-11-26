@@ -505,9 +505,9 @@ const AttendanceRecords = () => {
       // Calculate rates (no vacation status in AttendanceRecords)
       const totalRecords = studentRecords.length;
       const effectiveBase = totalRecords - excusedCount; // Excused days don't count
-      // Attendance rate: count 'present' as 1.0, 'late' as 0.75 (penalty for lateness)
-      const attendedScore = presentCount + (lateCount * 0.75);
-      const attendanceRate = effectiveBase > 0 ? (attendedScore / effectiveBase) * 100 : 0;
+      // Attendance rate: Present (On Time + Late) / Effective Days
+      const totalPresent = presentCount + lateCount;
+      const attendanceRate = effectiveBase > 0 ? (totalPresent / effectiveBase) * 100 : 0;
 
       // Calculate weighted score (2-component formula - no vacation tracking in this page)
       // 80% Attendance Rate + 20% Excuse Discipline
@@ -573,7 +573,8 @@ const AttendanceRecords = () => {
       const unexcusedAbsentCount = absentCount;
       // Total accountable = all who had a record and weren't excused
       const totalAccountable = presentCount + absentCount + lateCount;
-      const absenteeismRate = totalAccountable > 0 ? (unexcusedAbsentCount / totalAccountable) * 100 : 0;
+      // Attendance rate: (Present + Late) / Total Accountable
+      const attendanceRate = totalAccountable > 0 ? ((presentCount + lateCount) / totalAccountable) * 100 : 0;
 
       return {
         date,
@@ -581,13 +582,13 @@ const AttendanceRecords = () => {
         unexcusedAbsentCount,
         excusedAbsentCount: excusedCount,
         lateCount,
-        absenteeismRate: Math.round(absenteeismRate * 10) / 10,
+        absenteeismRate: Math.round(attendanceRate * 10) / 10,
         presentNames: presentRecords.map(r => r.student_name),
         lateNames: lateRecords.map(r => r.student_name),
         excusedNames: excusedRecords.map(r => r.student_name),
         absentNames: absentRecords.map(r => r.student_name),
       };
-    }).sort((a, b) => b.absenteeismRate - a.absenteeismRate);
+    }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     setDateAnalytics(dateStats);
   };
@@ -974,9 +975,9 @@ const AttendanceRecords = () => {
                       </td>
                       <td className="px-4 py-3 text-sm text-center whitespace-nowrap">
                         <span className={`font-semibold px-3 py-1 rounded-full ${
-                          dateData.absenteeismRate >= 50 ? 'bg-red-100 text-red-800' :
-                          dateData.absenteeismRate >= 30 ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-green-100 text-green-800'
+                          dateData.absenteeismRate >= 90 ? 'bg-green-100 text-green-800' :
+                          dateData.absenteeismRate >= 70 ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
                         }`}>
                           {dateData.absenteeismRate}%
                         </span>
