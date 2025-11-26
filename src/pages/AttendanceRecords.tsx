@@ -509,13 +509,11 @@ const AttendanceRecords = () => {
       const totalPresent = presentCount + lateCount;
       const attendanceRate = effectiveBase > 0 ? (totalPresent / effectiveBase) * 100 : 0;
 
-      // Calculate weighted score (2-component formula - no vacation tracking in this page)
-      // 80% Attendance Rate + 20% Excuse Discipline
-      // Note: Analytics page uses 3-component with vacation tracking
-      const excuseDiscipline = totalRecords > 0 
-        ? (1 - excusedCount / totalRecords) * 100 
-        : 100;
-      const weightedScore = (0.8 * attendanceRate) + (0.2 * excuseDiscipline);
+      // Calculate weighted score (3-component formula)
+      // 80% Attendance Rate + 10% Effective Days Coverage + 10% Punctuality
+      const effectiveDaysPercentage = daysCovered > 0 ? (effectiveBase / daysCovered) * 100 : 0;
+      const punctualityPercentage = totalPresent > 0 ? (presentCount / totalPresent) * 100 : 0;
+      const weightedScore = (0.8 * attendanceRate) + (0.1 * effectiveDaysPercentage) + (0.1 * punctualityPercentage);
 
       // Calculate consistency index
       const dailyPattern = uniqueDates.map(date => {
