@@ -7,6 +7,7 @@ import { Select } from '../components/ui/Select';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
 import { SearchBar } from '../components/ui/SearchBar';
 import { SessionForm } from '../components/SessionForm';
+import BulkScheduleTable from '../components/BulkScheduleTable';
 import { supabase } from '../lib/supabase';
 import { Tables, type CreateSession } from '../types/database.types';
 
@@ -36,6 +37,8 @@ export function Sessions() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'upcoming' | 'completed'>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<SessionWithDetails | null>(null);
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [selectedSessionForSchedule, setSelectedSessionForSchedule] = useState<SessionWithDetails | null>(null);
 
   const loadSessions = async () => {
     const { data } = await supabase
@@ -300,6 +303,9 @@ export function Sessions() {
                               Attendance
                             </Button>
                           </Link>
+                            <Button size="sm" variant="outline" onClick={() => { setSelectedSessionForSchedule(session); setIsScheduleModalOpen(true); }}>
+                              Host Schedule
+                            </Button>
                           <Button size="sm" variant="outline" onClick={() => openEditModal(session)}>
                             Edit
                           </Button>
@@ -350,6 +356,30 @@ export function Sessions() {
               : null
           }
         />
+      </Modal>
+
+      <Modal
+        isOpen={isScheduleModalOpen}
+        onClose={() => {
+          setIsScheduleModalOpen(false);
+          setSelectedSessionForSchedule(null);
+        }}
+        title={selectedSessionForSchedule ? `Host Table - ${selectedSessionForSchedule.course?.course_name}` : 'Host Table'}
+        size="full"
+      >
+        {selectedSessionForSchedule && (
+          <BulkScheduleTable
+            sessionId={selectedSessionForSchedule.session_id}
+            startDate={selectedSessionForSchedule.start_date}
+            endDate={selectedSessionForSchedule.end_date}
+            day={selectedSessionForSchedule.day}
+            time={selectedSessionForSchedule.time}
+            onClose={() => {
+              setIsScheduleModalOpen(false);
+              setSelectedSessionForSchedule(null);
+            }}
+          />
+        )}
       </Modal>
     </div>
   );

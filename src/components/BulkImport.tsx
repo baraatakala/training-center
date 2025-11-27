@@ -24,6 +24,8 @@ interface ImportRow {
   gpsLongitude?: number;
   gpsAccuracy?: number;
   notes?: string;
+  // Optional: can host column (yes/no/true/1)
+  canHost?: string;
 }
 
 interface ImportResult {
@@ -190,6 +192,7 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
       gpsLongitude: row['gps_longitude'] || row['longitude'] ? parseFloat(row['gps_longitude'] || row['longitude']) : undefined,
       gpsAccuracy: row['gps_accuracy'] || row['accuracy'] ? parseFloat(row['gps_accuracy'] || row['accuracy']) : undefined,
       notes: row['notes'] || undefined,
+      canHost: row['can_host'] || row['canhost'] || row['host'] || undefined,
     };
   };
 
@@ -433,6 +436,10 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
             .maybeSingle();
 
           if (!existingEnrollment) {
+            // parse can_host from import row if provided
+            const canHostRaw = row.canHost || '';
+            const canHost = /^(1|yes|true|y)$/i.test(String(canHostRaw).trim());
+
             const { error } = await supabase
               .from('enrollment')
               .insert({
@@ -440,6 +447,7 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
                 session_id: sessionId,
                 enrollment_date: row.sessionStartDate,
                 status: 'active',
+                can_host: canHost,
               });
 
             if (error) throw new Error(`Row ${rowNum}: Failed to create enrollment - ${error.message}`);

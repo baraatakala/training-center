@@ -22,14 +22,17 @@ interface Session {
 interface EnrollmentFormProps {
   onSubmit: (data: CreateEnrollment) => Promise<void>;
   onCancel: () => void;
+  // Optional initial data for editing an existing enrollment
+  initialData?: Partial<CreateEnrollment> | null;
 }
 
-export function EnrollmentForm({ onSubmit, onCancel }: EnrollmentFormProps) {
+export function EnrollmentForm({ onSubmit, onCancel, initialData = null }: EnrollmentFormProps) {
   const [formData, setFormData] = useState<CreateEnrollment>({
-    student_id: '',
-    session_id: '',
-    enrollment_date: new Date().toISOString().split('T')[0],
-    status: 'active',
+    student_id: initialData?.student_id || '',
+    session_id: initialData?.session_id || '',
+    enrollment_date: initialData?.enrollment_date || new Date().toISOString().split('T')[0],
+    status: (initialData?.status as any) || 'active',
+    can_host: typeof initialData?.can_host === 'boolean' ? initialData!.can_host : false,
   });
 
   const [students, setStudents] = useState<Student[]>([]);
@@ -121,6 +124,16 @@ export function EnrollmentForm({ onSubmit, onCancel }: EnrollmentFormProps) {
         ]}
         required
       />
+
+      <label className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={!!formData.can_host}
+          onChange={(e) => setFormData({ ...formData, can_host: e.target.checked })}
+          className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+        />
+        <span className="text-sm text-gray-700">Can host sessions at home</span>
+      </label>
 
       <div className="flex gap-3 justify-end pt-4">
         <Button type="button" variant="outline" onClick={onCancel}>

@@ -12,6 +12,7 @@ interface EnrollmentWithDetails {
   enrollment_id: string;
   enrollment_date: string;
   status: string;
+  can_host?: boolean | null;
   student: {
     name: string;
     email: string;
@@ -30,6 +31,8 @@ export function Enrollments() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingEnrollment, setEditingEnrollment] = useState<EnrollmentWithDetails | null>(null);
+  const [showOnlyHosting, setShowOnlyHosting] = useState(false);
 
   const loadEnrollments = async () => {
     setLoading(true);
@@ -46,20 +49,24 @@ export function Enrollments() {
   }, []);
 
   useEffect(() => {
-    if (searchQuery) {
+    if (searchQuery || showOnlyHosting) {
       const query = searchQuery.toLowerCase();
       setFilteredEnrollments(
         enrollments.filter(
-          (e) =>
-            e.student.name.toLowerCase().includes(query) ||
-            e.session.course.course_name.toLowerCase().includes(query) ||
-            e.status.toLowerCase().includes(query)
+          (e) => {
+            const matchesSearch =
+              e.student.name.toLowerCase().includes(query) ||
+              e.session.course.course_name.toLowerCase().includes(query) ||
+              e.status.toLowerCase().includes(query);
+            const matchesHosting = !showOnlyHosting || e.can_host === true;
+            return matchesSearch && matchesHosting;
+          }
         )
       );
     } else {
       setFilteredEnrollments(enrollments);
     }
-  }, [searchQuery, enrollments]);
+  }, [searchQuery, enrollments, showOnlyHosting]);
 
   const handleAddEnrollment = async (data: CreateEnrollment) => {
     const { error } = await enrollmentService.create(data);
@@ -67,6 +74,18 @@ export function Enrollments() {
       alert('Error enrolling student: ' + error.message);
     } else {
       setIsModalOpen(false);
+      loadEnrollments();
+    }
+  };
+
+  const handleUpdateEnrollment = async (data: CreateEnrollment) => {
+    if (!editingEnrollment) return;
+    const { error } = await enrollmentService.update(editingEnrollment.enrollment_id, data as any);
+    if (error) {
+      alert('Error updating enrollment: ' + error.message);
+    } else {
+      setIsModalOpen(false);
+      setEditingEnrollment(null);
       loadEnrollments();
     }
   };
@@ -104,9 +123,20 @@ export function Enrollments() {
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Enrollments Management</h1>
           <p className="text-sm sm:text-base text-gray-600 mt-1">{enrollments.length} total enrollments</p>
         </div>
-        <Button onClick={() => setIsModalOpen(true)} variant="primary" className="w-full sm:w-auto">
-          <span className="mr-2">+</span> Enroll Student
-        </Button>
+        <div className="flex gap-2 items-center">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showOnlyHosting}
+              onChange={(e) => setShowOnlyHosting(e.target.checked)}
+              className="h-4 w-4"
+            />
+            <span className="text-sm font-medium">Can Host Only</span>
+          </label>
+          <Button onClick={() => setIsModalOpen(true)} variant="primary" className="w-full sm:w-auto">
+            <span className="mr-2">+</span> Enroll Student
+          </Button>
+        </div>
       </div>
 
       <div className="bg-white p-6 rounded-lg shadow">
@@ -137,6 +167,7 @@ export function Enrollments() {
                   <TableHead>Start Date</TableHead>
                   <TableHead>Enrollment Date</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="text-center">Can Host</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -161,26 +192,44 @@ export function Enrollments() {
                         {enrollment.status}
                       </Badge>
                     </TableCell>
+                    <TableCell className="text-center">
+                      {enrollment.can_host ? (
+                        <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-green-100 text-green-800">
+                          ✓
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </TableCell>
                     <TableCell>
-                      <div className="flex gap-2 justify-end">
-                        <select
-                          className="text-sm border rounded px-2 py-1"
-                          value={enrollment.status}
-                          onChange={(e) => handleUpdateStatus(enrollment.enrollment_id, e.target.value)}
-                        >
-                          <option value="active">Active</option>
-                          <option value="pending">Pending</option>
-                          <option value="completed">Completed</option>
-                          <option value="dropped">Dropped</option>
-                        </select>
-                        <Button
-                          size="sm"
-                          variant="danger"
-                          onClick={() => handleDeleteEnrollment(enrollment.enrollment_id)}
-                        >
-                          Delete
-                        </Button>
-                      </div>
+                                    <div className="flex gap-2 justify-end">
+                                      <button
+                                        className="text-sm border rounded px-2 py-1 bg-white"
+                                        onClick={() => {
+                                          setEditingEnrollment(enrollment);
+                                          setIsModalOpen(true);
+                                        }}
+                                      >
+                                        Edit
+                                      </button>
+                                      <select
+                                        className="text-sm border rounded px-2 py-1"
+                                        value={enrollment.status}
+                                        onChange={(e) => handleUpdateStatus(enrollment.enrollment_id, e.target.value)}
+                                      >
+                                        <option value="active">Active</option>
+                                        <option value="pending">Pending</option>
+                                        <option value="completed">Completed</option>
+                                        <option value="dropped">Dropped</option>
+                                      </select>
+                                      <Button
+                                        size="sm"
+                                        variant="danger"
+                                        onClick={() => handleDeleteEnrollment(enrollment.enrollment_id)}
+                                      >
+                                        Delete
+                                      </Button>
+                                    </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -197,8 +246,18 @@ export function Enrollments() {
         title="Enroll Student in Session"
       >
         <EnrollmentForm
-          onSubmit={handleAddEnrollment}
-          onCancel={() => setIsModalOpen(false)}
+          onSubmit={editingEnrollment ? handleUpdateEnrollment : handleAddEnrollment}
+          onCancel={() => {
+            setIsModalOpen(false);
+            setEditingEnrollment(null);
+          }}
+          initialData={editingEnrollment ? {
+            student_id: (editingEnrollment as any).student_id || undefined,
+            session_id: (editingEnrollment as any).session_id || undefined,
+            enrollment_date: editingEnrollment.enrollment_date,
+            status: editingEnrollment.status as any,
+            can_host: (editingEnrollment as any).can_host,
+          } : null}
         />
       </Modal>
     </div>

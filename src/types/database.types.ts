@@ -70,6 +70,10 @@ export interface Enrollment {
   session_id: string;
   enrollment_date: string;
   status: 'active' | 'completed' | 'dropped' | 'pending';
+  // Whether this student has agreed to host sessions at their home
+  can_host?: boolean | null;
+  // Chosen host date (ISO yyyy-mm-dd format) for scheduling
+  host_date?: string | null;
   created_at: string;
   updated_at: string;
 }
