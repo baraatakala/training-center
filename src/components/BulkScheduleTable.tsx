@@ -159,7 +159,6 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
 
   const toggleHost = async (enrollmentId: string, value: boolean) => {
     setEnrollments((prev) => prev.map((e) => (e.enrollment_id === enrollmentId ? { ...e, can_host: value } : e)));
-    // update backend
     await supabase.from(Tables.ENROLLMENT).update({ can_host: value }).eq('enrollment_id', enrollmentId);
   };
 
@@ -211,7 +210,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       if (!jsPDF) throw new Error('Could not load jsPDF module');
       const displayedEnrollments = getSortedDisplayedEnrollments();
 
-      const doc = new jsPDF();
+      const doc = new jsPDF('l'); // landscape mode for better column fit
       const tableColumn = ['Student Name', 'Address', 'Phone', 'Can Host', 'Host Date'];
       const tableRows = displayedEnrollments.map((e) => {
         const name = e.student?.name || '';
@@ -222,17 +221,47 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
         return [name, addr, phone, host, hd];
       });
 
-      // Try doc.autoTable first, then plugin's exported function, then fallback to printable HTML
+      // Simple, frontend-like pdf layout (NO clickable links) - landscape orientation
+      const pageWidth = (doc as any).internal?.pageSize?.width || (doc as any).internal?.pageSize?.getWidth?.() || 297;
+      doc.setFontSize(16);
+      doc.text('Host Schedule', pageWidth / 2, 15, { align: 'center' });
+
+      const autoTableOptions: any = {
+        head: [tableColumn],
+        body: tableRows,
+        margin: { top: 20, left: 8, right: 8, bottom: 8 },
+        startY: 20,
+        styles: {
+          fontSize: 10,
+          cellPadding: 3,
+          overflow: 'linebreak',
+          halign: 'left',
+          valign: 'middle'
+        },
+        headStyles: {
+          fillColor: [37, 99, 235],
+          textColor: 255,
+          fontStyle: 'bold',
+          fontSize: 10,
+          cellPadding: 4
+        },
+        columnStyles: {
+          0: { halign: 'left' }, // Student Name
+          1: { halign: 'left' }, // Address
+          2: { halign: 'left' }, // Phone
+          3: { halign: 'center' }, // Can Host
+          4: { halign: 'center' }  // Host Date
+        }
+      };
+
       if (typeof (doc as any).autoTable === 'function') {
-        (doc as any).autoTable({ head: [tableColumn], body: tableRows, margin: 10, startY: 20 });
-        doc.text('Host Schedule', 14, 15);
+        (doc as any).autoTable(autoTableOptions);
         doc.save(`host_schedule_${sessionId}.pdf`);
       } else if (pluginMod) {
         const at = pluginMod.default || pluginMod.autoTable || pluginMod;
         if (typeof at === 'function') {
           try {
-            at(doc, { head: [tableColumn], body: tableRows, margin: 10, startY: 20 });
-            doc.text('Host Schedule', 14, 15);
+            at(doc, autoTableOptions);
             doc.save(`host_schedule_${sessionId}.pdf`);
           } catch (inner) {
             console.warn('autotable plugin call failed, falling back to HTML', inner);
@@ -250,12 +279,21 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
     }
   };
 
-  const openPrintableFallback = (tableColumn: string[], tableRows: any[][]) => {
-    const headerHtml = tableColumn.map((h) => `<th style="padding:8px;border:1px solid #ddd;text-align:left">${escapeHtml(String(h))}</th>`).join('');
-    const bodyHtml = tableRows.map((r) => `<tr>${r.map((c) => `<td style="padding:6px;border:1px solid #ddd">${escapeHtml(String(c))}</td>`).join('')}</tr>`).join('');
+  const openPrintableFallback = (tableColumn: string[], tableRows: (string | null)[][]) => {
+    const linkifyCell = (s: any) => {
+      const str = String(s || '');
+      if (!str) return '';
+      if (str.trim().match(/^https?:\/\//i)) {
+        const href = escapeHtml(str.trim());
+        return `<a href="${href}" target="_blank" rel="noopener noreferrer">${href}</a>`;
+      }
+      return escapeHtml(str);
+    };
 
-    // Detect if any cell contains Arabic characters to enable RTL + Arabic webfont
-    const hasArabic = (tableRows.flat().join(' ') || '').match(/[0-\u06FF\u0750-\u077F\u08A0-\u08FF]/);
+    const headerHtml = tableColumn.map((h) => `<th style="padding:8px;border:1px solid #ddd;text-align:left">${escapeHtml(String(h))}</th>`).join('');
+    const bodyHtml = tableRows.map((r) => `<tr>${r.map((c) => `<td style="padding:6px;border:1px solid #ddd">${linkifyCell(c)}</td>`).join('')}</tr>`).join('');
+
+    const hasArabic = (tableRows.flat().join(' ') || '').match(/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/);
     const htmlDir = hasArabic ? 'rtl' : 'ltr';
     const fontLink = hasArabic ? '<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;700&display=swap" rel="stylesheet">' : '';
     const bodyFont = hasArabic ? "'Noto Sans Arabic', Arial, sans-serif" : 'Arial, Helvetica, sans-serif';
@@ -269,20 +307,14 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
 
   const escapeHtml = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
-  
-
-  // compute displayed rows: only students who can host, sorted by Host Date (oldest → newest)
   const getSortedDisplayedEnrollments = () => {
     const arr = [...enrollments.filter((e) => !!e.can_host)];
     arr.sort((a, b) => {
       const da = hostDateMap[a.enrollment_id];
       const db = hostDateMap[b.enrollment_id];
-      // both unset -> fallback to student name
       if (!da && !db) return (a.student?.name || '').localeCompare(b.student?.name || '');
-      // unset dates go last
       if (!da) return 1;
       if (!db) return -1;
-      // ISO yyyy-mm-dd strings compare lexicographically
       return da.localeCompare(db);
     });
     return arr;
@@ -290,7 +322,6 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
 
   const displayedEnrollments = getSortedDisplayedEnrollments();
 
-  // Shift all host dates by -1 (previous) or +1 (next) within `fullDates`.
   const shiftAll = (dir: -1 | 1) => {
     if (!fullDates || fullDates.length === 0) return;
     setHostDateMap((prev) => {
@@ -298,7 +329,6 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       displayedEnrollments.forEach((e) => {
         const cur = prev[e.enrollment_id];
         if (!cur) {
-          // if unset, map to first or last depending on direction
           next[e.enrollment_id] = dir > 0 ? fullDates[0] : fullDates[fullDates.length - 1];
         } else {
           const idx = fullDates.indexOf(cur);
@@ -309,14 +339,11 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
             next[e.enrollment_id] = fullDates[ni];
           }
         }
-        // Save each updated date to DB
         saveHostDate(e.enrollment_id, next[e.enrollment_id]);
       });
       return next;
     });
   };
-
-  // Fullscreen change handler + fallback open in new tab
   
 
   return (

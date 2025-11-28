@@ -1,9 +1,21 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
 
   const isActive = (path: string) => {
     return location.pathname === path;
@@ -17,7 +29,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { path: '/sessions', label: 'Sessions', icon: '📚' },
     { path: '/enrollments', label: 'Enrollments', icon: '✍️' },
     { path: '/attendance-records', label: 'Attendance Records', icon: '📋' },
-    { path: '/analytics', label: 'Analytics', icon: '📈' },
   ];
 
   return (
@@ -31,7 +42,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div>
             
             {/* Desktop Navigation */}
-            <div className="hidden lg:flex lg:space-x-2">
+            <div className="hidden lg:flex lg:space-x-2 lg:items-center">
               {navLinks.map((link) => (
                 <Link
                   key={link.path}
@@ -46,10 +57,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <span className="hidden xl:inline">{link.label}</span>
                 </Link>
               ))}
+              <div className="ml-4 pl-4 border-l border-gray-300 flex items-center space-x-3">
+                <span className="text-sm text-gray-600">{user?.email}</span>
+                <button
+                  onClick={handleLogout}
+                  className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded transition-colors"
+                >
+                  Logout
+                </button>
+              </div>
             </div>
 
             {/* Mobile menu button */}
-            <div className="flex items-center lg:hidden">
+            <div className="flex items-center lg:hidden space-x-2">
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-gray-900 hover:bg-gray-100 focus:outline-none"
@@ -88,6 +108,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   {link.label}
                 </Link>
               ))}
+              <div className="border-t border-gray-200 pt-3 mt-3">
+                <div className="px-3 py-2 text-sm text-gray-600 mb-2">
+                  {user?.email}
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="w-full px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded transition-colors"
+                >
+                  Logout
+                </button>
+              </div>
             </div>
           </div>
         )}

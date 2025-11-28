@@ -96,7 +96,7 @@ const AttendanceRecords = () => {
     course_id: '',
     teacher_id: '',
     status: '',
-    startDate: format(subDays(new Date(), 365), 'yyyy-MM-dd'),
+    startDate: '',
     endDate: format(new Date(), 'yyyy-MM-dd'),
   });
 
@@ -106,8 +106,36 @@ const AttendanceRecords = () => {
   const [instructors, setInstructors] = useState<{ value: string; label: string }[]>([]);
 
   useEffect(() => {
-    loadFilterOptions();
-    loadRecords();
+    // Initialize: fetch earliest attendance date and then load filters + records
+    const init = async () => {
+      try {
+        // get earliest attendance_date by ordering ascending and taking first row
+        const { data: earliestData, error: earliestError } = await supabase
+          .from('attendance')
+          .select('attendance_date')
+          .order('attendance_date', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        if (earliestError) {
+          console.warn('Failed to fetch earliest attendance date, falling back to 1 year ago', earliestError);
+          setFilters((f) => ({ ...f, startDate: format(subDays(new Date(), 365), 'yyyy-MM-dd') }));
+        } else if (earliestData && earliestData.attendance_date) {
+          setFilters((f) => ({ ...f, startDate: format(new Date(earliestData.attendance_date), 'yyyy-MM-dd') }));
+        } else {
+          setFilters((f) => ({ ...f, startDate: format(subDays(new Date(), 365), 'yyyy-MM-dd') }));
+        }
+      } catch (err) {
+        console.warn('Error initializing filters, using fallback dates', err);
+        setFilters((f) => ({ ...f, startDate: format(subDays(new Date(), 365), 'yyyy-MM-dd') }));
+      }
+
+      // load dropdown options and records after filters initialized
+      await loadFilterOptions();
+      await loadRecords();
+    };
+
+    init();
   }, []);
 
   useEffect(() => {
@@ -500,7 +528,6 @@ const AttendanceRecords = () => {
       const absentCount = studentRecords.filter(r => r.status === 'absent').length;
       const excusedCount = studentRecords.filter(r => r.status === 'excused').length;
       const lateCount = studentRecords.filter(r => r.status === 'late').length;
-      const unexcusedAbsent = absentCount; // 'absent' status already means unexcused
 
       // Calculate rates (no vacation status in AttendanceRecords)
       // Effective base: All dates covered minus excused days (students are accountable for all dates)
@@ -508,6 +535,10 @@ const AttendanceRecords = () => {
       // Attendance rate: Present (On Time + Late) / Effective Days
       const totalPresent = presentCount + lateCount;
       const attendanceRate = effectiveBase > 0 ? (totalPresent / effectiveBase) * 100 : 0;
+
+      // Unexcused absences should be calculated as: Effective Days - Present
+      // (i.e. accountable days minus days the student was present/on-time or late)
+      const unexcusedAbsent = effectiveBase > 0 ? Math.max(0, effectiveBase - totalPresent) : 0;
 
       // Calculate weighted score (3-component formula)
       // 80% Attendance Rate + 10% Effective Days Coverage + 10% Punctuality
@@ -773,31 +804,6 @@ const AttendanceRecords = () => {
             </div>
           </div>
 
-          {/* Analytics Legend */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h3 className="text-sm font-semibold text-blue-900 mb-2">📖 Metrics Guide</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs text-blue-800">
-              <div>
-                <strong>Attendance Rate:</strong> (Present + Late) / (Total - Excused) × 100
-              </div>
-              <div>
-                <strong>Weighted Score:</strong> (0.8 × Attendance Rate) + (0.2 × Excuse Discipline)
-              </div>
-              <div>
-                <strong>CI (Consistency Index):</strong> max(0, 1 - σ/μ) of attendance pattern
-              </div>
-              <div>
-                <strong>Trend:</strong> Linear regression on last 6 attendance rates
-              </div>
-              <div>
-                <strong>R²:</strong> Goodness of fit (0-1, higher = more reliable trend)
-              </div>
-              <div>
-                <strong>Weekly Δ:</strong> Change from previous week's attendance rate
-              </div>
-            </div>
-          </div>
-
           {/* Performance Insights */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Best Performers */}
@@ -892,7 +898,6 @@ const AttendanceRecords = () => {
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Rate</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Weighted Score</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Trend</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Weekly Δ</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -932,11 +937,6 @@ const AttendanceRecords = () => {
                           </span>
                           <span className="text-xs text-gray-400">(R²={student.trend.rSquared})</span>
                         </div>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-center">
-                        <span className={student.weeklyChange >= 0 ? 'text-green-600' : 'text-red-600'}>
-                          {student.weeklyChange > 0 ? '+' : ''}{student.weeklyChange.toFixed(1)}%
-                        </span>
                       </td>
                     </tr>
                   ))}

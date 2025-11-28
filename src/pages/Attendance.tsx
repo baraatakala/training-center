@@ -93,11 +93,25 @@ export function Attendance() {
       const dates = getAttendanceDateOptions(data);
       setAvailableDates(dates);
       
-      // If a date was passed via navigation, use it; otherwise select today or first date
+      // If a date was passed via navigation, use it; otherwise select the date nearest to today
       if (!passedDate) {
-        const today = new Date().toISOString().split('T')[0];
-        const todayDate = dates.find(d => d.value === today);
-        setSelectedDate(todayDate ? todayDate.value : (dates[0]?.value || ''));
+        const today = new Date();
+        // Find the available date with the smallest absolute difference to today
+        let nearest = dates[0]?.value || '';
+        let minDiff = Number.POSITIVE_INFINITY;
+        for (const d of dates) {
+          try {
+            const dt = new Date(d.value + 'T00:00:00');
+            const diff = Math.abs(dt.getTime() - today.getTime());
+            if (diff < minDiff) {
+              minDiff = diff;
+              nearest = d.value;
+            }
+          } catch (e) {
+            // ignore parse errors
+          }
+        }
+        setSelectedDate(nearest);
       }
       // If passedDate exists, it's already set in the initial state
     }
@@ -260,6 +274,40 @@ export function Attendance() {
       } else {
         loadAttendance();
       }
+    }
+  };
+
+  // Clear attendance for a single record: delete saved record or reset a temp placeholder
+  const clearAttendance = async (attendanceId: string) => {
+    const ok = window.confirm('Clear attendance for this student? This will remove the recorded status.');
+    if (!ok) return;
+
+    // If this is a temp (not-yet-saved) record, just reset locally
+    if (attendanceId.startsWith('temp-')) {
+      setAttendance((prev) => prev.map(a => a.attendance_id === attendanceId ? { ...a, status: 'pending', check_in_time: null } : a));
+      // no DB change required
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from(Tables.ATTENDANCE)
+        .delete()
+        .eq('attendance_id', attendanceId);
+
+      if (error) {
+        console.error('Error deleting attendance record:', error);
+        alert('Failed to clear attendance: ' + error.message);
+        return;
+      }
+
+      // Optimistically update UI
+      setAttendance((prev) => prev.map(a => a.attendance_id === attendanceId ? { ...a, status: 'pending', check_in_time: null } : a));
+      // Reload to ensure consistent state
+      loadAttendance();
+    } catch (err: any) {
+      console.error('Exception clearing attendance:', err);
+      alert('Failed to clear attendance: ' + (err?.message || String(err)));
     }
   };
 
@@ -577,6 +625,13 @@ export function Attendance() {
                           size="sm"
                         >
                           Excused
+                        </Button>
+                        <Button
+                          onClick={() => clearAttendance(record.attendance_id)}
+                          className="bg-gray-200 hover:bg-gray-300 text-xs sm:text-sm px-2 sm:px-4 text-gray-700"
+                          size="sm"
+                        >
+                          Clear
                         </Button>
                       </div>
                     </div>

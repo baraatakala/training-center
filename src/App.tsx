@@ -8,25 +8,38 @@ import { Sessions } from './pages/Sessions';
 import { Enrollments } from './pages/Enrollments';
 import { Attendance } from './pages/Attendance';
 import AttendanceRecords from './pages/AttendanceRecords';
-import { Analytics } from './pages/Analytics';
+import Login from './pages/Login';
+import PrivateRoute from './components/PrivateRoute';
+import { AuthProvider } from './context/AuthContext';
 import './App.css';
 
 function App() {
   return (
     <BrowserRouter>
-      <Layout>
+      <AuthProvider>
         <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/teachers" element={<Teachers />} />
-          <Route path="/students" element={<Students />} />
-          <Route path="/courses" element={<Courses />} />
-          <Route path="/sessions" element={<Sessions />} />
-          <Route path="/enrollments" element={<Enrollments />} />
-          <Route path="/attendance/:sessionId" element={<Attendance />} />
-          <Route path="/attendance-records" element={<AttendanceRecords />} />
-          <Route path="/analytics" element={<Analytics />} />
+          <Route path="/login" element={<Login />} />
+          <Route
+            path="/*"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <Routes>
+                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/teachers" element={<Teachers />} />
+                    <Route path="/students" element={<Students />} />
+                    <Route path="/courses" element={<Courses />} />
+                    <Route path="/sessions" element={<Sessions />} />
+                    <Route path="/enrollments" element={<Enrollments />} />
+                    <Route path="/attendance/:sessionId" element={<Attendance />} />
+                    <Route path="/attendance-records" element={<AttendanceRecords />} />
+                  </Routes>
+                </Layout>
+              </PrivateRoute>
+            }
+          />
         </Routes>
-      </Layout>
+      </AuthProvider>
     </BrowserRouter>
   );
 }
