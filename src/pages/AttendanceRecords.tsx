@@ -445,7 +445,7 @@ const AttendanceRecords = () => {
 
     autoTable(doc, {
       startY: finalY + 19,
-      head: [['Date', 'Present', 'Late', 'Excused', 'Absent', 'Rate %', 'Present Names', 'Late Names', 'Excused Names', 'Absent Names']],
+      head: [['Date', 'Present', 'Late', 'Excused', 'Absent', 'Rate %', 'On Time Names', 'Late Names', 'Excused Names', 'Absent Names']],
       body: dateAnalytics.map((dateData) => [
         format(new Date(dateData.date), 'MMM dd, yyyy'),
         dateData.presentCount,
@@ -960,7 +960,7 @@ const AttendanceRecords = () => {
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Excused</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Absent</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Rate</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Present Names</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">On Time Names</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Late Names</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Excused Names</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Absent Names</th>
