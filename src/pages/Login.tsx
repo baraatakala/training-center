@@ -96,7 +96,7 @@ export const Login: React.FC = () => {
             {loading ? 'Logging in...' : 'Login'}
           </button>
           <div className="text-center mt-2">
-            <a href="mailto:admin@yourdomain.com" className="text-sm text-blue-600 hover:underline">Forgot password? Contact administrator</a>
+            <a href="mailto:baraatakala2004@gmail.com" className="text-sm text-blue-600 hover:underline">Forgot password? Contact administrator</a>
           </div>
         </form>
 
