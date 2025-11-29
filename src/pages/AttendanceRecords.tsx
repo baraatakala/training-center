@@ -955,7 +955,7 @@ const AttendanceRecords = () => {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Present</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">On Time</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Late</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Excused</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Absent</th>
