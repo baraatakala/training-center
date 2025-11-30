@@ -445,7 +445,7 @@ const AttendanceRecords = () => {
 
     autoTable(doc, {
       startY: finalY + 19,
-      head: [['Date', 'Present', 'Late', 'Excused', 'Absent', 'Rate %', 'On Time Names', 'Late Names', 'Excused Names', 'Absent Names']],
+      head: [['Date', 'On Time', 'Late', 'Excused', 'Absent', 'Rate %', 'On Time Names', 'Late Names', 'Excused Names', 'Absent Names']],
       body: dateAnalytics.map((dateData) => [
         format(new Date(dateData.date), 'MMM dd, yyyy'),
         dateData.presentCount,
