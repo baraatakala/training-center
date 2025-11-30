@@ -107,7 +107,7 @@ export function Attendance() {
               minDiff = diff;
               nearest = d.value;
             }
-          } catch (e) {
+          } catch (_) {
             // ignore parse errors
           }
         }
@@ -217,7 +217,7 @@ export function Attendance() {
         student_id: record.student_id,
         attendance_date: selectedDate,
         status: status,
-        check_in_time: (status === 'present' || status === 'late') ? new Date().toISOString() : null,
+        check_in_time: (status === 'on time' || status === 'late') ? new Date().toISOString() : null,
         gps_latitude: gpsData?.latitude || null,
         gps_longitude: gpsData?.longitude || null,
         gps_accuracy: gpsData?.accuracy || null,
@@ -257,7 +257,7 @@ export function Attendance() {
         marked_at: new Date().toISOString()
       };
       
-      if (status === 'present' || status === 'late') {
+      if (status === 'on time' || status === 'late') {
         updates.check_in_time = new Date().toISOString();
       } else {
         updates.check_in_time = null;
@@ -305,9 +305,10 @@ export function Attendance() {
       setAttendance((prev) => prev.map(a => a.attendance_id === attendanceId ? { ...a, status: 'pending', check_in_time: null } : a));
       // Reload to ensure consistent state
       loadAttendance();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Exception clearing attendance:', err);
-      alert('Failed to clear attendance: ' + (err?.message || String(err)));
+      const errMessage = err instanceof Error ? err.message : String(err);
+      alert('Failed to clear attendance: ' + errMessage);
     }
   };
 
@@ -336,7 +337,7 @@ export function Attendance() {
           student_id: record.student_id,
           attendance_date: selectedDate,
           status: status,
-          check_in_time: (status === 'present' || status === 'late') ? new Date().toISOString() : null,
+          check_in_time: (status === 'on time' || status === 'late') ? new Date().toISOString() : null,
           gps_latitude: gpsData?.latitude || null,
           gps_longitude: gpsData?.longitude || null,
           gps_accuracy: gpsData?.accuracy || null,
@@ -378,7 +379,7 @@ export function Attendance() {
         marked_at: new Date().toISOString()
       };
       
-      if (status === 'present' || status === 'late') {
+      if (status === 'on time' || status === 'late') {
         updates.check_in_time = new Date().toISOString();
       } else {
         updates.check_in_time = null;
@@ -420,8 +421,8 @@ export function Attendance() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'present':
-        return <Badge variant="success">Present</Badge>;
+      case 'on time':
+        return <Badge variant="success">On Time</Badge>;
       case 'absent':
         return <Badge variant="danger">Absent</Badge>;
       case 'late':
@@ -451,7 +452,7 @@ export function Attendance() {
     );
   }
 
-  const sessionInfo = (session as any).course;
+  const sessionInfo = (session as any)?.course;
   const courseName = sessionInfo?.course_name || 'Unknown Course';
 
   return (
@@ -499,10 +500,10 @@ export function Attendance() {
                   {selectedStudents.size > 0 ? (
                     <>
                       <Button
-                        onClick={() => handleBulkUpdate('present')}
+                        onClick={() => handleBulkUpdate('on time')}
                         className="bg-green-600 hover:bg-green-700 text-xs sm:text-sm"
                       >
-                        Present ({selectedStudents.size})
+                        On Time ({selectedStudents.size})
                       </Button>
                       <Button
                         onClick={() => handleBulkUpdate('absent')}
@@ -543,9 +544,9 @@ export function Attendance() {
                     </div>
                     <div className="text-center">
                       <div className="text-xl sm:text-2xl font-bold text-green-600">
-                        {attendance.filter(a => a.status === 'present').length}
+                        {attendance.filter(a => a.status === 'on time').length}
                       </div>
-                      <div className="text-xs text-gray-600">Present</div>
+                      <div className="text-xs text-gray-600">On Time</div>
                     </div>
                     <div className="text-center">
                       <div className="text-xl sm:text-2xl font-bold text-red-600">
@@ -602,10 +603,10 @@ export function Attendance() {
                       <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                         {getStatusBadge(record.status)}
                         <Button
-                          onClick={() => updateAttendance(record.attendance_id, 'present')}
+                          onClick={() => updateAttendance(record.attendance_id, 'on time')}
                           className="bg-green-600 hover:bg-green-700 text-xs sm:text-sm px-2 sm:px-4"
                         >
-                          Present
+                          On Time
                         </Button>
                         <Button
                           onClick={() => updateAttendance(record.attendance_id, 'absent')}

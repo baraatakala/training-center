@@ -14,7 +14,7 @@ interface AttendanceRecord {
   student_id: string;
   session_id: string;
   attendance_date: string;
-  status: 'present' | 'absent' | 'late' | 'excused';
+  status: 'on time' | 'absent' | 'late' | 'excused';
   gps_latitude: number | null;
   gps_longitude: number | null;
   gps_accuracy: number | null;
@@ -85,6 +85,10 @@ const AttendanceRecords = () => {
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [studentAnalytics, setStudentAnalytics] = useState<StudentAnalytics[]>([]);
   const [dateAnalytics, setDateAnalytics] = useState<DateAnalytics[]>([]);
+  
+  // Sorting state
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -289,11 +293,21 @@ const AttendanceRecords = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'present': return 'bg-green-100 text-green-800';
+      case 'on time': return 'bg-green-100 text-green-800';
       case 'absent': return 'bg-red-100 text-red-800';
       case 'late': return 'bg-yellow-100 text-yellow-800';
       case 'excused': return 'bg-blue-100 text-blue-800';
       default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'on time': return 'On Time';
+      case 'absent': return 'Absent';
+      case 'late': return 'Late';
+      case 'excused': return 'Excused';
+      default: return status;
     }
   };
 
@@ -359,9 +373,6 @@ const AttendanceRecords = () => {
       'Attendance Rate (%)',
       'Weighted Score',
       'Consistency Index',
-      'Trend Classification',
-      'Trend Slope (%/week)',
-      'R-Squared',
       'Weekly Change (%)',
       'Avg Rate (%)',
       'Min Rate (%)',
@@ -379,9 +390,6 @@ const AttendanceRecords = () => {
       student.attendanceRate,
       student.weightedScore,
       student.consistencyIndex.toFixed(2),
-      student.trend.classification,
-      student.trend.slope,
-      student.trend.rSquared,
       student.weeklyChange.toFixed(1),
       student.avgRate.toFixed(1),
       student.minRate.toFixed(1),
@@ -414,13 +422,31 @@ const AttendanceRecords = () => {
     doc.text(`Generated: ${format(new Date(), 'MMM dd, yyyy HH:mm')}`, pageWidth / 2, 22, { align: 'center' });
     doc.text(`Date Range: ${format(new Date(filters.startDate), 'MMM dd, yyyy')} - ${format(new Date(filters.endDate), 'MMM dd, yyyy')}`, pageWidth / 2, 28, { align: 'center' });
 
+    // Summary Statistics Section (Compact Format)
+    doc.setFontSize(10);
+    
+    const totalStudents = studentAnalytics.length;
+    const classAvgRate = studentAnalytics.length > 0 
+      ? Math.round(studentAnalytics.reduce((sum, s) => sum + s.attendanceRate, 0) / studentAnalytics.length)
+      : 0;
+    const avgWeightedScore = studentAnalytics.length > 0
+      ? Math.round(studentAnalytics.reduce((sum, s) => sum + s.weightedScore, 0) / studentAnalytics.length)
+      : 0;
+    const avgAttendanceByDate = dateAnalytics.length > 0
+      ? Math.round(dateAnalytics.reduce((sum, d) => sum + d.attendanceRate, 0) / dateAnalytics.length)
+      : 0;
+
+    // Compact inline stats display
+    const statsText = `Total Students: ${totalStudents} Students | class Avg Rate: ${classAvgRate}% | Avg weighted Score: ${avgWeightedScore} | Avg attendance by Date: ${avgAttendanceByDate}%`;
+    doc.text(statsText, 14, 35);
+
     // Student Performance Table
-    doc.setFontSize(14);
-    doc.text('Student Performance Summary', 14, 38);
+    doc.setFontSize(12);
+    doc.text('Student Performance Summary', 14, 42);
     
     autoTable(doc, {
-      startY: 42,
-      head: [['Rank', 'Student', 'Present', 'On Time', 'Late', 'Absent', 'Excused', 'Rate %', 'Score', 'Trend']],
+      startY: 46,
+      head: [['Rank', 'Student', 'Present', 'On Time', 'Late', 'Absent', 'Excused', 'Rate %', 'Score']],
       body: studentAnalytics.slice(0, 20).map((student, index) => [
         index + 1,
         student.student_name,
@@ -430,8 +456,7 @@ const AttendanceRecords = () => {
         student.unexcusedAbsent,
         student.excusedCount,
         `${student.attendanceRate}%`,
-        student.weightedScore.toFixed(1),
-        student.trend.classification
+        student.weightedScore.toFixed(1)
       ]),
       styles: { fontSize: 8, cellPadding: 2 },
       headStyles: { fillColor: [59, 130, 246], fontSize: 8 },
@@ -439,12 +464,12 @@ const AttendanceRecords = () => {
     });
 
     // Date Analytics Table
-    const finalY = (doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || 42;
-    doc.setFontSize(14);
-    doc.text('Attendance by Date', 14, finalY + 15);
+    const performanceTableY = (doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || 46;
+    doc.setFontSize(12);
+    doc.text('Attendance by Date', 14, performanceTableY + 10);
 
     autoTable(doc, {
-      startY: finalY + 19,
+      startY: performanceTableY + 14,
       head: [['Date', 'On Time', 'Late', 'Excused', 'Absent', 'Rate %', 'On Time Names', 'Late Names', 'Excused Names', 'Absent Names']],
       body: dateAnalytics.map((dateData) => [
         format(new Date(dateData.date), 'MMM dd, yyyy'),
@@ -512,6 +537,43 @@ const AttendanceRecords = () => {
     });
   };
 
+  // Sorting function
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      // Toggle sort direction if clicking the same column
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new column and default to ascending
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  // Get sorted records
+  const getSortedRecords = () => {
+    if (!sortColumn) return filteredRecords;
+
+    const sorted = [...filteredRecords].sort((a, b) => {
+      let aVal: any = a[sortColumn as keyof AttendanceRecord];
+      let bVal: any = b[sortColumn as keyof AttendanceRecord];
+
+      // Handle null/undefined
+      if (aVal == null && bVal == null) return 0;
+      if (aVal == null) return sortDirection === 'asc' ? 1 : -1;
+      if (bVal == null) return sortDirection === 'asc' ? -1 : 1;
+
+      // Convert to lowercase for string comparison
+      if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+      if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return sorted;
+  };
+
   // Calculate advanced analytics
   const calculateAnalytics = () => {
     // Get unique dates and students
@@ -524,7 +586,7 @@ const AttendanceRecords = () => {
       const studentRecords = filteredRecords.filter(r => r.student_id === studentId);
       const studentName = studentRecords[0]?.student_name || 'Unknown';
 
-      const presentCount = studentRecords.filter(r => r.status === 'present').length;
+      const presentCount = studentRecords.filter(r => r.status === 'on time').length;
       const absentCount = studentRecords.filter(r => r.status === 'absent').length;
       const excusedCount = studentRecords.filter(r => r.status === 'excused').length;
       const lateCount = studentRecords.filter(r => r.status === 'late').length;
@@ -551,7 +613,7 @@ const AttendanceRecords = () => {
       const dailyPattern = uniqueDates.map(date => {
         const record = studentRecords.find(r => r.attendance_date === date);
         if (!record || record.status === 'excused') return -1; // Exclude excused
-        return record.status === 'present' ? 1 : 0;
+        return record.status === 'on time' ? 1 : 0;
       }).filter(v => v !== -1);
 
       const consistencyIndex = calculateConsistencyIndex(dailyPattern);
@@ -589,7 +651,7 @@ const AttendanceRecords = () => {
     // Calculate date analytics
     const dateStats: DateAnalytics[] = uniqueDates.map(date => {
       const dateRecords = filteredRecords.filter(r => r.attendance_date === date);
-      const presentRecords = dateRecords.filter(r => r.status === 'present');
+      const presentRecords = dateRecords.filter(r => r.status === 'on time');
       const absentRecords = dateRecords.filter(r => r.status === 'absent');
       const excusedRecords = dateRecords.filter(r => r.status === 'excused');
       const lateRecords = dateRecords.filter(r => r.status === 'late');
@@ -658,7 +720,7 @@ const AttendanceRecords = () => {
       // Exclude excused from trend calculation
       if (record && record.status !== 'excused') {
         cumulativeTotal++;
-        if (record.status === 'present') {
+        if (record.status === 'on time') {
           cumulativePresent++;
         }
         const rate = (cumulativePresent / cumulativeTotal) * 100;
@@ -844,38 +906,6 @@ const AttendanceRecords = () => {
               </div>
             </div>
 
-            {/* Trend Insights */}
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-blue-900 mb-3 flex items-center gap-2">
-                📈 Trend Summary
-              </h3>
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-blue-800">Improving:</span>
-                  <span className="font-bold text-green-700">
-                    {studentAnalytics.filter(s => s.trend.classification === 'IMPROVING').length}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-blue-800">Stable:</span>
-                  <span className="font-bold text-blue-700">
-                    {studentAnalytics.filter(s => s.trend.classification === 'STABLE').length}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-blue-800">Declining:</span>
-                  <span className="font-bold text-red-700">
-                    {studentAnalytics.filter(s => s.trend.classification === 'DECLINING').length}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-blue-800">Volatile:</span>
-                  <span className="font-bold text-yellow-700">
-                    {studentAnalytics.filter(s => s.trend.classification === 'VOLATILE').length}
-                  </span>
-                </div>
-              </div>
-            </div>
           </div>
 
           {/* Student Performance Table */}
@@ -897,7 +927,6 @@ const AttendanceRecords = () => {
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Effective Days</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Rate</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Weighted Score</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Trend</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -921,22 +950,6 @@ const AttendanceRecords = () => {
                       </td>
                       <td className="px-4 py-3 text-sm text-center font-semibold text-purple-600">
                         {student.weightedScore}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-center">
-                        <div className="flex flex-col items-center">
-                          <span className={`text-xs font-medium px-2 py-1 rounded ${
-                            student.trend.classification === 'IMPROVING' ? 'bg-green-100 text-green-800' :
-                            student.trend.classification === 'DECLINING' ? 'bg-red-100 text-red-800' :
-                            student.trend.classification === 'VOLATILE' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {student.trend.classification}
-                          </span>
-                          <span className="text-xs text-gray-500 mt-1">
-                            {student.trend.slope > 0 ? '+' : ''}{student.trend.slope}%/wk
-                          </span>
-                          <span className="text-xs text-gray-400">(R²={student.trend.rSquared})</span>
-                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1021,9 +1034,9 @@ const AttendanceRecords = () => {
           <div className="text-2xl font-bold text-gray-900">{filteredRecords.length}</div>
         </div>
         <div className="bg-green-50 p-4 rounded-lg shadow">
-          <div className="text-sm text-green-600">Present</div>
+          <div className="text-sm text-green-600">On Time</div>
           <div className="text-2xl font-bold text-green-900">
-            {filteredRecords.filter(r => r.status === 'present').length}
+            {filteredRecords.filter(r => r.status === 'on time').length}
           </div>
         </div>
         <div className="bg-red-50 p-4 rounded-lg shadow">
@@ -1114,7 +1127,7 @@ const AttendanceRecords = () => {
               onChange={(value) => setFilters({ ...filters, status: value })}
               options={[
                 { value: '', label: 'All Statuses' },
-                { value: 'present', label: 'Present' },
+                { value: 'on time', label: 'On Time' },
                 { value: 'absent', label: 'Absent' },
                 { value: 'late', label: 'Late' },
                 { value: 'excused', label: 'Excused' }
@@ -1154,29 +1167,85 @@ const AttendanceRecords = () => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
               <tr>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                  Date
+                <th 
+                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 transition-colors group"
+                  onClick={() => handleSort('attendance_date')}
+                >
+                  <div className="flex items-center gap-1">
+                    Date
+                    <span className="opacity-0 group-hover:opacity-100">
+                      {sortColumn === 'attendance_date' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                    </span>
+                  </div>
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                  Student
+                <th 
+                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 transition-colors group"
+                  onClick={() => handleSort('student_name')}
+                >
+                  <div className="flex items-center gap-1">
+                    Student
+                    <span className="opacity-0 group-hover:opacity-100">
+                      {sortColumn === 'student_name' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                    </span>
+                  </div>
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                  Course
+                <th 
+                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 transition-colors group"
+                  onClick={() => handleSort('course_name')}
+                >
+                  <div className="flex items-center gap-1">
+                    Course
+                    <span className="opacity-0 group-hover:opacity-100">
+                      {sortColumn === 'course_name' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                    </span>
+                  </div>
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                  Instructor
+                <th 
+                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 transition-colors group"
+                  onClick={() => handleSort('teacher_name')}
+                >
+                  <div className="flex items-center gap-1">
+                    Instructor
+                    <span className="opacity-0 group-hover:opacity-100">
+                      {sortColumn === 'teacher_name' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                    </span>
+                  </div>
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                  Status
+                <th 
+                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 transition-colors group"
+                  onClick={() => handleSort('status')}
+                >
+                  <div className="flex items-center gap-1">
+                    Status
+                    <span className="opacity-0 group-hover:opacity-100">
+                      {sortColumn === 'status' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                    </span>
+                  </div>
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                  Location
+                <th 
+                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 transition-colors group"
+                  onClick={() => handleSort('location')}
+                >
+                  <div className="flex items-center gap-1">
+                    Location
+                    <span className="opacity-0 group-hover:opacity-100">
+                      {sortColumn === 'location' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                    </span>
+                  </div>
                 </th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                   GPS
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Marked At
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                  onClick={() => handleSort('marked_at')}
+                >
+                  <div className="flex items-center gap-1">
+                    Marked At
+                    <span className="opacity-0 group-hover:opacity-100">
+                      {sortColumn === 'marked_at' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                    </span>
+                  </div>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
@@ -1197,7 +1266,7 @@ const AttendanceRecords = () => {
                   </td>
                 </tr>
               ) : (
-                filteredRecords
+                getSortedRecords()
                   .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                   .map((record) => (
                   <tr 
@@ -1220,7 +1289,7 @@ const AttendanceRecords = () => {
                     </td>
                     <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(record.status)}`}>
-                        {record.status}
+                        {getStatusLabel(record.status)}
                       </span>
                     </td>
                     <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
