@@ -104,6 +104,18 @@ export const enrollmentService = {
     return await this.update(id, { status });
   },
 
+  // Update enrollment status with can_host logic
+  async updateStatusWithCanHost(id: string, status: 'active' | 'completed' | 'dropped' | 'pending', canHost?: boolean) {
+    // If changing to non-active status, force can_host to false
+    const updates: UpdateEnrollment = { status };
+    if (status !== 'active') {
+      updates.can_host = false;
+    } else if (typeof canHost === 'boolean') {
+      updates.can_host = canHost;
+    }
+    return await this.update(id, updates);
+  },
+
   // Delete enrollment
   async delete(id: string) {
     return await supabase

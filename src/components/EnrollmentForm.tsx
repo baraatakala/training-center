@@ -115,7 +115,15 @@ export function EnrollmentForm({ onSubmit, onCancel, initialData = null }: Enrol
       <Select
         label="Status"
         value={formData.status}
-        onChange={(value) => setFormData({ ...formData, status: value as 'active' | 'completed' | 'dropped' | 'pending' })}
+        onChange={(value) => {
+          const newStatus = value as 'active' | 'completed' | 'dropped' | 'pending';
+          // Automatically disable can_host if status is not 'active'
+          setFormData({ 
+            ...formData, 
+            status: newStatus,
+            can_host: newStatus === 'active' ? formData.can_host : false
+          });
+        }}
         options={[
           { value: 'active', label: 'Active' },
           { value: 'pending', label: 'Pending' },
@@ -130,9 +138,16 @@ export function EnrollmentForm({ onSubmit, onCancel, initialData = null }: Enrol
           type="checkbox"
           checked={!!formData.can_host}
           onChange={(e) => setFormData({ ...formData, can_host: e.target.checked })}
-          className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+          disabled={formData.status !== 'active'}
+          className={`h-4 w-4 border-gray-300 rounded ${
+            formData.status === 'active' 
+              ? 'text-blue-600 cursor-pointer' 
+              : 'text-gray-300 cursor-not-allowed'
+          }`}
         />
-        <span className="text-sm text-gray-700">Can host sessions at home</span>
+        <span className={`text-sm ${formData.status === 'active' ? 'text-gray-700' : 'text-gray-400'}`}>
+          Can host sessions at home {formData.status !== 'active' && '(only for active enrollments)'}
+        </span>
       </label>
 
       <div className="flex gap-3 justify-end pt-4">

@@ -14,6 +14,7 @@ type AttendanceRecord = {
   enrollment_id: string;
   student_id: string;
   status: string;
+  excuse_reason?: string | null;
   check_in_time: string | null;
   notes: string | null;
   gps_latitude: number | null;
@@ -27,6 +28,12 @@ type AttendanceRecord = {
   };
 };
 
+const EXCUSE_REASONS = [
+  { value: 'sick', label: 'Sick' },
+  { value: 'abroad', label: 'Abroad' },
+  { value: 'on working', label: 'On Working' }
+];
+
 export function Attendance() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const location = useLocation();
@@ -37,6 +44,8 @@ export function Attendance() {
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
+  const [excuseReason, setExcuseReason] = useState<{ [key: string]: string }>({});
+  const [excuseDropdownOpen, setExcuseDropdownOpen] = useState<string | null>(null);
 
   // GPS Geolocation capture function
   const captureGPSLocation = (): Promise<{
@@ -143,6 +152,7 @@ export function Attendance() {
       .select(`
         attendance_id,
         status,
+        excuse_reason,
         check_in_time,
         notes,
         gps_latitude,
@@ -163,13 +173,23 @@ export function Attendance() {
 
       if (existingRecord) {
         // Return existing attendance record
-        return {
+        const record = {
           ...existingRecord,
           student: Array.isArray(existingRecord.student) 
             ? existingRecord.student[0] 
             : existingRecord.student,
           enrollment_id: enrollment.enrollment_id
         };
+        
+        // Populate excuse_reason state if present
+        if (existingRecord.excuse_reason) {
+          setExcuseReason(prev => ({ 
+            ...prev, 
+            [existingRecord.attendance_id]: existingRecord.excuse_reason 
+          }));
+        }
+        
+        return record;
       } else {
         // Return placeholder (not saved to DB yet)
         return {
@@ -205,13 +225,19 @@ export function Attendance() {
     const record = attendance.find(a => a.attendance_id === attendanceId);
     if (!record) return;
 
+    // Validate excuse reason if status is excused
+    if (status === 'excused' && !excuseReason[attendanceId]) {
+      alert('Please select an excuse reason before marking as excused');
+      return;
+    }
+
     // Capture GPS location
     const gpsData = await captureGPSLocation();
 
     // Check if this is a temporary/unsaved record
     if (attendanceId.startsWith('temp-')) {
       // Create new attendance record
-      const newRecord = {
+      const newRecord: Record<string, unknown> = {
         enrollment_id: record.enrollment_id,
         session_id: sessionId,
         student_id: record.student_id,
@@ -226,6 +252,10 @@ export function Attendance() {
         marked_at: new Date().toISOString()
       };
 
+      if (status === 'excused') {
+        newRecord.excuse_reason = excuseReason[attendanceId];
+      }
+
       const { error } = await supabase
         .from(Tables.ATTENDANCE)
         .insert([newRecord]);
@@ -234,20 +264,16 @@ export function Attendance() {
         console.error('Error creating attendance:', error);
         alert(`Error: ${error.message}`);
       } else {
+        setExcuseReason(prev => {
+          const updated = { ...prev };
+          delete updated[attendanceId];
+          return updated;
+        });
         loadAttendance();
       }
     } else {
       // Update existing record
-      const updates: {
-        status: string;
-        check_in_time?: string | null;
-        gps_latitude?: number | null;
-        gps_longitude?: number | null;
-        gps_accuracy?: number | null;
-        gps_timestamp?: string | null;
-        marked_by?: string;
-        marked_at?: string;
-      } = {
+      const updates: Record<string, unknown> = {
         status,
         gps_latitude: gpsData?.latitude || null,
         gps_longitude: gpsData?.longitude || null,
@@ -259,6 +285,8 @@ export function Attendance() {
       
       if (status === 'on time' || status === 'late') {
         updates.check_in_time = new Date().toISOString();
+      } else if (status === 'excused') {
+        updates.excuse_reason = excuseReason[attendanceId];
       } else {
         updates.check_in_time = null;
       }
@@ -272,6 +300,11 @@ export function Attendance() {
         console.error('Error updating attendance:', error);
         alert(`Error: ${error.message}`);
       } else {
+        setExcuseReason(prev => {
+          const updated = { ...prev };
+          delete updated[attendanceId];
+          return updated;
+        });
         loadAttendance();
       }
     }
@@ -620,13 +653,59 @@ export function Attendance() {
                         >
                           Late
                         </Button>
-                        <Button
-                          onClick={() => updateAttendance(record.attendance_id, 'excused')}
-                          className="bg-blue-600 hover:bg-blue-700 text-xs sm:text-sm px-2 sm:px-4"
-                          size="sm"
-                        >
-                          Excused
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          {excuseDropdownOpen === record.attendance_id ? (
+                            <>
+                              <select
+                                autoFocus
+                                value={excuseReason[record.attendance_id] || ''}
+                                onChange={(e) => setExcuseReason(prev => ({ ...prev, [record.attendance_id]: e.target.value }))}
+                                className="px-2 py-1 border border-gray-300 rounded text-xs sm:text-sm font-medium"
+                              >
+                                <option value="">Select reason...</option>
+                                {EXCUSE_REASONS.map(reason => (
+                                  <option key={reason.value} value={reason.value}>{reason.label}</option>
+                                ))}
+                              </select>
+                              <Button
+                                onClick={() => {
+                                  if (!excuseReason[record.attendance_id]) {
+                                    alert('Please select an excuse reason');
+                                  } else {
+                                    updateAttendance(record.attendance_id, 'excused');
+                                    setExcuseDropdownOpen(null);
+                                  }
+                                }}
+                                className="bg-blue-600 hover:bg-blue-700 text-xs sm:text-sm px-2 sm:px-4"
+                                size="sm"
+                              >
+                                Confirm
+                              </Button>
+                              <Button
+                                onClick={() => {
+                                  setExcuseDropdownOpen(null);
+                                  setExcuseReason(prev => {
+                                    const updated = { ...prev };
+                                    delete updated[record.attendance_id];
+                                    return updated;
+                                  });
+                                }}
+                                className="bg-gray-400 hover:bg-gray-500 text-xs sm:text-sm px-2 sm:px-4 text-white"
+                                size="sm"
+                              >
+                                Cancel
+                              </Button>
+                            </>
+                          ) : (
+                            <Button
+                              onClick={() => setExcuseDropdownOpen(record.attendance_id)}
+                              className="bg-blue-600 hover:bg-blue-700 text-xs sm:text-sm px-2 sm:px-4"
+                              size="sm"
+                            >
+                              Excused
+                            </Button>
+                          )}
+                        </div>
                         <Button
                           onClick={() => clearAttendance(record.attendance_id)}
                           className="bg-gray-200 hover:bg-gray-300 text-xs sm:text-sm px-2 sm:px-4 text-gray-700"

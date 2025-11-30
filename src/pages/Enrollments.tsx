@@ -91,7 +91,8 @@ export function Enrollments() {
   };
 
   const handleUpdateStatus = async (enrollmentId: string, newStatus: string) => {
-    const { error } = await enrollmentService.updateStatus(enrollmentId, newStatus as 'active' | 'completed' | 'dropped' | 'pending');
+    const statusValue = newStatus as 'active' | 'completed' | 'dropped' | 'pending';
+    const { error } = await enrollmentService.updateStatusWithCanHost(enrollmentId, statusValue);
     if (!error) {
       loadEnrollments();
     }
@@ -193,12 +194,16 @@ export function Enrollments() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
-                      {enrollment.can_host ? (
-                        <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-green-100 text-green-800">
-                          ✓
-                        </span>
+                      {enrollment.status === 'active' ? (
+                        enrollment.can_host ? (
+                          <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-green-100 text-green-800" title="Can host">
+                            ✓
+                          </span>
+                        ) : (
+                          <span className="text-gray-400" title="Cannot host (not marked)">—</span>
+                        )
                       ) : (
-                        <span className="text-gray-400">—</span>
+                        <span className="text-gray-300" title={`Cannot host (status: ${enrollment.status})`}>✕</span>
                       )}
                     </TableCell>
                     <TableCell>

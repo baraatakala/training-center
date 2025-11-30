@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { format, subDays } from 'date-fns';
 import { Button } from '../components/ui/Button';
@@ -15,6 +15,7 @@ interface AttendanceRecord {
   session_id: string;
   attendance_date: string;
   status: 'on time' | 'absent' | 'late' | 'excused';
+  excuse_reason?: string | null;
   gps_latitude: number | null;
   gps_longitude: number | null;
   gps_accuracy: number | null;
@@ -78,6 +79,7 @@ interface FilterOptions {
 
 const AttendanceRecords = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -142,6 +144,34 @@ const AttendanceRecords = () => {
     init();
   }, []);
 
+  // Apply URL query parameters as filters
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const studentName = params.get('studentName');
+    const status = params.get('status');
+    const course = params.get('course');
+
+    if (studentName || status || course) {
+      // Find student_id by name if studentName is provided
+      if (studentName && students.length > 0) {
+        const student = students.find(s => s.label === studentName);
+        if (student) {
+          setFilters(f => ({ ...f, student_id: student.value }));
+        }
+      }
+
+      // Apply status filter
+      if (status) {
+        setFilters(f => ({ ...f, status }));
+      }
+
+      // Apply course filter
+      if (course) {
+        setFilters(f => ({ ...f, course_id: course }));
+      }
+    }
+  }, [location.search, students]);
+
   useEffect(() => {
     applyFilters();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -201,6 +231,7 @@ const AttendanceRecords = () => {
           session_id,
           attendance_date,
           status,
+          excuse_reason,
           gps_latitude,
           gps_longitude,
           gps_accuracy,
@@ -235,6 +266,7 @@ const AttendanceRecords = () => {
           session_id: record.session_id,
           attendance_date: record.attendance_date,
           status: record.status,
+          excuse_reason: record.excuse_reason || null,
           gps_latitude: record.gps_latitude,
           gps_longitude: record.gps_longitude,
           gps_accuracy: record.gps_accuracy,
@@ -325,6 +357,7 @@ const AttendanceRecords = () => {
       'Course',
       'Instructor',
       'Status',
+      'Excuse Reason',
       'Location',
       'GPS Latitude',
       'GPS Longitude',
@@ -339,21 +372,38 @@ const AttendanceRecords = () => {
       record.course_name,
       record.instructor_name,
       record.status,
+      (record.status === 'excused' && record.excuse_reason) ? record.excuse_reason : '-',
       record.session_location || '-',
-      record.gps_latitude || '-',
-      record.gps_longitude || '-',
+      record.gps_latitude ? record.gps_latitude.toString() : '-',
+      record.gps_longitude ? record.gps_longitude.toString() : '-',
       record.gps_accuracy ? `${record.gps_accuracy}m` : '-',
       record.marked_by || '-',
       record.marked_at ? format(new Date(record.marked_at), 'MMM dd, yyyy HH:mm') : '-'
     ]);
 
-    const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+    // Escape CSV fields and add BOM for UTF-8 encoding
+    const escapeCSV = (field: unknown) => {
+      const str = String(field || '');
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const csvContent = [
+      headers.map(escapeCSV).join(','),
+      ...rows.map(row => row.map(escapeCSV).join(','))
+    ].join('\n');
+
+    // Add UTF-8 BOM to support special characters in Excel
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `attendance-records-${format(new Date(), 'yyyy-MM-dd')}.csv`;
     a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   const exportAnalyticsToCSV = () => {
@@ -396,13 +446,29 @@ const AttendanceRecords = () => {
       student.maxRate.toFixed(1)
     ]);
 
-    const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+    // Escape CSV fields and add BOM for UTF-8 encoding
+    const escapeCSV = (field: unknown) => {
+      const str = String(field || '');
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const csvContent = [
+      headers.map(escapeCSV).join(','),
+      ...rows.map(row => row.map(escapeCSV).join(','))
+    ].join('\n');
+
+    // Add UTF-8 BOM to support special characters in Excel
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `analytics-report-${format(new Date(), 'yyyy-MM-dd')}.csv`;
     a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   const exportAnalyticsToPDF = () => {
@@ -866,48 +932,6 @@ const AttendanceRecords = () => {
             </div>
           </div>
 
-          {/* Performance Insights */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Best Performers */}
-            <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-green-900 mb-3 flex items-center gap-2">
-                🏆 Top Performers
-              </h3>
-              <div className="space-y-2">
-                {studentAnalytics.slice(0, 3).map((student, idx) => (
-                  <div key={student.student_id} className="flex justify-between items-center text-xs">
-                    <span className="font-medium text-green-800">
-                      {idx + 1}. {student.student_name}
-                    </span>
-                    <span className="font-bold text-green-900">{student.weightedScore}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Students Needing Support */}
-            <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 border border-yellow-200 rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-yellow-900 mb-3 flex items-center gap-2">
-                ⚠️ Needs Attention
-              </h3>
-              <div className="space-y-2">
-                {studentAnalytics
-                  .filter(s => s.attendanceRate < 70)
-                  .slice(-3)
-                  .map((student) => (
-                    <div key={student.student_id} className="flex justify-between items-center text-xs">
-                      <span className="font-medium text-yellow-800">{student.student_name}</span>
-                      <span className="font-bold text-yellow-900">{student.attendanceRate}%</span>
-                    </div>
-                  ))}
-                {studentAnalytics.filter(s => s.attendanceRate < 70).length === 0 && (
-                  <div className="text-xs text-yellow-700 italic">All students doing well! 🎉</div>
-                )}
-              </div>
-            </div>
-
-          </div>
-
           {/* Student Performance Table */}
           <div className="bg-white rounded-lg shadow overflow-hidden">
             <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 border-b">
@@ -1222,6 +1246,9 @@ const AttendanceRecords = () => {
                     </span>
                   </div>
                 </th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                  Excuse Reason
+                </th>
                 <th 
                   className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 transition-colors group"
                   onClick={() => handleSort('location')}
@@ -1255,13 +1282,13 @@ const AttendanceRecords = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={10} className="px-6 py-4 text-center text-gray-500">
                     Loading records...
                   </td>
                 </tr>
               ) : filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={10} className="px-6 py-4 text-center text-gray-500">
                     No attendance records found
                   </td>
                 </tr>
@@ -1291,6 +1318,15 @@ const AttendanceRecords = () => {
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(record.status)}`}>
                         {getStatusLabel(record.status)}
                       </span>
+                    </td>
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
+                      {record.status === 'excused' && record.excuse_reason ? (
+                        <span className="capitalize px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium">
+                          {record.excuse_reason}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
                     </td>
                     <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
                       {record.session_location || '-'}
