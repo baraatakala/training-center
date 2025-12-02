@@ -415,36 +415,47 @@ const AttendanceRecords = () => {
     const headers = [
       'Rank',
       'Student Name',
+      'On Time',
+      'Late',
       'Present',
       'Unexcused Absent',
       'Excused',
       'Effective Days',
       'Days Covered',
       'Attendance Rate (%)',
+      'Punctuality Rate (%)',
       'Weighted Score',
       'Consistency Index',
-      'Weekly Change (%)',
       'Avg Rate (%)',
       'Min Rate (%)',
       'Max Rate (%)'
     ];
 
-    const rows = studentAnalytics.map((student, index) => [
-      index + 1,
-      student.student_name,
-      student.presentCount,
-      student.unexcusedAbsent,
-      student.excusedCount,
-      student.effectiveDays,
-      student.daysCovered,
-      student.attendanceRate,
-      student.weightedScore,
-      student.consistencyIndex.toFixed(2),
-      student.weeklyChange.toFixed(1),
-      student.avgRate.toFixed(1),
-      student.minRate.toFixed(1),
-      student.maxRate.toFixed(1)
-    ]);
+    const rows = studentAnalytics.map((student, index) => {
+      const totalPresent = student.presentCount + student.lateCount;
+      const punctualityRate = totalPresent > 0 
+        ? Math.round(student.presentCount / totalPresent * 100)
+        : 0;
+
+      return [
+        index + 1,
+        student.student_name,
+        student.presentCount,
+        student.lateCount,
+        totalPresent,
+        student.unexcusedAbsent,
+        student.excusedCount,
+        student.effectiveDays,
+        student.daysCovered,
+        student.attendanceRate,
+        punctualityRate,
+        student.weightedScore,
+        student.consistencyIndex.toFixed(2),
+        student.avgRate.toFixed(1),
+        student.minRate.toFixed(1),
+        student.maxRate.toFixed(1)
+      ];
+    });
 
     // Escape CSV fields and add BOM for UTF-8 encoding
     const escapeCSV = (field: unknown) => {
@@ -512,18 +523,24 @@ const AttendanceRecords = () => {
     
     autoTable(doc, {
       startY: 46,
-      head: [['Rank', 'Student', 'Present', 'On Time', 'Late', 'Absent', 'Excused', 'Rate %', 'Score']],
-      body: studentAnalytics.slice(0, 20).map((student, index) => [
-        index + 1,
-        student.student_name,
-        student.presentCount + student.lateCount,
-        student.presentCount,
-        student.lateCount,
-        student.unexcusedAbsent,
-        student.excusedCount,
-        `${student.attendanceRate}%`,
-        student.weightedScore.toFixed(1)
-      ]),
+      head: [['Rank', 'Student', 'On Time', 'Late', 'Absent', 'Excused', 'Attendance %', 'Punctuality %', 'Score']],
+      body: studentAnalytics.slice(0, 20).map((student, index) => {
+        const totalPresent = student.presentCount + student.lateCount;
+        const punctualityRate = totalPresent > 0 
+          ? Math.round(student.presentCount / totalPresent * 100)
+          : 0;
+        return [
+          index + 1,
+          student.student_name,
+          student.presentCount,
+          student.lateCount,
+          student.unexcusedAbsent,
+          student.excusedCount,
+          `${student.attendanceRate}%`,
+          `${punctualityRate}%`,
+          student.weightedScore.toFixed(1)
+        ];
+      }),
       styles: { fontSize: 8, cellPadding: 2 },
       headStyles: { fillColor: [59, 130, 246], fontSize: 8 },
       alternateRowStyles: { fillColor: [245, 245, 245] },
@@ -675,11 +692,11 @@ const AttendanceRecords = () => {
       const punctualityPercentage = totalPresent > 0 ? (presentCount / totalPresent) * 100 : 0;
       const weightedScore = (0.8 * attendanceRate) + (0.1 * effectiveDaysPercentage) + (0.1 * punctualityPercentage);
 
-      // Calculate consistency index
+      // Calculate consistency index (based on all present days: on time + late)
       const dailyPattern = uniqueDates.map(date => {
         const record = studentRecords.find(r => r.attendance_date === date);
         if (!record || record.status === 'excused') return -1; // Exclude excused
-        return record.status === 'on time' ? 1 : 0;
+        return (record.status === 'on time' || record.status === 'late') ? 1 : 0;
       }).filter(v => v !== -1);
 
       const consistencyIndex = calculateConsistencyIndex(dailyPattern);
@@ -687,6 +704,30 @@ const AttendanceRecords = () => {
       // Calculate trend
       const cumulativeRates = calculateCumulativeRates(studentId, uniqueDates, filteredRecords);
       const trend = calculateTrend(cumulativeRates.slice(-6)); // Last 6 samples
+
+      // Calculate rate change between previous and last cumulative rate
+      // Only if there are at least 3 records to make meaningful comparison
+      const rateChange = cumulativeRates.length >= 3 
+        ? cumulativeRates[cumulativeRates.length - 1] - cumulativeRates[cumulativeRates.length - 2]
+        : 0;
+
+      // Calculate cumulative daily attendance rates for min/max/avg
+      // This shows how the attendance rate progressed over time
+      const cumulativeRatesByDay: number[] = [];
+      let totalPresentToDate = 0;
+      let totalDaysToDate = 0;
+      
+      uniqueDates.forEach(date => {
+        const record = studentRecords.find(r => r.attendance_date === date);
+        if (record && record.status !== 'excused') {
+          totalDaysToDate++;
+          if (record.status === 'on time' || record.status === 'late') {
+            totalPresentToDate++;
+          }
+          const dailyRate = (totalPresentToDate / totalDaysToDate) * 100;
+          cumulativeRatesByDay.push(dailyRate);
+        }
+      });
 
       return {
         student_id: studentId,
@@ -703,12 +744,11 @@ const AttendanceRecords = () => {
         weightedScore: Math.round(weightedScore * 10) / 10,
         consistencyIndex: Math.round(consistencyIndex * 100) / 100,
         trend,
-        weeklyChange: cumulativeRates.length > 1 ? 
-          cumulativeRates[cumulativeRates.length - 1] - cumulativeRates[cumulativeRates.length - 2] : 0,
-        avgRate: cumulativeRates.length > 0 ? 
-          cumulativeRates.reduce((a, b) => a + b, 0) / cumulativeRates.length : 0,
-        minRate: cumulativeRates.length > 0 ? Math.min(...cumulativeRates) : 0,
-        maxRate: cumulativeRates.length > 0 ? Math.max(...cumulativeRates) : 0,
+        weeklyChange: Math.round(rateChange * 10) / 10,
+        avgRate: cumulativeRatesByDay.length > 0 ? 
+          Math.round((cumulativeRatesByDay.reduce((a, b) => a + b, 0) / cumulativeRatesByDay.length) * 10) / 10 : 0,
+        minRate: cumulativeRatesByDay.length > 0 ? Math.round(Math.min(...cumulativeRatesByDay) * 10) / 10 : 0,
+        maxRate: cumulativeRatesByDay.length > 0 ? Math.round(Math.max(...cumulativeRatesByDay) * 10) / 10 : 0,
       };
     }).sort((a, b) => b.weightedScore - a.weightedScore);
 
@@ -764,15 +804,15 @@ const AttendanceRecords = () => {
   };
 
   const calculateConsistencyIndex = (pattern: number[]): number => {
-    if (pattern.length < 2) return 1.0;
+    // Consistency Index: measures how consistently present the student is
+    // Score 0-1 based on percentage of days present (excluding excused)
+    // 1.0 = always present, 0.0 = never present
+    if (pattern.length === 0) return 0;
     
-    const mean = pattern.reduce((a, b) => a + b, 0) / pattern.length;
-    if (mean === 0) return 1.0;
+    const presentDays = pattern.filter(v => v === 1).length;
+    const consistency = presentDays / pattern.length;
     
-    const variance = pattern.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / pattern.length;
-    const stdDev = Math.sqrt(variance);
-    
-    return Math.max(0, 1 - (stdDev / mean));
+    return Math.round(consistency * 100) / 100;
   };
 
   const calculateCumulativeRates = (studentId: string, dates: string[], allRecords: AttendanceRecord[]): number[] => {
@@ -786,7 +826,8 @@ const AttendanceRecords = () => {
       // Exclude excused from trend calculation
       if (record && record.status !== 'excused') {
         cumulativeTotal++;
-        if (record.status === 'on time') {
+        // Count both on time and late as present
+        if (record.status === 'on time' || record.status === 'late') {
           cumulativePresent++;
         }
         const rate = (cumulativePresent / cumulativeTotal) * 100;
@@ -950,6 +991,7 @@ const AttendanceRecords = () => {
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Excused</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Effective Days</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Rate</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Punctuality</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Weighted Score</th>
                   </tr>
                 </thead>
@@ -970,6 +1012,18 @@ const AttendanceRecords = () => {
                           student.attendanceRate >= 70 ? 'text-yellow-600' : 'text-red-600'
                         }`}>
                           {student.attendanceRate}%
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-center">
+                        <span className={`font-semibold ${
+                          student.presentCount + student.lateCount > 0
+                            ? (student.presentCount / (student.presentCount + student.lateCount) * 100) >= 80 ? 'text-green-600'
+                            : (student.presentCount / (student.presentCount + student.lateCount) * 100) >= 60 ? 'text-yellow-600' : 'text-red-600'
+                            : 'text-gray-400'
+                        }`}>
+                          {student.presentCount + student.lateCount > 0
+                            ? `${Math.round(student.presentCount / (student.presentCount + student.lateCount) * 100)}%`
+                            : '-'}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-center font-semibold text-purple-600">
