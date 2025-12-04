@@ -523,7 +523,7 @@ const AttendanceRecords = () => {
     
     autoTable(doc, {
       startY: 46,
-      head: [['Rank', 'Student', 'On Time', 'Late', 'Absent', 'Excused', 'Attendance %', 'Punctuality %', 'Score']],
+      head: [['Rank', 'Student', 'Present', 'On Time', 'Late', 'Absent', 'Excused', 'Attendance %', 'Punctuality %', 'Score']],
       body: studentAnalytics.slice(0, 20).map((student, index) => {
         const totalPresent = student.presentCount + student.lateCount;
         const punctualityRate = totalPresent > 0 
@@ -532,6 +532,7 @@ const AttendanceRecords = () => {
         return [
           index + 1,
           student.student_name,
+          totalPresent,
           student.presentCount,
           student.lateCount,
           student.unexcusedAbsent,
