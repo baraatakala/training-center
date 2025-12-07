@@ -33,6 +33,9 @@ export function Enrollments() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEnrollment, setEditingEnrollment] = useState<EnrollmentWithDetails | null>(null);
   const [showOnlyHosting, setShowOnlyHosting] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<'student' | 'course' | 'date' | 'status' | 'canHost'>('student');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   const loadEnrollments = async () => {
     setLoading(true);
@@ -49,24 +52,70 @@ export function Enrollments() {
   }, []);
 
   useEffect(() => {
-    if (searchQuery || showOnlyHosting) {
+    let filtered = [...enrollments];
+    
+    // Apply search filter
+    if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      setFilteredEnrollments(
-        enrollments.filter(
-          (e) => {
-            const matchesSearch =
-              e.student.name.toLowerCase().includes(query) ||
-              e.session.course.course_name.toLowerCase().includes(query) ||
-              e.status.toLowerCase().includes(query);
-            const matchesHosting = !showOnlyHosting || e.can_host === true;
-            return matchesSearch && matchesHosting;
-          }
-        )
+      filtered = filtered.filter(
+        (e) =>
+          e.student.name.toLowerCase().includes(query) ||
+          e.session.course.course_name.toLowerCase().includes(query) ||
+          e.status.toLowerCase().includes(query)
       );
-    } else {
-      setFilteredEnrollments(enrollments);
     }
-  }, [searchQuery, enrollments, showOnlyHosting]);
+    
+    // Apply status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter((e) => e.status === statusFilter);
+    }
+    
+    // Apply hosting filter
+    if (showOnlyHosting) {
+      filtered = filtered.filter((e) => e.can_host === true);
+    }
+    
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let comparison: number;
+      
+      switch (sortBy) {
+        case 'student':
+          comparison = a.student.name.localeCompare(b.student.name);
+          break;
+        case 'course':
+          comparison = a.session.course.course_name.localeCompare(b.session.course.course_name);
+          break;
+        case 'date':
+          comparison = a.enrollment_date.localeCompare(b.enrollment_date);
+          break;
+        case 'status':
+          comparison = a.status.localeCompare(b.status);
+          break;
+        case 'canHost':
+          // Sort by can_host: true values first, then false
+          const aHost = a.can_host ? 1 : 0;
+          const bHost = b.can_host ? 1 : 0;
+          comparison = bHost - aHost; // Descending by default (true first)
+          break;
+        default:
+          comparison = a.student.name.localeCompare(b.student.name);
+      }
+      
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+    
+    setFilteredEnrollments(filtered);
+  }, [searchQuery, enrollments, showOnlyHosting, statusFilter, sortBy, sortOrder]);
+
+  const toggleSort = (column: 'student' | 'course' | 'date' | 'status' | 'canHost') => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortOrder('asc');
+    }
+  };
 
   const handleAddEnrollment = async (data: CreateEnrollment) => {
     const { error } = await enrollmentService.create(data);
@@ -140,12 +189,57 @@ export function Enrollments() {
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-lg shadow">
+      <div className="bg-white p-6 rounded-lg shadow space-y-4">
         <SearchBar
           value={searchQuery}
           onChange={setSearchQuery}
           placeholder="Search by student name, course, or status..."
         />
+        
+        {/* Filters */}
+        <div className="flex flex-wrap gap-4 items-center">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700">Status:</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="all">All Statuses</option>
+              <option value="active">Active</option>
+              <option value="pending">Pending</option>
+              <option value="completed">Completed</option>
+              <option value="dropped">Dropped</option>
+            </select>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700">Sort by:</label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="student">Student Name</option>
+              <option value="course">Course</option>
+              <option value="date">Enrollment Date</option>
+              <option value="status">Status</option>
+              <option value="canHost">Can Host</option>
+            </select>
+          </div>
+          
+          <button
+            onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+            className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 rounded text-sm font-medium hover:bg-gray-50 transition"
+            title={`Sort ${sortOrder === 'asc' ? 'ascending' : 'descending'}`}
+          >
+            {sortOrder === 'asc' ? '↑ A-Z' : '↓ Z-A'}
+          </button>
+          
+          <div className="text-sm text-gray-600">
+            Showing {filteredEnrollments.length} of {enrollments.length} enrollments
+          </div>
+        </div>
       </div>
 
       {loading ? (
@@ -163,12 +257,47 @@ export function Enrollments() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Student</TableHead>
-                  <TableHead>Course</TableHead>
+                  <TableHead className="cursor-pointer hover:bg-gray-100 select-none">
+                    <div className="flex items-center gap-1" onClick={() => toggleSort('student')}>
+                      Student
+                      {sortBy === 'student' && (
+                        <span className="text-blue-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead className="cursor-pointer hover:bg-gray-100 select-none">
+                    <div className="flex items-center gap-1" onClick={() => toggleSort('course')}>
+                      Course
+                      {sortBy === 'course' && (
+                        <span className="text-blue-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                      )}
+                    </div>
+                  </TableHead>
                   <TableHead>Start Date</TableHead>
-                  <TableHead>Enrollment Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-center">Can Host</TableHead>
+                  <TableHead className="cursor-pointer hover:bg-gray-100 select-none">
+                    <div className="flex items-center gap-1" onClick={() => toggleSort('date')}>
+                      Enrollment Date
+                      {sortBy === 'date' && (
+                        <span className="text-blue-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead className="cursor-pointer hover:bg-gray-100 select-none">
+                    <div className="flex items-center gap-1" onClick={() => toggleSort('status')}>
+                      Status
+                      {sortBy === 'status' && (
+                        <span className="text-blue-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead className="cursor-pointer hover:bg-gray-100 select-none text-center">
+                    <div className="flex items-center justify-center gap-1" onClick={() => toggleSort('canHost')}>
+                      Can Host
+                      {sortBy === 'canHost' && (
+                        <span className="text-blue-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                      )}
+                    </div>
+                  </TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -195,13 +324,21 @@ export function Enrollments() {
                     </TableCell>
                     <TableCell className="text-center">
                       {enrollment.status === 'active' ? (
-                        enrollment.can_host ? (
-                          <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-green-100 text-green-800" title="Can host">
-                            ✓
-                          </span>
-                        ) : (
-                          <span className="text-gray-400" title="Cannot host (not marked)">—</span>
-                        )
+                        <button
+                          onClick={async () => {
+                            const newValue = !enrollment.can_host;
+                            const { error } = await enrollmentService.update(enrollment.enrollment_id, { can_host: newValue });
+                            if (!error) loadEnrollments();
+                          }}
+                          className={`inline-flex items-center justify-center h-8 w-8 rounded-full cursor-pointer transition ${
+                            enrollment.can_host 
+                              ? 'bg-green-100 text-green-800 hover:bg-green-200' 
+                              : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                          }`}
+                          title={enrollment.can_host ? 'Click to mark as former host' : 'Click to mark as active host'}
+                        >
+                          {enrollment.can_host ? '✓' : '—'}
+                        </button>
                       ) : (
                         <span className="text-gray-300" title={`Cannot host (status: ${enrollment.status})`}>✕</span>
                       )}

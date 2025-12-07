@@ -8,6 +8,7 @@ type EnrollmentRow = {
   student?: { name: string; address?: string | null; phone?: string | null };
   can_host?: boolean | null;
   host_date?: string | null;
+  status?: string;
 };
 
 interface Props {
@@ -89,6 +90,14 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
   const [fullDates, setFullDates] = useState<string[]>(() => getDatesBetween(startDate, endDate, day));
   // host date selection per enrollment
   const [hostDateMap, setHostDateMap] = useState<Record<string, string | null>>({});
+  // Validation state
+  const [showValidation, setShowValidation] = useState(true);
+  // Calendar view state
+  const [showCalendar, setShowCalendar] = useState(false);
+  // Cancelled dates (marked as SESSION_NOT_HELD)
+  const [cancelledDates, setCancelledDates] = useState<Set<string>>(new Set());
+  // Host filter state
+  const [hostFilter, setHostFilter] = useState<'all' | 'can-host' | 'cannot-host'>('all');
 
   useEffect(() => {
     const all = getDatesBetween(startDate, endDate, day);
@@ -99,42 +108,84 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
 
   useEffect(() => {
     loadEnrollments();
+    loadCancelledDates();
   }, [sessionId]);
 
-  const loadEnrollments = async () => {
+  const loadCancelledDates = async () => {
     try {
-      console.log('Loading enrollments for session:', sessionId, 'day:', day, 'startDate:', startDate, 'endDate:', endDate);
-      
       const { data, error } = await supabase
-        .from(Tables.ENROLLMENT)
-        .select('enrollment_id, student_id, can_host, host_date, student:student_id(name, address, phone)')
-        .eq('session_id', sessionId);
+        .from(Tables.ATTENDANCE)
+        .select('attendance_date')
+        .eq('session_id', sessionId)
+        .eq('host_address', 'SESSION_NOT_HELD');
 
       if (error) {
-        console.error('Enrollment load error:', error);
-        alert('Failed to load enrollments: ' + error.message);
+        console.error('Failed to load cancelled dates:', error);
         return;
       }
 
-      if (!data || data.length === 0) {
-        console.log('No enrollments found for session:', sessionId);
+      const cancelled = new Set(data?.map(d => d.attendance_date) || []);
+      setCancelledDates(cancelled);
+      console.log('Loaded cancelled dates:', Array.from(cancelled));
+    } catch (err: any) {
+      console.error('Exception loading cancelled dates:', err);
+    }
+  };
+
+  const loadEnrollments = async () => {
+    try {
+      console.log('Loading students for session:', sessionId);
+      
+      // Load ALL students with non-null addresses
+      const { data: students, error: studentsError } = await supabase
+        .from(Tables.STUDENT)
+        .select('student_id, name, address, phone')
+        .not('address', 'is', null)
+        .neq('address', '');
+
+      if (studentsError) {
+        console.error('Students load error:', studentsError);
+        alert('Failed to load students: ' + studentsError.message);
+        return;
+      }
+
+      if (!students || students.length === 0) {
+        console.log('No students with addresses found');
         setEnrollments([]);
         return;
       }
 
-      console.log('Raw data from query:', data);
+      // Load enrollments for this session to get can_host and host_date
+      const { data: enrollmentData } = await supabase
+        .from(Tables.ENROLLMENT)
+        .select('enrollment_id, student_id, can_host, host_date')
+        .eq('session_id', sessionId)
+        .eq('status', 'active');
 
-      const rows: EnrollmentRow[] = (data || []).map((r: any) => ({
-        enrollment_id: r.enrollment_id,
-        student_id: r.student_id,
-        student: r.student,
-        can_host: r.can_host,
-        host_date: r.host_date,
-      }));
+      // Create a map of student_id to enrollment data
+      const enrollmentMap = new Map<string, { enrollment_id: string; can_host: boolean; host_date: string | null }>();
+      (enrollmentData || []).forEach((e: any) => {
+        enrollmentMap.set(e.student_id, {
+          enrollment_id: e.enrollment_id,
+          can_host: e.can_host || false,
+          host_date: e.host_date
+        });
+      });
 
-      console.log('Mapped rows:', rows);
+      // Map students to enrollment rows
+      const rows: EnrollmentRow[] = students.map((s: any) => {
+        const enrollment = enrollmentMap.get(s.student_id);
+        return {
+          enrollment_id: enrollment?.enrollment_id || `temp-${s.student_id}`,
+          student_id: s.student_id,
+          student: { name: s.name, address: s.address, phone: s.phone },
+          can_host: enrollment?.can_host || false,
+          host_date: enrollment?.host_date || null,
+          status: 'active'
+        };
+      });
 
-      // Sort by student name manually
+      // Sort by student name
       rows.sort((a, b) => {
         const nameA = a.student?.name || '';
         const nameB = b.student?.name || '';
@@ -142,7 +193,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       });
 
       setEnrollments(rows);
-      console.log('Loaded enrollments:', rows.length);
+      console.log('Loaded students with addresses:', rows.length);
 
       // initialize hostDateMap from DB host_date values (convert DATE to ISO string yyyy-mm-dd)
       const hd: Record<string, string | null> = {};
@@ -158,12 +209,43 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
 
 
   const toggleHost = async (enrollmentId: string, value: boolean) => {
+    const enrollment = enrollments.find(e => e.enrollment_id === enrollmentId);
+    
+    // Check if this is a temp enrollment (student not enrolled in session yet)
+    if (enrollmentId.startsWith('temp-')) {
+      alert('This student is not enrolled in this session. Please enroll them first in the Enrollments page.');
+      return;
+    }
+    
+    // Only allow toggling can_host for active enrollments
+    if (enrollment?.status !== 'active') {
+      alert('Can only set hosting for active enrollments');
+      return;
+    }
+    
     setEnrollments((prev) => prev.map((e) => (e.enrollment_id === enrollmentId ? { ...e, can_host: value } : e)));
-    await supabase.from(Tables.ENROLLMENT).update({ can_host: value }).eq('enrollment_id', enrollmentId);
+    
+    const { error } = await supabase
+      .from(Tables.ENROLLMENT)
+      .update({ can_host: value })
+      .eq('enrollment_id', enrollmentId)
+      .eq('status', 'active'); // Extra safety check
+    
+    if (error) {
+      console.error('Failed to update can_host:', error);
+      alert('Failed to update hosting status: ' + error.message);
+      loadEnrollments(); // Reload to show correct state
+    }
   };
 
   // Save host_date to DB for an enrollment
   const saveHostDate = async (enrollmentId: string, hostDate: string | null) => {
+    // Skip if temp enrollment
+    if (enrollmentId.startsWith('temp-')) {
+      console.log('Skipping save for temp enrollment');
+      return;
+    }
+    
     try {
       console.log(`Saving host_date for enrollment ${enrollmentId}:`, hostDate);
       const { error } = await supabase.from(Tables.ENROLLMENT).update({ host_date: hostDate }).eq('enrollment_id', enrollmentId);
@@ -174,6 +256,105 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       }
     } catch (err: any) {
       console.error('Failed to save host_date:', err);
+    }
+  };
+
+  // Toggle session cancelled status for a specific date
+  const toggleSessionCancelled = async (date: string) => {
+    const isCancelled = cancelledDates.has(date);
+    
+    if (!isCancelled) {
+      // Mark as cancelled
+      const confirmed = window.confirm(
+        `Mark ${new Date(date).toLocaleDateString()} as CANCELLED?\n\n` +
+        'This will:\n' +
+        '• Mark all students as EXCUSED for this date\n' +
+        '• Set excuse reason to "Session Not Held"\n' +
+        '• This date will be excluded from rotation'
+      );
+      
+      if (!confirmed) return;
+      
+      try {
+        // Get all enrollments for this session
+        const { data: enrollments } = await supabase
+          .from(Tables.ENROLLMENT)
+          .select('enrollment_id, student_id')
+          .eq('session_id', sessionId)
+          .eq('status', 'active');
+        
+        if (!enrollments || enrollments.length === 0) {
+          alert('No active enrollments found for this session');
+          return;
+        }
+        
+        // Create/update attendance records
+        const records = enrollments.map(e => ({
+          enrollment_id: e.enrollment_id,
+          session_id: sessionId,
+          student_id: e.student_id,
+          attendance_date: date,
+          status: 'excused',
+          excuse_reason: 'session not held',
+          host_address: 'SESSION_NOT_HELD',
+          check_in_time: null,
+          marked_by: 'system',
+          marked_at: new Date().toISOString()
+        }));
+        
+        // Upsert records
+        const { error } = await supabase
+          .from(Tables.ATTENDANCE)
+          .upsert(records, { 
+            onConflict: 'enrollment_id,attendance_date',
+            ignoreDuplicates: false 
+          });
+        
+        if (error) {
+          console.error('Failed to mark session as cancelled:', error);
+          alert('Failed to mark session as cancelled: ' + error.message);
+          return;
+        }
+        
+        setCancelledDates(prev => new Set([...prev, date]));
+        console.log(`✅ Marked ${date} as cancelled`);
+      } catch (err: any) {
+        console.error('Exception marking session as cancelled:', err);
+        alert('Error: ' + err.message);
+      }
+    } else {
+      // Unmark as cancelled
+      const confirmed = window.confirm(
+        `Unmark ${new Date(date).toLocaleDateString()} as cancelled?\n\n` +
+        'This will delete all attendance records for this date.'
+      );
+      
+      if (!confirmed) return;
+      
+      try {
+        const { error } = await supabase
+          .from(Tables.ATTENDANCE)
+          .delete()
+          .eq('session_id', sessionId)
+          .eq('attendance_date', date)
+          .eq('host_address', 'SESSION_NOT_HELD');
+        
+        if (error) {
+          console.error('Failed to unmark cancelled session:', error);
+          alert('Failed to unmark cancelled session: ' + error.message);
+          return;
+        }
+        
+        setCancelledDates(prev => {
+          const updated = new Set(prev);
+          updated.delete(date);
+          return updated;
+        });
+        console.log(`✅ Unmarked ${date} as cancelled`);
+      } catch (err: any) {
+        console.error('Exception unmarking cancelled session:', err);
+        alert('Error: ' + err.message);
+      }
     }
   };
 
@@ -308,7 +489,14 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
   const escapeHtml = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
   const getSortedDisplayedEnrollments = () => {
-    const arr = [...enrollments.filter((e) => !!e.can_host)];
+    // Apply host filter
+    let arr = [...enrollments];
+    if (hostFilter === 'can-host') {
+      arr = arr.filter((e) => !!e.can_host);
+    } else if (hostFilter === 'cannot-host') {
+      arr = arr.filter((e) => !e.can_host);
+    }
+    // Sort by host date, then by name
     arr.sort((a, b) => {
       const da = hostDateMap[a.enrollment_id];
       const db = hostDateMap[b.enrollment_id];
@@ -321,6 +509,95 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
   };
 
   const displayedEnrollments = getSortedDisplayedEnrollments();
+
+  // Validation logic
+  const getValidationIssues = () => {
+    const issues: { type: 'error' | 'warning' | 'info'; message: string }[] = [];
+    
+    // Check for duplicate dates
+    const dateCount: Record<string, string[]> = {};
+    displayedEnrollments.forEach((e) => {
+      const date = hostDateMap[e.enrollment_id];
+      if (date) {
+        if (!dateCount[date]) dateCount[date] = [];
+        dateCount[date].push(e.student?.name || 'Unknown');
+      }
+    });
+    
+    Object.entries(dateCount).forEach(([date, students]) => {
+      if (students.length > 1) {
+        issues.push({
+          type: 'error',
+          message: `⚠️ Duplicate: ${students.length} hosts on ${new Date(date).toLocaleDateString()} (${students.join(', ')})`
+        });
+      }
+    });
+    
+    // Check for missing addresses
+    const hostsWithoutAddress = displayedEnrollments.filter(
+      e => !e.student?.address || e.student.address.trim() === ''
+    );
+    if (hostsWithoutAddress.length > 0) {
+      issues.push({
+        type: 'warning',
+        message: `⚠️ ${hostsWithoutAddress.length} host(s) missing address: ${hostsWithoutAddress.map(e => e.student?.name).join(', ')}`
+      });
+    }
+    
+    // Check for unassigned hosts
+    const unassignedHosts = displayedEnrollments.filter(
+      e => !hostDateMap[e.enrollment_id]
+    );
+    if (unassignedHosts.length > 0) {
+      issues.push({
+        type: 'warning',
+        message: `📅 ${unassignedHosts.length} host(s) without date: ${unassignedHosts.map(e => e.student?.name).join(', ')}`
+      });
+    }
+    
+    // Check coverage
+    const assignedDates = new Set(Object.values(hostDateMap).filter(Boolean));
+    const coveragePercent = fullDates.length > 0 ? Math.round((assignedDates.size / fullDates.length) * 100) : 0;
+    
+    if (assignedDates.size < fullDates.length) {
+      const uncoveredCount = fullDates.length - assignedDates.size;
+      issues.push({
+        type: 'info',
+        message: `ℹ️ Coverage: ${coveragePercent}% (${uncoveredCount} dates without assigned host)`
+      });
+    } else if (assignedDates.size === fullDates.length && unassignedHosts.length === 0) {
+      issues.push({
+        type: 'info',
+        message: `✅ Perfect! All ${fullDates.length} dates have hosts assigned`
+      });
+    }
+    
+    return issues;
+  };
+
+  const validationIssues = getValidationIssues();
+
+  // Get dates grouped by assignment
+  const getCalendarView = () => {
+    const dateMap: Record<string, { student: string; hasAddress: boolean; enrollmentId: string }[]> = {};
+    
+    fullDates.forEach(date => {
+      dateMap[date] = [];
+    });
+    
+    displayedEnrollments.forEach((e) => {
+      const date = hostDateMap[e.enrollment_id];
+      if (date && dateMap[date]) {
+        dateMap[date].push({
+          student: e.student?.name || 'Unknown',
+          hasAddress: !!(e.student?.address && e.student.address.trim()),
+          enrollmentId: e.enrollment_id
+        });
+      }
+    });
+    
+    return dateMap;
+  };
 
   const shiftAll = (dir: -1 | 1) => {
     if (!fullDates || fullDates.length === 0) return;
@@ -344,31 +621,273 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       return next;
     });
   };
+
+  const clearAll = () => {
+    if (!confirm('Clear all host date assignments? This cannot be undone.')) return;
+    
+    setHostDateMap((prev) => {
+      const next: Record<string, string | null> = { ...prev };
+      displayedEnrollments.forEach((e) => {
+        next[e.enrollment_id] = null;
+        saveHostDate(e.enrollment_id, null);
+      });
+      return next;
+    });
+  };
+
+  const quickFix = () => {
+    // Auto-fix: Remove duplicates by keeping first occurrence, clear others
+    const calendarView = getCalendarView();
+    const duplicateDates = Object.entries(calendarView).filter(([_, hosts]) => hosts.length > 1);
+    
+    if (duplicateDates.length === 0) {
+      alert('No duplicates found!');
+      return;
+    }
+    
+    setHostDateMap((prev) => {
+      const next = { ...prev };
+      duplicateDates.forEach(([_, hosts]) => {
+        // Keep first, clear rest
+        hosts.slice(1).forEach(host => {
+          next[host.enrollmentId] = null;
+          saveHostDate(host.enrollmentId, null);
+        });
+      });
+      return next;
+    });
+    
+    alert(`Fixed ${duplicateDates.length} duplicate date(s)`);
+  };
   
 
   return (
     <div style={{ width: '80vw', maxWidth: '1100px', margin: '0 auto' }} className="p-6 bg-white min-h-screen">
       <div className="mb-6">
-        <h3 className="text-2xl font-bold mb-4">Host Table</h3>
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="text-base text-gray-700">
-            <strong>Available dates:</strong> {fullDates.length}
+        <h3 className="text-2xl font-bold mb-4">Host Schedule Setup</h3>
+        
+        {/* Info Banner */}
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-sm text-blue-800">
+            <strong>ℹ️ How Rotation Works:</strong> The Attendance page automatically assigns hosts based on the <strong>Host Date</strong> order below. 
+            Hosts are assigned in rotation (first host → second host → etc.) excluding cancelled sessions.
+            Only <strong>active enrollments</strong> with <strong>Can Host</strong> checked will be included in the rotation.
+          </p>
+        </div>
+
+        {/* Validation Panel */}
+        {showValidation && validationIssues.length > 0 && (
+          <div className="mb-4 border rounded-lg overflow-hidden">
+            <div className="bg-gray-100 px-4 py-2 flex items-center justify-between">
+              <h4 className="font-semibold text-gray-700">📋 Validation Results</h4>
+              <button
+                onClick={() => setShowValidation(false)}
+                className="text-gray-500 hover:text-gray-700 text-sm"
+              >
+                ✕ Hide
+              </button>
+            </div>
+            <div className="p-3 space-y-2">
+              {validationIssues.map((issue, idx) => (
+                <div
+                  key={idx}
+                  className={`p-2 rounded text-sm ${
+                    issue.type === 'error'
+                      ? 'bg-red-50 text-red-800 border border-red-200'
+                      : issue.type === 'warning'
+                      ? 'bg-yellow-50 text-yellow-800 border border-yellow-200'
+                      : 'bg-blue-50 text-blue-800 border border-blue-200'
+                  }`}
+                >
+                  {issue.message}
+                </div>
+              ))}
+            </div>
           </div>
+        )}
+
+        {!showValidation && validationIssues.length > 0 && (
+          <button
+            onClick={() => setShowValidation(true)}
+            className="mb-4 text-sm text-blue-600 hover:text-blue-800 underline"
+          >
+            Show Validation ({validationIssues.length} issue{validationIssues.length !== 1 ? 's' : ''})
+          </button>
+        )}
+        
+        {/* Statistics Panel */}
+        <div className="mb-4 grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <div className="text-xs text-blue-600 font-semibold uppercase">Total Dates</div>
+            <div className="text-2xl font-bold text-blue-900">{fullDates.length}</div>
+          </div>
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+            <div className="text-xs text-green-600 font-semibold uppercase">Active Hosts</div>
+            <div className="text-2xl font-bold text-green-900">{displayedEnrollments.length}</div>
+          </div>
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+            <div className="text-xs text-purple-600 font-semibold uppercase">Assigned</div>
+            <div className="text-2xl font-bold text-purple-900">
+              {displayedEnrollments.filter(e => hostDateMap[e.enrollment_id]).length}
+            </div>
+          </div>
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+            <div className="text-xs text-yellow-600 font-semibold uppercase">Coverage</div>
+            <div className="text-2xl font-bold text-yellow-900">
+              {fullDates.length > 0 
+                ? Math.round((new Set(Object.values(hostDateMap).filter(Boolean)).size / fullDates.length) * 100)
+                : 0}%
+            </div>
+          </div>
+          <div className={`border rounded-lg p-3 ${
+            validationIssues.some(i => i.type === 'error')
+              ? 'bg-red-50 border-red-200'
+              : 'bg-gray-50 border-gray-200'
+          }`}>
+            <div className={`text-xs font-semibold uppercase ${
+              validationIssues.some(i => i.type === 'error') ? 'text-red-600' : 'text-gray-600'
+            }`}>
+              Status
+            </div>
+            <div className={`text-2xl font-bold ${
+              validationIssues.some(i => i.type === 'error')
+                ? 'text-red-900'
+                : 'text-gray-900'
+            }`}>
+              {validationIssues.some(i => i.type === 'error') ? '⚠️ Issues' : '✓ OK'}
+            </div>
+          </div>
+        </div>
+
+        {/* Filter Dropdown */}
+        <div className="mb-4">
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Filter by Host Status:</label>
+          <select
+            value={hostFilter}
+            onChange={(e) => setHostFilter(e.target.value as 'all' | 'can-host' | 'cannot-host')}
+            className="border-2 border-gray-300 rounded px-4 py-2 text-base font-medium hover:border-blue-500 focus:outline-none focus:border-blue-600"
+          >
+            <option value="all">All Students ({enrollments.length})</option>
+            <option value="can-host">Can Host ({enrollments.filter(e => e.can_host).length})</option>
+            <option value="cannot-host">Cannot Host ({enrollments.filter(e => !e.can_host).length})</option>
+          </select>
+        </div>
+
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="flex flex-wrap gap-2 lg:gap-3">
-            <button className="btn btn-sm btn-ghost" onClick={() => shiftAll(-1)} title="Shift all host dates to previous session date">
-              ← Shift All Previous
+            <button 
+              className="btn btn-sm bg-purple-600 hover:bg-purple-700 text-white" 
+              onClick={() => setShowCalendar(!showCalendar)}
+              title="Toggle calendar view"
+            >
+              📅 {showCalendar ? 'Hide' : 'Show'} Calendar
             </button>
-            <button className="btn btn-sm btn-ghost" onClick={() => shiftAll(1)} title="Shift all host dates to next session date">
-              Shift All Next →
+            <button className="btn btn-sm btn-ghost" onClick={() => shiftAll(-1)} title="Shift all host dates one session earlier">
+              ← Previous
+            </button>
+            <button className="btn btn-sm btn-ghost" onClick={() => shiftAll(1)} title="Shift all host dates one session later">
+              Next →
+            </button>
+            {validationIssues.some(i => i.type === 'error') && (
+              <button 
+                className="btn btn-sm bg-orange-600 hover:bg-orange-700 text-white" 
+                onClick={quickFix}
+                title="Auto-fix duplicate assignments"
+              >
+                🔧 Quick Fix
+              </button>
+            )}
+            <button 
+              className="btn btn-sm btn-ghost text-red-600 hover:bg-red-50" 
+              onClick={clearAll}
+              title="Clear all host dates"
+            >
+              🗑️ Clear All
             </button>
             <button className="btn btn-sm btn-outline" onClick={exportCSV}>
-              📥 Export CSV
+              📥 CSV
             </button>
             <button className="btn btn-sm btn-outline" onClick={exportPDF}>
-              📄 Export PDF
+              📄 PDF
             </button>
           </div>
         </div>
+
+        {/* Calendar View */}
+        {showCalendar && (
+          <div className="mt-4 border rounded-lg p-4 bg-gray-50">
+            <h4 className="font-semibold text-gray-700 mb-3">📅 Calendar Preview</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-96 overflow-y-auto">
+              {fullDates.map((date) => {
+                const calendarView = getCalendarView();
+                const hosts = calendarView[date] || [];
+                const hasMultiple = hosts.length > 1;
+                const hasNone = hosts.length === 0;
+                const isCancelled = cancelledDates.has(date);
+                
+                return (
+                  <div
+                    key={date}
+                    className={`p-2 rounded border text-sm ${
+                      isCancelled
+                        ? 'bg-gray-200 border-gray-400 opacity-75'
+                        : hasMultiple
+                        ? 'bg-red-50 border-red-300'
+                        : hasNone
+                        ? 'bg-gray-100 border-gray-300'
+                        : 'bg-green-50 border-green-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className={`font-semibold ${isCancelled ? 'text-gray-500 line-through' : 'text-gray-700'}`}>
+                        {new Date(date).toLocaleDateString('en-US', { 
+                          month: 'short', 
+                          day: 'numeric',
+                          weekday: 'short'
+                        })}
+                      </div>
+                      <button
+                        onClick={() => toggleSessionCancelled(date)}
+                        className={`text-xs px-2 py-0.5 rounded transition ${
+                          isCancelled
+                            ? 'bg-green-600 hover:bg-green-700 text-white'
+                            : 'bg-red-600 hover:bg-red-700 text-white'
+                        }`}
+                        title={isCancelled ? 'Unmark as cancelled' : 'Mark as cancelled'}
+                      >
+                        {isCancelled ? '✓ Restore' : '✕ Cancel'}
+                      </button>
+                    </div>
+                    {isCancelled ? (
+                      <div className="text-gray-600 italic font-semibold">❌ Session Cancelled</div>
+                    ) : hasNone ? (
+                      <div className="text-gray-500 italic">No host assigned</div>
+                    ) : (
+                      <div className="space-y-1">
+                        {hosts.map((host) => (
+                          <div 
+                            key={host.enrollmentId}
+                            className={`flex items-center gap-1 ${hasMultiple ? 'text-red-700' : 'text-gray-700'}`}
+                          >
+                            {host.hasAddress ? '🏠' : '⚠️'}
+                            <span className={hasMultiple ? 'font-semibold' : ''}>{host.student}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-3 text-xs text-gray-600 flex flex-wrap gap-4">
+              <span>🏠 = Has address</span>
+              <span>⚠️ = Missing address</span>
+              <span className="text-red-600">● = Duplicate assignment</span>
+              <span className="text-gray-500">● = No host</span>
+              <span className="text-gray-600">❌ = Session cancelled</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Desktop Table View */}
@@ -384,51 +903,98 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
             </tr>
           </thead>
           <tbody>
-            {displayedEnrollments.map((e) => (
-              <tr key={e.enrollment_id} className="border-b hover:bg-blue-50 transition">
-                <td className="p-4 text-base font-medium">{e.student?.name}</td>
-                <td className="p-4 text-base">{e.student?.address || '—'}</td>
-                <td className="p-4 text-center text-base">{e.student?.phone || '—'}</td>
-                <td className="p-4 text-center">
-                  <input
-                    type="checkbox"
-                    checked={!!e.can_host}
-                    onChange={(ev) => toggleHost(e.enrollment_id, ev.target.checked)}
-                    className="h-5 w-5 cursor-pointer"
-                  />
-                </td>
-                <td className="p-4">
-                  <div className="flex gap-2 items-center">
-                    <select
-                      value={hostDateMap[e.enrollment_id] || ''}
-                      onChange={(ev) => {
-                        const newDate = ev.target.value || null;
-                        setHostDateMap((prev) => ({ ...prev, [e.enrollment_id]: newDate }));
-                        saveHostDate(e.enrollment_id, newDate);
-                      }}
-                      className="border-2 border-gray-300 rounded px-3 py-2 text-base font-medium hover:border-blue-500 focus:outline-none focus:border-blue-600 w-full"
-                      aria-label={`Host date for ${e.student?.name}`}
-                    >
-                      <option value="">-- choose date --</option>
-                      {fullDates.map((d) => (
-                        <option key={d} value={d}>{new Date(d).toLocaleDateString()}</option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-ghost text-red-600 hover:bg-red-100 whitespace-nowrap"
-                      title="Clear Host Date"
-                      onClick={() => {
-                        setHostDateMap((prev) => ({ ...prev, [e.enrollment_id]: null }));
-                        saveHostDate(e.enrollment_id, null);
-                      }}
-                    >
-                      ✕ Clear
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {displayedEnrollments.map((e) => {
+              const assignedDate = hostDateMap[e.enrollment_id];
+              const hasAddress = !!(e.student?.address && e.student.address.trim());
+              const isUnassigned = !assignedDate;
+              const isTempEnrollment = e.enrollment_id.startsWith('temp-');
+              
+              // Check if this date is assigned to multiple hosts
+              const calendarView = getCalendarView();
+              const isDuplicate = assignedDate && calendarView[assignedDate]?.length > 1;
+              
+              return (
+                <tr 
+                  key={e.enrollment_id} 
+                  className={`border-b hover:bg-blue-50 transition ${
+                    isTempEnrollment ? 'bg-gray-100' : isDuplicate ? 'bg-red-50' : isUnassigned ? 'bg-yellow-50' : ''
+                  }`}
+                >
+                  <td className="p-4 text-base font-medium">
+                    <div className="flex items-center gap-2">
+                      {isTempEnrollment && <span title="Not enrolled in session" className="text-orange-600">👤</span>}
+                      {!hasAddress && <span title="Missing address" className="text-yellow-600">⚠️</span>}
+                      {e.student?.name}
+                    </div>
+                  </td>
+                  <td className="p-4 text-base">
+                    {e.student?.address || <span className="text-gray-400 italic">No address</span>}
+                  </td>
+                  <td className="p-4 text-center text-base">{e.student?.phone || '—'}</td>
+                  <td className="p-4 text-center">
+                    <input
+                      type="checkbox"
+                      checked={!!e.can_host}
+                      onChange={(ev) => toggleHost(e.enrollment_id, ev.target.checked)}
+                      className="h-5 w-5 cursor-pointer"
+                    />
+                  </td>
+                  <td className="p-4">
+                    <div className="flex gap-2 items-center">
+                      {isDuplicate && (
+                        <span className="text-red-600 font-semibold text-xs whitespace-nowrap">⚠️ DUPLICATE</span>
+                      )}
+                      <select
+                        value={assignedDate || ''}
+                        onChange={(ev) => {
+                          const newDate = ev.target.value || null;
+                          if (e.enrollment_id.startsWith('temp-')) {
+                            alert('This student is not enrolled in this session. Please enroll them first.');
+                            return;
+                          }
+                          if (newDate && cancelledDates.has(newDate)) {
+                            if (!confirm(`${new Date(newDate).toLocaleDateString()} is marked as CANCELLED. Assign anyway?`)) {
+                              return;
+                            }
+                          }
+                          setHostDateMap((prev) => ({ ...prev, [e.enrollment_id]: newDate }));
+                          saveHostDate(e.enrollment_id, newDate);
+                        }}
+                        className={`border-2 rounded px-3 py-2 text-base font-medium hover:border-blue-500 focus:outline-none focus:border-blue-600 w-full ${
+                          isDuplicate ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                        aria-label={`Host date for ${e.student?.name}`}
+                      >
+                        <option value="">-- choose date --</option>
+                        {fullDates.map((d) => {
+                          const isCancelled = cancelledDates.has(d);
+                          return (
+                            <option 
+                              key={d} 
+                              value={d}
+                              style={isCancelled ? { textDecoration: 'line-through', color: '#999' } : {}}
+                            >
+                              {new Date(d).toLocaleDateString()}{isCancelled ? ' ❌ CANCELLED' : ''}
+                            </option>
+                          );
+                        })}
+                      </select>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-ghost text-red-600 hover:bg-red-100 whitespace-nowrap"
+                        title="Clear Host Date"
+                        onClick={() => {
+                          setHostDateMap((prev) => ({ ...prev, [e.enrollment_id]: null }));
+                          saveHostDate(e.enrollment_id, null);
+                        }}
+                      >
+                        ✕ Clear
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -473,6 +1039,15 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
                   value={hostDateMap[e.enrollment_id] || ''}
                   onChange={(ev) => {
                     const newDate = ev.target.value || null;
+                    if (e.enrollment_id.startsWith('temp-')) {
+                      alert('This student is not enrolled in this session. Please enroll them first.');
+                      return;
+                    }
+                    if (newDate && cancelledDates.has(newDate)) {
+                      if (!confirm(`${new Date(newDate).toLocaleDateString()} is marked as CANCELLED. Assign anyway?`)) {
+                        return;
+                      }
+                    }
                     setHostDateMap((prev) => ({ ...prev, [e.enrollment_id]: newDate }));
                     saveHostDate(e.enrollment_id, newDate);
                   }}
@@ -480,9 +1055,18 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
                   aria-label={`Host date for ${e.student?.name}`}
                 >
                   <option value="">-- choose date --</option>
-                  {fullDates.map((d) => (
-                    <option key={d} value={d}>{new Date(d).toLocaleDateString()}</option>
-                  ))}
+                  {fullDates.map((d) => {
+                    const isCancelled = cancelledDates.has(d);
+                    return (
+                      <option 
+                        key={d} 
+                        value={d}
+                        style={isCancelled ? { textDecoration: 'line-through', color: '#999' } : {}}
+                      >
+                        {new Date(d).toLocaleDateString()}{isCancelled ? ' ❌ CANCELLED' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
                 <button
                   type="button"

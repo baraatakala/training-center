@@ -88,6 +88,10 @@ export interface Attendance {
   status: 'present' | 'absent' | 'late' | 'excused';
   check_in_time: string | null;
   notes: string | null;
+  // Reason for excused absence (sick, abroad, on working, etc.)
+  excuse_reason?: string | null;
+  // Physical address where the session took place (from host student)
+  host_address?: string | null;
   gps_latitude: number | null;
   gps_longitude: number | null;
   gps_accuracy: number | null;

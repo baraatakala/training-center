@@ -15,9 +15,9 @@ WHERE status = 'excused' AND excuse_reason IS NULL;
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.constraint_column_usage 
-    WHERE table_name = 'attendance' 
-    AND constraint_name = 'check_excuse_reason_when_excused'
+    SELECT 1 FROM pg_constraint 
+    WHERE conname = 'check_excuse_reason_when_excused'
+    AND conrelid = 'attendance'::regclass
   ) THEN
     ALTER TABLE attendance
     ADD CONSTRAINT check_excuse_reason_when_excused

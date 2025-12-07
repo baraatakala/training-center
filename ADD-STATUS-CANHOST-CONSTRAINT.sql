@@ -35,11 +35,15 @@ EXECUTE FUNCTION public.fn_enforce_can_host_on_status_change();
 -- Using IF NOT EXISTS approach for idempotency
 DO $$
 BEGIN
-  ALTER TABLE public.enrollment
-  ADD CONSTRAINT check_can_host_only_active 
-  CHECK (can_host = FALSE OR status = 'active');
-EXCEPTION WHEN duplicate_object THEN
-  NULL;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint 
+    WHERE conname = 'check_can_host_only_active'
+    AND conrelid = 'enrollment'::regclass
+  ) THEN
+    ALTER TABLE public.enrollment
+    ADD CONSTRAINT check_can_host_only_active 
+    CHECK (can_host = FALSE OR status = 'active');
+  END IF;
 END $$;
 
 -- ===== VERIFICATION QUERIES =====

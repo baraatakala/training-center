@@ -8,6 +8,7 @@ import { BulkImport } from '../components/BulkImport';
 import { Pagination } from '../components/ui/Pagination';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 interface AttendanceRecord {
   attendance_id: string;
@@ -16,6 +17,7 @@ interface AttendanceRecord {
   attendance_date: string;
   status: 'on time' | 'absent' | 'late' | 'excused';
   excuse_reason?: string | null;
+  host_address?: string | null;
   gps_latitude: number | null;
   gps_longitude: number | null;
   gps_accuracy: number | null;
@@ -62,10 +64,17 @@ interface DateAnalytics {
   excusedAbsentCount: number;
   lateCount: number;
   attendanceRate: number;
+  hostAddress: string | null;
   presentNames: string[];
   lateNames: string[];
   excusedNames: string[];
   absentNames: string[];
+}
+
+interface HostStats {
+  hostAddress: string;
+  hostCount: number;
+  dates: string[];
 }
 
 interface FilterOptions {
@@ -87,6 +96,8 @@ const AttendanceRecords = () => {
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [studentAnalytics, setStudentAnalytics] = useState<StudentAnalytics[]>([]);
   const [dateAnalytics, setDateAnalytics] = useState<DateAnalytics[]>([]);
+  const [topHosts, setTopHosts] = useState<HostStats[]>([]);
+  const [reportLanguage, setReportLanguage] = useState<'en' | 'ar'>('en');
   
   // Sorting state
   const [sortColumn, setSortColumn] = useState<string | null>(null);
@@ -223,7 +234,7 @@ const AttendanceRecords = () => {
   const loadRecords = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data, error} = await supabase
         .from('attendance')
         .select(`
           attendance_id,
@@ -232,6 +243,7 @@ const AttendanceRecords = () => {
           attendance_date,
           status,
           excuse_reason,
+          host_address,
           gps_latitude,
           gps_longitude,
           gps_accuracy,
@@ -267,6 +279,7 @@ const AttendanceRecords = () => {
           attendance_date: record.attendance_date,
           status: record.status,
           excuse_reason: record.excuse_reason || null,
+          host_address: record.host_address || null,
           gps_latitude: record.gps_latitude,
           gps_longitude: record.gps_longitude,
           gps_accuracy: record.gps_accuracy,
@@ -406,13 +419,33 @@ const AttendanceRecords = () => {
     window.URL.revokeObjectURL(url);
   };
 
-  const exportAnalyticsToCSV = () => {
+  const exportAnalyticsToExcel = () => {
     if (!showAnalytics || studentAnalytics.length === 0) {
       alert('Please show analytics first to export analytics data');
       return;
     }
 
-    const headers = [
+    const isArabic = reportLanguage === 'ar';
+
+    // Student Performance Sheet
+    const studentHeaders = isArabic ? [
+      'الترتيب',
+      'اسم الطالب',
+      'في الوقت',
+      'متأخر',
+      'حاضر',
+      'غائب بدون عذر',
+      'غائب بعذر',
+      'الأيام الفعلية',
+      'الأيام المغطاة',
+      'معدل الحضور (%)',
+      'معدل الالتزام بالوقت (%)',
+      'النقاط المرجحة',
+      'مؤشر الانتظام',
+      'متوسط المعدل (%)',
+      'أدنى معدل (%)',
+      'أعلى معدل (%)'
+    ] : [
       'Rank',
       'Student Name',
       'On Time',
@@ -431,7 +464,7 @@ const AttendanceRecords = () => {
       'Max Rate (%)'
     ];
 
-    const rows = studentAnalytics.map((student, index) => {
+    const studentRows = studentAnalytics.map((student, index) => {
       const totalPresent = student.presentCount + student.lateCount;
       const punctualityRate = totalPresent > 0 
         ? Math.round(student.presentCount / totalPresent * 100)
@@ -450,36 +483,91 @@ const AttendanceRecords = () => {
         student.attendanceRate,
         punctualityRate,
         student.weightedScore,
-        student.consistencyIndex.toFixed(2),
-        student.avgRate.toFixed(1),
-        student.minRate.toFixed(1),
-        student.maxRate.toFixed(1)
+        parseFloat(student.consistencyIndex.toFixed(2)),
+        parseFloat(student.avgRate.toFixed(1)),
+        parseFloat(student.minRate.toFixed(1)),
+        parseFloat(student.maxRate.toFixed(1))
       ];
     });
 
-    // Escape CSV fields and add BOM for UTF-8 encoding
-    const escapeCSV = (field: unknown) => {
-      const str = String(field || '');
-      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-        return `"${str.replace(/"/g, '""')}"`;
-      }
-      return str;
-    };
+    // Attendance by Date Sheet
+    const dateHeaders = isArabic ? [
+      'التاريخ',
+      'عنوان المضيف',
+      'في الوقت',
+      'متأخر',
+      'معذور',
+      'غائب',
+      'النسبة %',
+      'أسماء في الوقت',
+      'أسماء المتأخرين',
+      'أسماء المعذورين',
+      'أسماء الغائبين'
+    ] : [
+      'Date',
+      'Host Address',
+      'On Time',
+      'Late',
+      'Excused',
+      'Absent',
+      'Rate %',
+      'On Time Names',
+      'Late Names',
+      'Excused Names',
+      'Absent Names'
+    ];
 
-    const csvContent = [
-      headers.map(escapeCSV).join(','),
-      ...rows.map(row => row.map(escapeCSV).join(','))
-    ].join('\n');
+    const dateRows = dateAnalytics.map((dateData) => [
+      format(new Date(dateData.date), 'MMM dd, yyyy'),
+      dateData.hostAddress || '-',
+      dateData.presentCount,
+      dateData.lateCount,
+      dateData.excusedAbsentCount,
+      dateData.unexcusedAbsentCount,
+      dateData.attendanceRate,
+      dateData.presentNames.join(', ') || '-',
+      dateData.lateNames.join(', ') || '-',
+      dateData.excusedNames.join(', ') || '-',
+      dateData.absentNames.join(', ') || '-'
+    ]);
 
-    // Add UTF-8 BOM to support special characters in Excel
-    const BOM = '\uFEFF';
-    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `analytics-report-${format(new Date(), 'yyyy-MM-dd')}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+    // Top Hosts Sheet
+    const hostHeaders = isArabic ? [
+      'الترتيب',
+      'العنوان',
+      'عدد المرات',
+      'التواريخ'
+    ] : [
+      'Rank',
+      'Host Address',
+      'Times Hosted',
+      'Dates'
+    ];
+
+    const hostRows = topHosts.map((host, index) => [
+      index + 1, // Rank
+      host.hostAddress,
+      host.hostCount,
+      host.dates.map(d => format(new Date(d), 'MMM dd, yyyy')).join(', ')
+    ]);
+
+    // Create workbook with three sheets
+    const wb = XLSX.utils.book_new();
+
+    // Sheet 1: Student Performance
+    const ws1 = XLSX.utils.aoa_to_sheet([studentHeaders, ...studentRows]);
+    XLSX.utils.book_append_sheet(wb, ws1, isArabic ? 'أداء الطلاب' : 'Student Performance');
+
+    // Sheet 2: Attendance by Date
+    const ws2 = XLSX.utils.aoa_to_sheet([dateHeaders, ...dateRows]);
+    XLSX.utils.book_append_sheet(wb, ws2, isArabic ? 'الحضور بالتاريخ' : 'Attendance by Date');
+
+    // Sheet 3: Host Rankings
+    const ws3 = XLSX.utils.aoa_to_sheet([hostHeaders, ...hostRows]);
+    XLSX.utils.book_append_sheet(wb, ws3, isArabic ? 'ترتيب المضيفين' : 'Host Rankings');
+
+    // Export to file
+    XLSX.writeFile(wb, `analytics-report-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
   };
 
   const exportAnalyticsToPDF = () => {
@@ -490,8 +578,21 @@ const AttendanceRecords = () => {
 
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
+    const isArabic = reportLanguage === 'ar';
     
-    // Title
+    // For Arabic, we'll use a workaround: render text as images or use simple transliteration
+    // Since jsPDF doesn't support Arabic fonts out of the box, we keep English for PDF
+    // and recommend CSV for full Arabic support
+    if (isArabic) {
+      const confirmExport = window.confirm(
+        'PDF export works best in English.\n\n' +
+        'For full Arabic support with proper formatting, please use CSV Export.\n\n' +
+        'Continue with English PDF?'
+      );
+      if (!confirmExport) return;
+    }
+    
+    // Title (Always English for PDF)
     doc.setFontSize(18);
     doc.text('Attendance Analytics Report', pageWidth / 2, 15, { align: 'center' });
     
@@ -513,7 +614,7 @@ const AttendanceRecords = () => {
       ? Math.round(dateAnalytics.reduce((sum, d) => sum + d.attendanceRate, 0) / dateAnalytics.length)
       : 0;
 
-    // Compact inline stats display
+    // Compact inline stats display (Always English for PDF)
     const statsText = `Total Students: ${totalStudents} Students | class Avg Rate: ${classAvgRate}% | Avg weighted Score: ${avgWeightedScore} | Avg attendance by Date: ${avgAttendanceByDate}%`;
     doc.text(statsText, 14, 35);
 
@@ -554,9 +655,10 @@ const AttendanceRecords = () => {
 
     autoTable(doc, {
       startY: performanceTableY + 14,
-      head: [['Date', 'On Time', 'Late', 'Excused', 'Absent', 'Rate %', 'On Time Names', 'Late Names', 'Excused Names', 'Absent Names']],
+      head: [['Date', 'Address', 'On Time', 'Late', 'Excused', 'Absent', 'Rate %', 'On Time Names', 'Late Names', 'Excused Names', 'Absent Names']],
       body: dateAnalytics.map((dateData) => [
         format(new Date(dateData.date), 'MMM dd, yyyy'),
+        dateData.hostAddress || '-',
         dateData.presentCount,
         dateData.lateCount,
         dateData.excusedAbsentCount,
@@ -572,17 +674,74 @@ const AttendanceRecords = () => {
       alternateRowStyles: { fillColor: [245, 245, 245] },
       columnStyles: {
         0: { cellWidth: 20 },
-        1: { cellWidth: 12 },
+        1: { cellWidth: 30 },
         2: { cellWidth: 12 },
         3: { cellWidth: 12 },
         4: { cellWidth: 12 },
-        5: { cellWidth: 15 },
-        6: { cellWidth: 'auto' },
+        5: { cellWidth: 12 },
+        6: { cellWidth: 15 },
         7: { cellWidth: 'auto' },
         8: { cellWidth: 'auto' },
-        9: { cellWidth: 'auto' }
+        9: { cellWidth: 'auto' },
+        10: { cellWidth: 'auto' }
       },
     });
+
+    // Host Rankings Table
+    if (topHosts.length > 0) {
+      const dateTableY = (doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || performanceTableY + 14;
+      
+      // Add new page if not enough space
+      const pageHeight = doc.internal.pageSize.height;
+      if (dateTableY + 30 > pageHeight - 20) {
+        doc.addPage();
+        doc.setFontSize(12);
+        doc.text('Host Rankings (All Hosts by Session Count)', 14, 20);
+        
+        autoTable(doc, {
+          startY: 24,
+          head: [['Rank', 'Host Address', 'Times Hosted', 'Dates']],
+          body: topHosts.map((host, index) => [
+            index + 1,
+            host.hostAddress,
+            host.hostCount,
+            host.dates.map(d => format(new Date(d), 'MMM dd')).join(', ')
+          ]),
+          styles: { fontSize: 9, cellPadding: 3 },
+          headStyles: { fillColor: [139, 92, 246], fontSize: 9 },
+          alternateRowStyles: { fillColor: [250, 245, 255] },
+          columnStyles: {
+            0: { cellWidth: 15 },
+            1: { cellWidth: 60 },
+            2: { cellWidth: 25 },
+            3: { cellWidth: 'auto' }
+          },
+        });
+      } else {
+        doc.setFontSize(12);
+        doc.text('Host Rankings (All Hosts by Session Count)', 14, dateTableY + 10);
+        
+        autoTable(doc, {
+          startY: dateTableY + 14,
+          head: [['Rank', 'Host Address', 'Times Hosted', 'Dates']],
+          body: topHosts.map((host, index) => [
+            index + 1,
+            host.hostAddress,
+            host.hostCount,
+            host.dates.map(d => format(new Date(d), 'MMM dd')).join(', ')
+          ]),
+          styles: { fontSize: 9, cellPadding: 3 },
+          headStyles: { fillColor: [139, 92, 246], fontSize: 9 },
+          alternateRowStyles: { fillColor: [250, 245, 255] },
+          columnStyles: {
+            0: { cellWidth: 15 },
+            1: { cellWidth: 60 },
+            2: { cellWidth: 25 },
+            3: { cellWidth: 'auto' }
+          },
+        });
+      }
+    }
 
     doc.save(`analytics-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   };
@@ -787,6 +946,9 @@ const AttendanceRecords = () => {
       // Attendance rate: (Present + Late) / Total Accountable
       const attendanceRate = totalAccountable > 0 ? ((presentCount + lateCount) / totalAccountable) * 100 : 0;
 
+      // Get host address for this date (first record with host_address)
+      const hostAddress = dateRecords.find(r => r.host_address)?.host_address || null;
+
       return {
         date,
         presentCount,
@@ -794,6 +956,7 @@ const AttendanceRecords = () => {
         excusedAbsentCount: excusedCount,
         lateCount,
         attendanceRate: Math.round(attendanceRate * 10) / 10,
+        hostAddress,
         presentNames: presentRecords.map(r => r.student_name),
         lateNames: lateRecords.map(r => r.student_name),
         excusedNames: excusedRecords.map(r => r.student_name),
@@ -802,6 +965,30 @@ const AttendanceRecords = () => {
     }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     setDateAnalytics(dateStats);
+
+    // Calculate ALL hosts (sorted by count)
+    const hostMap: Record<string, { count: number; dates: string[] }> = {};
+    
+    dateStats.forEach(stat => {
+      if (stat.hostAddress && stat.hostAddress.trim()) {
+        const addr = stat.hostAddress.trim();
+        if (!hostMap[addr]) {
+          hostMap[addr] = { count: 0, dates: [] };
+        }
+        hostMap[addr].count++;
+        hostMap[addr].dates.push(stat.date);
+      }
+    });
+
+    const hostStats: HostStats[] = Object.entries(hostMap)
+      .map(([address, data]) => ({
+        hostAddress: address,
+        hostCount: data.count,
+        dates: data.dates.sort()
+      }))
+      .sort((a, b) => b.hostCount - a.hostCount); // All hosts sorted by count
+
+    setTopHosts(hostStats);
   };
 
   const calculateConsistencyIndex = (pattern: number[]): number => {
@@ -894,8 +1081,30 @@ const AttendanceRecords = () => {
           </Button>
           {showAnalytics && (
             <>
-              <Button variant="outline" onClick={exportAnalyticsToCSV} className="text-xs sm:text-sm">
-                📊 Export CSV
+              <div className="flex items-center gap-1 border border-gray-300 rounded-md">
+                <button
+                  onClick={() => setReportLanguage('en')}
+                  className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-l-md transition-colors ${
+                    reportLanguage === 'en' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  EN
+                </button>
+                <button
+                  onClick={() => setReportLanguage('ar')}
+                  className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-r-md transition-colors ${
+                    reportLanguage === 'ar' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  ع
+                </button>
+              </div>
+              <Button variant="outline" onClick={exportAnalyticsToExcel} className="text-xs sm:text-sm">
+                📊 Export Excel
               </Button>
               <Button variant="outline" onClick={exportAnalyticsToPDF} className="text-xs sm:text-sm">
                 📄 Export PDF
@@ -974,6 +1183,58 @@ const AttendanceRecords = () => {
             </div>
           </div>
 
+          {/* Top Hosts Section */}
+          {topHosts.length > 0 && (
+            <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-4 sm:p-6 rounded-lg shadow border border-purple-200">
+              <h2 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2">
+                <span className="text-2xl">🏆</span>
+                <span>Top Hosts (Most Sessions Hosted)</span>
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {topHosts.map((host, index) => (
+                  <div 
+                    key={host.hostAddress}
+                    className={`relative p-4 rounded-lg border-2 ${
+                      index === 0 
+                        ? 'bg-gradient-to-br from-yellow-100 to-orange-100 border-yellow-400' 
+                        : 'bg-white border-purple-300'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl ${
+                        index === 0 
+                          ? 'bg-yellow-400 text-yellow-900' 
+                          : 'bg-purple-400 text-purple-900'
+                      }`}>
+                        #{index + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-lg">📍</span>
+                          <h3 className="font-semibold text-gray-900 truncate">{host.hostAddress}</h3>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm mb-2">
+                          <span className="font-bold text-purple-700">
+                            {host.hostCount} {host.hostCount === 1 ? 'session' : 'sessions'}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-600">
+                          <strong>Dates:</strong> {host.dates.slice(0, 3).map(d => format(new Date(d), 'MMM dd')).join(', ')}
+                          {host.dates.length > 3 && ` + ${host.dates.length - 3} more`}
+                        </div>
+                      </div>
+                    </div>
+                    {index === 0 && (
+                      <div className="absolute top-2 right-2">
+                        <span className="text-3xl">👑</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Student Performance Table */}
           <div className="bg-white rounded-lg shadow overflow-hidden">
             <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 border-b">
@@ -1047,6 +1308,7 @@ const AttendanceRecords = () => {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Host Address</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">On Time</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Late</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Excused</th>
@@ -1063,6 +1325,15 @@ const AttendanceRecords = () => {
                     <tr key={dateData.date} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm font-medium text-gray-900 whitespace-nowrap">
                         {format(new Date(dateData.date), 'MMM dd, yyyy')}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700 max-w-xs">
+                        {dateData.hostAddress ? (
+                          <span className="inline-flex items-center px-2 py-1 bg-purple-50 text-purple-700 rounded text-xs">
+                            📍 {dateData.hostAddress}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-sm text-center text-green-600 font-medium">
                         {dateData.presentCount}

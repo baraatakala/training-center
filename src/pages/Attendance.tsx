@@ -21,6 +21,7 @@ type AttendanceRecord = {
   gps_longitude: number | null;
   gps_accuracy: number | null;
   attendance_date: string;
+  host_address?: string | null;
   student: {
     student_id: string;
     name: string;
@@ -28,10 +29,19 @@ type AttendanceRecord = {
   };
 };
 
+type HostInfo = {
+  student_id: string;
+  student_name: string;
+  address: string | null;
+  host_date: string | null;
+  is_active?: boolean;
+};
+
 const EXCUSE_REASONS = [
   { value: 'sick', label: 'Sick' },
   { value: 'abroad', label: 'Abroad' },
-  { value: 'on working', label: 'On Working' }
+  { value: 'on working', label: 'On Working' },
+  { value: 'session not held', label: 'Session Not Held' }
 ];
 
 export function Attendance() {
@@ -46,6 +56,9 @@ export function Attendance() {
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [excuseReason, setExcuseReason] = useState<{ [key: string]: string }>({});
   const [excuseDropdownOpen, setExcuseDropdownOpen] = useState<string | null>(null);
+  const [hostAddresses, setHostAddresses] = useState<HostInfo[]>([]);
+  const [selectedAddress, setSelectedAddress] = useState<string>('');
+  const [sessionNotHeld, setSessionNotHeld] = useState<boolean>(false);
 
   // GPS Geolocation capture function
   const captureGPSLocation = (): Promise<{
@@ -116,8 +129,9 @@ export function Attendance() {
               minDiff = diff;
               nearest = d.value;
             }
-          } catch (_) {
+          } catch (error) {
             // ignore parse errors
+            console.debug('Date parse error:', error);
           }
         }
         setSelectedDate(nearest);
@@ -127,8 +141,87 @@ export function Attendance() {
     setLoading(false);
   }, [sessionId, passedDate]);
 
+  const loadHostAddresses = useCallback(async () => {
+    if (!sessionId) return;
+
+    // Load ALL students with non-null addresses from student table
+    const { data: students } = await supabase
+      .from(Tables.STUDENT)
+      .select('student_id, name, address')
+      .not('address', 'is', null)
+      .neq('address', '');
+
+    if (!students || students.length === 0) {
+      setHostAddresses([]);
+      return;
+    }
+
+    // Map to HostInfo format and sort alphabetically by name
+    const allHosts: HostInfo[] = students
+      .map((s: any) => ({
+        student_id: s.student_id,
+        student_name: s.name,
+        address: s.address,
+        host_date: null,
+        is_active: true
+      }))
+      .sort((a, b) => a.student_name.localeCompare(b.student_name));
+    
+    setHostAddresses(allHosts);
+  }, [sessionId]);
+
   const loadAttendance = useCallback(async () => {
     if (!sessionId || !selectedDate) return;
+
+    // Check existing attendance records FIRST to see if address is already saved
+    const { data: existingAttendance } = await supabase
+      .from(Tables.ATTENDANCE)
+      .select(`
+        attendance_id,
+        status,
+        excuse_reason,
+        check_in_time,
+        notes,
+        gps_latitude,
+        gps_longitude,
+        gps_accuracy,
+        attendance_date,
+        host_address,
+        student_id,
+        student:student_id(student_id, name, email)
+      `)
+      .eq('session_id', sessionId)
+      .eq('attendance_date', selectedDate);
+
+    // Check if address is already saved for this date
+    const savedHostAddress = existingAttendance?.find(r => r.host_address)?.host_address;
+    
+    // Only update selectedAddress if there's a saved value, don't reset if empty
+    if (savedHostAddress) {
+      if (savedHostAddress === 'SESSION_NOT_HELD') {
+        setSessionNotHeld(true);
+        setSelectedAddress('SESSION_NOT_HELD');
+      } else {
+        // Address is saved - need to find matching student to get student_id|||address format
+        const { data: students, error: studentError } = await supabase
+          .from(Tables.STUDENT)
+          .select('student_id, address')
+          .eq('address', savedHostAddress)
+          .limit(1);
+
+        if (students && students.length > 0 && !studentError) {
+          // Found match - use proper format
+          setSelectedAddress(`${students[0].student_id}|||${savedHostAddress}`);
+        } else {
+          // No match found - just use plain address (backwards compatibility)
+          setSelectedAddress(savedHostAddress);
+        }
+        setSessionNotHeld(false);
+      }
+    } else {
+      // No saved address - only reset session not held flag, don't touch selectedAddress
+      setSessionNotHeld(false);
+    }
 
     // Get all enrollments for this session
     const { data: enrollments } = await supabase
@@ -145,25 +238,6 @@ export function Attendance() {
       setAttendance([]);
       return;
     }
-
-    // Check existing attendance records for this date
-    const { data: existingAttendance } = await supabase
-      .from(Tables.ATTENDANCE)
-      .select(`
-        attendance_id,
-        status,
-        excuse_reason,
-        check_in_time,
-        notes,
-        gps_latitude,
-        gps_longitude,
-        gps_accuracy,
-        attendance_date,
-        student_id,
-        student:student_id(student_id, name, email)
-      `)
-      .eq('session_id', sessionId)
-      .eq('attendance_date', selectedDate);
 
     // Build attendance list: combine enrollments with existing records
     const attendanceList = enrollments.map((enrollment: any) => {
@@ -187,6 +261,12 @@ export function Attendance() {
             ...prev, 
             [existingRecord.attendance_id]: existingRecord.excuse_reason 
           }));
+        }
+        
+        // Check if this date was marked as session not held
+        if (existingRecord.host_address === 'SESSION_NOT_HELD') {
+          setSessionNotHeld(true);
+          setSelectedAddress('SESSION_NOT_HELD');
         }
         
         return record;
@@ -217,13 +297,22 @@ export function Attendance() {
 
   useEffect(() => {
     if (selectedDate) {
+      // Reset selectedAddress when date changes, loadAttendance will set it if there's a saved value
+      setSelectedAddress('');
+      loadHostAddresses();
       loadAttendance();
     }
-  }, [selectedDate, loadAttendance]);
+  }, [selectedDate, loadAttendance, loadHostAddresses]);
 
   const updateAttendance = async (attendanceId: string, status: string) => {
     const record = attendance.find(a => a.attendance_id === attendanceId);
     if (!record) return;
+
+    // Validate host address is selected
+    if (!selectedAddress || selectedAddress === '') {
+      alert('Please select a host address before marking attendance');
+      return;
+    }
 
     // Validate excuse reason if status is excused
     if (status === 'excused' && !excuseReason[attendanceId]) {
@@ -237,6 +326,7 @@ export function Attendance() {
     // Check if this is a temporary/unsaved record
     if (attendanceId.startsWith('temp-')) {
       // Create new attendance record
+      const addressOnly = selectedAddress ? selectedAddress.split('|||')[1] || selectedAddress : null;
       const newRecord: Record<string, unknown> = {
         enrollment_id: record.enrollment_id,
         session_id: sessionId,
@@ -244,6 +334,7 @@ export function Attendance() {
         attendance_date: selectedDate,
         status: status,
         check_in_time: (status === 'on time' || status === 'late') ? new Date().toISOString() : null,
+        host_address: addressOnly,
         gps_latitude: gpsData?.latitude || null,
         gps_longitude: gpsData?.longitude || null,
         gps_accuracy: gpsData?.accuracy || null,
@@ -273,8 +364,10 @@ export function Attendance() {
       }
     } else {
       // Update existing record
+      const addressOnly = selectedAddress ? selectedAddress.split('|||')[1] || selectedAddress : null;
       const updates: Record<string, unknown> = {
         status,
+        host_address: addressOnly,
         gps_latitude: gpsData?.latitude || null,
         gps_longitude: gpsData?.longitude || null,
         gps_accuracy: gpsData?.accuracy || null,
@@ -351,8 +444,17 @@ export function Attendance() {
       return;
     }
 
+    // Validate host address is selected
+    if (!selectedAddress || selectedAddress === '') {
+      alert('Please select a host address before marking attendance');
+      return;
+    }
+
     // Capture GPS location once for bulk operation
     const gpsData = await captureGPSLocation();
+
+    // Extract actual address from student_id|||address format
+    const addressOnly = selectedAddress ? selectedAddress.split('|||')[1] || selectedAddress : null;
 
     const attendanceIds = Array.from(selectedStudents);
     const tempIds = attendanceIds.filter(id => id.startsWith('temp-'));
@@ -371,6 +473,7 @@ export function Attendance() {
           attendance_date: selectedDate,
           status: status,
           check_in_time: (status === 'on time' || status === 'late') ? new Date().toISOString() : null,
+          host_address: addressOnly,
           gps_latitude: gpsData?.latitude || null,
           gps_longitude: gpsData?.longitude || null,
           gps_accuracy: gpsData?.accuracy || null,
@@ -393,9 +496,11 @@ export function Attendance() {
 
     // Update existing records
     if (realIds.length > 0) {
+      const addressOnly = selectedAddress ? selectedAddress.split('|||')[1] || selectedAddress : null;
       const updates: {
         status: string;
         check_in_time?: string | null;
+        host_address?: string | null;
         gps_latitude?: number | null;
         gps_longitude?: number | null;
         gps_accuracy?: number | null;
@@ -404,6 +509,7 @@ export function Attendance() {
         marked_at?: string;
       } = {
         status,
+        host_address: addressOnly,
         gps_latitude: gpsData?.latitude || null,
         gps_longitude: gpsData?.longitude || null,
         gps_accuracy: gpsData?.accuracy || null,
@@ -452,6 +558,88 @@ export function Attendance() {
     setSelectedStudents(newSelected);
   };
 
+  const handleSessionNotHeld = async () => {
+    if (!sessionNotHeld) {
+      // Marking as not held
+      const confirmed = window.confirm(
+        'Mark this session as NOT HELD?\n\n' +
+        'This will:\n' +
+        '• Mark all students as EXCUSED (session cancelled)\n' +
+        '• Set excuse reason to "Session Not Held"\n' +
+        '• Set host address to "Session Not Held"\n' +
+        '• This date will be skipped in rotation calculations'
+      );
+      
+      if (!confirmed) return;
+      
+      // Mark all students as excused with special marker
+      const gpsData = await captureGPSLocation();
+      const tempIds = attendance.filter(a => a.attendance_id.startsWith('temp-'));
+      const realIds = attendance.filter(a => !a.attendance_id.startsWith('temp-'));
+      
+      // Create new records for temp students
+      if (tempIds.length > 0) {
+        const newRecords = tempIds.map(record => ({
+          enrollment_id: record.enrollment_id,
+          session_id: sessionId,
+          student_id: record.student_id,
+          attendance_date: selectedDate,
+          status: 'excused',
+          excuse_reason: 'session not held',
+          host_address: 'SESSION_NOT_HELD', // Special marker
+          check_in_time: null,
+          gps_latitude: gpsData?.latitude || null,
+          gps_longitude: gpsData?.longitude || null,
+          gps_accuracy: gpsData?.accuracy || null,
+          gps_timestamp: gpsData?.timestamp || null,
+          marked_by: 'system',
+          marked_at: new Date().toISOString()
+        }));
+        
+        await supabase.from(Tables.ATTENDANCE).insert(newRecords);
+      }
+      
+      // Update existing records
+      if (realIds.length > 0) {
+        await supabase
+          .from(Tables.ATTENDANCE)
+          .update({
+            status: 'excused',
+            excuse_reason: 'session not held',
+            host_address: 'SESSION_NOT_HELD',
+            check_in_time: null,
+            gps_latitude: gpsData?.latitude || null,
+            gps_longitude: gpsData?.longitude || null,
+            gps_accuracy: gpsData?.accuracy || null,
+            gps_timestamp: gpsData?.timestamp || null,
+            marked_by: 'system',
+            marked_at: new Date().toISOString()
+          })
+          .in('attendance_id', realIds.map(r => r.attendance_id));
+      }
+      
+      setSessionNotHeld(true);
+      setSelectedAddress('SESSION_NOT_HELD');
+      loadAttendance();
+    } else {
+      // Unmarking - clear all attendance
+      const confirmed = window.confirm('Unmark "Session Not Held"? This will clear all attendance records for this date.');
+      if (!confirmed) return;
+      
+      const realIds = attendance.filter(a => !a.attendance_id.startsWith('temp-'));
+      if (realIds.length > 0) {
+        await supabase
+          .from(Tables.ATTENDANCE)
+          .delete()
+          .in('attendance_id', realIds.map(r => r.attendance_id));
+      }
+      
+      setSessionNotHeld(false);
+      setSelectedAddress('');
+      loadAttendance();
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'on time':
@@ -496,15 +684,61 @@ export function Attendance() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Select Class Date</CardTitle>
+          <CardTitle>Select Date</CardTitle>
         </CardHeader>
         <CardContent>
-          <Select
-            value={selectedDate}
-            onChange={(value) => setSelectedDate(value)}
-            options={availableDates}
-            placeholder="Select a date"
-          />
+          {/* Quick Navigation Buttons */}
+          <div className="flex items-center gap-2 mb-4">
+            <Button
+              onClick={() => {
+                const currentIndex = availableDates.findIndex(d => d.value === selectedDate);
+                if (currentIndex > 0) {
+                  setSelectedDate(availableDates[currentIndex - 1].value);
+                }
+              }}
+              disabled={!selectedDate || availableDates.findIndex(d => d.value === selectedDate) === 0}
+              className="bg-gray-600 hover:bg-gray-700 flex-1 sm:flex-none"
+            >
+              ← Previous
+            </Button>
+            
+            <div className="flex-1 text-center">
+              {selectedDate && (
+                <div className="text-sm font-medium text-gray-700">
+                  {format(new Date(selectedDate), 'EEEE, MMM dd, yyyy')}
+                </div>
+              )}
+            </div>
+            
+            <Button
+              onClick={() => {
+                const currentIndex = availableDates.findIndex(d => d.value === selectedDate);
+                if (currentIndex < availableDates.length - 1) {
+                  setSelectedDate(availableDates[currentIndex + 1].value);
+                }
+              }}
+              disabled={!selectedDate || availableDates.findIndex(d => d.value === selectedDate) === availableDates.length - 1}
+              className="bg-gray-600 hover:bg-gray-700 flex-1 sm:flex-none"
+            >
+              Next →
+            </Button>
+          </div>
+          
+          {/* Dropdown for jumping to specific date */}
+          <details className="mt-3">
+            <summary className="cursor-pointer text-sm text-blue-600 hover:text-blue-800 font-medium">
+              📅 Jump to specific date
+            </summary>
+            <div className="mt-3">
+              <Select
+                value={selectedDate}
+                onChange={(value) => setSelectedDate(value)}
+                options={availableDates}
+                placeholder="Select a date"
+              />
+            </div>
+          </details>
+          
           {availableDates.length === 0 && (
             <p className="text-sm text-gray-500 mt-2">
               No attendance dates available. Please check the session schedule.
@@ -512,6 +746,54 @@ export function Attendance() {
           )}
         </CardContent>
       </Card>
+
+      {selectedDate && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Session Status</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+              <input
+                type="checkbox"
+                checked={sessionNotHeld}
+                onChange={handleSessionNotHeld}
+                className="h-5 w-5 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+              />
+              <div>
+                <span className="font-medium text-gray-900">Session Not Held</span>
+                <p className="text-sm text-gray-500">Mark this date if the session was cancelled or did not take place</p>
+              </div>
+            </label>
+          </CardContent>
+        </Card>
+      )}
+
+      {selectedDate && hostAddresses.length > 0 && !sessionNotHeld && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Host Address</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Select
+              value={selectedAddress}
+              onChange={(value) => setSelectedAddress(value)}
+              options={hostAddresses.map(host => ({
+                value: `${host.student_id}|||${host.address}`,
+                label: `${host.student_name} - ${host.address}`
+              }))}
+              placeholder="Select host address"
+            />
+            {selectedAddress && selectedAddress !== 'SESSION_NOT_HELD' && (
+              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  📍 Selected Address: <span className="font-medium">{selectedAddress.split('|||')[1] || selectedAddress}</span>
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {selectedDate && (
         <>
@@ -570,7 +852,7 @@ export function Attendance() {
               ) : (
                 <div className="space-y-4">
                   {/* Summary Stats */}
-                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-3 p-3 sm:p-4 bg-gray-50 rounded-lg">
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3 p-3 sm:p-4 bg-gray-50 rounded-lg">
                     <div className="text-center">
                       <div className="text-xl sm:text-2xl font-bold text-gray-900">{attendance.length}</div>
                       <div className="text-xs text-gray-600">Total</div>
@@ -592,6 +874,12 @@ export function Attendance() {
                         {attendance.filter(a => a.status === 'late').length}
                       </div>
                       <div className="text-xs text-gray-600">Late</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xl sm:text-2xl font-bold text-blue-600">
+                        {attendance.filter(a => a.status === 'excused').length}
+                      </div>
+                      <div className="text-xs text-gray-600">Excused</div>
                     </div>
                     <div className="text-center col-span-3 sm:col-span-1">
                       <div className="text-xl sm:text-2xl font-bold text-gray-400">

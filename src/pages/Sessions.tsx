@@ -35,10 +35,13 @@ export function Sessions() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'upcoming' | 'completed'>('all');
+  const [sortBy, setSortBy] = useState<'course' | 'teacher' | 'startDate' | 'endDate'>('startDate');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<SessionWithDetails | null>(null);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [selectedSessionForSchedule, setSelectedSessionForSchedule] = useState<SessionWithDetails | null>(null);
+  const [enrollmentCounts, setEnrollmentCounts] = useState<Record<string, number>>({});
 
   const loadSessions = async () => {
     const { data } = await supabase
@@ -53,6 +56,21 @@ export function Sessions() {
     if (data) {
       setSessions(data as SessionWithDetails[]);
       setFilteredSessions(data as SessionWithDetails[]);
+      
+      // Load enrollment counts for each session
+      const sessionIds = data.map((s: any) => s.session_id);
+      const { data: enrollments } = await supabase
+        .from(Tables.ENROLLMENT)
+        .select('session_id')
+        .in('session_id', sessionIds);
+      
+      if (enrollments) {
+        const counts: Record<string, number> = {};
+        enrollments.forEach((e: any) => {
+          counts[e.session_id] = (counts[e.session_id] || 0) + 1;
+        });
+        setEnrollmentCounts(counts);
+      }
     }
     setLoading(false);
   };
@@ -91,8 +109,40 @@ export function Sessions() {
       });
     }
 
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let aVal: string, bVal: string;
+      
+      switch (sortBy) {
+        case 'course':
+          aVal = a.course.course_name;
+          bVal = b.course.course_name;
+          break;
+        case 'teacher':
+          aVal = a.teacher.name;
+          bVal = b.teacher.name;
+          break;
+        case 'startDate':
+          aVal = a.start_date;
+          bVal = b.start_date;
+          break;
+        case 'endDate':
+          aVal = a.end_date;
+          bVal = b.end_date;
+          break;
+        default:
+          aVal = a.start_date;
+          bVal = b.start_date;
+      }
+      
+      const comparison = aVal.localeCompare(bVal);
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+
     setFilteredSessions(filtered);
-  }, [searchQuery, statusFilter, sessions]);
+  }, [searchQuery, statusFilter, sessions, sortBy, sortOrder]);
+
+  // Removed unused toggleSort function - sorting is handled by dropdown and toggle button
 
   const handleAddSession = async (data: CreateSession) => {
     const { error } = await supabase.from(Tables.SESSION).insert([data]);
@@ -197,25 +247,51 @@ export function Sessions() {
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="flex-1">
-          <SearchBar
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder="Search sessions..."
-          />
+      <div className="bg-white p-4 rounded-lg shadow space-y-4">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex-1">
+            <SearchBar
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search sessions..."
+            />
+          </div>
+          <div className="w-full sm:w-48">
+            <Select
+              value={statusFilter}
+              onChange={(value) => setStatusFilter(value as typeof statusFilter)}
+              options={[
+                { value: 'all', label: 'All Sessions' },
+                { value: 'active', label: 'Active' },
+                { value: 'upcoming', label: 'Upcoming' },
+                { value: 'completed', label: 'Completed' }
+              ]}
+            />
+          </div>
         </div>
-        <div className="w-full sm:w-48">
-          <Select
-            value={statusFilter}
-            onChange={(value) => setStatusFilter(value as typeof statusFilter)}
-            options={[
-              { value: 'all', label: 'All Sessions' },
-              { value: 'active', label: 'Active' },
-              { value: 'upcoming', label: 'Upcoming' },
-              { value: 'completed', label: 'Completed' }
-            ]}
-          />
+        
+        {/* Sort Controls */}
+        <div className="flex flex-wrap gap-3 items-center text-sm">
+          <span className="font-medium text-gray-700">Sort by:</span>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="border border-gray-300 rounded px-3 py-1.5 focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="startDate">Start Date</option>
+            <option value="endDate">End Date</option>
+            <option value="course">Course Name</option>
+            <option value="teacher">Teacher Name</option>
+          </select>
+          <button
+            onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+            className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50"
+          >
+            {sortOrder === 'asc' ? '↑ Ascending' : '↓ Descending'}
+          </button>
+          <span className="text-gray-600 ml-auto">
+            Showing {filteredSessions.length} of {sessions.length} sessions
+          </span>
         </div>
       </div>
 
@@ -232,11 +308,13 @@ export function Sessions() {
                 <TableHead>Course</TableHead>
                 <TableHead>Teacher</TableHead>
                 <TableHead>Category</TableHead>
+                <TableHead className="text-center">Enrolled</TableHead>
                 <TableHead>Day</TableHead>
                 <TableHead>Time</TableHead>
                 <TableHead>Location</TableHead>
                 <TableHead>Start Date</TableHead>
                 <TableHead>End Date</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -291,11 +369,19 @@ export function Sessions() {
                           {session.course.category}
                         </Badge>
                       </TableCell>
+                      <TableCell className="text-center">
+                        <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 text-sm font-medium">
+                          {enrollmentCounts[session.session_id] || 0}
+                        </span>
+                      </TableCell>
                       <TableCell>{session.day || 'N/A'}</TableCell>
                       <TableCell>{session.time || 'N/A'}</TableCell>
                       <TableCell>{session.location || 'N/A'}</TableCell>
                       <TableCell>{new Date(session.start_date).toLocaleDateString()}</TableCell>
                       <TableCell>{new Date(session.end_date).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        <Badge variant={statusVariant}>{sessionStatus}</Badge>
+                      </TableCell>
                       <TableCell>
                         <div className="flex gap-2 justify-end">
                           <Link to={`/attendance/${session.session_id}`}>

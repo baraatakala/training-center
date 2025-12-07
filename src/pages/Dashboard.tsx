@@ -18,7 +18,16 @@ interface AbsentStudent {
   absentDates: string[];
   course_name: string;
   course_id: string;
-  riskLevel: 'high';
+  riskLevel: 'critical' | 'high' | 'medium' | 'watch';
+  // Enhanced analytics
+  attendanceRate: number;
+  totalDays: number;
+  presentDays: number;
+  trend: 'improving' | 'declining' | 'stable';
+  patterns: string[];
+  engagementScore: number;
+  lastAttendedDate?: string;
+  daysAbsent: number;
 }
 
 export function Dashboard() {
@@ -74,12 +83,7 @@ export function Dashboard() {
         return;
       }
 
-      // Get unique dates (last 4 newest dates)
-      const allDates = [...new Set(attendanceRecords.map((r: any) => r.attendance_date))];
-      const last4Dates = allDates.slice(0, 4);
-
-      // Filter records to only last 4 dates
-      const recentRecords = attendanceRecords.filter((r: any) => last4Dates.includes(r.attendance_date));
+      // Using ALL attendance records for comprehensive analysis (not just last 4 dates)
 
       // Load courses for filter
       const { data: coursesData } = await supabase
@@ -91,7 +95,7 @@ export function Dashboard() {
         setCourses(coursesData.map(c => ({ id: c.course_id, name: c.course_name })));
       }
 
-      // Group by student per course
+      // Group by student per course with FULL history
       const studentCourseData: { 
         [key: string]: { 
           name: string; 
@@ -106,7 +110,7 @@ export function Dashboard() {
         } 
       } = {};
 
-      recentRecords.forEach((record: any) => {
+      attendanceRecords.forEach((record: any) => {
         const sid = record.student_id;
         const courseId = record.session?.course_id;
         const courseName = record.session?.course?.course_name || 'Unknown';
@@ -131,36 +135,151 @@ export function Dashboard() {
         studentCourseData[sid].courses[courseId].statuses.push(record.status);
       });
 
-      // Find students with 2+ consecutive absences
+      // 🎯 ADVANCED ANALYTICS: Multi-level risk assessment
       const alertStudents: AbsentStudent[] = [];
 
       Object.entries(studentCourseData).forEach(([studentId, studentInfo]) => {
         Object.entries(studentInfo.courses).forEach(([courseId, courseInfo]) => {
-          const uniqueDates = [...new Set(courseInfo.dates)].sort().reverse();
+          // Sort dates chronologically (newest first)
+          const uniqueDates = [...new Set(courseInfo.dates)].sort((a, b) => 
+            new Date(b).getTime() - new Date(a).getTime()
+          );
           const uniqueStatuses = uniqueDates.map(d => {
             const idx = courseInfo.dates.indexOf(d);
             return idx >= 0 ? courseInfo.statuses[idx] : 'absent';
           });
 
-          // Check for consecutive absences
-          let consecutiveAbsences = 0;
+          // === CORE METRICS ===
+          const totalDays = uniqueDates.length;
+          // Count 'on time', late, and excused as "attended"
+          const presentDays = uniqueStatuses.filter(s => s === 'on time' || s === 'late' || s === 'excused').length;
+          const daysAbsent = uniqueStatuses.filter(s => s === 'absent').length;
+          const attendanceRate = totalDays > 0 ? (presentDays / totalDays) * 100 : 0;
+
+          // === CONSECUTIVE ABSENCE DETECTION ===
+          let currentStreak = 0;
           let maxConsecutive = 0;
           let lastAbsenceDate = '';
+          const absentDates: string[] = [];
 
           uniqueStatuses.forEach((status, idx) => {
             if (status === 'absent') {
-              consecutiveAbsences++;
+              currentStreak++;
               lastAbsenceDate = uniqueDates[idx];
-              maxConsecutive = Math.max(maxConsecutive, consecutiveAbsences);
+              maxConsecutive = Math.max(maxConsecutive, currentStreak);
+              absentDates.push(uniqueDates[idx]);
             } else {
-              consecutiveAbsences = 0;
+              // Only reset streak if they actually attended (not just empty status)
+              if (status === 'on time' || status === 'late' || status === 'excused') {
+                currentStreak = 0;
+              }
             }
           });
 
-          // Alert only if 2+ consecutive absences
-          if (maxConsecutive >= 2) {
-            const absentDates = uniqueDates.filter((_, idx) => uniqueStatuses[idx] === 'absent');
+          // === TREND ANALYSIS ===
+          const recentWindow = Math.min(7, Math.floor(totalDays / 2));
+          const oldWindow = totalDays - recentWindow;
+          
+          let trend: 'improving' | 'declining' | 'stable' = 'stable';
+          if (totalDays >= 6) {
+            const recentPresent = uniqueStatuses.slice(0, recentWindow).filter(s => s === 'on time' || s === 'late' || s === 'excused').length;
+            const oldPresent = uniqueStatuses.slice(recentWindow).filter(s => s === 'on time' || s === 'late' || s === 'excused').length;
+            
+            const recentRate = recentPresent / recentWindow;
+            const oldRate = oldWindow > 0 ? oldPresent / oldWindow : 0;
+            
+            if (recentRate > oldRate + 0.2) trend = 'improving';
+            else if (recentRate < oldRate - 0.2) trend = 'declining';
+          }
 
+          // === PATTERN DETECTION ===
+          const patterns: string[] = [];
+          
+          // Day of week pattern analysis
+          if (totalDays >= 8) {
+            const dateObjects = uniqueDates.map(d => new Date(d));
+            const dayAbsences: { [key: number]: number } = {};
+            const dayCounts: { [key: number]: number } = {};
+            
+            uniqueStatuses.forEach((status, idx) => {
+              const dayOfWeek = dateObjects[idx].getDay();
+              dayCounts[dayOfWeek] = (dayCounts[dayOfWeek] || 0) + 1;
+              if (status === 'absent') {
+                dayAbsences[dayOfWeek] = (dayAbsences[dayOfWeek] || 0) + 1;
+              }
+            });
+
+            Object.entries(dayAbsences).forEach(([day, count]) => {
+              const total = dayCounts[parseInt(day)] || 1;
+              if (count >= 3 && count / total >= 0.75) {
+                const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][parseInt(day)];
+                patterns.push(`Often absent on ${dayName}s`);
+              }
+            });
+          }
+
+          // Recent spike detection
+          if (totalDays >= 10) {
+            const last5 = uniqueStatuses.slice(0, 5);
+            const absencesInLast5 = last5.filter(s => s === 'absent').length;
+            if (absencesInLast5 >= 4) {
+              patterns.push('Sudden increase in absences');
+            }
+          }
+
+          // Long absence streak
+          if (maxConsecutive >= 5) {
+            patterns.push('Extended absence streak');
+          }
+
+          // === ENGAGEMENT SCORE (0-100) ===
+          let engagementScore = attendanceRate;
+          if (trend === 'improving') engagementScore += 10;
+          if (trend === 'declining') engagementScore -= 15;
+          if (maxConsecutive >= 3) engagementScore -= 10;
+          if (patterns.length > 0) engagementScore -= 5;
+          engagementScore = Math.max(0, Math.min(100, engagementScore));
+
+          // === ADVANCED RISK ASSESSMENT ===
+          let riskLevel: 'critical' | 'high' | 'medium' | 'watch' = 'watch';
+          let shouldAlert = false;
+
+          // Only alert if there's meaningful data to analyze (at least 3 sessions)
+          if (totalDays < 3) {
+            return;
+          }
+
+          // Don't alert if no absences at all
+          if (daysAbsent === 0) {
+            return;
+          }
+
+          // CRITICAL: Severe attendance issues
+          if (maxConsecutive >= 4 || attendanceRate < 40 || (maxConsecutive >= 3 && attendanceRate < 50) || (daysAbsent >= 5 && attendanceRate < 50)) {
+            riskLevel = 'critical';
+            shouldAlert = true;
+          }
+          // HIGH: Significant concerns
+          else if (maxConsecutive >= 3 || attendanceRate < 60 || (maxConsecutive >= 2 && trend === 'declining') || (daysAbsent >= 4 && attendanceRate < 60)) {
+            riskLevel = 'high';
+            shouldAlert = true;
+          }
+          // MEDIUM: Moderate concerns
+          else if (maxConsecutive >= 2 || attendanceRate < 75 || (patterns.length > 0 && attendanceRate < 85)) {
+            riskLevel = 'medium';
+            shouldAlert = true;
+          }
+          // WATCH: Early warning patterns (requires at least some absence)
+          else if ((patterns.length > 0 || (trend === 'declining' && attendanceRate < 90)) && daysAbsent > 0) {
+            riskLevel = 'watch';
+            shouldAlert = true;
+          }
+
+          // Find last attended date (on time, late, or excused)
+          const lastAttendedIndex = uniqueStatuses.findIndex(s => s === 'on time' || s === 'late' || s === 'excused');
+          const lastAttendedDate = lastAttendedIndex >= 0 ? uniqueDates[lastAttendedIndex] : undefined;
+
+          if (shouldAlert) {
             alertStudents.push({
               student_id: studentId,
               student_name: studentInfo.name,
@@ -170,18 +289,27 @@ export function Dashboard() {
               absentDates,
               course_name: courseInfo.course_name,
               course_id: courseId,
-              riskLevel: 'high',
+              riskLevel,
+              attendanceRate: Math.round(attendanceRate * 10) / 10,
+              totalDays,
+              presentDays,
+              daysAbsent,
+              trend,
+              patterns,
+              engagementScore: Math.round(engagementScore),
+              lastAttendedDate,
             });
           }
         });
       });
 
-      // Sort by course and consecutive absences
+      // Smart sorting: Critical first, then by engagement score
       alertStudents.sort((a, b) => {
-        if (a.course_name !== b.course_name) {
-          return a.course_name.localeCompare(b.course_name);
+        const riskOrder = { critical: 0, high: 1, medium: 2, watch: 3 };
+        if (a.riskLevel !== b.riskLevel) {
+          return riskOrder[a.riskLevel] - riskOrder[b.riskLevel];
         }
-        return b.consecutiveAbsences - a.consecutiveAbsences;
+        return a.engagementScore - b.engagementScore;
       });
 
       setAbsentStudents(alertStudents);
@@ -192,9 +320,42 @@ export function Dashboard() {
   };
 
   const generateEmailLink = (student: AbsentStudent): string => {
-    const subject = `Attendance Alert - ${student.student_name} (${student.course_name})`;
+    const riskLevelText = student.riskLevel.toUpperCase();
+    const subject = `[${riskLevelText} PRIORITY] Attendance Concern - ${student.student_name}`;
     
-    const body = `Dear ${student.student_name},\n\nWe noticed that you have been absent ${student.consecutiveAbsences} times consecutively in the course "${student.course_name}".\n\nAbsent Dates: ${student.absentDates.map(d => format(new Date(d), 'MMM dd, yyyy')).join(', ')}\n\nPlease contact us if there are any issues preventing your attendance.\n\nBest regards,\nTraining Center`;
+    const trendText = {
+      improving: 'showing improvement',
+      declining: 'declining',
+      stable: 'stable but concerning'
+    }[student.trend];
+
+    const patternsText = student.patterns.length > 0 
+      ? `\n\n🔍 Observed Patterns:\n${student.patterns.map(p => `  • ${p}`).join('\n')}`
+      : '';
+
+    const body = `Dear ${student.student_name},
+
+📊 ATTENDANCE ALERT - ${riskLevelText} PRIORITY
+
+We have conducted an analysis of your attendance in "${student.course_name}" and identified some concerns that need your attention.
+
+📈 Current Statistics:
+  • Attendance Rate: ${student.attendanceRate}%
+  • Consecutive Absences: ${student.consecutiveAbsences} sessions
+  • Total Sessions: ${student.presentDays} present out of ${student.totalDays}
+  • Engagement Score: ${student.engagementScore}/100
+  • Attendance Trend: ${trendText}${student.lastAttendedDate ? `\n  • Last Attended: ${format(new Date(student.lastAttendedDate), 'MMM dd, yyyy')}` : ''}
+${patternsText}
+
+📅 Recent Absences:
+${student.absentDates.slice(0, 10).map(d => `  • ${format(new Date(d), 'EEEE, MMMM dd, yyyy')}`).join('\n')}${student.absentDates.length > 10 ? `\n  ... and ${student.absentDates.length - 10} more` : ''}
+
+${student.riskLevel === 'critical' ? '🚨 CRITICAL: Your attendance has reached a critical level. Immediate action is required to prevent academic consequences.' : student.riskLevel === 'high' ? '⚠️ HIGH RISK: Your attendance pattern shows significant concerns. Please contact us urgently.' : student.riskLevel === 'medium' ? '⚡ ATTENTION NEEDED: Your attendance is below expected standards. Let\'s work together to improve.' : '👁️ EARLY WARNING: We\'ve noticed some patterns that may affect your success. Let\'s address them early.'}
+
+Please contact us to discuss any challenges you're facing. We're here to support you.
+
+Best regards,
+Training Center Management`;
 
     return `mailto:${student.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
@@ -312,10 +473,13 @@ export function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Attendance Alerts */}
+      {/* Attendance Alerts - Enhanced Analytics */}
       <Card>
         <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <CardTitle>⚠️ Attendance Alerts (Last 4 Dates)</CardTitle>
+          <div>
+            <CardTitle>🎯 Smart Attendance Analytics</CardTitle>
+            <p className="text-sm text-gray-500 mt-1">AI-powered risk assessment with trend analysis</p>
+          </div>
           <div className="flex items-center gap-3">
             <select
               value={selectedCourse}
@@ -333,60 +497,191 @@ export function Dashboard() {
               onClick={loadAttendanceAlerts}
               disabled={loadingAlerts}
             >
-              {loadingAlerts ? 'Refreshing...' : 'Refresh'}
+              {loadingAlerts ? 'Analyzing...' : 'Refresh'}
             </Button>
           </div>
         </CardHeader>
         <CardContent>
           {loadingAlerts ? (
-            <p className="text-center text-gray-500 py-8">Loading alerts...</p>
+            <div className="text-center py-8">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-3"></div>
+              <p className="text-gray-500">Analyzing attendance patterns...</p>
+            </div>
           ) : (() => {
             const filtered = selectedCourse === 'all' 
               ? absentStudents 
               : absentStudents.filter(s => s.course_id === selectedCourse);
             
+            // Count by risk level
+            const criticalCount = filtered.filter(s => s.riskLevel === 'critical').length;
+            const highCount = filtered.filter(s => s.riskLevel === 'high').length;
+            const mediumCount = filtered.filter(s => s.riskLevel === 'medium').length;
+            const watchCount = filtered.filter(s => s.riskLevel === 'watch').length;
+            
             return filtered.length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-green-600 font-medium">✓ No attendance concerns</p>
-                <p className="text-sm text-gray-500 mt-1">No students with 2+ consecutive absences in the last 4 dates</p>
+                <div className="text-5xl mb-3">✓</div>
+                <p className="text-green-600 font-medium text-lg">Excellent! No attendance concerns</p>
+                <p className="text-sm text-gray-500 mt-1">All students are maintaining healthy attendance patterns</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {filtered.map((student) => (
-                  <Link
-                    key={`${student.student_id}-${student.course_id}`}
-                    to={`/attendance-records?studentName=${encodeURIComponent(student.student_name)}&status=absent&course=${student.course_id}`}
-                    className="block p-4 rounded-lg border-2 bg-red-50 border-red-200 hover:bg-red-100 hover:border-red-300 transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-semibold text-gray-900">{student.student_name}</p>
-                          <Badge variant="danger">
-                            {student.consecutiveAbsences} Consecutive Absences
-                          </Badge>
-                          <Badge variant="default">
-                            {student.course_name}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-gray-500 mt-2">
-                          Absent on: {student.absentDates.map(d => format(new Date(d), 'MMM dd')).join(', ')}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Email: {student.email}
-                        </p>
-                      </div>
-                      <a
-                        href={generateEmailLink(student)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="ml-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap text-sm font-medium"
+              <>
+                {/* Summary Stats */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 p-3 bg-gray-50 rounded-lg">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-red-600">{criticalCount}</div>
+                    <div className="text-xs text-gray-600">Critical</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-orange-600">{highCount}</div>
+                    <div className="text-xs text-gray-600">High Risk</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-yellow-600">{mediumCount}</div>
+                    <div className="text-xs text-gray-600">Medium</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-600">{watchCount}</div>
+                    <div className="text-xs text-gray-600">Watch</div>
+                  </div>
+                </div>
+
+                {/* Alert Cards */}
+                <div className="space-y-3">
+                  {filtered.map((student) => {
+                    // Risk level styling
+                    const riskStyles = {
+                      critical: {
+                        bg: 'bg-red-50',
+                        border: 'border-red-300',
+                        hover: 'hover:bg-red-100 hover:border-red-400',
+                        badge: 'bg-red-600 text-white',
+                        icon: '🚨'
+                      },
+                      high: {
+                        bg: 'bg-orange-50',
+                        border: 'border-orange-300',
+                        hover: 'hover:bg-orange-100 hover:border-orange-400',
+                        badge: 'bg-orange-600 text-white',
+                        icon: '⚠️'
+                      },
+                      medium: {
+                        bg: 'bg-yellow-50',
+                        border: 'border-yellow-300',
+                        hover: 'hover:bg-yellow-100 hover:border-yellow-400',
+                        badge: 'bg-yellow-600 text-white',
+                        icon: '⚡'
+                      },
+                      watch: {
+                        bg: 'bg-blue-50',
+                        border: 'border-blue-300',
+                        hover: 'hover:bg-blue-100 hover:border-blue-400',
+                        badge: 'bg-blue-600 text-white',
+                        icon: '👁️'
+                      }
+                    };
+
+                    const style = riskStyles[student.riskLevel];
+
+                    // Trend icon
+                    const trendIcons = {
+                      improving: { icon: '📈', text: 'Improving', color: 'text-green-600' },
+                      declining: { icon: '📉', text: 'Declining', color: 'text-red-600' },
+                      stable: { icon: '→', text: 'Stable', color: 'text-gray-600' }
+                    };
+                    const trendInfo = trendIcons[student.trend];
+
+                    return (
+                      <Link
+                        key={`${student.student_id}-${student.course_id}`}
+                        to={`/attendance-records?studentName=${encodeURIComponent(student.student_name)}&status=absent&course=${student.course_id}`}
+                        className={`block p-4 rounded-lg border-2 ${style.bg} ${style.border} ${style.hover} transition-colors cursor-pointer`}
                       >
-                        📧 Send Email
-                      </a>
-                    </div>
-                  </Link>
-                ))}
-              </div>
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            {/* Header */}
+                            <div className="flex items-center gap-2 flex-wrap mb-2">
+                              <span className="text-xl">{style.icon}</span>
+                              <p className="font-semibold text-gray-900">{student.student_name}</p>
+                              <span className={`px-2 py-0.5 rounded text-xs font-semibold ${style.badge}`}>
+                                {student.riskLevel.toUpperCase()}
+                              </span>
+                              <Badge variant="default" className="text-xs">
+                                {student.course_name}
+                              </Badge>
+                            </div>
+
+                            {/* Key Metrics */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                              <div className="bg-white bg-opacity-70 rounded px-2 py-1">
+                                <div className="text-xs text-gray-600">Attendance</div>
+                                <div className={`font-bold ${student.attendanceRate < 50 ? 'text-red-600' : student.attendanceRate < 75 ? 'text-orange-600' : 'text-green-600'}`}>
+                                  {student.attendanceRate}%
+                                </div>
+                              </div>
+                              <div className="bg-white bg-opacity-70 rounded px-2 py-1">
+                                <div className="text-xs text-gray-600">Consecutive</div>
+                                <div className="font-bold text-gray-900">{student.consecutiveAbsences} days</div>
+                              </div>
+                              <div className="bg-white bg-opacity-70 rounded px-2 py-1">
+                                <div className="text-xs text-gray-600">Trend</div>
+                                <div className={`font-bold ${trendInfo.color} text-xs flex items-center gap-1`}>
+                                  <span>{trendInfo.icon}</span>
+                                  <span>{trendInfo.text}</span>
+                                </div>
+                              </div>
+                              <div className="bg-white bg-opacity-70 rounded px-2 py-1">
+                                <div className="text-xs text-gray-600">Engagement</div>
+                                <div className="font-bold text-gray-900">{student.engagementScore}/100</div>
+                              </div>
+                            </div>
+
+                            {/* Patterns */}
+                            {student.patterns.length > 0 && (
+                              <div className="mb-2">
+                                <div className="text-xs font-semibold text-gray-700 mb-1">🔍 Detected Patterns:</div>
+                                <div className="flex flex-wrap gap-1">
+                                  {student.patterns.map((pattern, idx) => (
+                                    <span key={idx} className="text-xs bg-white bg-opacity-70 px-2 py-0.5 rounded border border-gray-300">
+                                      {pattern}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Details */}
+                            <div className="text-xs text-gray-600 space-y-1">
+                              {student.absentDates.length > 0 && (
+                                <div>
+                                  <span className="font-semibold">Recent Absences:</span> {student.absentDates.slice(0, 5).map(d => format(new Date(d), 'MMM dd')).join(', ')}
+                                  {student.absentDates.length > 5 && ` +${student.absentDates.length - 5} more`}
+                                </div>
+                              )}
+                              <div>
+                                <span className="font-semibold">History:</span> {student.presentDays} present / {student.totalDays} total sessions
+                                {student.lastAttendedDate && ` • Last attended: ${format(new Date(student.lastAttendedDate), 'MMM dd')}`}
+                              </div>
+                              <div>
+                                <span className="font-semibold">Email:</span> {student.email}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Action Button */}
+                          <a
+                            href={generateEmailLink(student)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex-shrink-0 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap text-sm font-medium"
+                          >
+                            📧 Email
+                          </a>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </>
             );
           })()}
         </CardContent>
