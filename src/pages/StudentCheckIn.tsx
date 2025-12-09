@@ -256,13 +256,23 @@ export function StudentCheckIn() {
         if (timeMatches && timeMatches.length >= 2) {
           // Parse start time
           const startMatch = timeMatches[0].match(/(\d{1,2}):(\d{2})/);
-          const startHour = parseInt(startMatch![1], 10);
+          let startHour = parseInt(startMatch![1], 10);
           const startMinute = parseInt(startMatch![2], 10);
           
           // Parse end time
           const endMatch = timeMatches[1].match(/(\d{1,2}):(\d{2})/);
-          const endHour = parseInt(endMatch![1], 10);
+          let endHour = parseInt(endMatch![1], 10);
           const endMinute = parseInt(endMatch![2], 10);
+          
+          // Handle AM/PM
+          const timeLower = checkInData.session.time.toLowerCase();
+          if (timeLower.includes('pm')) {
+            if (startHour !== 12) startHour += 12;
+            if (endHour !== 12) endHour += 12;
+          } else if (timeLower.includes('am')) {
+            if (startHour === 12) startHour = 0;
+            if (endHour === 12) endHour = 0;
+          }
           
           // Create session start and end times for today
           const sessionStart = new Date(checkInData.attendance_date);
@@ -274,13 +284,11 @@ export function StudentCheckIn() {
           // Add configurable grace period to start time
           const graceEnd = new Date(sessionStart.getTime() + gracePeriodMinutes * 60 * 1000);
           
-          // Check if checking in after session ended
-          if (now > sessionEnd) {
-            checkInAfterSession = true;
+          // Check status: before/after session=late, after grace=late
+          if (now < sessionStart || now > sessionEnd) {
             attendanceStatus = 'late';
-          }
-          // Check if checking in after grace period but before session ends
-          else if (now > graceEnd) {
+            checkInAfterSession = now > sessionEnd;
+          } else if (now > graceEnd) {
             attendanceStatus = 'late';
           }
         }
