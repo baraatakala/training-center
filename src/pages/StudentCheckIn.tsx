@@ -13,8 +13,8 @@ type CheckInData = {
     course?: {
       course_name: string;
     };
-    start_time?: string;
-    end_time?: string;
+    time?: string;
+    location?: string;
   };
 };
 
@@ -76,8 +76,8 @@ export function StudentCheckIn() {
         .from('session')
         .select(`
           session_id,
-          start_time,
-          end_time,
+          time,
+          location,
           course_id,
           course:course_id (
             course_name
@@ -369,13 +369,24 @@ export function StudentCheckIn() {
                 </p>
               </div>
             </div>
-            {checkInData?.session?.start_time && (
+            {checkInData?.session?.time && (
               <div className="flex items-center gap-2">
                 <span className="text-2xl">⏰</span>
                 <div>
                   <p className="text-sm text-gray-600">Time</p>
                   <p className="font-semibold text-gray-900">
-                    {checkInData.session.start_time} - {checkInData.session.end_time}
+                    {checkInData.session.time}
+                  </p>
+                </div>
+              </div>
+            )}
+            {checkInData?.session?.location && (
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">📍</span>
+                <div>
+                  <p className="text-sm text-gray-600">Location</p>
+                  <p className="font-semibold text-gray-900">
+                    {checkInData.session.location}
                   </p>
                 </div>
               </div>
