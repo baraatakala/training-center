@@ -77,12 +77,22 @@ export function StudentCheckIn() {
           session_id,
           start_time,
           end_time,
-          course:course_id(course_name)
+          course_id,
+          course:course_id (
+            course_name
+          )
         `)
         .eq('session_id', sessionId)
         .single();
 
-      if (sessionError || !session) {
+      if (sessionError) {
+        console.error('Session error:', sessionError);
+        setError(`Invalid session: ${sessionError.message || 'Session not found'}`);
+        setLoading(false);
+        return;
+      }
+
+      if (!session) {
         setError('Invalid session');
         setLoading(false);
         return;
@@ -97,7 +107,14 @@ export function StudentCheckIn() {
         .eq('status', 'active')
         .single();
 
-      if (enrollmentError || !enrollment) {
+      if (enrollmentError) {
+        console.error('Enrollment error:', enrollmentError);
+        setError(`You are not enrolled in this session (${enrollmentError.message})`);
+        setLoading(false);
+        return;
+      }
+
+      if (!enrollment) {
         setError('You are not enrolled in this session');
         setLoading(false);
         return;
