@@ -332,6 +332,42 @@ export function Attendance() {
     const gpsData = await captureGPSLocation();
     const userEmail = await getCurrentUserEmail();
 
+    // Auto-detect late arrival based on session time and grace period
+    let actualStatus = status;
+    if (status !== 'excused' && session?.time && selectedDate) {
+      const now = new Date();
+      const gracePeriodMinutes = session.grace_period_minutes ?? 15;
+      
+      const timeMatches = session.time.match(/(\d{1,2}):(\d{2})/g);
+      if (timeMatches && timeMatches.length >= 2) {
+        const startMatch = timeMatches[0].match(/(\d{1,2}):(\d{2})/);
+        if (startMatch) {
+          let startHour = parseInt(startMatch[1], 10);
+          const startMinute = parseInt(startMatch[2], 10);
+          
+          const timeLower = session.time.toLowerCase();
+          if (timeLower.includes('pm') && startHour !== 12) {
+            startHour += 12;
+          } else if (timeLower.includes('am') && startHour === 12) {
+            startHour = 0;
+          }
+          
+          const sessionStart = new Date(selectedDate + 'T00:00:00');
+          sessionStart.setHours(startHour, startMinute, 0, 0);
+          
+          const graceEnd = new Date(sessionStart.getTime() + gracePeriodMinutes * 60 * 1000);
+          
+          if (now < sessionStart) {
+            actualStatus = 'absent';
+          } else if (now <= graceEnd) {
+            actualStatus = 'on time';
+          } else {
+            actualStatus = 'late';
+          }
+        }
+      }
+    }
+
     // Check if this is a temporary/unsaved record
     if (attendanceId.startsWith('temp-')) {
       // Create new attendance record
@@ -341,7 +377,7 @@ export function Attendance() {
         session_id: sessionId,
         student_id: record.student_id,
         attendance_date: selectedDate,
-        status: status,
+        status: actualStatus,
         check_in_time: (status === 'on time' || status === 'late') ? new Date().toISOString() : null,
         host_address: addressOnly,
         gps_latitude: gpsData?.latitude || null,
@@ -375,7 +411,7 @@ export function Attendance() {
       // Update existing record
       const addressOnly = selectedAddress ? selectedAddress.split('|||')[1] || selectedAddress : null;
       const updates: Record<string, unknown> = {
-        status,
+        status: actualStatus,
         host_address: addressOnly,
         gps_latitude: gpsData?.latitude || null,
         gps_longitude: gpsData?.longitude || null,
@@ -518,7 +554,7 @@ export function Attendance() {
         marked_by?: string;
         marked_at?: string;
       } = {
-        status,
+        status: status,
         host_address: addressOnly,
         gps_latitude: gpsData?.latitude || null,
         gps_longitude: gpsData?.longitude || null,
