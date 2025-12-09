@@ -284,31 +284,18 @@ export function StudentCheckIn() {
           // Add configurable grace period to start time
           const graceEnd = new Date(sessionStart.getTime() + gracePeriodMinutes * 60 * 1000);
           
-          console.log('DEBUG Times:', {
-            now: now.toLocaleString(),
-            sessionStart: sessionStart.toLocaleString(),
-            sessionEnd: sessionEnd.toLocaleString(),
-            graceEnd: graceEnd.toLocaleString(),
-            nowTimestamp: now.getTime(),
-            sessionEndTimestamp: sessionEnd.getTime(),
-            isAfterEnd: now > sessionEnd
-          });
-          
-          // CORRECT LOGIC:
-          // Before session start  LATE (too early)
-          // After session end  mark as LATE but will be shown as absent
-          // After grace period but before end  LATE
-          // Within grace period  ON TIME
-          
+          // Check if check-in is outside the allowed session time window
           if (now < sessionStart) {
-            attendanceStatus = 'late';
-            checkInAfterSession = false;
+            setError('Cannot check in before session starts. Session starts at ' + sessionStart.toLocaleTimeString());
+            return;
           } else if (now > sessionEnd) {
+            setError('Cannot check in after session ends. Session ended at ' + sessionEnd.toLocaleTimeString());
+            return;
+          }
+          
+          // Determine status: within grace period = on time, after grace = late
+          if (now > graceEnd) {
             attendanceStatus = 'late';
-            checkInAfterSession = true;
-          } else if (now > graceEnd) {
-            attendanceStatus = 'late';
-            checkInAfterSession = false;
           }
         }
       }
@@ -328,7 +315,7 @@ export function StudentCheckIn() {
         session_id: checkInData.session_id,
         student_id: studentInfo.student_id,
         attendance_date: checkInData.attendance_date,
-        status: checkInAfterSession ? 'absent' : attendanceStatus,
+        status: attendanceStatus,
         check_in_time: checkInTime,
         host_address: addressOnly,
         gps_latitude: gpsData?.latitude || null,
