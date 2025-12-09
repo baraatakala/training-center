@@ -16,25 +16,6 @@ export function QRCodeModal({ sessionId, date, courseName, onClose }: QRCodeModa
   const [timeLeft, setTimeLeft] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    generateQRCode();
-    loadCheckInStats();
-    setupRealtimeSubscription();
-
-    // Expiration time: 2 hours from now
-    const expiration = new Date();
-    expiration.setHours(expiration.getHours() + 2);
-
-    // Update time left every second
-    const timer = setInterval(() => {
-      updateTimeLeft(expiration);
-    }, 1000);
-
-    return () => {
-      clearInterval(timer);
-    };
-  }, [sessionId, date]);
-
   const generateQRCode = async () => {
     try {
       const timestamp = Date.now();
@@ -124,6 +105,26 @@ export function QRCodeModal({ sessionId, date, courseName, onClose }: QRCodeModa
 
     setTimeLeft(`${hours}h ${minutes}m ${seconds}s`);
   };
+
+  useEffect(() => {
+    generateQRCode();
+    loadCheckInStats();
+    const cleanup = setupRealtimeSubscription();
+
+    // Expiration time: 2 hours from now
+    const expiration = new Date();
+    expiration.setHours(expiration.getHours() + 2);
+
+    // Update time left every second
+    const timer = setInterval(() => {
+      updateTimeLeft(expiration);
+    }, 1000);
+
+    return () => {
+      clearInterval(timer);
+      cleanup();
+    };
+  }, [sessionId, date]);
 
   const percentage = totalStudents > 0 ? Math.round((checkInCount / totalStudents) * 100) : 0;
 

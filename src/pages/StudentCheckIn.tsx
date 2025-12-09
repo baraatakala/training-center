@@ -36,12 +36,13 @@ export function StudentCheckIn() {
   const [wasLate, setWasLate] = useState(false);
   const [checkedInAfterSession, setCheckedInAfterSession] = useState(false);
   const [checkInData, setCheckInData] = useState<CheckInData | null>(null);
-  const [studentInfo, setStudentInfo] = useState<any>(null);
+  const [studentInfo, setStudentInfo] = useState<{ student_id: string; name: string; email: string } | null>(null);
   const [hostAddresses, setHostAddresses] = useState<HostInfo[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<string>('');
 
   useEffect(() => {
     validateAndLoadCheckIn();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, date, token]);
 
   const validateAndLoadCheckIn = async () => {
@@ -155,12 +156,15 @@ export function StudentCheckIn() {
           .not('student.address', 'is', null);
 
         const hostList: HostInfo[] = (hosts || [])
-          .map((h: any) => ({
-            student_id: h.student_id,
-            student_name: h.student?.name || 'Unknown',
-            address: h.student?.address || null,
-            host_date: h.host_date,
-          }))
+          .map((h: { student_id: string; host_date: string | null; student?: { name: string; address: string | null } | { name: string; address: string | null }[] }) => {
+            const student = h.student ? (Array.isArray(h.student) ? h.student[0] : h.student) : null;
+            return {
+              student_id: h.student_id,
+              student_name: student?.name || 'Unknown',
+              address: student?.address || null,
+              host_date: h.host_date,
+            };
+          })
           .filter(h => h.address);
 
         setHostAddresses(hostList);
@@ -172,15 +176,23 @@ export function StudentCheckIn() {
         }
       }
 
+      // Handle both single object and array from Supabase for course relation
+      const courseData = session.course ? (Array.isArray(session.course) ? session.course[0] : session.course) : undefined;
+      
       setCheckInData({
         session_id: sessionId!,
         attendance_date: date!,
         token: token!,
-        session: session as any,
+        session: {
+          course: courseData,
+          time: session.time,
+          location: session.location,
+          grace_period_minutes: session.grace_period_minutes,
+        },
       });
 
       setLoading(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Validation error:', err);
       setError('An error occurred. Please try again.');
       setLoading(false);
@@ -241,8 +253,8 @@ export function StudentCheckIn() {
 
       const addressOnly = selectedAddress ? selectedAddress.split('|||')[1] || selectedAddress : null;
 
-      // Determine if student is late based on session time and grace period
-      let attendanceStatus: 'on time' | 'late' = 'on time';
+      // Determine attendance status based on session time and grace period
+      let attendanceStatus: 'on time' | 'late' | 'absent' = 'on time';
       let checkInAfterSession = false;
       const now = new Date();
       
@@ -284,18 +296,24 @@ export function StudentCheckIn() {
           // Add configurable grace period to start time
           const graceEnd = new Date(sessionStart.getTime() + gracePeriodMinutes * 60 * 1000);
           
-          // Check if check-in is outside the allowed session time window
+          // Check if check-in is before session starts
           if (now < sessionStart) {
             setError('Cannot check in before session starts. Session starts at ' + sessionStart.toLocaleTimeString());
-            return;
-          } else if (now > sessionEnd) {
-            setError('Cannot check in after session ends. Session ended at ' + sessionEnd.toLocaleTimeString());
+            setSubmitting(false);
             return;
           }
           
-          // Determine status: within grace period = on time, after grace = late
-          if (now > graceEnd) {
+          // Determine status based on time:
+          // 1. Before grace period end = on time
+          // 2. After grace period but before session end = late
+          // 3. After session end = absent
+          if (now > sessionEnd) {
+            attendanceStatus = 'absent';
+            checkInAfterSession = true;
+          } else if (now > graceEnd) {
             attendanceStatus = 'late';
+          } else {
+            attendanceStatus = 'on time';
           }
         }
       }
@@ -353,9 +371,10 @@ export function StudentCheckIn() {
       setTimeout(() => {
         navigate('/');
       }, 3000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Check-in error:', err);
-      setError(err.message || 'Failed to check in. Please try again.');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to check in. Please try again.';
+      setError(errorMessage);
       setSubmitting(false);
     }
   };

@@ -166,7 +166,7 @@ export function Attendance() {
 
     // Map to HostInfo format and sort alphabetically by name
     const allHosts: HostInfo[] = students
-      .map((s: any) => ({
+      .map((s: { student_id: string; name: string; address: string }) => ({
         student_id: s.student_id,
         student_name: s.name,
         address: s.address,
@@ -248,10 +248,13 @@ export function Attendance() {
     }
 
     // Build attendance list: combine enrollments with existing records
-    const attendanceList = enrollments.map((enrollment: any) => {
+    const attendanceList = enrollments.map((enrollment: { enrollment_id: string; student_id: string; student: { student_id: string; name: string; email: string } | { student_id: string; name: string; email: string }[] }) => {
       const existingRecord = existingAttendance?.find(
-        (a: any) => a.student_id === enrollment.student_id
+        (a: { student_id: string }) => a.student_id === enrollment.student_id
       );
+      
+      // Handle both single object and array from Supabase
+      const student = Array.isArray(enrollment.student) ? enrollment.student[0] : enrollment.student;
 
       if (existingRecord) {
         // Return existing attendance record
@@ -291,7 +294,7 @@ export function Attendance() {
           gps_longitude: null,
           gps_accuracy: null,
           attendance_date: selectedDate,
-          student: enrollment.student
+          student: student
         };
       }
     });
@@ -301,7 +304,8 @@ export function Attendance() {
 
   useEffect(() => {
     loadSession();
-  }, [loadSession]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, passedDate]);
 
   useEffect(() => {
     if (selectedDate) {
@@ -310,7 +314,8 @@ export function Attendance() {
       loadHostAddresses();
       loadAttendance();
     }
-  }, [selectedDate, loadAttendance, loadHostAddresses]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate]);
 
   const updateAttendance = async (attendanceId: string, status: string) => {
     const record = attendance.find(a => a.attendance_id === attendanceId);
@@ -731,7 +736,7 @@ export function Attendance() {
     );
   }
 
-  const sessionInfo = (session as any)?.course;
+  const sessionInfo = (session as Session & { course?: { course_name: string } })?.course;
   const courseName = sessionInfo?.course_name || 'Unknown Course';
 
   return (
