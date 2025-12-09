@@ -23,6 +23,8 @@ interface ImportRow {
   gpsLatitude?: number;
   gpsLongitude?: number;
   gpsAccuracy?: number;
+  gpsTimestamp?: string;
+  hostAddress?: string;
   notes?: string;
   // Optional: can host column (yes/no/true/1)
   canHost?: string;
@@ -191,6 +193,8 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
       gpsLatitude: row['gps_latitude'] || row['latitude'] ? parseFloat(row['gps_latitude'] || row['latitude']) : undefined,
       gpsLongitude: row['gps_longitude'] || row['longitude'] ? parseFloat(row['gps_longitude'] || row['longitude']) : undefined,
       gpsAccuracy: row['gps_accuracy'] || row['accuracy'] ? parseFloat(row['gps_accuracy'] || row['accuracy']) : undefined,
+      gpsTimestamp: row['gps_timestamp'] || row['timestamp'] || undefined,
+      hostAddress: row['host_address'] || row['hostaddress'] || row['address'] || undefined,
       notes: row['notes'] || undefined,
       canHost: row['can_host'] || row['canhost'] || row['host'] || undefined,
     };
@@ -484,7 +488,8 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
             gps_latitude: row.gpsLatitude || null,
             gps_longitude: row.gpsLongitude || null,
             gps_accuracy: row.gpsAccuracy || null,
-            gps_timestamp: row.gpsLatitude ? new Date().toISOString() : null,
+            gps_timestamp: row.gpsTimestamp || (row.gpsLatitude ? new Date().toISOString() : null),
+            host_address: row.hostAddress || null,
             marked_by: `${userEmail} - bulk import`,
             marked_at: new Date().toISOString(),
             notes: row.notes || null,
@@ -516,8 +521,8 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
   };
 
   const downloadTemplate = () => {
-    const template = `student_name,student_email,student_phone,course_name,course_category,instructor_name,instructor_email,instructor_phone,session_start_date,session_end_date,session_day,session_time,session_location,attendance_date,status,gps_latitude,gps_longitude,gps_accuracy,notes
-John Doe,john@example.com,1234567890,Web Development,Programming,Jane Teacher,jane@example.com,9876543210,2025-01-01,2025-03-31,Monday,09:00-12:00,Main Campus,2025-01-15,present,25.2048,55.2708,10,
+    const template = `student_name,student_email,student_phone,course_name,course_category,instructor_name,instructor_email,instructor_phone,session_start_date,session_end_date,session_day,session_time,session_location,attendance_date,status,gps_latitude,gps_longitude,gps_accuracy,gps_timestamp,host_address,notes,can_host
+John Doe,john@example.com,1234567890,Web Development,Programming,Jane Teacher,jane@example.com,9876543210,2025-01-01,2025-03-31,Monday,09:00-12:00,Main Campus,2025-01-15,present,25.2048,55.2708,10,2025-01-15T10:30:00Z,123 Main St,,yes
 Mary Smith,mary@example.com,1234567891,Web Development,Programming,Jane Teacher,jane@example.com,9876543210,2025-01-01,2025-03-31,Monday,09:00-12:00,Main Campus,2025-01-15,absent,,,, Excused absence`;
 
     const blob = new Blob([template], { type: 'text/csv' });
@@ -553,9 +558,11 @@ Mary Smith,mary@example.com,1234567891,Web Development,Programming,Jane Teacher,
             <li>Download the CSV template using the button below (or prepare your own Excel/CSV file)</li>
             <li>Fill in your attendance data following the template format</li>
             <li>Required fields: student_name, student_email, course_name, instructor_name, instructor_email, session_start_date, session_end_date, attendance_date, status</li>
-            <li>Optional fields: student_phone, course_category, instructor_phone, session_day, session_time, session_location, gps_latitude, gps_longitude, gps_accuracy, notes</li>
+            <li>Optional fields: student_phone, course_category, instructor_phone, session_day, session_time, session_location, gps_latitude, gps_longitude, gps_accuracy, gps_timestamp, host_address, notes, can_host</li>
             <li>Status must be one of: present, absent, late, excused</li>
             <li>Dates must be in YYYY-MM-DD format (e.g., 2025-01-15)</li>
+            <li>GPS timestamp format: ISO 8601 (e.g., 2025-01-15T10:30:00Z)</li>
+            <li>can_host: yes/no/true/false/1/0 to indicate if student can host sessions</li>
             <li>The system will automatically match or create teachers, courses, sessions, students, and enrollments</li>
             <li>Duplicate attendance records will be skipped</li>
           </ol>
