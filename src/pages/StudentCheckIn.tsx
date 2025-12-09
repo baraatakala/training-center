@@ -286,7 +286,7 @@ export function StudentCheckIn() {
             if (endHour === 12) endHour = 0;
           }
           
-          // Create session start and end times for today
+          // Create session start and end times using the ATTENDANCE DATE (not current date)
           const sessionStart = new Date(checkInData.attendance_date);
           sessionStart.setHours(startHour, startMinute, 0, 0);
           
@@ -296,24 +296,37 @@ export function StudentCheckIn() {
           // Add configurable grace period to start time
           const graceEnd = new Date(sessionStart.getTime() + gracePeriodMinutes * 60 * 1000);
           
-          // Check if check-in is before session starts
-          if (now < sessionStart) {
-            setError('Cannot check in before session starts. Session starts at ' + sessionStart.toLocaleTimeString());
-            setSubmitting(false);
-            return;
-          }
+          // Compare current time with session times
+          // Note: This allows checking in at any time for past dates (retroactive attendance)
+          const attendanceDate = new Date(checkInData.attendance_date);
+          const todayDate = new Date();
+          const isToday = attendanceDate.toDateString() === todayDate.toDateString();
           
-          // Determine status based on time:
-          // 1. Before grace period end = on time
-          // 2. After grace period but before session end = late
-          // 3. After session end = absent
-          if (now > sessionEnd) {
+          // Only enforce time restrictions if checking in on the same day as the session
+          if (isToday) {
+            // Check if check-in is before session starts
+            if (now < sessionStart) {
+              setError('Cannot check in before session starts. Session starts at ' + sessionStart.toLocaleTimeString());
+              setSubmitting(false);
+              return;
+            }
+            
+            // Determine status based on current time:
+            // 1. Before grace period end = on time
+            // 2. After grace period but before session end = late
+            // 3. After session end = absent
+            if (now > sessionEnd) {
+              attendanceStatus = 'absent';
+              checkInAfterSession = true;
+            } else if (now > graceEnd) {
+              attendanceStatus = 'late';
+            } else {
+              attendanceStatus = 'on time';
+            }
+          } else {
+            // For past/future dates, mark as absent (retroactive check-in)
             attendanceStatus = 'absent';
             checkInAfterSession = true;
-          } else if (now > graceEnd) {
-            attendanceStatus = 'late';
-          } else {
-            attendanceStatus = 'on time';
           }
         }
       }
