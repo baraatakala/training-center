@@ -237,13 +237,20 @@ export function StudentCheckIn() {
 
       const addressOnly = selectedAddress ? selectedAddress.split('|||')[1] || selectedAddress : null;
 
-      // Create or update attendance
+      // Check if attendance record already exists
+      const { data: existingRecord } = await supabase
+        .from('attendance')
+        .select('attendance_id')
+        .eq('enrollment_id', enrollment.enrollment_id)
+        .eq('attendance_date', checkInData.attendance_date)
+        .single();
+
       const attendanceData = {
         enrollment_id: enrollment.enrollment_id,
         session_id: checkInData.session_id,
         student_id: studentInfo.student_id,
         attendance_date: checkInData.attendance_date,
-        status: 'on time',
+        status: 'on time' as const,
         check_in_time: new Date().toISOString(),
         host_address: addressOnly,
         gps_latitude: gpsData?.latitude || null,
@@ -254,11 +261,22 @@ export function StudentCheckIn() {
         marked_at: new Date().toISOString(),
       };
 
-      const { error: attendanceError } = await supabase
-        .from('attendance')
-        .upsert(attendanceData, {
-          onConflict: 'enrollment_id,attendance_date',
-        });
+      let attendanceError;
+      
+      if (existingRecord) {
+        // Update existing record
+        const { error } = await supabase
+          .from('attendance')
+          .update(attendanceData)
+          .eq('attendance_id', existingRecord.attendance_id);
+        attendanceError = error;
+      } else {
+        // Insert new record
+        const { error } = await supabase
+          .from('attendance')
+          .insert(attendanceData);
+        attendanceError = error;
+      }
 
       if (attendanceError) {
         throw attendanceError;
