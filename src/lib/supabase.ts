@@ -6,9 +6,16 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase environment variables. Please add them to your .env file:');
+  console.error('❌ Missing Supabase environment variables!');
+  console.error('Please add them to your .env file:');
   console.error('VITE_SUPABASE_URL=your-project-url');
   console.error('VITE_SUPABASE_ANON_KEY=your-anon-key');
+  console.error('Current values:', { supabaseUrl: supabaseUrl ? 'SET' : 'MISSING', supabaseAnonKey: supabaseAnonKey ? 'SET' : 'MISSING' });
+  
+  // Show alert to user
+  if (typeof window !== 'undefined') {
+    alert('⚠️ Supabase configuration missing! Check console for details.');
+  }
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
