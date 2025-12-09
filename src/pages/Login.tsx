@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export const Login: React.FC = () => {
@@ -9,7 +9,10 @@ export const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, loading: authLoading } = useAuth();
+  
+  const returnUrl = searchParams.get('returnUrl') || '/';
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,20 +31,22 @@ export const Login: React.FC = () => {
         return;
       }
 
-      // Redirect to dashboard on successful login
-      navigate('/');
+      // Redirect to return URL or dashboard on successful login
+      navigate(decodeURIComponent(returnUrl));
     } catch (err: any) {
       setError(err.message || 'An error occurred');
       setLoading(false);
     }
   };
 
-  // If already signed in, redirect to dashboard
+  // If already signed in, redirect to return URL or dashboard
   useEffect(() => {
     if (!authLoading && user) {
-      navigate('/');
+      navigate(decodeURIComponent(returnUrl));
     }
-  }, [authLoading, user, navigate]);
+  }, [authLoading, user, navigate, returnUrl]);
+
+  const isCheckInFlow = returnUrl.includes('/checkin/');
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -50,6 +55,15 @@ export const Login: React.FC = () => {
           Training Center
         </h1>
         <h2 className="text-2xl font-bold mb-6 text-center text-gray-700">Login</h2>
+
+        {isCheckInFlow && (
+          <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-800 flex items-center gap-2">
+              <span className="text-xl">📱</span>
+              <span>Please log in to complete your attendance check-in</span>
+            </p>
+          </div>
+        )}
 
         <form onSubmit={handleLogin} className="space-y-4" aria-labelledby="login-heading">
           <div>
