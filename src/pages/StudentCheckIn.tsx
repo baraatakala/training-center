@@ -284,12 +284,21 @@ export function StudentCheckIn() {
           // Add configurable grace period to start time
           const graceEnd = new Date(sessionStart.getTime() + gracePeriodMinutes * 60 * 1000);
           
-          // Check status: before/after session=late, after grace=late
-          if (now < sessionStart || now > sessionEnd) {
+          // CORRECT LOGIC:
+          // Before session start  LATE (too early)
+          // After session end  mark as LATE but will be shown as absent
+          // After grace period but before end  LATE
+          // Within grace period  ON TIME
+          
+          if (now < sessionStart) {
             attendanceStatus = 'late';
-            checkInAfterSession = now > sessionEnd;
+            checkInAfterSession = false;
+          } else if (now > sessionEnd) {
+            attendanceStatus = 'late';
+            checkInAfterSession = true;
           } else if (now > graceEnd) {
             attendanceStatus = 'late';
+            checkInAfterSession = false;
           }
         }
       }
@@ -309,7 +318,7 @@ export function StudentCheckIn() {
         session_id: checkInData.session_id,
         student_id: studentInfo.student_id,
         attendance_date: checkInData.attendance_date,
-        status: attendanceStatus,
+        status: checkInAfterSession ? 'absent' : attendanceStatus,
         check_in_time: checkInTime,
         host_address: addressOnly,
         gps_latitude: gpsData?.latitude || null,
