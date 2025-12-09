@@ -297,10 +297,14 @@ export function StudentCheckIn() {
           const graceEnd = new Date(sessionStart.getTime() + gracePeriodMinutes * 60 * 1000);
           
           // Compare current time with session times
-          // Note: This allows checking in at any time for past dates (retroactive attendance)
           const attendanceDate = new Date(checkInData.attendance_date);
+          attendanceDate.setHours(0, 0, 0, 0); // Reset to start of day for date-only comparison
+          
           const todayDate = new Date();
-          const isToday = attendanceDate.toDateString() === todayDate.toDateString();
+          todayDate.setHours(0, 0, 0, 0); // Reset to start of day for date-only comparison
+          
+          const isToday = attendanceDate.getTime() === todayDate.getTime();
+          const isFutureDate = attendanceDate.getTime() > todayDate.getTime();
           
           // Only enforce time restrictions if checking in on the same day as the session
           if (isToday) {
@@ -323,8 +327,12 @@ export function StudentCheckIn() {
             } else {
               attendanceStatus = 'on time';
             }
+          } else if (isFutureDate) {
+            // For future dates, allow check-in and mark as present (early check-in)
+            // This allows students to check in before the session day
+            attendanceStatus = 'on time';
           } else {
-            // For past/future dates, mark as absent (retroactive check-in)
+            // For past dates, mark as absent (retroactive check-in)
             attendanceStatus = 'absent';
             checkInAfterSession = true;
           }
