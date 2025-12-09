@@ -288,6 +288,10 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
           return;
         }
         
+        // Get authenticated user
+        const { data: { user } } = await supabase.auth.getUser();
+        const userEmail = user?.email || 'system';
+        
         // Create/update attendance records
         const records = enrollments.map(e => ({
           enrollment_id: e.enrollment_id,
@@ -298,7 +302,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
           excuse_reason: 'session not held',
           host_address: 'SESSION_NOT_HELD',
           check_in_time: null,
-          marked_by: 'system',
+          marked_by: `${userEmail} - session cancelled`,
           marked_at: new Date().toISOString()
         }));
         

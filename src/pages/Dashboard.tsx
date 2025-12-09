@@ -13,6 +13,7 @@ interface AbsentStudent {
   student_id: string;
   student_name: string;
   email: string;
+  phone?: string;
   consecutiveAbsences: number;
   lastAbsenceDate: string;
   absentDates: string[];
@@ -43,6 +44,8 @@ export function Dashboard() {
   const [loadingAlerts, setLoadingAlerts] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<string>('all');
   const [courses, setCourses] = useState<{ id: string; name: string }[]>([]);
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
 
   const loadStats = async () => {
     const [studentsRes, enrollmentsRes, teachersRes, sessionsRes] = await Promise.all([
@@ -65,17 +68,26 @@ export function Dashboard() {
     setLoadingAlerts(true);
     try {
       // Get attendance records with session and course info, ordered by date descending
-      const { data: attendanceRecords } = await supabase
+      let query = supabase
         .from('attendance')
         .select(`
           student_id,
           attendance_date,
           status,
           session_id,
-          student:student_id(name, email),
+          student:student_id(name, email, phone),
           session:session_id(course_id, course:course_id(course_name))
-        `)
-        .order('attendance_date', { ascending: false });
+        `);
+      
+      // Apply date filters if set
+      if (startDate) {
+        query = query.gte('attendance_date', startDate);
+      }
+      if (endDate) {
+        query = query.lte('attendance_date', endDate);
+      }
+      
+      const { data: attendanceRecords } = await query.order('attendance_date', { ascending: false });
 
       if (!attendanceRecords || attendanceRecords.length === 0) {
         setAbsentStudents([]);
@@ -100,6 +112,7 @@ export function Dashboard() {
         [key: string]: { 
           name: string; 
           email: string; 
+          phone: string;
           courses: {
             [courseId: string]: {
               course_name: string;
@@ -119,6 +132,7 @@ export function Dashboard() {
           studentCourseData[sid] = {
             name: record.student?.name || 'Unknown',
             email: record.student?.email || '',
+            phone: record.student?.phone || '',
             courses: {},
           };
         }
@@ -284,6 +298,7 @@ export function Dashboard() {
               student_id: studentId,
               student_name: studentInfo.name,
               email: studentInfo.email,
+              phone: studentInfo.phone,
               consecutiveAbsences: maxConsecutive,
               lastAbsenceDate,
               absentDates,
@@ -360,10 +375,37 @@ Training Center Management`;
     return `mailto:${student.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
 
+  const generateSMSLink = (student: AbsentStudent): string => {
+    const riskEmoji = {
+      critical: '🚨',
+      high: '⚠️',
+      medium: '⚡',
+      watch: '👁️'
+    }[student.riskLevel];
+
+    const message = `${riskEmoji} ATTENDANCE ALERT
+${student.student_name}
+Course: ${student.course_name}
+Attendance: ${student.attendanceRate}%
+Consecutive Absences: ${student.consecutiveAbsences}
+Trend: ${student.trend}
+Please contact the training center urgently.`;
+
+    // SMS link format - works on most devices
+    return `sms:${student.phone || ''}?body=${encodeURIComponent(message)}`;
+  };
+
   useEffect(() => {
     loadStats();
     loadAttendanceAlerts();
   }, []);
+
+  // Reload alerts when date filters change
+  useEffect(() => {
+    if (startDate || endDate) {
+      loadAttendanceAlerts();
+    }
+  }, [startDate, endDate]);
 
   return (
     <div className="space-y-4 md:space-y-6 p-4 md:p-0">
@@ -475,22 +517,12 @@ Training Center Management`;
 
       {/* Attendance Alerts - Enhanced Analytics */}
       <Card>
-        <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <CardTitle>🎯 Smart Attendance Analytics</CardTitle>
-            <p className="text-sm text-gray-500 mt-1">AI-powered risk assessment with trend analysis</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <select
-              value={selectedCourse}
-              onChange={(e) => setSelectedCourse(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-            >
-              <option value="all">All Courses</option>
-              {courses.map(course => (
-                <option key={course.id} value={course.id}>{course.name}</option>
-              ))}
-            </select>
+        <CardHeader className="flex flex-col gap-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <CardTitle>🎯 Smart Attendance Analytics</CardTitle>
+              <p className="text-sm text-gray-500 mt-1">AI-powered risk assessment with trend analysis</p>
+            </div>
             <Button 
               size="sm" 
               variant="outline"
@@ -499,6 +531,47 @@ Training Center Management`;
             >
               {loadingAlerts ? 'Analyzing...' : 'Refresh'}
             </Button>
+          </div>
+          <div className="flex flex-col md:flex-row gap-3 items-start md:items-center">
+            <select
+              value={selectedCourse}
+              onChange={(e) => setSelectedCourse(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm w-full md:w-auto"
+            >
+              <option value="all">All Courses</option>
+              {courses.map(course => (
+                <option key={course.id} value={course.id}>{course.name}</option>
+              ))}
+            </select>
+            <div className="flex gap-2 items-center flex-wrap">
+              <label className="text-sm text-gray-600">From:</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+              <label className="text-sm text-gray-600">To:</label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+              {(startDate || endDate) && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setStartDate('');
+                    setEndDate('');
+                    loadAttendanceAlerts();
+                  }}
+                >
+                  Clear Dates
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -668,14 +741,25 @@ Training Center Management`;
                             </div>
                           </div>
 
-                          {/* Action Button */}
-                          <a
-                            href={generateEmailLink(student)}
-                            onClick={(e) => e.stopPropagation()}
-                            className="flex-shrink-0 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap text-sm font-medium"
-                          >
-                            📧 Email
-                          </a>
+                          {/* Action Buttons */}
+                          <div className="flex flex-col gap-2">
+                            <a
+                              href={generateEmailLink(student)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="flex-shrink-0 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap text-sm font-medium text-center"
+                            >
+                              📧 Email
+                            </a>
+                            {student.phone && (
+                              <a
+                                href={generateSMSLink(student)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="flex-shrink-0 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors whitespace-nowrap text-sm font-medium text-center"
+                              >
+                                💬 SMS
+                              </a>
+                            )}
+                          </div>
                         </div>
                       </Link>
                     );

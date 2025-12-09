@@ -49,6 +49,12 @@ export function Attendance() {
   const location = useLocation();
   const passedDate = (location.state as { selectedDate?: string })?.selectedDate;
   const [session, setSession] = useState<Session | null>(null);
+
+  // Get authenticated user email
+  const getCurrentUserEmail = async (): Promise<string> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    return user?.email || 'system';
+  };
   const [availableDates, setAvailableDates] = useState<Array<{ value: string; label: string }>>([]);
   const [selectedDate, setSelectedDate] = useState<string>(passedDate || '');
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
@@ -322,6 +328,7 @@ export function Attendance() {
 
     // Capture GPS location
     const gpsData = await captureGPSLocation();
+    const userEmail = await getCurrentUserEmail();
 
     // Check if this is a temporary/unsaved record
     if (attendanceId.startsWith('temp-')) {
@@ -339,7 +346,7 @@ export function Attendance() {
         gps_longitude: gpsData?.longitude || null,
         gps_accuracy: gpsData?.accuracy || null,
         gps_timestamp: gpsData?.timestamp || null,
-        marked_by: 'system',
+        marked_by: userEmail,
         marked_at: new Date().toISOString()
       };
 
@@ -372,7 +379,7 @@ export function Attendance() {
         gps_longitude: gpsData?.longitude || null,
         gps_accuracy: gpsData?.accuracy || null,
         gps_timestamp: gpsData?.timestamp || null,
-        marked_by: 'system',
+        marked_by: userEmail,
         marked_at: new Date().toISOString()
       };
       
@@ -452,6 +459,7 @@ export function Attendance() {
 
     // Capture GPS location once for bulk operation
     const gpsData = await captureGPSLocation();
+    const userEmail = await getCurrentUserEmail();
 
     // Extract actual address from student_id|||address format
     const addressOnly = selectedAddress ? selectedAddress.split('|||')[1] || selectedAddress : null;
@@ -478,7 +486,7 @@ export function Attendance() {
           gps_longitude: gpsData?.longitude || null,
           gps_accuracy: gpsData?.accuracy || null,
           gps_timestamp: gpsData?.timestamp || null,
-          marked_by: 'system',
+          marked_by: userEmail,
           marked_at: new Date().toISOString()
         };
       }).filter(r => r !== null);
@@ -514,7 +522,7 @@ export function Attendance() {
         gps_longitude: gpsData?.longitude || null,
         gps_accuracy: gpsData?.accuracy || null,
         gps_timestamp: gpsData?.timestamp || null,
-        marked_by: 'system',
+        marked_by: userEmail,
         marked_at: new Date().toISOString()
       };
       
@@ -574,6 +582,7 @@ export function Attendance() {
       
       // Mark all students as excused with special marker
       const gpsData = await captureGPSLocation();
+      const userEmail = await getCurrentUserEmail();
       const tempIds = attendance.filter(a => a.attendance_id.startsWith('temp-'));
       const realIds = attendance.filter(a => !a.attendance_id.startsWith('temp-'));
       
@@ -592,7 +601,7 @@ export function Attendance() {
           gps_longitude: gpsData?.longitude || null,
           gps_accuracy: gpsData?.accuracy || null,
           gps_timestamp: gpsData?.timestamp || null,
-          marked_by: 'system',
+          marked_by: `${userEmail} - session cancelled`,
           marked_at: new Date().toISOString()
         }));
         
@@ -612,7 +621,7 @@ export function Attendance() {
             gps_longitude: gpsData?.longitude || null,
             gps_accuracy: gpsData?.accuracy || null,
             gps_timestamp: gpsData?.timestamp || null,
-            marked_by: 'system',
+            marked_by: `${userEmail} - session cancelled`,
             marked_at: new Date().toISOString()
           })
           .in('attendance_id', realIds.map(r => r.attendance_id));

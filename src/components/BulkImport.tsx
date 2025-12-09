@@ -468,7 +468,11 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
           throw new Error(`Row ${rowNum}: Enrollment not found`);
         }
 
-        // 7. Create attendance record
+        // 7. Get authenticated user for marked_by
+        const { data: { user } } = await supabase.auth.getUser();
+        const userEmail = user?.email || 'system';
+
+        // 8. Create attendance record
         const { error: attendanceError } = await supabase
           .from('attendance')
           .insert({
@@ -481,7 +485,7 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
             gps_longitude: row.gpsLongitude || null,
             gps_accuracy: row.gpsAccuracy || null,
             gps_timestamp: row.gpsLatitude ? new Date().toISOString() : null,
-            marked_by: 'bulk_import',
+            marked_by: `${userEmail} - bulk import`,
             marked_at: new Date().toISOString(),
             notes: row.notes || null,
           });

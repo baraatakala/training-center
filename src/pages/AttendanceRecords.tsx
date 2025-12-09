@@ -792,23 +792,89 @@ const AttendanceRecords = () => {
     }
   };
 
-  // Get sorted records
+  // Get sorted records with advanced column-specific sorting
   const getSortedRecords = () => {
     if (!sortColumn) return filteredRecords;
 
     const sorted = [...filteredRecords].sort((a, b) => {
-      let aVal: any = a[sortColumn as keyof AttendanceRecord];
-      let bVal: any = b[sortColumn as keyof AttendanceRecord];
+      // Status column: Custom priority order
+      if (sortColumn === 'status') {
+        const statusPriority: { [key: string]: number } = {
+          'absent': 0,      // Most critical first
+          'late': 1,
+          'excused': 2,
+          'on time': 3      // Best status last
+        };
+        
+        const aPriority = statusPriority[a.status] ?? 999;
+        const bPriority = statusPriority[b.status] ?? 999;
+        
+        const comparison = aPriority - bPriority;
+        return sortDirection === 'asc' ? comparison : -comparison;
+      }
+      
+      // Date columns: Parse as Date objects
+      if (sortColumn === 'attendance_date' || sortColumn === 'marked_at') {
+        const aDate = a[sortColumn as keyof AttendanceRecord];
+        const bDate = b[sortColumn as keyof AttendanceRecord];
+        
+        if (aDate == null && bDate == null) return 0;
+        if (aDate == null) return sortDirection === 'asc' ? 1 : -1;
+        if (bDate == null) return sortDirection === 'asc' ? -1 : 1;
+        
+        const aTime = new Date(aDate as string).getTime();
+        const bTime = new Date(bDate as string).getTime();
+        
+        return sortDirection === 'asc' ? aTime - bTime : bTime - aTime;
+      }
+      
+      // Location column: Handle session_location
+      if (sortColumn === 'location') {
+        const aVal = a.session_location || '';
+        const bVal = b.session_location || '';
+        
+        if (!aVal && !bVal) return 0;
+        if (!aVal) return sortDirection === 'asc' ? 1 : -1;
+        if (!bVal) return sortDirection === 'asc' ? -1 : 1;
+        
+        const comparison = aVal.toLowerCase().localeCompare(bVal.toLowerCase());
+        return sortDirection === 'asc' ? comparison : -comparison;
+      }
+      
+      // Teacher name: Handle instructor_name
+      if (sortColumn === 'teacher_name') {
+        const aVal = a.instructor_name || '';
+        const bVal = b.instructor_name || '';
+        
+        if (!aVal && !bVal) return 0;
+        if (!aVal) return sortDirection === 'asc' ? 1 : -1;
+        if (!bVal) return sortDirection === 'asc' ? -1 : 1;
+        
+        const comparison = aVal.toLowerCase().localeCompare(bVal.toLowerCase());
+        return sortDirection === 'asc' ? comparison : -comparison;
+      }
+      
+      // Default: Generic column sorting
+      const aVal: string | number | null | undefined = a[sortColumn as keyof AttendanceRecord];
+      const bVal: string | number | null | undefined = b[sortColumn as keyof AttendanceRecord];
 
       // Handle null/undefined
       if (aVal == null && bVal == null) return 0;
       if (aVal == null) return sortDirection === 'asc' ? 1 : -1;
       if (bVal == null) return sortDirection === 'asc' ? -1 : 1;
 
-      // Convert to lowercase for string comparison
-      if (typeof aVal === 'string') aVal = aVal.toLowerCase();
-      if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+      // String comparison with locale support
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        const comparison = aVal.toLowerCase().localeCompare(bVal.toLowerCase());
+        return sortDirection === 'asc' ? comparison : -comparison;
+      }
+      
+      // Numeric comparison
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+      }
 
+      // Fallback comparison
       if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
       if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
       return 0;
@@ -1518,57 +1584,88 @@ const AttendanceRecords = () => {
             <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
               <tr>
                 <th 
-                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 transition-colors group"
+                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 transition-colors select-none"
                   onClick={() => handleSort('attendance_date')}
                 >
-                  <div className="flex items-center gap-1">
-                    Date
-                    <span className="opacity-0 group-hover:opacity-100">
-                      {sortColumn === 'attendance_date' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                  <div className="flex items-center gap-2">
+                    <span>Date</span>
+                    <span className={`text-sm transition-opacity ${
+                      sortColumn === 'attendance_date' 
+                        ? 'opacity-100 text-blue-600' 
+                        : 'opacity-40 group-hover:opacity-60'
+                    }`}>
+                      {sortColumn === 'attendance_date' 
+                        ? (sortDirection === 'asc' ? '▲' : '▼') 
+                        : '⇅'}
                     </span>
                   </div>
                 </th>
                 <th 
-                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 transition-colors group"
+                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 transition-colors select-none"
                   onClick={() => handleSort('student_name')}
                 >
-                  <div className="flex items-center gap-1">
-                    Student
-                    <span className="opacity-0 group-hover:opacity-100">
-                      {sortColumn === 'student_name' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                  <div className="flex items-center gap-2">
+                    <span>Student</span>
+                    <span className={`text-sm transition-opacity ${
+                      sortColumn === 'student_name' 
+                        ? 'opacity-100 text-blue-600' 
+                        : 'opacity-40 group-hover:opacity-60'
+                    }`}>
+                      {sortColumn === 'student_name' 
+                        ? (sortDirection === 'asc' ? '▲' : '▼') 
+                        : '⇅'}
                     </span>
                   </div>
                 </th>
                 <th 
-                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 transition-colors group"
+                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 transition-colors select-none"
                   onClick={() => handleSort('course_name')}
                 >
-                  <div className="flex items-center gap-1">
-                    Course
-                    <span className="opacity-0 group-hover:opacity-100">
-                      {sortColumn === 'course_name' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                  <div className="flex items-center gap-2">
+                    <span>Course</span>
+                    <span className={`text-sm transition-opacity ${
+                      sortColumn === 'course_name' 
+                        ? 'opacity-100 text-blue-600' 
+                        : 'opacity-40 group-hover:opacity-60'
+                    }`}>
+                      {sortColumn === 'course_name' 
+                        ? (sortDirection === 'asc' ? '▲' : '▼') 
+                        : '⇅'}
                     </span>
                   </div>
                 </th>
                 <th 
-                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 transition-colors group"
+                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 transition-colors select-none"
                   onClick={() => handleSort('teacher_name')}
                 >
-                  <div className="flex items-center gap-1">
-                    Instructor
-                    <span className="opacity-0 group-hover:opacity-100">
-                      {sortColumn === 'teacher_name' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                  <div className="flex items-center gap-2">
+                    <span>Instructor</span>
+                    <span className={`text-sm transition-opacity ${
+                      sortColumn === 'teacher_name' 
+                        ? 'opacity-100 text-blue-600' 
+                        : 'opacity-40 group-hover:opacity-60'
+                    }`}>
+                      {sortColumn === 'teacher_name' 
+                        ? (sortDirection === 'asc' ? '▲' : '▼') 
+                        : '⇅'}
                     </span>
                   </div>
                 </th>
                 <th 
-                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 transition-colors group"
+                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 transition-colors select-none"
                   onClick={() => handleSort('status')}
+                  title="Sort by priority: Absent → Late → Excused → On Time"
                 >
-                  <div className="flex items-center gap-1">
-                    Status
-                    <span className="opacity-0 group-hover:opacity-100">
-                      {sortColumn === 'status' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                  <div className="flex items-center gap-2">
+                    <span>Status</span>
+                    <span className={`text-sm transition-opacity ${
+                      sortColumn === 'status' 
+                        ? 'opacity-100 text-blue-600' 
+                        : 'opacity-40 group-hover:opacity-60'
+                    }`}>
+                      {sortColumn === 'status' 
+                        ? (sortDirection === 'asc' ? '▲' : '▼') 
+                        : '⇅'}
                     </span>
                   </div>
                 </th>
@@ -1576,13 +1673,19 @@ const AttendanceRecords = () => {
                   Excuse Reason
                 </th>
                 <th 
-                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 transition-colors group"
+                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 transition-colors select-none"
                   onClick={() => handleSort('location')}
                 >
-                  <div className="flex items-center gap-1">
-                    Location
-                    <span className="opacity-0 group-hover:opacity-100">
-                      {sortColumn === 'location' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                  <div className="flex items-center gap-2">
+                    <span>Location</span>
+                    <span className={`text-sm transition-opacity ${
+                      sortColumn === 'location' 
+                        ? 'opacity-100 text-blue-600' 
+                        : 'opacity-40 group-hover:opacity-60'
+                    }`}>
+                      {sortColumn === 'location' 
+                        ? (sortDirection === 'asc' ? '▲' : '▼') 
+                        : '⇅'}
                     </span>
                   </div>
                 </th>
@@ -1590,13 +1693,19 @@ const AttendanceRecords = () => {
                   GPS
                 </th>
                 <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors select-none"
                   onClick={() => handleSort('marked_at')}
                 >
-                  <div className="flex items-center gap-1">
-                    Marked At
-                    <span className="opacity-0 group-hover:opacity-100">
-                      {sortColumn === 'marked_at' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                  <div className="flex items-center gap-2">
+                    <span>Marked At</span>
+                    <span className={`text-sm transition-opacity ${
+                      sortColumn === 'marked_at' 
+                        ? 'opacity-100 text-blue-600' 
+                        : 'opacity-40 group-hover:opacity-60'
+                    }`}>
+                      {sortColumn === 'marked_at' 
+                        ? (sortDirection === 'asc' ? '▲' : '▼') 
+                        : '⇅'}
                     </span>
                   </div>
                 </th>
