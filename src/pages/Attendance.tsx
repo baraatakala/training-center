@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabase';
 import { Tables, type Session } from '../types/database.types';
 import { format } from 'date-fns';
 import { getAttendanceDateOptions } from '../utils/attendanceGenerator';
+import { QRCodeModal } from '../components/QRCodeModal';
 
 type AttendanceRecord = {
   attendance_id: string;
@@ -65,6 +66,7 @@ export function Attendance() {
   const [hostAddresses, setHostAddresses] = useState<HostInfo[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<string>('');
   const [sessionNotHeld, setSessionNotHeld] = useState<boolean>(false);
+  const [showQRModal, setShowQRModal] = useState<boolean>(false);
 
   // GPS Geolocation capture function
   const captureGPSLocation = (): Promise<{
@@ -689,6 +691,16 @@ export function Attendance() {
     <div className="space-y-6 p-4 md:p-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl sm:text-3xl font-bold">Mark Attendance</h1>
+        {selectedDate && !sessionNotHeld && (
+          <Button
+            onClick={() => setShowQRModal(true)}
+            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 flex items-center gap-2"
+          >
+            <span className="text-xl">📱</span>
+            <span className="hidden sm:inline">Generate QR Code</span>
+            <span className="sm:hidden">QR Code</span>
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -1019,6 +1031,16 @@ export function Attendance() {
             </CardContent>
           </Card>
         </>
+      )}
+
+      {/* QR Code Modal */}
+      {showQRModal && sessionId && selectedDate && (
+        <QRCodeModal
+          sessionId={sessionId}
+          date={selectedDate}
+          courseName={courseName}
+          onClose={() => setShowQRModal(false)}
+        />
       )}
     </div>
   );

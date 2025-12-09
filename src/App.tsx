@@ -8,6 +8,7 @@ import { Sessions } from './pages/Sessions';
 import { Enrollments } from './pages/Enrollments';
 import { Attendance } from './pages/Attendance';
 import AttendanceRecords from './pages/AttendanceRecords';
+import { StudentCheckIn } from './pages/StudentCheckIn';
 import Login from './pages/Login';
 import PrivateRoute from './components/PrivateRoute';
 import { AuthProvider } from './context/AuthContext';
@@ -19,6 +20,7 @@ function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/checkin/:sessionId/:date/:token" element={<StudentCheckIn />} />
           <Route
             path="/*"
             element={
