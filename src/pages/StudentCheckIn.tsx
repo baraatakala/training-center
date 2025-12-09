@@ -284,6 +284,16 @@ export function StudentCheckIn() {
           // Add configurable grace period to start time
           const graceEnd = new Date(sessionStart.getTime() + gracePeriodMinutes * 60 * 1000);
           
+          console.log('DEBUG Times:', {
+            now: now.toLocaleString(),
+            sessionStart: sessionStart.toLocaleString(),
+            sessionEnd: sessionEnd.toLocaleString(),
+            graceEnd: graceEnd.toLocaleString(),
+            nowTimestamp: now.getTime(),
+            sessionEndTimestamp: sessionEnd.getTime(),
+            isAfterEnd: now > sessionEnd
+          });
+          
           // CORRECT LOGIC:
           // Before session start  LATE (too early)
           // After session end  mark as LATE but will be shown as absent
