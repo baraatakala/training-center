@@ -82,18 +82,24 @@ ALTER COLUMN session_location_id DROP NOT NULL;
 -- ===== STEP 5: Create proper unique constraint =====
 -- This allows one attendance record per enrollment per date
 -- Supports both manual marking and QR check-in
+
+-- First, check for and clean up any duplicate data
 DO $$
+DECLARE
+  duplicate_count INTEGER;
 BEGIN
-  -- Create the unique constraint
-  ALTER TABLE attendance
-  ADD CONSTRAINT attendance_enrollment_date_unique 
-  UNIQUE(enrollment_id, attendance_date);
+  -- Count duplicates
+  SELECT COUNT(*) INTO duplicate_count
+  FROM (
+    SELECT enrollment_id, attendance_date, COUNT(*) as cnt
+    FROM attendance
+    WHERE attendance_date IS NOT NULL
+    GROUP BY enrollment_id, attendance_date
+    HAVING COUNT(*) > 1
+  ) sub;
   
-  RAISE NOTICE 'Created unique constraint: attendance_enrollment_date_unique';
-EXCEPTION 
-  WHEN duplicate_key THEN
-    -- If data already exists with duplicates, we need to handle it
-    RAISE NOTICE 'Duplicate data exists. Cleaning up...';
+  IF duplicate_count > 0 THEN
+    RAISE NOTICE 'Found % duplicate enrollment+date combinations. Cleaning up...', duplicate_count;
     
     -- Keep the most recent record for each enrollment_id + attendance_date combination
     DELETE FROM attendance a
@@ -107,20 +113,32 @@ EXCEPTION
             ORDER BY marked_at DESC NULLS LAST, created_at DESC
           ) as rn
         FROM attendance
+        WHERE attendance_date IS NOT NULL
       ) sub
       WHERE rn > 1
     );
     
-    -- Now try again
-    ALTER TABLE attendance
-    ADD CONSTRAINT attendance_enrollment_date_unique 
-    UNIQUE(enrollment_id, attendance_date);
-    
-    RAISE NOTICE 'Cleaned duplicates and created unique constraint';
+    RAISE NOTICE 'Cleaned up duplicate records';
+  ELSE
+    RAISE NOTICE 'No duplicates found';
+  END IF;
+END $$;
+
+-- Now create the unique constraint
+DO $$
+BEGIN
+  ALTER TABLE attendance
+  ADD CONSTRAINT attendance_enrollment_date_unique 
+  UNIQUE(enrollment_id, attendance_date);
+  
+  RAISE NOTICE '✅ Created unique constraint: attendance_enrollment_date_unique';
+EXCEPTION 
+  WHEN duplicate_object THEN
+    RAISE NOTICE '⚠️ Constraint already exists: attendance_enrollment_date_unique';
   WHEN unique_violation THEN
-    RAISE NOTICE 'Constraint already exists: attendance_enrollment_date_unique';
+    RAISE NOTICE '❌ Cannot create constraint - duplicate data still exists. Run cleanup manually.';
   WHEN OTHERS THEN
-    RAISE NOTICE 'Error creating constraint: %', SQLERRM;
+    RAISE NOTICE '❌ Error creating constraint: %', SQLERRM;
 END $$;
 
 -- ===== STEP 6: Update existing indexes =====
