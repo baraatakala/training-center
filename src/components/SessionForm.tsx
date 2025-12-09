@@ -30,6 +30,7 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
     day: initialData?.day || null,
     time: initialData?.time || null,
     location: initialData?.location || null,
+    grace_period_minutes: initialData?.grace_period_minutes ?? 15,
   });
 
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -200,6 +201,32 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
         onChange={(value) => setFormData({ ...formData, location: value || null })}
         placeholder="e.g., Main Campus - Room 202"
       />
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Grace Period (minutes)
+          <span className="text-gray-500 font-normal ml-2">
+            Students can check in without being marked late
+          </span>
+        </label>
+        <select
+          value={formData.grace_period_minutes}
+          onChange={(e) => setFormData({ ...formData, grace_period_minutes: parseInt(e.target.value) })}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          <option value={0}>0 minutes (no grace period)</option>
+          <option value={5}>5 minutes</option>
+          <option value={10}>10 minutes</option>
+          <option value={15}>15 minutes (default)</option>
+          <option value={20}>20 minutes</option>
+          <option value={30}>30 minutes</option>
+          <option value={45}>45 minutes</option>
+          <option value={60}>60 minutes (1 hour)</option>
+        </select>
+        <p className="mt-1 text-sm text-gray-500">
+          Students checking in after this grace period will be marked as late
+        </p>
+      </div>
 
       <div className="flex gap-3 justify-end pt-4">
         <Button type="button" variant="outline" onClick={onCancel}>

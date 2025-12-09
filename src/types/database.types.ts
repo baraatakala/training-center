@@ -41,6 +41,7 @@ export interface Session {
   day: string | null;
   time: string | null;
   location: string | null;
+  grace_period_minutes?: number;
   created_at: string;
   updated_at: string;
 }

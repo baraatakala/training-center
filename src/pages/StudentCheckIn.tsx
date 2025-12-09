@@ -15,6 +15,7 @@ type CheckInData = {
     };
     time?: string;
     location?: string;
+    grace_period_minutes?: number;
   };
 };
 
@@ -32,6 +33,8 @@ export function StudentCheckIn() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [wasLate, setWasLate] = useState(false);
+  const [checkedInAfterSession, setCheckedInAfterSession] = useState(false);
   const [checkInData, setCheckInData] = useState<CheckInData | null>(null);
   const [studentInfo, setStudentInfo] = useState<any>(null);
   const [hostAddresses, setHostAddresses] = useState<HostInfo[]>([]);
@@ -79,6 +82,7 @@ export function StudentCheckIn() {
           time,
           location,
           course_id,
+          grace_period_minutes,
           course:course_id (
             course_name
           )
@@ -237,6 +241,51 @@ export function StudentCheckIn() {
 
       const addressOnly = selectedAddress ? selectedAddress.split('|||')[1] || selectedAddress : null;
 
+      // Determine if student is late based on session time and grace period
+      let attendanceStatus: 'on time' | 'late' = 'on time';
+      let checkInAfterSession = false;
+      const now = new Date();
+      
+      // Get grace period from session (default to 15 if not set)
+      const gracePeriodMinutes = checkInData.session?.grace_period_minutes ?? 15;
+      
+      // Parse session time if available (e.g., "09:00-12:00" or "09:00 AM - 12:00 PM")
+      if (checkInData.session?.time) {
+        // Extract start and end times
+        const timeMatches = checkInData.session.time.match(/(\d{1,2}):(\d{2})/g);
+        if (timeMatches && timeMatches.length >= 2) {
+          // Parse start time
+          const startMatch = timeMatches[0].match(/(\d{1,2}):(\d{2})/);
+          const startHour = parseInt(startMatch![1], 10);
+          const startMinute = parseInt(startMatch![2], 10);
+          
+          // Parse end time
+          const endMatch = timeMatches[1].match(/(\d{1,2}):(\d{2})/);
+          const endHour = parseInt(endMatch![1], 10);
+          const endMinute = parseInt(endMatch![2], 10);
+          
+          // Create session start and end times for today
+          const sessionStart = new Date(checkInData.attendance_date);
+          sessionStart.setHours(startHour, startMinute, 0, 0);
+          
+          const sessionEnd = new Date(checkInData.attendance_date);
+          sessionEnd.setHours(endHour, endMinute, 0, 0);
+          
+          // Add configurable grace period to start time
+          const graceEnd = new Date(sessionStart.getTime() + gracePeriodMinutes * 60 * 1000);
+          
+          // Check if checking in after session ended
+          if (now > sessionEnd) {
+            checkInAfterSession = true;
+            attendanceStatus = 'late';
+          }
+          // Check if checking in after grace period but before session ends
+          else if (now > graceEnd) {
+            attendanceStatus = 'late';
+          }
+        }
+      }
+
       // Check if attendance record already exists
       const { data: existingRecord } = await supabase
         .from('attendance')
@@ -245,13 +294,15 @@ export function StudentCheckIn() {
         .eq('attendance_date', checkInData.attendance_date)
         .single();
 
+      const checkInTime = new Date().toISOString();
+      
       const attendanceData = {
         enrollment_id: enrollment.enrollment_id,
         session_id: checkInData.session_id,
         student_id: studentInfo.student_id,
         attendance_date: checkInData.attendance_date,
-        status: 'on time' as const,
-        check_in_time: new Date().toISOString(),
+        status: attendanceStatus,
+        check_in_time: checkInTime,
         host_address: addressOnly,
         gps_latitude: gpsData?.latitude || null,
         gps_longitude: gpsData?.longitude || null,
@@ -282,6 +333,8 @@ export function StudentCheckIn() {
         throw attendanceError;
       }
 
+      setWasLate(attendanceStatus === 'late');
+      setCheckedInAfterSession(checkInAfterSession);
       setSuccess(true);
       setTimeout(() => {
         navigate('/');
@@ -331,11 +384,11 @@ export function StudentCheckIn() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-blue-50 p-4">
+      <div className={`min-h-screen flex items-center justify-center p-4 ${wasLate ? 'bg-gradient-to-br from-yellow-50 to-orange-50' : 'bg-gradient-to-br from-green-50 to-blue-50'}`}>
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle className="text-green-600 flex items-center gap-2">
-              <span className="text-5xl">✅</span>
+            <CardTitle className={`flex items-center gap-2 ${wasLate ? 'text-orange-600' : 'text-green-600'}`}>
+              <span className="text-5xl">{wasLate ? '⏰' : '✅'}</span>
               <span>Check-In Successful!</span>
             </CardTitle>
           </CardHeader>
@@ -344,6 +397,18 @@ export function StudentCheckIn() {
               <p className="text-xl font-semibold text-gray-900 mb-2">
                 Welcome, {studentInfo?.name}!
               </p>
+              {wasLate && (
+                <div className={`${checkedInAfterSession ? 'bg-red-100 border-red-300' : 'bg-yellow-100 border-yellow-300'} border rounded-lg p-3 mb-3`}>
+                  <p className={`text-sm font-semibold ${checkedInAfterSession ? 'text-red-800' : 'text-yellow-800'} flex items-center justify-center gap-2`}>
+                    <span>{checkedInAfterSession ? '🚫' : '⚠️'}</span>
+                    <span>
+                      {checkedInAfterSession 
+                        ? 'You checked in AFTER the session ended' 
+                        : `You were marked as LATE (arrived after ${checkInData?.session?.grace_period_minutes ?? 15}-minute grace period)`}
+                    </span>
+                  </p>
+                </div>
+              )}
               <p className="text-gray-600 mb-4">
                 Your attendance has been recorded for {checkInData?.session?.course?.course_name}
               </p>
