@@ -207,12 +207,15 @@ export function StudentCheckIn() {
   } | null> => {
     return new Promise((resolve) => {
       if (!('geolocation' in navigator)) {
+        console.warn('Geolocation not supported by browser');
+        alert('⚠️ GPS not supported by your browser. Continuing without location data.');
         resolve(null);
         return;
       }
 
       navigator.geolocation.getCurrentPosition(
         (position) => {
+          console.log('GPS captured successfully:', position.coords.latitude, position.coords.longitude);
           resolve({
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
@@ -222,6 +225,21 @@ export function StudentCheckIn() {
         },
         (error) => {
           console.error('GPS error:', error);
+          let errorMsg = '';
+          switch(error.code) {
+            case error.PERMISSION_DENIED:
+              errorMsg = '⚠️ Location permission denied. Check-in will continue without GPS data.\n\nTo enable: Allow location access in your browser settings.';
+              break;
+            case error.POSITION_UNAVAILABLE:
+              errorMsg = '⚠️ Location unavailable. Check-in will continue without GPS data.';
+              break;
+            case error.TIMEOUT:
+              errorMsg = '⚠️ Location request timed out. Check-in will continue without GPS data.';
+              break;
+            default:
+              errorMsg = '⚠️ Unable to get location. Check-in will continue without GPS data.';
+          }
+          alert(errorMsg);
           resolve(null);
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
@@ -565,10 +583,16 @@ export function StudentCheckIn() {
           )}
 
           {/* GPS Info */}
-          <div className="text-xs text-gray-500 bg-gray-50 rounded p-3">
-            <p className="flex items-center gap-1">
+          <div className="text-xs text-gray-500 bg-blue-50 border border-blue-200 rounded p-3">
+            <p className="flex items-center gap-1 font-medium text-blue-700">
               <span>📍</span>
-              <span>Your location will be captured for verification</span>
+              <span>GPS Location Required</span>
+            </p>
+            <p className="mt-1 text-gray-600">
+              Your browser will ask for location permission. Please allow it to verify your attendance location.
+            </p>
+            <p className="mt-1 text-xs text-gray-500">
+              💡 If GPS fails, check-in will continue but location won't be recorded.
             </p>
           </div>
 
