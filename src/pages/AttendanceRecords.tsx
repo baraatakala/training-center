@@ -29,6 +29,7 @@ interface AttendanceRecord {
   teacher_id: string;
   instructor_name: string;
   session_location: string | null;
+  host_address: string | null;
 }
 
 interface StudentAnalytics {
@@ -67,6 +68,7 @@ interface DateAnalytics {
   lateNames: string[];
   excusedNames: string[];
   absentNames: string[];
+  hostAddress: string | null;
 }
 
 interface FilterOptions {
@@ -240,6 +242,7 @@ const AttendanceRecords = () => {
           gps_timestamp,
           marked_by,
           marked_at,
+          host_address,
           student:student_id (name),
           session:session_id (
             location,
@@ -275,6 +278,7 @@ const AttendanceRecords = () => {
           gps_timestamp: record.gps_timestamp,
           marked_by: record.marked_by,
           marked_at: record.marked_at,
+          host_address: record.host_address || null,
           student_name: student.name || 'Unknown',
           course_id: session.course_id || '',
           course_name: course.course_name || 'Unknown',
@@ -482,6 +486,7 @@ const AttendanceRecords = () => {
     // Attendance by Date Sheet
     const dateHeaders = isArabic ? [
       'التاريخ',
+      'عنوان المضيف',
       'في الوقت',
       'متأخر',
       'معذور',
@@ -493,6 +498,7 @@ const AttendanceRecords = () => {
       'أسماء الغائبين'
     ] : [
       'Date',
+      'Host Address',
       'On Time',
       'Late',
       'Excused',
@@ -506,6 +512,7 @@ const AttendanceRecords = () => {
 
     const dateRows = dateAnalytics.map((dateData) => [
       format(new Date(dateData.date), 'MMM dd, yyyy'),
+      dateData.hostAddress || '-',
       dateData.presentCount,
       dateData.lateCount,
       dateData.excusedAbsentCount,
@@ -527,6 +534,43 @@ const AttendanceRecords = () => {
     // Sheet 2: Attendance by Date
     const ws2 = XLSX.utils.aoa_to_sheet([dateHeaders, ...dateRows]);
     XLSX.utils.book_append_sheet(wb, ws2, isArabic ? 'الحضور بالتاريخ' : 'Attendance by Date');
+
+    // Sheet 3: Host Rankings
+    const hostMap = new Map<string, { count: number; dates: string[] }>();
+    dateAnalytics.forEach((dateData) => {
+      if (dateData.hostAddress) {
+        const existing = hostMap.get(dateData.hostAddress) || { count: 0, dates: [] };
+        existing.count++;
+        existing.dates.push(format(new Date(dateData.date), 'MMM dd'));
+        hostMap.set(dateData.hostAddress, existing);
+      }
+    });
+
+    const hostRankings = Array.from(hostMap.entries())
+      .map(([address, data]) => ({ address, ...data }))
+      .sort((a, b) => b.count - a.count);
+
+    const hostHeaders = isArabic ? [
+      'الرتبة',
+      'عنوان المضيف',
+      'عدد مرات الاستضافة',
+      'التواريخ'
+    ] : [
+      'Rank',
+      'Host Address',
+      'Times Hosted',
+      'Dates'
+    ];
+
+    const hostRows = hostRankings.map((host, index) => [
+      index + 1,
+      host.address,
+      host.count,
+      host.dates.join(', ')
+    ]);
+
+    const ws3 = XLSX.utils.aoa_to_sheet([hostHeaders, ...hostRows]);
+    XLSX.utils.book_append_sheet(wb, ws3, isArabic ? 'تصنيف المضيفين' : 'Host Rankings');
 
     // Export to file
     XLSX.writeFile(wb, `analytics-report-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
@@ -617,9 +661,10 @@ const AttendanceRecords = () => {
 
     autoTable(doc, {
       startY: performanceTableY + 14,
-      head: [['Date', 'On Time', 'Late', 'Excused', 'Absent', 'Rate %', 'On Time Names', 'Late Names', 'Excused Names', 'Absent Names']],
+      head: [['Date', 'Host Address', 'On Time', 'Late', 'Excused', 'Absent', 'Rate %', 'On Time Names', 'Late Names', 'Excused Names', 'Absent Names']],
       body: dateAnalytics.map((dateData) => [
         format(new Date(dateData.date), 'MMM dd, yyyy'),
+        dateData.hostAddress || '-',
         dateData.presentCount,
         dateData.lateCount,
         dateData.excusedAbsentCount,
@@ -630,22 +675,66 @@ const AttendanceRecords = () => {
         dateData.excusedNames.join(', ') || '-',
         dateData.absentNames.join(', ') || '-'
       ]),
-      styles: { fontSize: 7, cellPadding: 2 },
-      headStyles: { fillColor: [59, 130, 246], fontSize: 7 },
+      styles: { fontSize: 6, cellPadding: 1.5 },
+      headStyles: { fillColor: [59, 130, 246], fontSize: 6 },
       alternateRowStyles: { fillColor: [245, 245, 245] },
       columnStyles: {
-        0: { cellWidth: 20 },
-        1: { cellWidth: 12 },
-        2: { cellWidth: 12 },
-        3: { cellWidth: 12 },
-        4: { cellWidth: 12 },
-        5: { cellWidth: 15 },
-        6: { cellWidth: 'auto' },
+        0: { cellWidth: 18 },
+        1: { cellWidth: 25 },
+        2: { cellWidth: 10 },
+        3: { cellWidth: 10 },
+        4: { cellWidth: 10 },
+        5: { cellWidth: 10 },
+        6: { cellWidth: 12 },
         7: { cellWidth: 'auto' },
         8: { cellWidth: 'auto' },
-        9: { cellWidth: 'auto' }
+        9: { cellWidth: 'auto' },
+        10: { cellWidth: 'auto' }
       },
     });
+
+    // Host Rankings Table
+    const dateTableY = (doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || performanceTableY + 14;
+    
+    // Calculate host rankings
+    const hostMap = new Map<string, { count: number; dates: string[] }>();
+    dateAnalytics.forEach((dateData) => {
+      if (dateData.hostAddress) {
+        const existing = hostMap.get(dateData.hostAddress) || { count: 0, dates: [] };
+        existing.count++;
+        existing.dates.push(format(new Date(dateData.date), 'MMM dd'));
+        hostMap.set(dateData.hostAddress, existing);
+      }
+    });
+
+    const hostRankings = Array.from(hostMap.entries())
+      .map(([address, data]) => ({ address, ...data }))
+      .sort((a, b) => b.count - a.count);
+
+    if (hostRankings.length > 0) {
+      doc.setFontSize(12);
+      doc.text('Host Rankings (All Hosts by Session Count)', 14, dateTableY + 10);
+
+      autoTable(doc, {
+        startY: dateTableY + 14,
+        head: [['Rank', 'Host Address', 'Times Hosted', 'Dates']],
+        body: hostRankings.map((host, index) => [
+          index + 1,
+          host.address,
+          host.count,
+          host.dates.join(', ')
+        ]),
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [59, 130, 246], fontSize: 8 },
+        alternateRowStyles: { fillColor: [245, 245, 245] },
+        columnStyles: {
+          0: { cellWidth: 15 },
+          1: { cellWidth: 60 },
+          2: { cellWidth: 25 },
+          3: { cellWidth: 'auto' }
+        },
+      });
+    }
 
     doc.save(`analytics-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   };
@@ -850,6 +939,10 @@ const AttendanceRecords = () => {
       // Attendance rate: (Present + Late) / Total Accountable
       const attendanceRate = totalAccountable > 0 ? ((presentCount + lateCount) / totalAccountable) * 100 : 0;
 
+      // Find host address for this date (from any record with host_address)
+      const hostRecord = dateRecords.find(r => r.host_address);
+      const hostAddress = hostRecord?.host_address || null;
+
       return {
         date,
         presentCount,
@@ -861,6 +954,7 @@ const AttendanceRecords = () => {
         lateNames: lateRecords.map(r => r.student_name),
         excusedNames: excusedRecords.map(r => r.student_name),
         absentNames: [...absentRecords.map(r => r.student_name), ...unmarkedNames],
+        hostAddress,
       };
     }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -1132,6 +1226,7 @@ const AttendanceRecords = () => {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Host Address</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">On Time</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Late</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Excused</th>
@@ -1148,6 +1243,15 @@ const AttendanceRecords = () => {
                     <tr key={dateData.date} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm font-medium text-gray-900 whitespace-nowrap">
                         {format(new Date(dateData.date), 'MMM dd, yyyy')}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700 max-w-xs">
+                        {dateData.hostAddress ? (
+                          <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-medium">
+                            📍 {dateData.hostAddress}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-sm text-center text-green-600 font-medium">
                         {dateData.presentCount}
