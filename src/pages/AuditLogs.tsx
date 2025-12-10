@@ -83,40 +83,43 @@ export function AuditLogs() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Table</label>
               <Select
                 value={filters.tableName}
-                onChange={(e) => setFilters({ ...filters, tableName: e.target.value })}
-              >
-                <option value="">All Tables</option>
-                <option value="student">Student</option>
-                <option value="teacher">Teacher</option>
-                <option value="course">Course</option>
-                <option value="session">Session</option>
-                <option value="enrollment">Enrollment</option>
-                <option value="attendance">Attendance</option>
-              </Select>
+                onChange={(value) => setFilters({ ...filters, tableName: value })}
+                options={[
+                  { value: '', label: 'All Tables' },
+                  { value: 'student', label: 'Student' },
+                  { value: 'teacher', label: 'Teacher' },
+                  { value: 'course', label: 'Course' },
+                  { value: 'session', label: 'Session' },
+                  { value: 'enrollment', label: 'Enrollment' },
+                  { value: 'attendance', label: 'Attendance' },
+                ]}
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Operation</label>
               <Select
                 value={filters.operation}
-                onChange={(e) => setFilters({ ...filters, operation: e.target.value })}
-              >
-                <option value="">All Operations</option>
-                <option value="DELETE">Delete</option>
-                <option value="UPDATE">Update</option>
-                <option value="INSERT">Insert</option>
-              </Select>
+                onChange={(value) => setFilters({ ...filters, operation: value })}
+                options={[
+                  { value: '', label: 'All Operations' },
+                  { value: 'DELETE', label: 'Delete' },
+                  { value: 'UPDATE', label: 'Update' },
+                  { value: 'INSERT', label: 'Insert' },
+                ]}
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Limit</label>
               <Select
                 value={filters.limit.toString()}
-                onChange={(e) => setFilters({ ...filters, limit: parseInt(e.target.value) })}
-              >
-                <option value="50">50 records</option>
-                <option value="100">100 records</option>
-                <option value="200">200 records</option>
-                <option value="500">500 records</option>
-              </Select>
+                onChange={(value) => setFilters({ ...filters, limit: parseInt(value) })}
+                options={[
+                  { value: '50', label: '50 records' },
+                  { value: '100', label: '100 records' },
+                  { value: '200', label: '200 records' },
+                  { value: '500', label: '500 records' },
+                ]}
+              />
             </div>
           </div>
 
