@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Background circle -->
+  <circle cx="32" cy="32" r="30" fill="#3B82F6"/>
+  
+  <!-- Checkmark for attendance -->
+  <path d="M20 32 L28 40 L44 24" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Graduation cap -->
+  <path d="M32 16 L48 22 L32 28 L16 22 Z" fill="white"/>
+  <path d="M20 24 L20 30 Q20 34 32 36 Q44 34 44 30 L44 24" stroke="white" stroke-width="2" fill="none"/>
+</svg>
