@@ -337,52 +337,9 @@ export function Attendance() {
     const gpsData = await captureGPSLocation();
     const userEmail = await getCurrentUserEmail();
 
-    // Auto-detect late arrival based on session time and grace period
-    let actualStatus = status;
-    if (status !== 'excused' && session?.time && selectedDate) {
-      const now = new Date();
-      const gracePeriodMinutes = session.grace_period_minutes ?? 15;
-      
-      const timeMatches = session.time.match(/(\d{1,2}):(\d{2})/g);
-      if (timeMatches && timeMatches.length >= 2) {
-        const startMatch = timeMatches[0].match(/(\d{1,2}):(\d{2})/);
-        const endMatch = timeMatches[1].match(/(\d{1,2}):(\d{2})/);
-        
-        if (startMatch && endMatch) {
-          let startHour = parseInt(startMatch[1], 10);
-          const startMinute = parseInt(startMatch[2], 10);
-          let endHour = parseInt(endMatch[1], 10);
-          const endMinute = parseInt(endMatch[2], 10);
-          
-          const timeLower = session.time.toLowerCase();
-          if (timeLower.includes('pm')) {
-            if (startHour !== 12) startHour += 12;
-            if (endHour !== 12) endHour += 12;
-          } else if (timeLower.includes('am')) {
-            if (startHour === 12) startHour = 0;
-            if (endHour === 12) endHour = 0;
-          }
-          
-          const sessionStart = new Date(selectedDate + 'T00:00:00');
-          sessionStart.setHours(startHour, startMinute, 0, 0);
-          
-          const sessionEnd = new Date(selectedDate + 'T00:00:00');
-          sessionEnd.setHours(endHour, endMinute, 0, 0);
-          
-          const graceEnd = new Date(sessionStart.getTime() + gracePeriodMinutes * 60 * 1000);
-          
-          if (now < sessionStart) {
-            actualStatus = 'absent';
-          } else if (now > sessionEnd) {
-            actualStatus = 'absent';
-          } else if (now <= graceEnd) {
-            actualStatus = 'on time';
-          } else {
-            actualStatus = 'late';
-          }
-        }
-      }
-    }
+    // Teacher manual marking: use the status they selected without auto-detection
+    // (Auto-detection only applies to student QR check-ins in StudentCheckIn.tsx)
+    const actualStatus = status;
 
     // Check if this is a temporary/unsaved record
     if (attendanceId.startsWith('temp-')) {
