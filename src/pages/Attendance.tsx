@@ -344,42 +344,91 @@ export function Attendance() {
 
     // Check if this is a temporary/unsaved record
     if (attendanceId.startsWith('temp-')) {
-      // Create new attendance record
-      const addressOnly = selectedAddress ? selectedAddress.split('|||')[1] || selectedAddress : null;
-      const newRecord: Record<string, unknown> = {
-        enrollment_id: record.enrollment_id,
-        session_id: sessionId,
-        student_id: record.student_id,
-        attendance_date: selectedDate,
-        status: actualStatus,
-        check_in_time: (status === 'on time' || status === 'late') ? new Date().toISOString() : null,
-        host_address: addressOnly,
-        gps_latitude: gpsData?.latitude || null,
-        gps_longitude: gpsData?.longitude || null,
-        gps_accuracy: gpsData?.accuracy || null,
-        gps_timestamp: gpsData?.timestamp || null,
-        marked_by: userEmail,
-        marked_at: new Date().toISOString()
-      };
-
-      if (status === 'excused') {
-        newRecord.excuse_reason = excuseReason[attendanceId];
-      }
-
-      const { error } = await supabase
+      // Before inserting, check if a record already exists (e.g., from student QR check-in)
+      const { data: existingRecord } = await supabase
         .from(Tables.ATTENDANCE)
-        .insert([newRecord]);
+        .select('attendance_id')
+        .eq('enrollment_id', record.enrollment_id)
+        .eq('session_id', sessionId)
+        .eq('attendance_date', selectedDate)
+        .single();
 
-      if (error) {
-        console.error('Error creating attendance:', error);
-        alert(`Error: ${error.message}`);
+      const addressOnly = selectedAddress ? selectedAddress.split('|||')[1] || selectedAddress : null;
+
+      if (existingRecord) {
+        // Record exists - UPDATE it instead of inserting
+        const updates: Record<string, unknown> = {
+          status: actualStatus,
+          host_address: addressOnly,
+          gps_latitude: gpsData?.latitude || null,
+          gps_longitude: gpsData?.longitude || null,
+          gps_accuracy: gpsData?.accuracy || null,
+          gps_timestamp: gpsData?.timestamp || null,
+          marked_by: userEmail,
+          marked_at: new Date().toISOString()
+        };
+        
+        if (status === 'on time' || status === 'late') {
+          updates.check_in_time = new Date().toISOString();
+        } else if (status === 'excused') {
+          updates.excuse_reason = excuseReason[attendanceId];
+        } else {
+          updates.check_in_time = null;
+        }
+
+        const { error } = await supabase
+          .from(Tables.ATTENDANCE)
+          .update(updates)
+          .eq('attendance_id', existingRecord.attendance_id);
+
+        if (error) {
+          console.error('Error updating existing attendance:', error);
+          alert(`Error: ${error.message}`);
+        } else {
+          setExcuseReason(prev => {
+            const updated = { ...prev };
+            delete updated[attendanceId];
+            return updated;
+          });
+          loadAttendance();
+        }
       } else {
-        setExcuseReason(prev => {
-          const updated = { ...prev };
-          delete updated[attendanceId];
-          return updated;
-        });
-        loadAttendance();
+        // No existing record - INSERT new one
+        const newRecord: Record<string, unknown> = {
+          enrollment_id: record.enrollment_id,
+          session_id: sessionId,
+          student_id: record.student_id,
+          attendance_date: selectedDate,
+          status: actualStatus,
+          check_in_time: (status === 'on time' || status === 'late') ? new Date().toISOString() : null,
+          host_address: addressOnly,
+          gps_latitude: gpsData?.latitude || null,
+          gps_longitude: gpsData?.longitude || null,
+          gps_accuracy: gpsData?.accuracy || null,
+          gps_timestamp: gpsData?.timestamp || null,
+          marked_by: userEmail,
+          marked_at: new Date().toISOString()
+        };
+
+        if (status === 'excused') {
+          newRecord.excuse_reason = excuseReason[attendanceId];
+        }
+
+        const { error } = await supabase
+          .from(Tables.ATTENDANCE)
+          .insert([newRecord]);
+
+        if (error) {
+          console.error('Error creating attendance:', error);
+          alert(`Error: ${error.message}`);
+        } else {
+          setExcuseReason(prev => {
+            const updated = { ...prev };
+            delete updated[attendanceId];
+            return updated;
+          });
+          loadAttendance();
+        }
       }
     } else {
       // Update existing record
