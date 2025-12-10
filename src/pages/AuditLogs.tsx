@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
@@ -15,11 +15,7 @@ export function AuditLogs() {
   });
   const [expandedLog, setExpandedLog] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadLogs();
-  }, [filters]);
-
-  const loadLogs = async () => {
+  const loadLogs = useCallback(async () => {
     try {
       setLoading(true);
       const data = await getAuditLogs(filters);
@@ -30,7 +26,11 @@ export function AuditLogs() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]);
+
+  useEffect(() => {
+    loadLogs();
+  }, [loadLogs]);
 
   const getOperationBadge = (operation: string) => {
     const colors = {
@@ -198,7 +198,7 @@ export function AuditLogs() {
                         <td className="px-4 py-3 whitespace-nowrap">
                           {getTableBadge(log.table_name)}
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 font-mono text-xs">
+                        <td className="px-4 py-3 whitespace-nowrap text-gray-600 font-mono text-xs">
                           {log.record_id.substring(0, 8)}...
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600">

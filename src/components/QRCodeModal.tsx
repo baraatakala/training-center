@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import QRCode from 'qrcode';
 import { supabase } from '../lib/supabase';
 
@@ -16,7 +16,7 @@ export function QRCodeModal({ sessionId, date, courseName, onClose }: QRCodeModa
   const [timeLeft, setTimeLeft] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
-  const generateQRCode = async () => {
+  const generateQRCode = useCallback(async () => {
     try {
       const timestamp = Date.now();
       const token = `${sessionId}-${date}-${timestamp}`;
@@ -40,9 +40,9 @@ export function QRCodeModal({ sessionId, date, courseName, onClose }: QRCodeModa
       console.error('QR code generation error:', err);
       setLoading(false);
     }
-  };
+  }, [sessionId, date]);
 
-  const loadCheckInStats = async () => {
+  const loadCheckInStats = useCallback(async () => {
     try {
       // Get total enrolled students
       const { count: total } = await supabase
@@ -65,9 +65,9 @@ export function QRCodeModal({ sessionId, date, courseName, onClose }: QRCodeModa
     } catch (err) {
       console.error('Stats loading error:', err);
     }
-  };
+  }, [sessionId, date]);
 
-  const setupRealtimeSubscription = () => {
+  const setupRealtimeSubscription = useCallback(() => {
     const channel = supabase
       .channel(`attendance-${sessionId}-${date}`)
       .on(
@@ -88,7 +88,7 @@ export function QRCodeModal({ sessionId, date, courseName, onClose }: QRCodeModa
     return () => {
       supabase.removeChannel(channel);
     };
-  };
+  }, [sessionId, date, loadCheckInStats]);
 
   const updateTimeLeft = (expiration: Date) => {
     const now = new Date();
@@ -124,7 +124,7 @@ export function QRCodeModal({ sessionId, date, courseName, onClose }: QRCodeModa
       clearInterval(timer);
       cleanup();
     };
-  }, [sessionId, date]);
+  }, [sessionId, date, generateQRCode, loadCheckInStats, setupRealtimeSubscription]);
 
   const percentage = totalStudents > 0 ? Math.round((checkInCount / totalStudents) * 100) : 0;
 

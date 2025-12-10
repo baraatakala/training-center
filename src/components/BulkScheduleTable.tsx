@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Tables } from '../types/database.types';
 import { logDelete } from '../services/auditService';
@@ -107,12 +107,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
     setHostDateMap({});
   }, [startDate, endDate, day]);
 
-  useEffect(() => {
-    loadEnrollments();
-    loadCancelledDates();
-  }, [sessionId]);
-
-  const loadCancelledDates = async () => {
+  const loadCancelledDates = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from(Tables.ATTENDANCE)
@@ -128,12 +123,13 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       const cancelled = new Set(data?.map(d => d.attendance_date) || []);
       setCancelledDates(cancelled);
       console.log('Loaded cancelled dates:', Array.from(cancelled));
-    } catch (err: any) {
-      console.error('Exception loading cancelled dates:', err);
+    } catch (err) {
+      const error = err as Error;
+      console.error('Exception loading cancelled dates:', error);
     }
-  };
+  }, [sessionId]);
 
-  const loadEnrollments = async () => {
+  const loadEnrollments = useCallback(async () => {
     try {
       console.log('Loading students for session:', sessionId);
       
@@ -202,12 +198,17 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
         hd[row.enrollment_id] = row.host_date || null;
       });
       setHostDateMap(hd);
-    } catch (err: any) {
-      console.error('Enrollment load exception:', err);
-      alert('Error loading enrollments: ' + err.message);
+    } catch (err) {
+      const error = err as Error;
+      console.error('Enrollment load exception:', error);
+      alert('Error loading enrollments: ' + error.message);
     }
-  };
+  }, [sessionId, hostFilter]);
 
+  useEffect(() => {
+    loadEnrollments();
+    loadCancelledDates();
+  }, [loadEnrollments, loadCancelledDates]);
 
   const toggleHost = async (enrollmentId: string, value: boolean) => {
     const enrollment = enrollments.find(e => e.enrollment_id === enrollmentId);
@@ -376,9 +377,10 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
           return updated;
         });
         console.log(`✅ Unmarked ${date} as cancelled`);
-      } catch (err: any) {
-        console.error('Exception unmarking cancelled session:', err);
-        alert('Error: ' + err.message);
+      } catch (err) {
+        const error = err as Error;
+        console.error('Exception unmarking cancelled session:', error);
+        alert('Error: ' + error.message);
       }
     }
   };
@@ -460,7 +462,9 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
         }
       };
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (typeof (doc as any).autoTable === 'function') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (doc as any).autoTable(autoTableOptions);
         doc.save(`host_schedule_${sessionId}.pdf`);
       } else if (pluginMod) {
@@ -663,7 +667,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
   const quickFix = () => {
     // Auto-fix: Remove duplicates by keeping first occurrence, clear others
     const calendarView = getCalendarView();
-    const duplicateDates = Object.entries(calendarView).filter(([_, hosts]) => hosts.length > 1);
+    const duplicateDates = Object.entries(calendarView).filter(([, hosts]) => hosts.length > 1);
     
     if (duplicateDates.length === 0) {
       alert('No duplicates found!');
@@ -672,7 +676,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
     
     setHostDateMap((prev) => {
       const next = { ...prev };
-      duplicateDates.forEach(([_, hosts]) => {
+      duplicateDates.forEach(([, hosts]) => {
         // Keep first, clear rest
         hosts.slice(1).forEach(host => {
           next[host.enrollmentId] = null;

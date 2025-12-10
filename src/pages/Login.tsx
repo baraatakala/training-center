@@ -33,8 +33,9 @@ export const Login: React.FC = () => {
 
       // Redirect to return URL or dashboard on successful login
       navigate(decodeURIComponent(returnUrl));
-    } catch (err: any) {
-      setError(err.message || 'An error occurred');
+    } catch (err) {
+      const error = err as Error;
+      setError(error.message || 'An error occurred');
       setLoading(false);
     }
   };

@@ -790,8 +790,8 @@ const AttendanceRecords = () => {
     if (!sortColumn) return filteredRecords;
 
     const sorted = [...filteredRecords].sort((a, b) => {
-      let aVal: any = a[sortColumn as keyof AttendanceRecord];
-      let bVal: any = b[sortColumn as keyof AttendanceRecord];
+      let aVal: string | number | null | undefined = a[sortColumn as keyof AttendanceRecord];
+      let bVal: string | number | null | undefined = b[sortColumn as keyof AttendanceRecord];
 
       // Handle null/undefined
       if (aVal == null && bVal == null) return 0;
