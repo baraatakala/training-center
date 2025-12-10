@@ -10,6 +10,7 @@ import { SessionForm } from '../components/SessionForm';
 import BulkScheduleTable from '../components/BulkScheduleTable';
 import { supabase } from '../lib/supabase';
 import { Tables, type CreateSession } from '../types/database.types';
+import { logDelete } from '../services/auditService';
 
 type SessionWithDetails = {
   session_id: string;
@@ -174,6 +175,18 @@ export function Sessions() {
 
   const handleDeleteSession = async (sessionId: string) => {
     if (!confirm('Are you sure you want to delete this session?')) return;
+
+    // Fetch session data before deletion for audit log
+    const { data: session } = await supabase
+      .from(Tables.SESSION)
+      .select('*')
+      .eq('session_id', sessionId)
+      .single();
+
+    // Log the deletion
+    if (session) {
+      await logDelete('session', sessionId, session as Record<string, unknown>);
+    }
 
     const { error } = await supabase.from(Tables.SESSION).delete().eq('session_id', sessionId);
 

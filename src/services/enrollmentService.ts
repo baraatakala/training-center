@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import type { CreateEnrollment, UpdateEnrollment } from '../types/database.types';
 import { Tables } from '../types/database.types';
+import { logDelete } from './auditService';
 
 export const enrollmentService = {
   // Get all enrollments
@@ -118,6 +119,18 @@ export const enrollmentService = {
 
   // Delete enrollment
   async delete(id: string) {
+    // Fetch enrollment data before deletion for audit log
+    const { data: enrollment } = await supabase
+      .from(Tables.ENROLLMENT)
+      .select('*')
+      .eq('enrollment_id', id)
+      .single();
+
+    // Log the deletion
+    if (enrollment) {
+      await logDelete('enrollment', id, enrollment as Record<string, unknown>);
+    }
+
     return await supabase
       .from(Tables.ENROLLMENT)
       .delete()

@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import type { CreateStudent, UpdateStudent } from '../types/database.types';
 import { Tables } from '../types/database.types';
+import { logDelete } from './auditService';
 
 export const studentService = {
   // Get all students
@@ -68,6 +69,18 @@ export const studentService = {
 
   // Delete student
   async delete(id: string) {
+    // Fetch student data before deletion for audit log
+    const { data: student } = await supabase
+      .from(Tables.STUDENT)
+      .select('*')
+      .eq('student_id', id)
+      .single();
+
+    // Log the deletion
+    if (student) {
+      await logDelete('student', id, student as Record<string, unknown>);
+    }
+
     return await supabase
       .from(Tables.STUDENT)
       .delete()

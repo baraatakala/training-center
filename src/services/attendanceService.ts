@@ -3,6 +3,7 @@ import type {
   CreateAttendance, 
   UpdateAttendance
 } from '../types/database.types';
+import { logDelete } from './auditService';
 import { Tables } from '../types/database.types';
 
 export const attendanceService = {
@@ -146,6 +147,18 @@ export const attendanceService = {
 
   // Delete attendance record
   async delete(id: string) {
+    // Fetch attendance data before deletion for audit log
+    const { data: attendance } = await supabase
+      .from(Tables.ATTENDANCE)
+      .select('*')
+      .eq('attendance_id', id)
+      .single();
+
+    // Log the deletion
+    if (attendance) {
+      await logDelete('attendance', id, attendance as Record<string, unknown>);
+    }
+
     return await supabase
       .from(Tables.ATTENDANCE)
       .delete()

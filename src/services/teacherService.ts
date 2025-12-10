@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { Tables, type CreateTeacher, type UpdateTeacher } from '../types/database.types';
+import { logDelete } from './auditService';
 
 export const teacherService = {
   async getAll() {
@@ -35,6 +36,18 @@ export const teacherService = {
   },
 
   async delete(teacherId: string) {
+    // Fetch teacher data before deletion for audit log
+    const { data: teacher } = await supabase
+      .from(Tables.TEACHER)
+      .select('*')
+      .eq('teacher_id', teacherId)
+      .single();
+
+    // Log the deletion
+    if (teacher) {
+      await logDelete('teacher', teacherId, teacher as Record<string, unknown>);
+    }
+
     return await supabase
       .from(Tables.TEACHER)
       .delete()
