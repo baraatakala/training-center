@@ -225,21 +225,13 @@ export function StudentCheckIn() {
         },
         (error) => {
           console.error('GPS error:', error);
-          let errorMsg = '';
-          switch(error.code) {
-            case error.PERMISSION_DENIED:
-              errorMsg = '⚠️ Location permission denied. Check-in will continue without GPS data.\n\nTo enable: Allow location access in your browser settings.';
-              break;
-            case error.POSITION_UNAVAILABLE:
-              errorMsg = '⚠️ Location unavailable. Check-in will continue without GPS data.';
-              break;
-            case error.TIMEOUT:
-              errorMsg = '⚠️ Location request timed out. Check-in will continue without GPS data.';
-              break;
-            default:
-              errorMsg = '⚠️ Unable to get location. Check-in will continue without GPS data.';
+          // Only show alert for permission denial (user action required)
+          // Timeouts and unavailable errors just log and continue silently
+          if (error.code === error.PERMISSION_DENIED) {
+            alert('⚠️ Location permission denied. Check-in will continue without GPS data.\n\nTo enable: Allow location access in your browser settings.');
+          } else {
+            console.warn('GPS unavailable:', error.code === error.TIMEOUT ? 'Timeout' : error.code === error.POSITION_UNAVAILABLE ? 'Unavailable' : 'Unknown error');
           }
-          alert(errorMsg);
           resolve(null);
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
@@ -357,13 +349,19 @@ export function StudentCheckIn() {
         }
       }
 
-      // Check if attendance record already exists
+      // Check if attendance record already exists (check all 3 constraint fields)
       const { data: existingRecord } = await supabase
         .from('attendance')
-        .select('attendance_id')
+        .select('attendance_id, status')
         .eq('enrollment_id', enrollment.enrollment_id)
+        .eq('session_id', checkInData.session_id)
         .eq('attendance_date', checkInData.attendance_date)
-        .single();
+        .maybeSingle();
+
+      // If already checked in (not absent), reject
+      if (existingRecord && existingRecord.status !== 'absent') {
+        throw new Error('You have already checked in for this session. Your attendance has been recorded.');
+      }
 
       const checkInTime = new Date().toISOString();
       
@@ -386,7 +384,7 @@ export function StudentCheckIn() {
       let attendanceError;
       
       if (existingRecord) {
-        // Update existing record
+        // Update existing record (was absent, now checking in)
         const { error } = await supabase
           .from('attendance')
           .update(attendanceData)
