@@ -8,6 +8,7 @@ import { Sessions } from './pages/Sessions';
 import { Enrollments } from './pages/Enrollments';
 import { Attendance } from './pages/Attendance';
 import AttendanceRecords from './pages/AttendanceRecords';
+import { AuditLogs } from './pages/AuditLogs';
 import { StudentCheckIn } from './pages/StudentCheckIn';
 import Login from './pages/Login';
 import PrivateRoute from './components/PrivateRoute';
@@ -35,6 +36,7 @@ function App() {
                     <Route path="/enrollments" element={<Enrollments />} />
                     <Route path="/attendance/:sessionId" element={<Attendance />} />
                     <Route path="/attendance-records" element={<AttendanceRecords />} />
+                    <Route path="/audit-logs" element={<AuditLogs />} />
                   </Routes>
                 </Layout>
               </PrivateRoute>

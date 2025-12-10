@@ -9,6 +9,7 @@ import { Tables, type Session } from '../types/database.types';
 import { format } from 'date-fns';
 import { getAttendanceDateOptions } from '../utils/attendanceGenerator';
 import { QRCodeModal } from '../components/QRCodeModal';
+import { logDelete } from '../services/auditService';
 
 type AttendanceRecord = {
   attendance_id: string;
@@ -434,6 +435,18 @@ export function Attendance() {
     }
 
     try {
+      // Fetch the record before deletion for audit log
+      const { data: recordToDelete } = await supabase
+        .from(Tables.ATTENDANCE)
+        .select('*')
+        .eq('attendance_id', attendanceId)
+        .single();
+
+      // Log the deletion
+      if (recordToDelete) {
+        await logDelete(Tables.ATTENDANCE, attendanceId, recordToDelete, 'Cleared attendance from Attendance page');
+      }
+
       const { error } = await supabase
         .from(Tables.ATTENDANCE)
         .delete()
@@ -648,6 +661,24 @@ export function Attendance() {
       
       const realIds = attendance.filter(a => !a.attendance_id.startsWith('temp-'));
       if (realIds.length > 0) {
+        // Fetch records before deletion for audit log
+        const { data: recordsToDelete } = await supabase
+          .from(Tables.ATTENDANCE)
+          .select('*')
+          .in('attendance_id', realIds.map(r => r.attendance_id));
+
+        // Log each deletion
+        if (recordsToDelete && recordsToDelete.length > 0) {
+          for (const record of recordsToDelete) {
+            await logDelete(
+              Tables.ATTENDANCE,
+              record.attendance_id,
+              record,
+              'Unmarked session not held - clearing all attendance'
+            );
+          }
+        }
+
         await supabase
           .from(Tables.ATTENDANCE)
           .delete()

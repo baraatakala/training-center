@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Tables } from '../types/database.types';
+import { logDelete } from '../services/auditService';
 
 type EnrollmentRow = {
   enrollment_id: string;
@@ -336,6 +337,26 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       if (!confirmed) return;
       
       try {
+        // Fetch records before deletion for audit log
+        const { data: recordsToDelete } = await supabase
+          .from(Tables.ATTENDANCE)
+          .select('*')
+          .eq('session_id', sessionId)
+          .eq('attendance_date', date)
+          .eq('host_address', 'SESSION_NOT_HELD');
+
+        // Log each deletion
+        if (recordsToDelete && recordsToDelete.length > 0) {
+          for (const record of recordsToDelete) {
+            await logDelete(
+              Tables.ATTENDANCE,
+              record.attendance_id,
+              record,
+              `Unmarked cancelled session for date ${date}`
+            );
+          }
+        }
+
         const { error } = await supabase
           .from(Tables.ATTENDANCE)
           .delete()

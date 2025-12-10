@@ -29,6 +29,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { path: '/sessions', label: 'Sessions', icon: '📚' },
     { path: '/enrollments', label: 'Enrollments', icon: '✍️' },
     { path: '/attendance-records', label: 'Attendance Records', icon: '📋' },
+    { path: '/audit-logs', label: 'Audit Logs', icon: '🔍' },
   ];
 
   return (
