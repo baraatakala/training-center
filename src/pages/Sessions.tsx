@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+// ...existing code...
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
@@ -372,11 +372,20 @@ export function Sessions() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-2 justify-end">
-                          <Link to={`/attendance/${session.session_id}`}>
-                            <Button size="sm" variant="success">
-                              Attendance
-                            </Button>
-                          </Link>
+                          <Button
+                            size="sm"
+                            variant="success"
+                            onClick={() => {
+                              const password = prompt('Enter password to view attendance:');
+                              if (password === '2021') {
+                                window.location.href = `/attendance/${session.session_id}`;
+                              } else if (password !== null) {
+                                alert('Incorrect password');
+                              }
+                            }}
+                          >
+                            Attendance
+                          </Button>
                             <Button size="sm" variant="outline" onClick={() => { setSelectedSessionForSchedule(session); setIsScheduleModalOpen(true); }}>
                               Host Schedule
                             </Button>

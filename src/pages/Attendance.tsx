@@ -68,6 +68,7 @@ export function Attendance() {
   const [selectedAddress, setSelectedAddress] = useState<string>('');
   const [sessionNotHeld, setSessionNotHeld] = useState<boolean>(false);
   const [showQRModal, setShowQRModal] = useState<boolean>(false);
+  const [searchTerm, setSearchTerm] = useState<string>('');
 
   // GPS Geolocation capture function
   const captureGPSLocation = (): Promise<{
@@ -1009,7 +1010,26 @@ export function Attendance() {
                     />
                     <span className="text-sm font-medium">Select All</span>
                   </div>
-                  {attendance.map((record) => (
+                  {/* Search input for students */}
+                  <div className="mb-2">
+                    <input
+                      type="text"
+                      placeholder="Search student by name or email..."
+                      value={searchTerm}
+                      onChange={e => setSearchTerm(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    />
+                  </div>
+                  {attendance
+                    .filter(record => {
+                      const term = searchTerm.trim().toLowerCase();
+                      if (!term) return true;
+                      return (
+                        record.student.name.toLowerCase().includes(term) ||
+                        record.student.email.toLowerCase().includes(term)
+                      );
+                    })
+                    .map((record) => (
                     <div
                       key={record.attendance_id}
                       className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg hover:bg-gray-50 gap-3"
