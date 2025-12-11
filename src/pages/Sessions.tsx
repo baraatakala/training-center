@@ -10,7 +10,6 @@ import { SessionForm } from '../components/SessionForm';
 import BulkScheduleTable from '../components/BulkScheduleTable';
 import { supabase } from '../lib/supabase';
 import { Tables, type CreateSession } from '../types/database.types';
-import { logDelete } from '../services/auditService';
 
 type SessionWithDetails = {
   session_id: string;
@@ -169,30 +168,6 @@ export function Sessions() {
     } else {
       setIsModalOpen(false);
       setEditingSession(null);
-      loadSessions();
-    }
-  };
-
-  const handleDeleteSession = async (sessionId: string) => {
-    if (!confirm('Are you sure you want to delete this session?')) return;
-
-    // Fetch session data before deletion for audit log
-    const { data: session } = await supabase
-      .from(Tables.SESSION)
-      .select('*')
-      .eq('session_id', sessionId)
-      .single();
-
-    // Log the deletion
-    if (session) {
-      await logDelete('session', sessionId, session as Record<string, unknown>);
-    }
-
-    const { error } = await supabase.from(Tables.SESSION).delete().eq('session_id', sessionId);
-
-    if (error) {
-      alert('Error deleting session: ' + error.message);
-    } else {
       loadSessions();
     }
   };
@@ -405,15 +380,19 @@ export function Sessions() {
                             <Button size="sm" variant="outline" onClick={() => { setSelectedSessionForSchedule(session); setIsScheduleModalOpen(true); }}>
                               Host Schedule
                             </Button>
-                          <Button size="sm" variant="outline" onClick={() => openEditModal(session)}>
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="danger"
-                            onClick={() => handleDeleteSession(session.session_id)}
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => {
+                              const password = prompt('Enter password to edit:');
+                              if (password === '2021') {
+                                openEditModal(session);
+                              } else if (password !== null) {
+                                alert('Incorrect password');
+                              }
+                            }}
                           >
-                            Delete
+                            Edit
                           </Button>
                         </div>
                       </TableCell>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -32,6 +32,7 @@ interface AbsentStudent {
 }
 
 export function Dashboard() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalStudents: 0,
     totalTeachers: 0,
@@ -665,10 +666,34 @@ Please contact the training center urgently.`;
                     const trendInfo = trendIcons[student.trend];
 
                     return (
-                      <Link
+                      <div
                         key={`${student.student_id}-${student.course_id}`}
-                        to={`/attendance-records?studentName=${encodeURIComponent(student.student_name)}&status=absent&course=${student.course_id}`}
                         className={`block p-4 rounded-lg border-2 ${style.bg} ${style.border} ${style.hover} transition-colors cursor-pointer`}
+                        onClick={() => {
+                          const params = new URLSearchParams({
+                            studentName: student.student_name,
+                            status: 'absent',
+                            course: student.course_id,
+                            ...(startDate ? { startDate } : {}),
+                            ...(endDate ? { endDate } : {})
+                          });
+                          navigate(`/attendance-records?${params.toString()}`);
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            const params = new URLSearchParams({
+                              studentName: student.student_name,
+                              status: 'absent',
+                              course: student.course_id,
+                              ...(startDate ? { startDate } : {}),
+                              ...(endDate ? { endDate } : {})
+                            });
+                            navigate(`/attendance-records?${params.toString()}`);
+                          }
+                        }}
+                        style={{ outline: 'none' }}
                       >
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1 min-w-0">
@@ -745,23 +770,25 @@ Please contact the training center urgently.`;
                           <div className="flex flex-col gap-2">
                             <a
                               href={generateEmailLink(student)}
-                              onClick={(e) => e.stopPropagation()}
+                              onClick={e => e.stopPropagation()}
                               className="flex-shrink-0 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap text-sm font-medium text-center"
+                              tabIndex={-1}
                             >
                               📧 Email
                             </a>
                             {student.phone && (
                               <a
                                 href={generateSMSLink(student)}
-                                onClick={(e) => e.stopPropagation()}
+                                onClick={e => e.stopPropagation()}
                                 className="flex-shrink-0 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors whitespace-nowrap text-sm font-medium text-center"
+                                tabIndex={-1}
                               >
                                 💬 SMS
                               </a>
                             )}
                           </div>
                         </div>
-                      </Link>
+                      </div>
                     );
                   })}
                 </div>

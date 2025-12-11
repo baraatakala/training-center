@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
@@ -187,8 +187,8 @@ export function AuditLogs() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {logs.map((log) => (
-                    <>
-                      <tr key={log.audit_id} className="hover:bg-gray-50">
+                    <React.Fragment key={log.audit_id}>
+                      <tr className="hover:bg-gray-50">
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                           {log.deleted_at ? format(new Date(log.deleted_at), 'MMM dd, yyyy HH:mm:ss') : '-'}
                         </td>
@@ -215,7 +215,7 @@ export function AuditLogs() {
                         </td>
                       </tr>
                       {expandedLog === log.audit_id && (
-                        <tr>
+                        <tr key={log.audit_id + '-expanded'}>
                           <td colSpan={6} className="px-4 py-4 bg-gray-50">
                             <div className="space-y-4">
                               {log.old_data && (
@@ -246,7 +246,7 @@ export function AuditLogs() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>

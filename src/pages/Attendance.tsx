@@ -351,7 +351,7 @@ export function Attendance() {
         .eq('enrollment_id', record.enrollment_id)
         .eq('session_id', sessionId)
         .eq('attendance_date', selectedDate)
-        .single();
+        .maybeSingle();
 
       const addressOnly = selectedAddress ? selectedAddress.split('|||')[1] || selectedAddress : null;
 

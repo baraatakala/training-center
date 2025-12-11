@@ -68,15 +68,6 @@ export function Students() {
     }
   }
 
-  async function handleDeleteStudent(studentId: string) {
-    if (confirm('Are you sure you want to delete this student?')) {
-      const { error } = await studentService.delete(studentId);
-      if (!error) {
-        loadStudents();
-      }
-    }
-  }
-
   function openAddModal() {
     setEditingStudent(undefined);
     setIsModalOpen(true);
@@ -151,16 +142,20 @@ export function Students() {
                       <TableCell className="text-gray-600 hidden xl:table-cell">{student.age || '-'}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-1 md:gap-2 justify-end flex-nowrap">
-                          <Button size="sm" variant="secondary" onClick={() => openEditModal(student)} className="text-xs md:text-sm px-2 md:px-3">
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="danger"
-                            onClick={() => handleDeleteStudent(student.student_id)}
+                          <Button 
+                            size="sm" 
+                            variant="secondary" 
+                            onClick={() => {
+                              const password = prompt('Enter password to edit:');
+                              if (password === '2021') {
+                                openEditModal(student);
+                              } else if (password !== null) {
+                                alert('Incorrect password');
+                              }
+                            }} 
                             className="text-xs md:text-sm px-2 md:px-3"
                           >
-                            Del
+                            Edit
                           </Button>
                         </div>
                       </TableCell>

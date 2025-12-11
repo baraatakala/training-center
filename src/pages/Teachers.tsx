@@ -64,15 +64,6 @@ export function Teachers() {
     }
   };
 
-  const handleDeleteTeacher = async (teacherId: string) => {
-    if (confirm('Are you sure you want to delete this teacher?')) {
-      const { error } = await teacherService.delete(teacherId);
-      if (!error) {
-        loadTeachers();
-      }
-    }
-  };
-
   const openAddModal = () => {
     setEditingTeacher(undefined);
     setIsModalOpen(true);
@@ -137,16 +128,20 @@ export function Teachers() {
                       <TableCell className="text-gray-600 hidden lg:table-cell whitespace-nowrap">{teacher.phone || '-'}</TableCell>
                       <TableCell>
                         <div className="flex gap-1 md:gap-2 justify-end flex-nowrap">
-                          <Button size="sm" variant="secondary" onClick={() => openEditModal(teacher)} className="text-xs md:text-sm px-2 md:px-3">
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="danger"
-                            onClick={() => handleDeleteTeacher(teacher.teacher_id)}
+                          <Button 
+                            size="sm" 
+                            variant="secondary" 
+                            onClick={() => {
+                              const password = prompt('Enter password to edit:');
+                              if (password === '2021') {
+                                openEditModal(teacher);
+                              } else if (password !== null) {
+                                alert('Incorrect password');
+                              }
+                            }} 
                             className="text-xs md:text-sm px-2 md:px-3"
                           >
-                            Del
+                            Edit
                           </Button>
                         </div>
                       </TableCell>

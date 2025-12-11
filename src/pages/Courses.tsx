@@ -75,15 +75,6 @@ export function Courses() {
     }
   };
 
-  const handleDeleteCourse = async (courseId: string) => {
-    if (confirm('Are you sure you want to delete this course?')) {
-      const { error } = await courseService.delete(courseId);
-      if (!error) {
-        loadCourses();
-      }
-    }
-  };
-
   const openAddModal = () => {
     setEditingCourse(undefined);
     setIsModalOpen(true);
@@ -150,16 +141,20 @@ export function Courses() {
                       <TableCell className="text-gray-600 hidden md:table-cell min-w-[150px]">{course.teacher?.name || 'No instructor'}</TableCell>
                       <TableCell>
                         <div className="flex gap-1 md:gap-2 justify-end flex-nowrap">
-                          <Button size="sm" variant="secondary" onClick={() => openEditModal(course)} className="text-xs md:text-sm px-2 md:px-3">
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="danger"
-                            onClick={() => handleDeleteCourse(course.course_id)}
+                          <Button 
+                            size="sm" 
+                            variant="secondary" 
+                            onClick={() => {
+                              const password = prompt('Enter password to edit:');
+                              if (password === '2021') {
+                                openEditModal(course);
+                              } else if (password !== null) {
+                                alert('Incorrect password');
+                              }
+                            }} 
                             className="text-xs md:text-sm px-2 md:px-3"
                           >
-                            Del
+                            Edit
                           </Button>
                         </div>
                       </TableCell>

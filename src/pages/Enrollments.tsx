@@ -147,14 +147,6 @@ export function Enrollments() {
     }
   };
 
-  const handleDeleteEnrollment = async (enrollmentId: string) => {
-    if (confirm('Are you sure you want to delete this enrollment?')) {
-      const { error } = await enrollmentService.delete(enrollmentId);
-      if (!error) {
-        loadEnrollments();
-      }
-    }
-  };
 
   const getStatusVariant = (status: string) => {
     switch (status) {
@@ -348,8 +340,13 @@ export function Enrollments() {
                                       <button
                                         className="text-sm border rounded px-2 py-1 bg-white"
                                         onClick={() => {
-                                          setEditingEnrollment(enrollment);
-                                          setIsModalOpen(true);
+                                          const password = prompt('Enter password to edit:');
+                                          if (password === '2021') {
+                                            setEditingEnrollment(enrollment);
+                                            setIsModalOpen(true);
+                                          } else if (password !== null) {
+                                            alert('Incorrect password');
+                                          }
                                         }}
                                       >
                                         Edit
@@ -364,13 +361,6 @@ export function Enrollments() {
                                         <option value="completed">Completed</option>
                                         <option value="dropped">Dropped</option>
                                       </select>
-                                      <Button
-                                        size="sm"
-                                        variant="danger"
-                                        onClick={() => handleDeleteEnrollment(enrollment.enrollment_id)}
-                                      >
-                                        Delete
-                                      </Button>
                                     </div>
                     </TableCell>
                   </TableRow>

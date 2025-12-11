@@ -154,8 +154,10 @@ const AttendanceRecords = () => {
     const studentName = params.get('studentName');
     const status = params.get('status');
     const course = params.get('course');
+    const startDate = params.get('startDate');
+    const endDate = params.get('endDate');
 
-    if (studentName || status || course) {
+    if (studentName || status || course || startDate || endDate) {
       // Find student_id by name if studentName is provided
       if (studentName && students.length > 0) {
         const student = students.find(s => s.label === studentName);
@@ -172,6 +174,14 @@ const AttendanceRecords = () => {
       // Apply course filter
       if (course) {
         setFilters(f => ({ ...f, course_id: course }));
+      }
+
+      // Apply date filters
+      if (startDate) {
+        setFilters(f => ({ ...f, startDate }));
+      }
+      if (endDate) {
+        setFilters(f => ({ ...f, endDate }));
       }
     }
   }, [location.search, students]);
