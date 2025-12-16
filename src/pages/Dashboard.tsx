@@ -166,10 +166,12 @@ export function Dashboard() {
 
           // === CORE METRICS ===
           const totalDays = uniqueDates.length;
-          // Count 'on time', late, and excused as "attended"
-          const presentDays = uniqueStatuses.filter(s => s === 'on time' || s === 'late' || s === 'excused').length;
+          // Count only 'on time' and 'late' as present; 'excused' is neutral
+          const presentDays = uniqueStatuses.filter(s => s === 'on time' || s === 'late').length;
           const daysAbsent = uniqueStatuses.filter(s => s === 'absent').length;
-          const attendanceRate = totalDays > 0 ? (presentDays / totalDays) * 100 : 0;
+          // Exclude 'excused' from denominator for attendance rate
+          const effectiveDays = uniqueStatuses.filter(s => s !== 'excused').length;
+          const attendanceRate = effectiveDays > 0 ? (presentDays / effectiveDays) * 100 : 0;
 
           // === CONSECUTIVE ABSENCE DETECTION ===
           let currentStreak = 0;
@@ -183,12 +185,11 @@ export function Dashboard() {
               lastAbsenceDate = uniqueDates[idx];
               maxConsecutive = Math.max(maxConsecutive, currentStreak);
               absentDates.push(uniqueDates[idx]);
-            } else {
-              // Only reset streak if they actually attended (not just empty status)
-              if (status === 'on time' || status === 'late' || status === 'excused') {
-                currentStreak = 0;
-              }
+            } else if (status === 'on time' || status === 'late') {
+              // Only reset streak if they actually attended
+              currentStreak = 0;
             }
+            // If 'excused', do not change streak
           });
 
           // === TREND ANALYSIS ===
@@ -197,12 +198,13 @@ export function Dashboard() {
           
           let trend: 'improving' | 'declining' | 'stable' = 'stable';
           if (totalDays >= 6) {
-            const recentPresent = uniqueStatuses.slice(0, recentWindow).filter(s => s === 'on time' || s === 'late' || s === 'excused').length;
-            const oldPresent = uniqueStatuses.slice(recentWindow).filter(s => s === 'on time' || s === 'late' || s === 'excused').length;
-            
-            const recentRate = recentPresent / recentWindow;
-            const oldRate = oldWindow > 0 ? oldPresent / oldWindow : 0;
-            
+            // Exclude 'excused' from trend windows
+            const recentStatuses = uniqueStatuses.slice(0, recentWindow).filter(s => s !== 'excused');
+            const oldStatuses = uniqueStatuses.slice(recentWindow).filter(s => s !== 'excused');
+            const recentPresent = recentStatuses.filter(s => s === 'on time' || s === 'late').length;
+            const oldPresent = oldStatuses.filter(s => s === 'on time' || s === 'late').length;
+            const recentRate = recentStatuses.length > 0 ? recentPresent / recentStatuses.length : 0;
+            const oldRate = oldStatuses.length > 0 ? oldPresent / oldStatuses.length : 0;
             if (recentRate > oldRate + 0.2) trend = 'improving';
             else if (recentRate < oldRate - 0.2) trend = 'declining';
           }
@@ -290,8 +292,8 @@ export function Dashboard() {
             shouldAlert = true;
           }
 
-          // Find last attended date (on time, late, or excused)
-          const lastAttendedIndex = uniqueStatuses.findIndex(s => s === 'on time' || s === 'late' || s === 'excused');
+          // Find last attended date (on time or late only)
+          const lastAttendedIndex = uniqueStatuses.findIndex(s => s === 'on time' || s === 'late');
           const lastAttendedDate = lastAttendedIndex >= 0 ? uniqueDates[lastAttendedIndex] : undefined;
 
           if (shouldAlert) {
