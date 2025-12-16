@@ -194,7 +194,6 @@ export function Dashboard() {
 
           // === TREND ANALYSIS ===
           const recentWindow = Math.min(7, Math.floor(totalDays / 2));
-          const oldWindow = totalDays - recentWindow;
           
           let trend: 'improving' | 'declining' | 'stable' = 'stable';
           if (totalDays >= 6) {
