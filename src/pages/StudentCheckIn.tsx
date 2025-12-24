@@ -338,9 +338,10 @@ export function StudentCheckIn() {
               attendanceStatus = 'on time';
             }
           } else if (isFutureDate) {
-            // For future dates, allow check-in and mark as present (early check-in)
-            // This allows students to check in before the session day
-            attendanceStatus = 'on time';
+            // For future dates, block check-in
+            setError('You cannot check in before the session date.');
+            setSubmitting(false);
+            return;
           } else {
             // For past dates, mark as absent (retroactive check-in)
             attendanceStatus = 'absent';
