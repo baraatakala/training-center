@@ -430,6 +430,47 @@ const AttendanceRecords = () => {
 
     const isArabic = reportLanguage === 'ar';
 
+
+    // Summary Statistics Sheet
+    const summaryHeaders = isArabic
+      ? ['العنصر', 'القيمة']
+      : ['Metric', 'Value'];
+
+    // Calculate summary values
+    const totalStudents = studentAnalytics.length;
+    const classAvgRate = studentAnalytics.length > 0
+      ? Math.round(studentAnalytics.reduce((sum, s) => sum + s.attendanceRate, 0) / studentAnalytics.length)
+      : 0;
+    const avgWeightedScore = studentAnalytics.length > 0
+      ? Math.round(studentAnalytics.reduce((sum, s) => sum + s.weightedScore, 0) / studentAnalytics.length)
+      : 0;
+    const avgAttendanceByDate = dateAnalytics.length > 0
+      ? Math.round(dateAnalytics.reduce((sum, d) => sum + d.attendanceRate, 0) / dateAnalytics.length)
+      : 0;
+    const avgAttendanceByAccruedDate = (() => {
+      const accruedDates = dateAnalytics.filter(d => (d.presentCount + d.lateCount) > 0);
+      if (accruedDates.length === 0) return 0;
+      return Math.round(
+        accruedDates.reduce((sum, d) => sum + d.attendanceRate, 0) / accruedDates.length
+      );
+    })();
+
+    const summaryRows = isArabic
+      ? [
+          ['عدد الطلاب', totalStudents],
+          ['معدل الحضور للصف (%)', `${classAvgRate}%`],
+          ['متوسط النقاط المرجحة', avgWeightedScore],
+          ['متوسط الحضور حسب التاريخ (%)', `${avgAttendanceByDate}%`],
+          ['متوسط الحضور حسب التاريخ للحصص النشطة (%)', `${avgAttendanceByAccruedDate}%`],
+        ]
+      : [
+          ['Total Students', totalStudents],
+          ['Class Avg Rate (%)', `${classAvgRate}%`],
+          ['Avg Weighted Score', avgWeightedScore],
+          ['Avg Attendance by Date (%)', `${avgAttendanceByDate}%`],
+          ['Avg Attendance by Accrued Date (%)', `${avgAttendanceByAccruedDate}%`],
+        ];
+
     // Student Performance Sheet
     const studentHeaders = isArabic ? [
       'الترتيب',
@@ -534,18 +575,22 @@ const AttendanceRecords = () => {
       dateData.absentNames.join(', ') || '-'
     ]);
 
-    // Create workbook with two sheets
+    // Create workbook with three sheets
     const wb = XLSX.utils.book_new();
 
-    // Sheet 1: Student Performance
+    // Sheet 1: Summary Statistics
+    const wsSummary = XLSX.utils.aoa_to_sheet([summaryHeaders, ...summaryRows]);
+    XLSX.utils.book_append_sheet(wb, wsSummary, isArabic ? 'إحصائيات عامة' : 'Summary Statistics');
+
+    // Sheet 2: Student Performance
     const ws1 = XLSX.utils.aoa_to_sheet([studentHeaders, ...studentRows]);
     XLSX.utils.book_append_sheet(wb, ws1, isArabic ? 'أداء الطلاب' : 'Student Performance');
 
-    // Sheet 2: Attendance by Date
+    // Sheet 3: Attendance by Date
     const ws2 = XLSX.utils.aoa_to_sheet([dateHeaders, ...dateRows]);
     XLSX.utils.book_append_sheet(wb, ws2, isArabic ? 'الحضور بالتاريخ' : 'Attendance by Date');
 
-    // Sheet 3: Host Rankings
+    // Sheet 4: Host Rankings
     const hostMap = new Map<string, { count: number; dates: string[] }>();
     dateAnalytics.forEach((dateData) => {
       if (dateData.hostAddress) {
@@ -1120,7 +1165,7 @@ const AttendanceRecords = () => {
           {/* Summary Statistics */}
           <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
             <h2 className="text-base sm:text-lg font-semibold mb-4">📊 Summary Statistics</h2>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
               <div className="border-l-4 border-blue-500 pl-3 sm:pl-4">
                 <div className="text-xs sm:text-sm text-gray-600">Total Students</div>
                 <div className="text-xl sm:text-2xl font-bold">{studentAnalytics.length}</div>
@@ -1157,6 +1202,20 @@ const AttendanceRecords = () => {
                           dateAnalytics.length
                       )
                     : 0}
+                  %
+                </div>
+              </div>
+              <div className="border-l-4 border-indigo-500 pl-3 sm:pl-4">
+                <div className="text-xs sm:text-sm text-gray-600">Avg Attendance by Accrued Date</div>
+                <div className="text-xl sm:text-2xl font-bold">
+                  {(() => {
+                    // Only consider dates where at least one present or late
+                    const accruedDates = dateAnalytics.filter(d => (d.presentCount + d.lateCount) > 0);
+                    if (accruedDates.length === 0) return 0;
+                    return Math.round(
+                      accruedDates.reduce((sum, d) => sum + d.attendanceRate, 0) / accruedDates.length
+                    );
+                  })()}
                   %
                 </div>
               </div>
