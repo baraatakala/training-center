@@ -674,10 +674,19 @@ const AttendanceRecords = () => {
     const avgAttendanceByDate = dateAnalytics.length > 0
       ? Math.round(dateAnalytics.reduce((sum, d) => sum + d.attendanceRate, 0) / dateAnalytics.length)
       : 0;
+    const avgAttendanceByAccruedDate = (() => {
+      const accruedDates = dateAnalytics.filter(d => (d.presentCount + d.lateCount) > 0);
+      if (accruedDates.length === 0) return 0;
+      return Math.round(
+        accruedDates.reduce((sum, d) => sum + d.attendanceRate, 0) / accruedDates.length
+      );
+    })();
 
     // Compact inline stats display (Always English for PDF)
-    const statsText = `Total Students: ${totalStudents} Students | class Avg Rate: ${classAvgRate}% | Avg weighted Score: ${avgWeightedScore} | Avg attendance by Date: ${avgAttendanceByDate}%`;
-    doc.text(statsText, 14, 35);
+    const statsText = `Total Students: ${totalStudents} Students | class Avg Rate: ${classAvgRate}% | Avg weighted Score: ${avgWeightedScore} | Avg attendance by Date: ${avgAttendanceByDate}% | Avg attendance by Accrued Date: ${avgAttendanceByAccruedDate}%`;
+    doc.setFontSize(8);
+    doc.text(statsText, 8, 35);
+    doc.setFontSize(10); // Restore font size for following content
 
     // Student Performance Table
     doc.setFontSize(12);
