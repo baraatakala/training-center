@@ -408,6 +408,30 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
     URL.revokeObjectURL(url);
   };
 
+  // Arabic CSV export
+  const exportCSVArabic = () => {
+    const displayedEnrollments = getSortedDisplayedEnrollments();
+    // Arabic headers (RTL order)
+    const header = ['اسم الطالب', 'العنوان', 'الهاتف', 'يمكن الاستضافة', 'تاريخ الاستضافة'];
+    const rows = displayedEnrollments.map((e) => {
+      const name = e.student?.name || '';
+      const addr = e.student?.address || '';
+      const phone = e.student?.phone || '';
+      const host = e.can_host ? 'نعم' : 'لا';
+      const hd = hostDateMap[e.enrollment_id] || '';
+      return [name, addr, phone, host, hd];
+    });
+    // Add UTF-8 BOM for Excel compatibility
+    const csv = '\uFEFF' + [header, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `جدول_الاستضافة_${sessionId}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const exportPDF = async () => {
     try {
       const mod = await import('jspdf');
@@ -835,6 +859,9 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
             </button>
             <button className="btn btn-sm btn-outline" onClick={exportCSV}>
               📥 CSV
+            </button>
+            <button className="btn btn-sm btn-outline" onClick={exportCSVArabic}>
+              📥 CSV (عربي)
             </button>
             <button className="btn btn-sm btn-outline" onClick={exportPDF}>
               📄 PDF
