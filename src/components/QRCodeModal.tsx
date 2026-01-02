@@ -9,22 +9,28 @@ type QRCodeModalProps = {
   onClose: () => void;
 };
 
-export function QRCodeModal({ sessionId, date, courseName, onClose }: QRCodeModalProps) {
+export function QRCodeModal({
+  sessionId,
+  date,
+  courseName,
+  onClose,
+}: QRCodeModalProps) {
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [checkInCount, setCheckInCount] = useState<number>(0);
   const [totalStudents, setTotalStudents] = useState<number>(0);
-  const [timeLeft, setTimeLeft] = useState<string>('');
-  const [loading, setLoading] = useState(true);
+  const [timeLeft, setTimeLeft] = useState<string>('Loading...');
+  const [loading, setLoading] = useState<boolean>(true);
 
+  /* -------------------- QR CODE -------------------- */
   const generateQRCode = useCallback(async () => {
     try {
+      setLoading(true);
+
       const timestamp = Date.now();
       const token = `${sessionId}-${date}-${timestamp}`;
-      
-      // Use window.location.origin to construct the full URL
+
       const checkInUrl = `${window.location.origin}/checkin/${sessionId}/${date}/${token}`;
-      
-      // Generate QR code
+
       const qrDataUrl = await QRCode.toDataURL(checkInUrl, {
         width: 400,
         margin: 2,
@@ -35,25 +41,24 @@ export function QRCodeModal({ sessionId, date, courseName, onClose }: QRCodeModa
       });
 
       setQrCodeUrl(qrDataUrl);
-      setLoading(false);
-    } catch (err) {
-      console.error('QR code generation error:', err);
+    } catch (error) {
+      console.error('QR code generation error:', error);
+    } finally {
       setLoading(false);
     }
   }, [sessionId, date]);
 
+  /* -------------------- STATS -------------------- */
   const loadCheckInStats = useCallback(async () => {
     try {
-      // Get total enrolled students
       const { count: total } = await supabase
         .from('enrollment')
         .select('*', { count: 'exact', head: true })
         .eq('session_id', sessionId)
         .eq('status', 'active');
 
-      setTotalStudents(total || 0);
+      setTotalStudents(total ?? 0);
 
-      // Get checked-in students
       const { count: checkedIn } = await supabase
         .from('attendance')
         .select('*', { count: 'exact', head: true })
@@ -61,12 +66,13 @@ export function QRCodeModal({ sessionId, date, courseName, onClose }: QRCodeModa
         .eq('attendance_date', date)
         .neq('status', 'absent');
 
-      setCheckInCount(checkedIn || 0);
-    } catch (err) {
-      console.error('Stats loading error:', err);
+      setCheckInCount(checkedIn ?? 0);
+    } catch (error) {
+      console.error('Stats loading error:', error);
     }
   }, [sessionId, date]);
 
+  /* -------------------- REALTIME -------------------- */
   const setupRealtimeSubscription = useCallback(() => {
     const channel = supabase
       .channel(`attendance-${sessionId}-${date}`)
@@ -78,8 +84,7 @@ export function QRCodeModal({ sessionId, date, courseName, onClose }: QRCodeModa
           table: 'attendance',
           filter: `session_id=eq.${sessionId}`,
         },
-        (payload) => {
-          console.log('Attendance update:', payload);
+        () => {
           loadCheckInStats();
         }
       )
@@ -90,9 +95,9 @@ export function QRCodeModal({ sessionId, date, courseName, onClose }: QRCodeModa
     };
   }, [sessionId, date, loadCheckInStats]);
 
-  const updateTimeLeft = (expiration: Date) => {
-    const now = new Date();
-    const diff = expiration.getTime() - now.getTime();
+  /* -------------------- TIMER -------------------- */
+  const updateTimeLeft = useCallback((expiration: Date) => {
+    const diff = expiration.getTime() - Date.now();
 
     if (diff <= 0) {
       setTimeLeft('Expired');
@@ -104,144 +109,114 @@ export function QRCodeModal({ sessionId, date, courseName, onClose }: QRCodeModa
     const seconds = Math.floor((diff % (1000 * 60)) / 1000);
 
     setTimeLeft(`${hours}h ${minutes}m ${seconds}s`);
-  };
+  }, []);
 
+  /* -------------------- EFFECT -------------------- */
   useEffect(() => {
-    generateQRCode();
-    loadCheckInStats();
-    const cleanup = setupRealtimeSubscription();
+    let mounted = true;
 
-    // Expiration time: 2 hours from now
+    (async () => {
+      if (!mounted) return;
+      await generateQRCode();
+      await loadCheckInStats();
+    })();
+
+    const cleanupRealtime = setupRealtimeSubscription();
+
     const expiration = new Date();
     expiration.setHours(expiration.getHours() + 2);
 
-    // Update time left every second
     const timer = setInterval(() => {
       updateTimeLeft(expiration);
     }, 1000);
 
     return () => {
+      mounted = false;
       clearInterval(timer);
-      cleanup();
+      cleanupRealtime();
     };
-  }, [sessionId, date, generateQRCode, loadCheckInStats, setupRealtimeSubscription]);
+  }, [
+    sessionId,
+    date,
+    generateQRCode,
+    loadCheckInStats,
+    setupRealtimeSubscription,
+    updateTimeLeft,
+  ]);
 
-  const percentage = totalStudents > 0 ? Math.round((checkInCount / totalStudents) * 100) : 0;
+  const percentage =
+    totalStudents > 0
+      ? Math.round((checkInCount / totalStudents) * 100)
+      : 0;
 
+  /* -------------------- UI -------------------- */
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-t-2xl flex items-center justify-between">
+        <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-t-2xl flex justify-between">
           <div>
-            <h2 className="text-2xl font-bold flex items-center gap-2">
-              <span>📱</span>
-              <span>QR Check-In</span>
+            <h2 className="text-2xl font-bold flex gap-2">
+              <span>📱</span> QR Check-In
             </h2>
             <p className="text-blue-100 text-sm mt-1">{courseName}</p>
           </div>
           <button
             onClick={onClose}
-            className="hover:bg-white hover:bg-opacity-20 rounded-full p-2 transition-colors text-2xl"
+            className="text-2xl hover:bg-white/20 rounded-full px-3"
           >
             ×
           </button>
         </div>
 
-        {/* Content */}
         <div className="p-6 space-y-6">
-          {/* QR Code */}
+          {/* QR */}
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600"></div>
+            <div className="flex justify-center py-16">
+              <div className="animate-spin h-16 w-16 border-b-2 border-blue-600 rounded-full" />
             </div>
           ) : (
-            <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-8 flex flex-col items-center">
-              <div className="bg-white p-6 rounded-xl shadow-lg mb-4">
-                <img src={qrCodeUrl} alt="Check-in QR Code" className="w-full h-auto" />
-              </div>
-              <p className="text-center text-gray-700 font-semibold text-lg">
-                Scan to Check In
-              </p>
-              <p className="text-center text-gray-500 text-sm mt-1">
-                Students can scan this code to mark their attendance
-              </p>
+            <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-8 text-center">
+              <img
+                src={qrCodeUrl}
+                alt="QR Code"
+                className="mx-auto mb-4 w-72"
+              />
+              <p className="font-semibold">Scan to Check In</p>
             </div>
           )}
 
-          {/* Live Stats */}
+          {/* Stats */}
           <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                  <div className="absolute inset-0 w-3 h-3 bg-green-500 rounded-full animate-ping opacity-75"></div>
-                </div>
-                <h3 className="text-xl font-bold text-gray-900">Live Check-Ins</h3>
-              </div>
-              <div className="text-right">
-                <div className="text-3xl font-bold text-gray-900">
-                  {checkInCount}
-                  <span className="text-xl text-gray-500">/{totalStudents}</span>
-                </div>
-                <div className="text-sm text-gray-600">{percentage}% Present</div>
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="font-bold text-lg">Live Attendance</h3>
+              <div className="text-2xl font-bold">
+                {checkInCount}/{totalStudents}
               </div>
             </div>
 
-            {/* Progress Bar */}
-            <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+            <div className="h-4 bg-gray-200 rounded-full overflow-hidden">
               <div
-                className="bg-gradient-to-r from-green-500 to-blue-500 h-full transition-all duration-500 ease-out flex items-center justify-end px-2"
+                className="h-full bg-gradient-to-r from-green-500 to-blue-500 transition-all"
                 style={{ width: `${percentage}%` }}
-              >
-                {percentage > 10 && (
-                  <span className="text-xs font-bold text-white">{percentage}%</span>
-                )}
-              </div>
+              />
+            </div>
+
+            <p className="text-sm text-gray-600 mt-2">{percentage}% Present</p>
+          </div>
+
+          {/* Timer */}
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 flex items-center gap-3">
+            <span className="text-3xl">⏰</span>
+            <div>
+              <p className="text-sm text-gray-600">QR Expires In</p>
+              <p className="text-xl font-mono font-bold">{timeLeft}</p>
             </div>
           </div>
 
-          {/* Expiration Info */}
-          <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4">
-            <div className="flex items-center gap-3">
-              <div className="text-3xl">⏰</div>
-              <div className="flex-1">
-                <p className="text-sm text-gray-600 font-semibold">QR Code Expires In</p>
-                <p className="text-2xl font-bold text-gray-900 font-mono">{timeLeft}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Instructions */}
-          <div className="bg-gray-50 rounded-xl p-4 space-y-2">
-            <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-              <span>📋</span>
-              <span>Instructions</span>
-            </h4>
-            <ul className="space-y-1 text-sm text-gray-700 ml-8">
-              <li className="flex items-start gap-2">
-                <span className="text-blue-600 font-bold">1.</span>
-                <span>Students should scan the QR code with their phone camera or QR reader</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-blue-600 font-bold">2.</span>
-                <span>They will be redirected to a check-in page</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-blue-600 font-bold">3.</span>
-                <span>Select the session location and confirm attendance</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-blue-600 font-bold">4.</span>
-                <span>Their location will be captured for verification</span>
-              </li>
-            </ul>
-          </div>
-
-          {/* Close Button */}
           <button
             onClick={onClose}
-            className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl"
+            className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold rounded-xl hover:opacity-90"
           >
             Close QR Code
           </button>

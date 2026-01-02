@@ -192,11 +192,13 @@ const AttendanceRecords = () => {
   }, [records, filters]);
 
   useEffect(() => {
-    if (showAnalytics && filteredRecords.length > 0) {
+    if (filteredRecords.length > 0) {
       calculateAnalytics();
+    } else {
+      setStudentAnalytics([]);
+      setDateAnalytics([]);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showAnalytics, filteredRecords]);
+  }, [filteredRecords]);
 
   const loadFilterOptions = async () => {
     try {
@@ -561,19 +563,28 @@ const AttendanceRecords = () => {
       'Absent Names'
     ];
 
-    const dateRows = dateAnalytics.map((dateData) => [
-      format(new Date(dateData.date), 'MMM dd, yyyy'),
-      dateData.hostAddress || '-',
-      dateData.presentCount,
-      dateData.lateCount,
-      dateData.excusedAbsentCount,
-      dateData.unexcusedAbsentCount,
-      dateData.attendanceRate,
-      dateData.presentNames.join(', ') || '-',
-      dateData.lateNames.join(', ') || '-',
-      dateData.excusedNames.join(', ') || '-',
-      dateData.absentNames.join(', ') || '-'
-    ]);
+    const dateRows = dateAnalytics.map((dateData) => {
+      let excusedLabel = dateData.excusedNames.join(', ') || '-';
+      if (
+        dateData.hostAddress === 'SESSION_NOT_HELD' ||
+        (dateData.hostAddress && dateData.hostAddress.toUpperCase() === 'SESSION_NOT_HELD')
+      ) {
+        excusedLabel = reportLanguage === 'ar' ? 'جميع الطلاب' : 'All Students';
+      }
+      return [
+        format(new Date(dateData.date), 'MMM dd, yyyy'),
+        dateData.hostAddress || '-',
+        dateData.presentCount,
+        dateData.lateCount,
+        dateData.excusedAbsentCount,
+        dateData.unexcusedAbsentCount,
+        dateData.attendanceRate,
+        dateData.presentNames.join(', ') || '-',
+        dateData.lateNames.join(', ') || '-',
+        excusedLabel,
+        dateData.absentNames.join(', ') || '-'
+      ];
+    });
 
     // Create workbook with three sheets
     const wb = XLSX.utils.book_new();
@@ -726,19 +737,28 @@ const AttendanceRecords = () => {
     autoTable(doc, {
       startY: performanceTableY + 14,
       head: [['Date', 'Host Address', 'On Time', 'Late', 'Excused', 'Absent', 'Rate %', 'On Time Names', 'Late Names', 'Excused Names', 'Absent Names']],
-      body: dateAnalytics.map((dateData) => [
-        format(new Date(dateData.date), 'MMM dd, yyyy'),
-        dateData.hostAddress || '-',
-        dateData.presentCount,
-        dateData.lateCount,
-        dateData.excusedAbsentCount,
-        dateData.unexcusedAbsentCount,
-        `${dateData.attendanceRate}%`,
-        dateData.presentNames.join(', ') || '-',
-        dateData.lateNames.join(', ') || '-',
-        dateData.excusedNames.join(', ') || '-',
-        dateData.absentNames.join(', ') || '-'
-      ]),
+      body: dateAnalytics.map((dateData) => {
+        let excusedLabel = dateData.excusedNames.join(', ') || '-';
+        if (
+          dateData.hostAddress === 'SESSION_NOT_HELD' ||
+          (dateData.hostAddress && dateData.hostAddress.toUpperCase() === 'SESSION_NOT_HELD')
+        ) {
+          excusedLabel = reportLanguage === 'ar' ? 'جميع الطلاب' : 'All Students';
+        }
+        return [
+          format(new Date(dateData.date), 'MMM dd, yyyy'),
+          dateData.hostAddress || '-',
+          dateData.presentCount,
+          dateData.lateCount,
+          dateData.excusedAbsentCount,
+          dateData.unexcusedAbsentCount,
+          `${dateData.attendanceRate}%`,
+          dateData.presentNames.join(', ') || '-',
+          dateData.lateNames.join(', ') || '-',
+          excusedLabel,
+          dateData.absentNames.join(', ') || '-'
+        ];
+      }),
       styles: { fontSize: 6, cellPadding: 1.5 },
       headStyles: { fillColor: [59, 130, 246], fontSize: 6 },
       alternateRowStyles: { fillColor: [245, 245, 245] },
@@ -1007,6 +1027,13 @@ const AttendanceRecords = () => {
       const hostRecord = dateRecords.find(r => r.host_address);
       const hostAddress = hostRecord?.host_address || null;
 
+      // If session not held, show 'All Students' in excusedNames
+      let excusedNames: string[];
+      if (hostAddress === 'SESSION_NOT_HELD') {
+        excusedNames = ['All Students']; // or use abbreviation like 'ALL'
+      } else {
+        excusedNames = excusedRecords.map(r => r.student_name);
+      }
       return {
         date,
         presentCount,
@@ -1016,7 +1043,7 @@ const AttendanceRecords = () => {
         attendanceRate: Math.round(attendanceRate * 10) / 10,
         presentNames: presentRecords.map(r => r.student_name),
         lateNames: lateRecords.map(r => r.student_name),
-        excusedNames: excusedRecords.map(r => r.student_name),
+        excusedNames,
         absentNames: [...absentRecords.map(r => r.student_name), ...unmarkedNames],
         hostAddress,
       };
@@ -1359,7 +1386,15 @@ const AttendanceRecords = () => {
                         {dateData.lateNames.length > 0 ? dateData.lateNames.join(', ') : '-'}
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-600 max-w-xs">
-                        {dateData.excusedNames.length > 0 ? dateData.excusedNames.join(', ') : '-'}
+                        {(() => {
+                          if (
+                            dateData.hostAddress === 'SESSION_NOT_HELD' ||
+                            (dateData.hostAddress && dateData.hostAddress.toUpperCase() === 'SESSION_NOT_HELD')
+                          ) {
+                            return reportLanguage === 'ar' ? 'جميع الطلاب' : 'All Students';
+                          }
+                          return dateData.excusedNames.length > 0 ? dateData.excusedNames.join(', ') : '-';
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-600 max-w-xs">
                         {dateData.absentNames.length > 0 ? dateData.absentNames.join(', ') : '-'}
