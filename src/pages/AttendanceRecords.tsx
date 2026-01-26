@@ -296,6 +296,13 @@ const AttendanceRecords = () => {
           finalStatus = 'not enrolled';
         }
         
+        // If enrollment_date is missing but status is not already 'not enrolled', 
+        // keep the original status (assume it's valid)
+        // Log warning for debugging if needed
+        if (!enrollmentDate && finalStatus === 'not enrolled') {
+          console.warn(`⚠️ Attendance record ${record.attendance_id} marked as 'not enrolled' but enrollment_date is missing`);
+        }
+        
         return {
           attendance_id: record.attendance_id,
           student_id: record.student_id,
@@ -391,6 +398,7 @@ const AttendanceRecords = () => {
       case 'absent': return 'bg-red-100 text-red-800';
       case 'late': return 'bg-yellow-100 text-yellow-800';
       case 'excused': return 'bg-blue-100 text-blue-800';
+      case 'not enrolled': return 'bg-gray-100 text-gray-600';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -401,6 +409,7 @@ const AttendanceRecords = () => {
       case 'absent': return 'Absent';
       case 'late': return 'Late';
       case 'excused': return 'Excused';
+      case 'not enrolled': return 'Not Enrolled';
       default: return status;
     }
   };
