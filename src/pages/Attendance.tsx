@@ -329,6 +329,92 @@ export function Attendance() {
     });
 
     setAttendance(attendanceList as AttendanceRecord[]);
+    
+    // Auto-save excused records for newly enrolled students on "Session Not Held" dates
+    if (isSessionNotHeld) {
+      const newlyEnrolledStudents = attendanceList.filter(
+        a => a.attendance_id.startsWith('temp-') && a.status === 'excused'
+      );
+      
+      if (newlyEnrolledStudents.length > 0) {
+        const userEmail = await getCurrentUserEmail();
+        const newRecords = newlyEnrolledStudents.map(record => ({
+          enrollment_id: record.enrollment_id,
+          session_id: sessionId,
+          student_id: record.student_id,
+          attendance_date: selectedDate,
+          status: 'excused',
+          excuse_reason: 'session not held',
+          host_address: 'SESSION_NOT_HELD',
+          check_in_time: null,
+          gps_latitude: null,
+          gps_longitude: null,
+          gps_accuracy: null,
+          gps_timestamp: null,
+          marked_by: `${userEmail} - auto-excused (session not held)`,
+          marked_at: new Date().toISOString()
+        }));
+        
+        await supabase.from(Tables.ATTENDANCE).insert(newRecords);
+        // Reload to show saved records instead of temp placeholders
+        const { data: refreshedAttendance } = await supabase
+          .from(Tables.ATTENDANCE)
+          .select(`
+            attendance_id,
+            status,
+            excuse_reason,
+            check_in_time,
+            notes,
+            gps_latitude,
+            gps_longitude,
+            gps_accuracy,
+            attendance_date,
+            host_address,
+            student_id,
+            student:student_id(student_id, name, email)
+          `)
+          .eq('session_id', sessionId)
+          .eq('attendance_date', selectedDate);
+        
+        // Rebuild attendance list with saved records
+        const updatedList = enrollments.map((enrollment: { enrollment_id: string; student_id: string; enrollment_date: string; student: { student_id: string; name: string; email: string } | { student_id: string; name: string; email: string }[] }) => {
+          const savedRecord = refreshedAttendance?.find(
+            (a: { student_id: string }) => a.student_id === enrollment.student_id
+          );
+          
+          const student = Array.isArray(enrollment.student) ? enrollment.student[0] : enrollment.student;
+          const isBeforeEnrollment = selectedDate < enrollment.enrollment_date;
+          
+          if (savedRecord) {
+            const finalStatus = isBeforeEnrollment ? 'not enrolled' : savedRecord.status;
+            return {
+              ...savedRecord,
+              status: finalStatus,
+              student: Array.isArray(savedRecord.student) 
+                ? savedRecord.student[0] 
+                : savedRecord.student,
+              enrollment_id: enrollment.enrollment_id
+            };
+          }
+          
+          return attendanceList.find(a => a.student_id === enrollment.student_id) || {
+            attendance_id: `temp-${enrollment.student_id}`,
+            enrollment_id: enrollment.enrollment_id,
+            student_id: enrollment.student_id,
+            status: isBeforeEnrollment ? 'not enrolled' : 'pending',
+            check_in_time: null,
+            notes: null,
+            gps_latitude: null,
+            gps_longitude: null,
+            gps_accuracy: null,
+            attendance_date: selectedDate,
+            student: student
+          };
+        });
+        
+        setAttendance(updatedList as AttendanceRecord[]);
+      }
+    }
   }, [sessionId, selectedDate]);
 
   useEffect(() => {
