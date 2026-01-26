@@ -1057,21 +1057,29 @@ const AttendanceRecords = () => {
       const excusedCount = excusedRecords.length;
       const lateCount = lateRecords.length;
       
-      // Calculate unmarked students (students with no record for this date)
+      // Only consider students who were enrolled on or before this date
+      // Get students who have any record (enrolled) on or before this date
+      const enrolledStudentsByDate = new Set(
+        analyticsRecords
+          .filter(r => r.attendance_date <= date)
+          .map(r => r.student_id)
+      );
+      
+      // Calculate unmarked students (students enrolled by this date but with no record for this specific date)
       const studentsWithRecords = new Set(dateRecords.map(r => r.student_id));
-      const unmarkedStudents = uniqueStudents.filter(sid => !studentsWithRecords.has(sid));
+      const unmarkedStudents = Array.from(enrolledStudentsByDate).filter(sid => !studentsWithRecords.has(sid));
       const unmarkedCount = unmarkedStudents.length;
       
       // Get names of unmarked students
       const unmarkedNames = unmarkedStudents.map(sid => {
-        const record = filteredRecords.find(r => r.student_id === sid);
+        const record = analyticsRecords.find(r => r.student_id === sid);
         return record?.student_name || 'Unknown';
       });
       
       // Unexcused absents = explicitly marked absent + unmarked students
       const unexcusedAbsentCount = absentCount + unmarkedCount;
-      // Total accountable = all students minus excused
-      const totalStudentsOnDate = uniqueStudents.length;
+      // Total accountable = students enrolled by this date minus excused
+      const totalStudentsOnDate = enrolledStudentsByDate.size;
       const totalAccountable = totalStudentsOnDate - excusedCount;
       // Attendance rate: (Present + Late) / Total Accountable
       const attendanceRate = totalAccountable > 0 ? ((presentCount + lateCount) / totalAccountable) * 100 : 0;
