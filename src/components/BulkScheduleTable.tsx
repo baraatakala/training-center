@@ -97,8 +97,8 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
   const [showCalendar, setShowCalendar] = useState(false);
   // Cancelled dates (marked as SESSION_NOT_HELD)
   const [cancelledDates, setCancelledDates] = useState<Set<string>>(new Set());
-  // Host filter state
-  const [hostFilter, setHostFilter] = useState<'all' | 'can-host' | 'cannot-host'>('all');
+  // Host filter state - default to can-host
+  const [hostFilter, setHostFilter] = useState<'all' | 'can-host' | 'cannot-host'>('can-host');
   // Export dialog state
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [exportFormat, setExportFormat] = useState<'csv' | 'csv-arabic' | 'pdf'>('csv');
