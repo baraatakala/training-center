@@ -15,7 +15,7 @@ interface AttendanceRecord {
   student_id: string;
   session_id: string;
   attendance_date: string;
-  status: 'on time' | 'absent' | 'late' | 'excused';
+  status: 'on time' | 'absent' | 'late' | 'excused' | 'not enrolled';
   excuse_reason?: string | null;
   gps_latitude: number | null;
   gps_longitude: number | null;
@@ -198,6 +198,7 @@ const AttendanceRecords = () => {
       setStudentAnalytics([]);
       setDateAnalytics([]);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredRecords]);
 
   const loadFilterOptions = async () => {
@@ -245,6 +246,7 @@ const AttendanceRecords = () => {
           attendance_id,
           student_id,
           session_id,
+          enrollment_id,
           attendance_date,
           status,
           excuse_reason,
@@ -256,6 +258,7 @@ const AttendanceRecords = () => {
           marked_at,
           host_address,
           student:student_id (name),
+          enrollment:enrollment_id (enrollment_date),
           session:session_id (
             location,
             course_id,
@@ -277,12 +280,28 @@ const AttendanceRecords = () => {
         const course = session.course || {};
         const teacher = session.teacher || {};
         
+        // Handle enrollment - could be object, array, or null from Supabase
+        let enrollmentDate: string | null = null;
+        if (record.enrollment) {
+          if (Array.isArray(record.enrollment) && record.enrollment.length > 0) {
+            enrollmentDate = record.enrollment[0].enrollment_date;
+          } else if (typeof record.enrollment === 'object') {
+            enrollmentDate = record.enrollment.enrollment_date;
+          }
+        }
+        
+        // Auto-detect 'not enrolled' status: if attendance_date is before enrollment_date
+        let finalStatus = record.status;
+        if (enrollmentDate && record.attendance_date < enrollmentDate) {
+          finalStatus = 'not enrolled';
+        }
+        
         return {
           attendance_id: record.attendance_id,
           student_id: record.student_id,
           session_id: record.session_id,
           attendance_date: record.attendance_date,
-          status: record.status,
+          status: finalStatus,
           excuse_reason: record.excuse_reason || null,
           gps_latitude: record.gps_latitude,
           gps_longitude: record.gps_longitude,
@@ -297,8 +316,33 @@ const AttendanceRecords = () => {
           teacher_id: session.teacher_id || '',
           instructor_name: teacher.name || 'Unknown',
           session_location: session.location || null,
+          _enrollmentDate: enrollmentDate, // For debugging
         };
       });
+
+      // Debug: Log summary of enrollment data availability
+      const withEnrollment = formattedRecords.filter((r) => (r as AttendanceRecord & { _enrollmentDate?: string })._enrollmentDate).length;
+      const withoutEnrollment = formattedRecords.length - withEnrollment;
+      const markedNotEnrolled = formattedRecords.filter(r => r.status === 'not enrolled').length;
+      
+      console.log(`📊 Attendance Records Loaded:`, {
+        total: formattedRecords.length,
+        withEnrollmentDate: withEnrollment,
+        withoutEnrollmentDate: withoutEnrollment,
+        markedAsNotEnrolled: markedNotEnrolled
+      });
+      
+      if (withoutEnrollment > 0) {
+        console.warn(`⚠️ ${withoutEnrollment} attendance records missing enrollment_date - these cannot be auto-detected as 'not enrolled'`);
+        // Log first few examples
+        const examples = formattedRecords.filter((r) => !(r as AttendanceRecord & { _enrollmentDate?: string })._enrollmentDate).slice(0, 3);
+        console.log('Examples:', examples.map(r => ({
+          student: r.student_name,
+          date: r.attendance_date,
+          status: r.status,
+          attendance_id: r.attendance_id
+        })));
+      }
 
       setRecords(formattedRecords);
     } catch (error) {
@@ -896,15 +940,24 @@ const AttendanceRecords = () => {
 
   // Calculate advanced analytics
   const calculateAnalytics = () => {
-    // Get unique dates and students
-    const uniqueDates = [...new Set(filteredRecords.map(r => r.attendance_date))].sort();
-    const uniqueStudents = [...new Set(filteredRecords.map(r => r.student_id))];
-    const daysCovered = uniqueDates.length;
+    // Filter out 'not enrolled' records from analytics
+    const analyticsRecords = filteredRecords.filter(r => r.status !== 'not enrolled');
+    
+    // Get unique dates for session-wide analytics (attendance by date)
+    const uniqueDates = [...new Set(analyticsRecords.map(r => r.attendance_date))].sort();
+    
+    // Get unique students from filtered records
+    const uniqueStudents = [...new Set(analyticsRecords.map(r => r.student_id))];
 
     // Calculate student analytics
     const studentStats: StudentAnalytics[] = uniqueStudents.map(studentId => {
-      const studentRecords = filteredRecords.filter(r => r.student_id === studentId);
+      const studentRecords = analyticsRecords.filter(r => r.student_id === studentId);
       const studentName = studentRecords[0]?.student_name || 'Unknown';
+
+      // Calculate days covered FOR THIS SPECIFIC STUDENT (not all session dates)
+      // Only count dates where the student has records (i.e., dates after enrollment)
+      const studentUniqueDates = [...new Set(studentRecords.map(r => r.attendance_date))].sort();
+      const studentDaysCovered = studentUniqueDates.length;
 
       const presentCount = studentRecords.filter(r => r.status === 'on time').length;
       const absentCount = studentRecords.filter(r => r.status === 'absent').length;
@@ -912,8 +965,8 @@ const AttendanceRecords = () => {
       const lateCount = studentRecords.filter(r => r.status === 'late').length;
 
       // Calculate rates (no vacation status in AttendanceRecords)
-      // Effective base: All dates covered minus excused days (students are accountable for all dates)
-      const effectiveBase = daysCovered - excusedCount;
+      // Effective base: Student's covered dates minus excused days (only accountable for dates after enrollment)
+      const effectiveBase = studentDaysCovered - excusedCount;
       // Attendance rate: Present (On Time + Late) / Effective Days
       const totalPresent = presentCount + lateCount;
       const attendanceRate = effectiveBase > 0 ? (totalPresent / effectiveBase) * 100 : 0;
@@ -924,13 +977,13 @@ const AttendanceRecords = () => {
 
       // Calculate weighted score (3-component formula)
       // 80% Attendance Rate + 10% Effective Days Coverage + 10% Punctuality
-      // Effective days percentage: now always 100% since effectiveBase = daysCovered - excusedCount
-      const effectiveDaysPercentage = daysCovered > 0 ? (effectiveBase / daysCovered) * 100 : 0;
+      // Effective days percentage: now always 100% since effectiveBase = studentDaysCovered - excusedCount
+      const effectiveDaysPercentage = studentDaysCovered > 0 ? (effectiveBase / studentDaysCovered) * 100 : 0;
       const punctualityPercentage = totalPresent > 0 ? (presentCount / totalPresent) * 100 : 0;
       const weightedScore = (0.8 * attendanceRate) + (0.1 * effectiveDaysPercentage) + (0.1 * punctualityPercentage);
 
       // Calculate consistency index (based on all present days: on time + late)
-      const dailyPattern = uniqueDates.map(date => {
+      const dailyPattern = studentUniqueDates.map(date => {
         const record = studentRecords.find(r => r.attendance_date === date);
         if (!record || record.status === 'excused') return -1; // Exclude excused
         return (record.status === 'on time' || record.status === 'late') ? 1 : 0;
@@ -938,8 +991,8 @@ const AttendanceRecords = () => {
 
       const consistencyIndex = calculateConsistencyIndex(dailyPattern);
 
-      // Calculate trend
-      const cumulativeRates = calculateCumulativeRates(studentId, uniqueDates, filteredRecords);
+      // Calculate trend using student-specific dates (not all session dates)
+      const cumulativeRates = calculateCumulativeRates(studentId, studentUniqueDates, analyticsRecords);
       const trend = calculateTrend(cumulativeRates.slice(-6)); // Last 6 samples
 
       // Calculate rate change between previous and last cumulative rate
@@ -954,7 +1007,7 @@ const AttendanceRecords = () => {
       let totalPresentToDate = 0;
       let totalDaysToDate = 0;
       
-      uniqueDates.forEach(date => {
+      studentUniqueDates.forEach(date => {
         const record = studentRecords.find(r => r.attendance_date === date);
         if (record && record.status !== 'excused') {
           totalDaysToDate++;
@@ -975,7 +1028,7 @@ const AttendanceRecords = () => {
         excusedCount,
         lateCount,
         unexcusedAbsent,
-        daysCovered,
+        daysCovered: studentDaysCovered,
         effectiveDays: effectiveBase,
         attendanceRate: Math.round(attendanceRate * 10) / 10,
         weightedScore: Math.round(weightedScore * 10) / 10,
@@ -991,9 +1044,9 @@ const AttendanceRecords = () => {
 
     setStudentAnalytics(studentStats);
 
-    // Calculate date analytics
+    // Calculate date analytics (exclude 'not enrolled' records)
     const dateStats: DateAnalytics[] = uniqueDates.map(date => {
-      const dateRecords = filteredRecords.filter(r => r.attendance_date === date);
+      const dateRecords = analyticsRecords.filter(r => r.attendance_date === date);
       const presentRecords = dateRecords.filter(r => r.status === 'on time');
       const absentRecords = dateRecords.filter(r => r.status === 'absent');
       const excusedRecords = dateRecords.filter(r => r.status === 'excused');
@@ -1072,8 +1125,8 @@ const AttendanceRecords = () => {
     dates.forEach(date => {
       const record = allRecords.find(r => r.student_id === studentId && r.attendance_date === date);
       
-      // Exclude excused from trend calculation
-      if (record && record.status !== 'excused') {
+      // Exclude excused and 'not enrolled' from trend calculation
+      if (record && record.status !== 'excused' && record.status !== 'not enrolled') {
         cumulativeTotal++;
         // Count both on time and late as present
         if (record.status === 'on time' || record.status === 'late') {

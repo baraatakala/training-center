@@ -176,8 +176,11 @@ export function Dashboard() {
           // === CONSECUTIVE ABSENCE DETECTION ===
           let currentStreak = 0;
           let maxConsecutive = 0;
+          let recentConsecutive = 0; // Consecutive absences in last 30 days or ongoing
           let lastAbsenceDate = '';
           const absentDates: string[] = [];
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
           uniqueStatuses.forEach((status, idx) => {
             if (status === 'absent') {
@@ -185,6 +188,11 @@ export function Dashboard() {
               lastAbsenceDate = uniqueDates[idx];
               maxConsecutive = Math.max(maxConsecutive, currentStreak);
               absentDates.push(uniqueDates[idx]);
+              
+              // Track recent consecutive absences (last 30 days or ongoing)
+              if (idx === 0 || new Date(uniqueDates[idx]) >= thirtyDaysAgo) {
+                recentConsecutive = currentStreak;
+              }
             } else if (status === 'on time' || status === 'late') {
               // Only reset streak if they actually attended
               currentStreak = 0;
@@ -270,23 +278,29 @@ export function Dashboard() {
             return;
           }
 
-          // CRITICAL: Severe attendance issues
-          if (maxConsecutive >= 4 || attendanceRate < 40 || (maxConsecutive >= 3 && attendanceRate < 50) || (daysAbsent >= 5 && attendanceRate < 50)) {
+          // SMART FILTERING: Don't alert if performance is good
+          // High attendance + improving/stable trend + good engagement = no alert
+          if (attendanceRate >= 80 && engagementScore >= 85 && trend !== 'declining' && recentConsecutive < 2) {
+            return;
+          }
+
+          // CRITICAL: Severe attendance issues (focus on RECENT consecutive or very low rate)
+          if (recentConsecutive >= 4 || attendanceRate < 40 || (recentConsecutive >= 3 && attendanceRate < 50) || (daysAbsent >= 5 && attendanceRate < 50) || (maxConsecutive >= 5 && attendanceRate < 60)) {
             riskLevel = 'critical';
             shouldAlert = true;
           }
-          // HIGH: Significant concerns
-          else if (maxConsecutive >= 3 || attendanceRate < 60 || (maxConsecutive >= 2 && trend === 'declining') || (daysAbsent >= 4 && attendanceRate < 60)) {
+          // HIGH: Significant concerns (recent consecutive absences matter most)
+          else if (recentConsecutive >= 3 || attendanceRate < 60 || (recentConsecutive >= 2 && trend === 'declining') || (daysAbsent >= 4 && attendanceRate < 60) || (maxConsecutive >= 4 && attendanceRate < 70)) {
             riskLevel = 'high';
             shouldAlert = true;
           }
-          // MEDIUM: Moderate concerns
-          else if (maxConsecutive >= 2 || attendanceRate < 75 || (patterns.length > 0 && attendanceRate < 85)) {
+          // MEDIUM: Moderate concerns (only if recent issues OR low rate)
+          else if (recentConsecutive >= 2 || attendanceRate < 70 || (patterns.length > 0 && attendanceRate < 75 && trend === 'declining') || (maxConsecutive >= 3 && attendanceRate < 75 && trend === 'declining')) {
             riskLevel = 'medium';
             shouldAlert = true;
           }
-          // WATCH: Early warning patterns (requires at least some absence)
-          else if ((patterns.length > 0 || (trend === 'declining' && attendanceRate < 90)) && daysAbsent > 0) {
+          // WATCH: Early warning patterns (requires recent concern)
+          else if ((patterns.length > 0 && attendanceRate < 85) || (trend === 'declining' && attendanceRate < 85 && daysAbsent >= 2) || (recentConsecutive >= 1 && attendanceRate < 80)) {
             riskLevel = 'watch';
             shouldAlert = true;
           }

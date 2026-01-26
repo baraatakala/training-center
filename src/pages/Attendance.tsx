@@ -15,6 +15,7 @@ type AttendanceRecord = {
   attendance_id: string;
   enrollment_id: string;
   student_id: string;
+  enrollment_date?: string;
   status: string;
   excuse_reason?: string | null;
   check_in_time: string | null;
@@ -206,6 +207,9 @@ export function Attendance() {
     // Check if address is already saved for this date
     const savedHostAddress = existingAttendance?.find(r => r.host_address)?.host_address;
     
+    // Check if this date was marked as "Session Not Held"
+    const isSessionNotHeld = savedHostAddress === 'SESSION_NOT_HELD';
+    
     // Only update selectedAddress if there's a saved value, don't reset if empty
     if (savedHostAddress) {
       if (savedHostAddress === 'SESSION_NOT_HELD') {
@@ -239,6 +243,7 @@ export function Attendance() {
       .select(`
         enrollment_id,
         student_id,
+        enrollment_date,
         student:student_id(student_id, name, email)
       `)
       .eq('session_id', sessionId)
@@ -250,26 +255,32 @@ export function Attendance() {
     }
 
     // Build attendance list: combine enrollments with existing records
-    const attendanceList = enrollments.map((enrollment: { enrollment_id: string; student_id: string; student: { student_id: string; name: string; email: string } | { student_id: string; name: string; email: string }[] }) => {
+    const attendanceList = enrollments.map((enrollment: { enrollment_id: string; student_id: string; enrollment_date: string; student: { student_id: string; name: string; email: string } | { student_id: string; name: string; email: string }[] }) => {
       const existingRecord = existingAttendance?.find(
         (a: { student_id: string }) => a.student_id === enrollment.student_id
       );
       
       // Handle both single object and array from Supabase
       const student = Array.isArray(enrollment.student) ? enrollment.student[0] : enrollment.student;
+      
+      // Check if attendance date is before enrollment date
+      const isBeforeEnrollment = selectedDate < enrollment.enrollment_date;
 
       if (existingRecord) {
+        // If before enrollment, override status to 'not enrolled'
+        const finalStatus = isBeforeEnrollment ? 'not enrolled' : existingRecord.status;
         // Return existing attendance record
         const record = {
           ...existingRecord,
+          status: finalStatus,
           student: Array.isArray(existingRecord.student) 
             ? existingRecord.student[0] 
             : existingRecord.student,
           enrollment_id: enrollment.enrollment_id
         };
         
-        // Populate excuse_reason state if present
-        if (existingRecord.excuse_reason) {
+        // Populate excuse_reason state if present (but not for 'not enrolled' records)
+        if (existingRecord.excuse_reason && !isBeforeEnrollment) {
           setExcuseReason(prev => ({ 
             ...prev, 
             [existingRecord.attendance_id]: existingRecord.excuse_reason 
@@ -285,11 +296,27 @@ export function Attendance() {
         return record;
       } else {
         // Return placeholder (not saved to DB yet)
+        // Priority order for status:
+        // 1. If before enrollment date: 'not enrolled'
+        // 2. If session was marked as not held: 'excused' (with session not held reason)
+        // 3. Otherwise: 'pending'
+        let placeholderStatus = 'pending';
+        let placeholderExcuseReason = null;
+        
+        if (isBeforeEnrollment) {
+          placeholderStatus = 'not enrolled';
+        } else if (isSessionNotHeld) {
+          // Session was marked as not held - this student should also be excused
+          placeholderStatus = 'excused';
+          placeholderExcuseReason = 'session not held';
+        }
+        
         return {
           attendance_id: `temp-${enrollment.student_id}`,
           enrollment_id: enrollment.enrollment_id,
           student_id: enrollment.student_id,
-          status: 'pending',
+          status: placeholderStatus,
+          excuse_reason: placeholderExcuseReason,
           check_in_time: null,
           notes: null,
           gps_latitude: null,
@@ -322,6 +349,12 @@ export function Attendance() {
   const updateAttendance = async (attendanceId: string, status: string) => {
     const record = attendance.find(a => a.attendance_id === attendanceId);
     if (!record) return;
+
+    // Prevent marking attendance for students not yet enrolled
+    if (record.status === 'not enrolled') {
+      alert('Cannot mark attendance: Student was not enrolled on this date');
+      return;
+    }
 
     // Validate host address is selected
     if (!selectedAddress || selectedAddress === '') {
@@ -623,10 +656,12 @@ export function Attendance() {
   };
 
   const handleSelectAll = () => {
-    if (selectedStudents.size === attendance.length) {
+    // Filter out 'not enrolled' records from selection
+    const selectableAttendance = attendance.filter(a => a.status !== 'not enrolled');
+    if (selectedStudents.size === selectableAttendance.length) {
       setSelectedStudents(new Set());
     } else {
-      setSelectedStudents(new Set(attendance.map(a => a.attendance_id)));
+      setSelectedStudents(new Set(selectableAttendance.map(a => a.attendance_id)));
     }
   };
 
@@ -751,6 +786,8 @@ export function Attendance() {
         return <Badge variant="warning">Late</Badge>;
       case 'excused':
         return <Badge variant="info">Excused</Badge>;
+      case 'not enrolled':
+        return <Badge variant="default" className="bg-gray-300 text-gray-600">Not Enrolled</Badge>;
       case 'pending':
         return <Badge variant="default">Not Marked</Badge>;
       default:
@@ -963,9 +1000,11 @@ export function Attendance() {
               ) : (
                 <div className="space-y-4">
                   {/* Summary Stats */}
-                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3 p-3 sm:p-4 bg-gray-50 rounded-lg">
+                  <div className="grid grid-cols-3 sm:grid-cols-7 gap-2 sm:gap-3 p-3 sm:p-4 bg-gray-50 rounded-lg">
                     <div className="text-center">
-                      <div className="text-xl sm:text-2xl font-bold text-gray-900">{attendance.length}</div>
+                      <div className="text-xl sm:text-2xl font-bold text-gray-900">
+                        {attendance.filter(a => a.status !== 'not enrolled').length}
+                      </div>
                       <div className="text-xs text-gray-600">Total</div>
                     </div>
                     <div className="text-center">
@@ -992,11 +1031,17 @@ export function Attendance() {
                       </div>
                       <div className="text-xs text-gray-600">Excused</div>
                     </div>
-                    <div className="text-center col-span-3 sm:col-span-1">
+                    <div className="text-center">
                       <div className="text-xl sm:text-2xl font-bold text-gray-400">
                         {attendance.filter(a => a.status === 'pending').length}
                       </div>
                       <div className="text-xs text-gray-600">Not Marked</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xl sm:text-2xl font-bold text-gray-500">
+                        {attendance.filter(a => a.status === 'not enrolled').length}
+                      </div>
+                      <div className="text-xs text-gray-600">Not Enrolled</div>
                     </div>
                   </div>
 
@@ -1004,7 +1049,10 @@ export function Attendance() {
                   <div className="flex items-center gap-2 mb-4">
                     <input
                       type="checkbox"
-                      checked={selectedStudents.size === attendance.length && attendance.length > 0}
+                      checked={
+                        attendance.filter(a => a.status !== 'not enrolled').length > 0 &&
+                        selectedStudents.size === attendance.filter(a => a.status !== 'not enrolled').length
+                      }
                       onChange={handleSelectAll}
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
@@ -1029,17 +1077,22 @@ export function Attendance() {
                         record.student.email.toLowerCase().includes(term)
                       );
                     })
-                    .map((record) => (
+                    .map((record) => {
+                      const isNotEnrolled = record.status === 'not enrolled';
+                      return (
                     <div
                       key={record.attendance_id}
-                      className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg hover:bg-gray-50 gap-3"
+                      className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg gap-3 ${
+                        isNotEnrolled ? 'bg-gray-50 opacity-60' : 'hover:bg-gray-50'
+                      }`}
                     >
                       <div className="flex items-center gap-4 flex-1">
                         <input
                           type="checkbox"
                           checked={selectedStudents.has(record.attendance_id)}
                           onChange={() => handleSelectStudent(record.attendance_id)}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          disabled={isNotEnrolled}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-30 disabled:cursor-not-allowed"
                         />
                         <div className="flex-1 min-w-0">
                           <h3 className="font-medium truncate">{record.student.name}</h3>
@@ -1049,10 +1102,17 @@ export function Attendance() {
                               Checked in: {format(new Date(record.check_in_time), 'HH:mm:ss')}
                             </p>
                           )}
+                          {isNotEnrolled && record.enrollment_date && (
+                            <p className="text-xs text-gray-500 mt-1 italic">
+                              Enrolled on: {format(new Date(record.enrollment_date), 'MMM dd, yyyy')}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                         {getStatusBadge(record.status)}
+                        {!isNotEnrolled && (
+                          <>
                         <Button
                           onClick={() => updateAttendance(record.attendance_id, 'on time')}
                           className="bg-green-600 hover:bg-green-700 text-xs sm:text-sm px-2 sm:px-4"
@@ -1131,9 +1191,12 @@ export function Attendance() {
                         >
                           Clear
                         </Button>
+                          </>
+                        )}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                   </div>
                 </div>
               )}

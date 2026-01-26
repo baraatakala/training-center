@@ -131,56 +131,65 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
 
   const loadEnrollments = useCallback(async () => {
     try {
-      console.log('Loading students for session:', sessionId);
+      console.log('Loading enrolled students for session:', sessionId);
       
-      // Load ALL students with non-null addresses
-      const { data: students, error: studentsError } = await supabase
-        .from(Tables.STUDENT)
-        .select('student_id, name, address, phone')
-        .not('address', 'is', null)
-        .neq('address', '');
+      // Load ONLY students who are enrolled in this session
+      const { data: enrollmentData, error: enrollmentError } = await supabase
+        .from(Tables.ENROLLMENT)
+        .select(`
+          enrollment_id,
+          student_id,
+          can_host,
+          host_date,
+          status,
+          student:student_id (
+            student_id,
+            name,
+            address,
+            phone
+          )
+        `)
+        .eq('session_id', sessionId)
+        .eq('status', 'active');
 
-      if (studentsError) {
-        console.error('Students load error:', studentsError);
-        alert('Failed to load students: ' + studentsError.message);
+      if (enrollmentError) {
+        console.error('Error loading enrollments:', enrollmentError);
+        alert('Failed to load enrollments: ' + enrollmentError.message);
         return;
       }
 
-      if (!students || students.length === 0) {
-        console.log('No students with addresses found');
+      if (!enrollmentData || enrollmentData.length === 0) {
+        console.log('No active enrollments found for this session');
         setEnrollments([]);
         return;
       }
 
-      // Load enrollments for this session to get can_host and host_date
-      const { data: enrollmentData } = await supabase
-        .from(Tables.ENROLLMENT)
-        .select('enrollment_id, student_id, can_host, host_date')
-        .eq('session_id', sessionId)
-        .eq('status', 'active');
+      type EnrollmentData = {
+        enrollment_id: string;
+        student_id: string;
+        can_host: boolean | null;
+        host_date: string | null;
+        status: string;
+        student: { student_id: string; name: string; address: string | null; phone: string | null } | { student_id: string; name: string; address: string | null; phone: string | null }[];
+      };
 
-      // Create a map of student_id to enrollment data
-      const enrollmentMap = new Map<string, { enrollment_id: string; can_host: boolean; host_date: string | null }>();
-      (enrollmentData || []).forEach((e: any) => {
-        enrollmentMap.set(e.student_id, {
-          enrollment_id: e.enrollment_id,
-          can_host: e.can_host || false,
-          host_date: e.host_date
+      // Map enrollments to rows, only include students with addresses
+      const rows: EnrollmentRow[] = enrollmentData
+        .filter((e: EnrollmentData) => {
+          const student = Array.isArray(e.student) ? e.student[0] : e.student;
+          return student?.address && student.address.trim() !== '';
+        })
+        .map((e: EnrollmentData) => {
+          const student = Array.isArray(e.student) ? e.student[0] : e.student;
+          return {
+            enrollment_id: e.enrollment_id,
+            student_id: e.student_id,
+            student: student,
+            can_host: e.can_host ?? false,
+            host_date: e.host_date,
+            status: e.status
+          };
         });
-      });
-
-      // Map students to enrollment rows
-      const rows: EnrollmentRow[] = students.map((s: any) => {
-        const enrollment = enrollmentMap.get(s.student_id);
-        return {
-          enrollment_id: enrollment?.enrollment_id || `temp-${s.student_id}`,
-          student_id: s.student_id,
-          student: { name: s.name, address: s.address, phone: s.phone },
-          can_host: enrollment?.can_host || false,
-          host_date: enrollment?.host_date || null,
-          status: 'active'
-        };
-      });
 
       // Sort by student name
       rows.sort((a, b) => {
@@ -190,7 +199,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       });
 
       setEnrollments(rows);
-      console.log('Loaded students with addresses:', rows.length);
+      console.log('Loaded enrolled students with addresses:', rows.length);
 
       // initialize hostDateMap from DB host_date values (convert DATE to ISO string yyyy-mm-dd)
       const hd: Record<string, string | null> = {};
@@ -203,7 +212,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       console.error('Enrollment load exception:', error);
       alert('Error loading enrollments: ' + error.message);
     }
-  }, [sessionId, hostFilter]);
+  }, [sessionId]);
 
   useEffect(() => {
     loadEnrollments();
@@ -256,8 +265,9 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       } else {
         console.log(`Successfully saved host_date for enrollment ${enrollmentId}`);
       }
-    } catch (err: any) {
-      console.error('Failed to save host_date:', err);
+    } catch (err) {
+      const error = err as Error;
+      console.error('Failed to save host_date:', error.message);
     }
   };
 
@@ -324,9 +334,10 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
         
         setCancelledDates(prev => new Set([...prev, date]));
         console.log(`✅ Marked ${date} as cancelled`);
-      } catch (err: any) {
-        console.error('Exception marking session as cancelled:', err);
-        alert('Error: ' + err.message);
+      } catch (err) {
+        const error = err as Error;
+        console.error('Exception marking session as cancelled:', error);
+        alert('Error: ' + error.message);
       }
     } else {
       // Unmark as cancelled
@@ -436,13 +447,19 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
     try {
       const mod = await import('jspdf');
       // attempt to load autotable plugin; capture module if present
-      let pluginMod: any = null;
-      try { pluginMod = await import('jspdf-autotable'); } catch { pluginMod = null; }
-      const jsPDF = (mod as any).default || (mod as any).jsPDF;
+      let pluginMod: unknown = null;
+      try { pluginMod = await import('jspdf-autotable'); } catch { /* plugin optional */ }
+      const jsPDF = (mod as { default?: unknown; jsPDF?: unknown }).default || (mod as { default?: unknown; jsPDF?: unknown }).jsPDF;
       if (!jsPDF) throw new Error('Could not load jsPDF module');
       const displayedEnrollments = getSortedDisplayedEnrollments();
 
-      const doc = new jsPDF('l'); // landscape mode for better column fit
+      type JsPDFConstructor = new (orientation: string) => {
+        text: (text: string, x: number, y: number, options?: Record<string, unknown>) => void;
+        setFontSize: (size: number) => void;
+        save: (filename: string) => void;
+        autoTable?: (options: Record<string, unknown>) => void;
+      };
+      const doc = new (jsPDF as unknown as JsPDFConstructor)('l'); // landscape mode for better column fit
       const tableColumn = ['Student Name', 'Address', 'Phone', 'Can Host', 'Host Date'];
       const tableRows = displayedEnrollments.map((e) => {
         const name = e.student?.name || '';
@@ -454,11 +471,12 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       });
 
       // Simple, frontend-like pdf layout (NO clickable links) - landscape orientation
-      const pageWidth = (doc as any).internal?.pageSize?.width || (doc as any).internal?.pageSize?.getWidth?.() || 297;
+      const docInternal = (doc as { internal?: { pageSize?: { width?: number; getWidth?: () => number } } }).internal;
+      const pageWidth = docInternal?.pageSize?.width || docInternal?.pageSize?.getWidth?.() || 297;
       doc.setFontSize(16);
       doc.text('Host Schedule', pageWidth / 2, 15, { align: 'center' });
 
-      const autoTableOptions: any = {
+      const autoTableOptions: Record<string, unknown> = {
         head: [tableColumn],
         body: tableRows,
         margin: { top: 20, left: 8, right: 8, bottom: 8 },
@@ -492,7 +510,8 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
         (doc as any).autoTable(autoTableOptions);
         doc.save(`host_schedule_${sessionId}.pdf`);
       } else if (pluginMod) {
-        const at = pluginMod.default || pluginMod.autoTable || pluginMod;
+        const pluginModTyped = pluginMod as { default?: unknown; autoTable?: unknown };
+        const at = pluginModTyped.default || pluginModTyped.autoTable || pluginMod;
         if (typeof at === 'function') {
           try {
             at(doc, autoTableOptions);
@@ -507,14 +526,15 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       } else {
         openPrintableFallback(tableColumn, tableRows);
       }
-    } catch (err: any) {
-      console.error('PDF export error:', err);
-      alert('Failed to export PDF: ' + (err?.message || String(err)));
+    } catch (err) {
+      const error = err as Error;
+      console.error('PDF export error:', error);
+      alert('Failed to export PDF: ' + error.message);
     }
   };
 
   const openPrintableFallback = (tableColumn: string[], tableRows: (string | null)[][]) => {
-    const linkifyCell = (s: any) => {
+    const linkifyCell = (s: unknown) => {
       const str = String(s || '');
       if (!str) return '';
       if (str.trim().match(/^https?:\/\//i)) {

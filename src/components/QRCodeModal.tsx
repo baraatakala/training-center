@@ -20,16 +20,40 @@ export function QRCodeModal({
   const [totalStudents, setTotalStudents] = useState<number>(0);
   const [timeLeft, setTimeLeft] = useState<string>('Loading...');
   const [loading, setLoading] = useState<boolean>(true);
+  const [qrToken, setQrToken] = useState<string | null>(null);
+  const [expiresAt, setExpiresAt] = useState<Date | null>(null);
 
   /* -------------------- QR CODE -------------------- */
   const generateQRCode = useCallback(async () => {
     try {
       setLoading(true);
 
-      const timestamp = Date.now();
-      const token = `${sessionId}-${date}-${timestamp}`;
+      // Get current user email for audit
+      const { data: { user } } = await supabase.auth.getUser();
+      const userEmail = user?.email || 'system';
 
-      const checkInUrl = `${window.location.origin}/checkin/${sessionId}/${date}/${token}`;
+      // Generate secure QR session token via Supabase function
+      const { data: qrSession, error: qrError } = await supabase
+        .rpc('generate_qr_session', {
+          p_session_id: sessionId,
+          p_attendance_date: date,
+          p_created_by: userEmail
+        });
+
+      if (qrError || !qrSession) {
+        console.error('Failed to generate QR session:', qrError);
+        alert('Failed to generate QR code. Please try again.');
+        return;
+      }
+
+      const token = qrSession.token;
+      const expires = new Date(qrSession.expires_at);
+      
+      setQrToken(token);
+      setExpiresAt(expires);
+
+      // Create check-in URL with secure token only
+      const checkInUrl = `${window.location.origin}/checkin/${token}`;
 
       const qrDataUrl = await QRCode.toDataURL(checkInUrl, {
         width: 400,
@@ -41,8 +65,10 @@ export function QRCodeModal({
       });
 
       setQrCodeUrl(qrDataUrl);
+      console.log('✅ Secure QR session created:', { token, expires });
     } catch (error) {
       console.error('QR code generation error:', error);
+      alert('Error generating QR code. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -95,8 +121,25 @@ export function QRCodeModal({
     };
   }, [sessionId, date, loadCheckInStats]);
 
+  /* -------------------- INVALIDATE ON CLOSE -------------------- */
+  const invalidateQRSession = useCallback(async () => {
+    if (qrToken) {
+      try {
+        await supabase.rpc('invalidate_qr_session', { p_token: qrToken });
+        console.log('✅ QR session invalidated');
+      } catch (error) {
+        console.error('Failed to invalidate QR session:', error);
+      }
+    }
+  }, [qrToken]);
+
   /* -------------------- TIMER -------------------- */
-  const updateTimeLeft = useCallback((expiration: Date) => {
+  const updateTimeLeft = useCallback((expiration: Date | null) => {
+    if (!expiration) {
+      setTimeLeft('Loading...');
+      return;
+    }
+
     const diff = expiration.getTime() - Date.now();
 
     if (diff <= 0) {
@@ -123,26 +166,25 @@ export function QRCodeModal({
 
     const cleanupRealtime = setupRealtimeSubscription();
 
-    const expiration = new Date();
-    expiration.setHours(expiration.getHours() + 2);
+    return () => {
+      mounted = false;
+      cleanupRealtime();
+      // Invalidate QR session on unmount
+      invalidateQRSession();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, date]);
 
+  // Separate effect for timer to avoid re-generating QR code
+  useEffect(() => {
     const timer = setInterval(() => {
-      updateTimeLeft(expiration);
+      updateTimeLeft(expiresAt);
     }, 1000);
 
     return () => {
-      mounted = false;
       clearInterval(timer);
-      cleanupRealtime();
     };
-  }, [
-    sessionId,
-    date,
-    generateQRCode,
-    loadCheckInStats,
-    setupRealtimeSubscription,
-    updateTimeLeft,
-  ]);
+  }, [expiresAt, updateTimeLeft]);
 
   const percentage =
     totalStudents > 0
@@ -215,7 +257,10 @@ export function QRCodeModal({
           </div>
 
           <button
-            onClick={onClose}
+            onClick={() => {
+              invalidateQRSession();
+              onClose();
+            }}
             className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold rounded-xl hover:opacity-90"
           >
             Close QR Code
