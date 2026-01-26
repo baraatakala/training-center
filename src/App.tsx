@@ -21,7 +21,7 @@ function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route path="/checkin/:sessionId/:date/:token" element={<StudentCheckIn />} />
+          <Route path="/checkin/:token" element={<StudentCheckIn />} />
           <Route
             path="/*"
             element={

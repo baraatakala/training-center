@@ -27,7 +27,7 @@ type HostInfo = {
 };
 
 export function StudentCheckIn() {
-  const { sessionId, date, token } = useParams<{ sessionId: string; date: string; token: string }>();
+  const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -43,14 +43,54 @@ export function StudentCheckIn() {
   useEffect(() => {
     validateAndLoadCheckIn();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId, date, token]);
+  }, [token]);
 
   const validateAndLoadCheckIn = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Get current authenticated user
+      if (!token) {
+        setError('Invalid QR code: No token provided');
+        setLoading(false);
+        return;
+      }
+
+      // STEP 1: Validate QR token via database (NEW SECURE VALIDATION)
+      const { data: qrSession, error: qrError } = await supabase
+        .from('qr_sessions')
+        .select('session_id, attendance_date, expires_at, is_valid')
+        .eq('token', token)
+        .single();
+
+      if (qrError || !qrSession) {
+        console.error('QR validation error:', qrError);
+        setError('Invalid QR code. Please ask your teacher to generate a new one.');
+        setLoading(false);
+        return;
+      }
+
+      // Check if expired
+      if (new Date(qrSession.expires_at) < new Date()) {
+        setError(`QR code expired at ${format(new Date(qrSession.expires_at), 'HH:mm')}. Please ask your teacher to generate a new one.`);
+        setLoading(false);
+        return;
+      }
+
+      // Check if invalidated
+      if (!qrSession.is_valid) {
+        setError('QR code is no longer valid. Please ask your teacher to generate a new one.');
+        setLoading(false);
+        return;
+      }
+
+      // Extract session_id and date from validated QR session
+      const sessionId = qrSession.session_id;
+      const date = qrSession.attendance_date;
+
+      console.log('✅ QR token validated:', { sessionId, date, expiresAt: qrSession.expires_at });
+
+      // STEP 2: Get current authenticated user
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       
       if (authError || !user) {
@@ -60,7 +100,7 @@ export function StudentCheckIn() {
         return;
       }
 
-      // Get student info
+      // STEP 3: Get student info
       const { data: student, error: studentError } = await supabase
         .from('student')
         .select('student_id, name, email')
@@ -75,7 +115,7 @@ export function StudentCheckIn() {
 
       setStudentInfo(student);
 
-      // Validate session and date
+      // STEP 4: Load session details
       const { data: session, error: sessionError } = await supabase
         .from('session')
         .select(`
@@ -104,7 +144,7 @@ export function StudentCheckIn() {
         return;
       }
 
-      // Verify student is enrolled
+      // STEP 5: Verify student is enrolled
       const { data: enrollment, error: enrollmentError } = await supabase
         .from('enrollment')
         .select('enrollment_id, can_host')
@@ -126,7 +166,7 @@ export function StudentCheckIn() {
         return;
       }
 
-      // Check if already checked in
+      // STEP 6: Check if already checked in
       const { data: existingAttendance } = await supabase
         .from('attendance')
         .select('attendance_id, status')
@@ -180,8 +220,8 @@ export function StudentCheckIn() {
       const courseData = session.course ? (Array.isArray(session.course) ? session.course[0] : session.course) : undefined;
       
       setCheckInData({
-        session_id: sessionId!,
-        attendance_date: date!,
+        session_id: sessionId,
+        attendance_date: date,
         token: token!,
         session: {
           course: courseData,
@@ -191,6 +231,7 @@ export function StudentCheckIn() {
         },
       });
 
+      console.log('✅ Check-in page loaded successfully');
       setLoading(false);
     } catch (err: unknown) {
       console.error('Validation error:', err);
