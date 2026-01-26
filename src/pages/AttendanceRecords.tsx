@@ -30,6 +30,9 @@ interface AttendanceRecord {
   instructor_name: string;
   session_location: string | null;
   host_address: string | null;
+  book_topic?: string | null;
+  book_start_page?: number | null;
+  book_end_page?: number | null;
 }
 
 interface StudentAnalytics {
@@ -69,6 +72,9 @@ interface DateAnalytics {
   excusedNames: string[];
   absentNames: string[];
   hostAddress: string | null;
+  bookTopic?: string | null;
+  bookStartPage?: number | null;
+  bookEndPage?: number | null;
 }
 
 interface FilterOptions {
@@ -263,6 +269,9 @@ const AttendanceRecords = () => {
             location,
             course_id,
             teacher_id,
+            book_topic,
+            book_start_page,
+            book_end_page,
             course:course_id (course_name),
             teacher:teacher_id (name)
           )
@@ -323,6 +332,9 @@ const AttendanceRecords = () => {
           teacher_id: session.teacher_id || '',
           instructor_name: teacher.name || 'Unknown',
           session_location: session.location || null,
+          book_topic: session.book_topic || null,
+          book_start_page: session.book_start_page || null,
+          book_end_page: session.book_end_page || null,
           _enrollmentDate: enrollmentDate, // For debugging
         };
       });
@@ -592,6 +604,8 @@ const AttendanceRecords = () => {
     // Attendance by Date Sheet
     const dateHeaders = isArabic ? [
       'التاريخ',
+      'الموضوع',
+      'الصفحات',
       'عنوان المضيف',
       'في الوقت',
       'متأخر',
@@ -604,6 +618,8 @@ const AttendanceRecords = () => {
       'أسماء الغائبين'
     ] : [
       'Date',
+      'Topic',
+      'Pages',
       'Host Address',
       'On Time',
       'Late',
@@ -624,8 +640,15 @@ const AttendanceRecords = () => {
       ) {
         excusedLabel = reportLanguage === 'ar' ? 'جميع الطلاب' : 'All Students';
       }
+      
+      const bookPages = dateData.bookStartPage && dateData.bookEndPage 
+        ? `${dateData.bookStartPage}-${dateData.bookEndPage}` 
+        : '-';
+      
       return [
         format(new Date(dateData.date), 'MMM dd, yyyy'),
+        dateData.bookTopic || '-',
+        bookPages,
         dateData.hostAddress || '-',
         dateData.presentCount,
         dateData.lateCount,
@@ -789,42 +812,45 @@ const AttendanceRecords = () => {
 
     autoTable(doc, {
       startY: performanceTableY + 14,
-      head: [['Date', 'Host Address', 'On Time', 'Late', 'Excused', 'Absent', 'Rate %', 'On Time Names', 'Late Names', 'Excused Names', 'Absent Names']],
+      head: [['Date', 'Topic', 'Pages', 'Host Address', 'On Time', 'Late', 'Excused', 'Absent', 'Rate %']],
       body: dateAnalytics.map((dateData) => {
-        let excusedLabel = dateData.excusedNames.join(', ') || '-';
+        let excusedLabel = dateData.excusedAbsentCount.toString();
         if (
           dateData.hostAddress === 'SESSION_NOT_HELD' ||
           (dateData.hostAddress && dateData.hostAddress.toUpperCase() === 'SESSION_NOT_HELD')
         ) {
           excusedLabel = reportLanguage === 'ar' ? 'جميع الطلاب' : 'All Students';
         }
+        
+        const bookPages = dateData.bookStartPage && dateData.bookEndPage 
+          ? `${dateData.bookStartPage}-${dateData.bookEndPage}` 
+          : '-';
+        
         return [
           format(new Date(dateData.date), 'MMM dd, yyyy'),
+          dateData.bookTopic || '-',
+          bookPages,
           dateData.hostAddress || '-',
           dateData.presentCount,
           dateData.lateCount,
-          dateData.excusedAbsentCount,
+          excusedLabel,
           dateData.unexcusedAbsentCount,
           `${dateData.attendanceRate}%`,
-          dateData.presentNames.join(', ') || '-',
-          dateData.lateNames.join(', ') || '-',
-          excusedLabel,
-          dateData.absentNames.join(', ') || '-'
         ];
       }),
-      styles: { fontSize: 6, cellPadding: 1.5 },
-      headStyles: { fillColor: [59, 130, 246], fontSize: 6 },
+      styles: { fontSize: 7, cellPadding: 2 },
+      headStyles: { fillColor: [59, 130, 246], fontSize: 7 },
       alternateRowStyles: { fillColor: [245, 245, 245] },
       columnStyles: {
-        0: { cellWidth: 18 },
-        1: { cellWidth: 25 },
-        2: { cellWidth: 10 },
-        3: { cellWidth: 10 },
-        4: { cellWidth: 10 },
-        5: { cellWidth: 10 },
-        6: { cellWidth: 12 },
-        7: { cellWidth: 'auto' },
-        8: { cellWidth: 'auto' },
+        0: { cellWidth: 22 },
+        1: { cellWidth: 35 },
+        2: { cellWidth: 18 },
+        3: { cellWidth: 30 },
+        4: { cellWidth: 15 },
+        5: { cellWidth: 15 },
+        6: { cellWidth: 15 },
+        7: { cellWidth: 15 },
+        8: { cellWidth: 18 },
         9: { cellWidth: 'auto' },
         10: { cellWidth: 'auto' }
       },
@@ -1104,6 +1130,13 @@ const AttendanceRecords = () => {
       } else {
         excusedNames = excusedRecords.map(r => r.student_name);
       }
+      
+      // Get book tracking info from first record (all records for same date/session will have same book info)
+      const firstRecord = dateRecords[0];
+      const bookTopic = firstRecord?.book_topic || null;
+      const bookStartPage = firstRecord?.book_start_page || null;
+      const bookEndPage = firstRecord?.book_end_page || null;
+      
       return {
         date,
         presentCount,
@@ -1116,6 +1149,9 @@ const AttendanceRecords = () => {
         excusedNames,
         absentNames: [...absentRecords.map(r => r.student_name), ...unmarkedNames],
         hostAddress,
+        bookTopic,
+        bookStartPage,
+        bookEndPage,
       };
     }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -1401,6 +1437,7 @@ const AttendanceRecords = () => {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Book Progress</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Host Address</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">On Time</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Late</th>
@@ -1418,6 +1455,26 @@ const AttendanceRecords = () => {
                     <tr key={dateData.date} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm font-medium text-gray-900 whitespace-nowrap">
                         {format(new Date(dateData.date), 'MMM dd, yyyy')}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700 max-w-xs">
+                        {dateData.bookTopic ? (
+                          <div className="space-y-1">
+                            <div className="flex items-start gap-1">
+                              <span className="text-base">📚</span>
+                              <span className="font-medium text-blue-900">{dateData.bookTopic}</span>
+                            </div>
+                            {dateData.bookStartPage && dateData.bookEndPage && (
+                              <div className="text-xs text-blue-700 pl-5">
+                                Pages {dateData.bookStartPage}-{dateData.bookEndPage}
+                                <span className="text-blue-600 ml-1">
+                                  ({dateData.bookEndPage - dateData.bookStartPage + 1} pages)
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700 max-w-xs">
                         {dateData.hostAddress ? (

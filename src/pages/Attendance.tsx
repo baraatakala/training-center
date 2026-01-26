@@ -70,6 +70,8 @@ export function Attendance() {
   const [sessionNotHeld, setSessionNotHeld] = useState<boolean>(false);
   const [showQRModal, setShowQRModal] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [bookReferences, setBookReferences] = useState<Array<{ reference_id: string; topic: string; start_page: number; end_page: number }>>([]);
+  const [selectedBookReference, setSelectedBookReference] = useState<string>('');
 
   // GPS Geolocation capture function
   const captureGPSLocation = (): Promise<{
@@ -114,13 +116,26 @@ export function Attendance() {
       .from(Tables.SESSION)
       .select(`
         *,
-        course:course_id(course_name)
+        course:course_id(course_id, course_name)
       `)
       .eq('session_id', sessionId)
       .single();
 
     if (data) {
       setSession(data);
+      
+      // Load book references for this course
+      if (data.course && !Array.isArray(data.course)) {
+        const { data: references } = await supabase
+          .from(Tables.COURSE_BOOK_REFERENCE)
+          .select('reference_id, topic, start_page, end_page')
+          .eq('course_id', data.course.course_id)
+          .order('start_page', { ascending: true });
+        
+        if (references) {
+          setBookReferences(references);
+        }
+      }
       
       // Generate attendance dates based on session schedule
       const dates = getAttendanceDateOptions(data);
@@ -428,9 +443,58 @@ export function Attendance() {
       setSelectedAddress('');
       loadHostAddresses();
       loadAttendance();
+      loadSelectedBookReference();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);
+
+  const loadSelectedBookReference = async () => {
+    if (!sessionId || !selectedDate) return;
+
+    const { data } = await supabase
+      .from(Tables.SESSION_BOOK_COVERAGE)
+      .select('reference_id')
+      .eq('session_id', sessionId)
+      .eq('attendance_date', selectedDate)
+      .single();
+
+    if (data) {
+      setSelectedBookReference(data.reference_id);
+    } else {
+      setSelectedBookReference('');
+    }
+  };
+
+  const handleBookReferenceChange = async (referenceId: string) => {
+    setSelectedBookReference(referenceId);
+    
+    if (!sessionId || !selectedDate) return;
+
+    if (referenceId) {
+      // Upsert the book coverage
+      const { error } = await supabase
+        .from(Tables.SESSION_BOOK_COVERAGE)
+        .upsert({
+          session_id: sessionId,
+          attendance_date: selectedDate,
+          reference_id: referenceId,
+        }, {
+          onConflict: 'session_id,attendance_date'
+        });
+
+      if (error) {
+        console.error('Error saving book reference:', error);
+        alert('Failed to save book reference selection');
+      }
+    } else {
+      // Delete if empty
+      await supabase
+        .from(Tables.SESSION_BOOK_COVERAGE)
+        .delete()
+        .eq('session_id', sessionId)
+        .eq('attendance_date', selectedDate);
+    }
+  };
 
   const updateAttendance = async (attendanceId: string, status: string) => {
     const record = attendance.find(a => a.attendance_id === attendanceId);
@@ -1024,6 +1088,54 @@ export function Attendance() {
                   📍 Selected Address: <span className="font-medium">{selectedAddress.split('|||')[1] || selectedAddress}</span>
                 </p>
               </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {selectedDate && bookReferences.length > 0 && !sessionNotHeld && (
+        <Card>
+          <CardHeader>
+            <CardTitle>📚 Book Reference</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Select
+              value={selectedBookReference}
+              onChange={handleBookReferenceChange}
+              options={[
+                { value: '', label: 'Select what topic was covered today...' },
+                ...bookReferences.map(ref => ({
+                  value: ref.reference_id,
+                  label: `${ref.topic} (Pages ${ref.start_page}-${ref.end_page})`
+                }))
+              ]}
+              placeholder="Select book reference"
+            />
+            {selectedBookReference && (
+              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                {(() => {
+                  const selected = bookReferences.find(r => r.reference_id === selectedBookReference);
+                  if (selected) {
+                    return (
+                      <div className="flex items-start gap-2">
+                        <span className="text-xl">📚</span>
+                        <div>
+                          <p className="font-semibold text-blue-900">{selected.topic}</p>
+                          <p className="text-sm text-blue-700 mt-1">
+                            Pages {selected.start_page} - {selected.end_page} ({selected.end_page - selected.start_page + 1} pages)
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
+            )}
+            {bookReferences.length > 0 && !selectedBookReference && (
+              <p className="mt-2 text-xs text-gray-500">
+                💡 Tip: Select which topic was covered in today's session for better tracking
+              </p>
             )}
           </CardContent>
         </Card>

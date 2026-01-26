@@ -8,6 +8,9 @@ type InputProps = {
   required?: boolean;
   className?: string;
   error?: string;
+  min?: string;
+  max?: string;
+  step?: string;
 };
 
 export function Input({
@@ -19,6 +22,9 @@ export function Input({
   required = false,
   className = '',
   error,
+  min,
+  max,
+  step,
 }: InputProps) {
   return (
     <div className={`mb-4 ${className}`}>
@@ -34,6 +40,9 @@ export function Input({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         required={required}
+        min={min}
+        max={max}
+        step={step}
         className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
           error ? 'border-red-500' : 'border-gray-300'
         }`}

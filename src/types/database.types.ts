@@ -46,6 +46,26 @@ export interface Session {
   updated_at: string;
 }
 
+export interface CourseBookReference {
+  reference_id: string;
+  course_id: string;
+  topic: string;
+  start_page: number;
+  end_page: number;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SessionBookCoverage {
+  coverage_id: string;
+  session_id: string;
+  attendance_date: string;
+  reference_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Location {
   location_id: string;
   location_name: string;
@@ -142,6 +162,12 @@ export type UpdateCourse = Partial<CreateCourse>;
 export type CreateSession = Omit<Session, 'session_id' | 'created_at' | 'updated_at'>;
 export type UpdateSession = Partial<CreateSession>;
 
+export type CreateCourseBookReference = Omit<CourseBookReference, 'reference_id' | 'created_at' | 'updated_at'>;
+export type UpdateCourseBookReference = Partial<CreateCourseBookReference>;
+
+export type CreateSessionBookCoverage = Omit<SessionBookCoverage, 'coverage_id' | 'created_at' | 'updated_at'>;
+export type UpdateSessionBookCoverage = Partial<CreateSessionBookCoverage>;
+
 export type CreateLocation = Omit<Location, 'location_id' | 'created_at' | 'updated_at'>;
 export type UpdateLocation = Partial<CreateLocation>;
 
@@ -158,6 +184,8 @@ export type UpdateAttendance = Partial<CreateAttendance>;
 export const Tables = {
   TEACHER: 'teacher',
   STUDENT: 'student',
+  COURSE_BOOK_REFERENCE: 'course_book_reference',
+  SESSION_BOOK_COVERAGE: 'session_book_coverage',
   COURSE: 'course',
   SESSION: 'session',
   LOCATION: 'location',

@@ -5,6 +5,7 @@ import { Modal } from '../components/ui/Modal';
 import { SearchBar } from '../components/ui/SearchBar';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
 import { CourseForm } from '../components/CourseForm';
+import { BookReferencesManager } from '../components/BookReferencesManager';
 import { courseService } from '../services/courseService';
 import type { CreateCourse } from '../types/database.types';
 
@@ -25,6 +26,8 @@ export function Courses() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCourse, setEditingCourse] = useState<CourseWithTeacher | undefined>();
+  const [isBookReferencesOpen, setIsBookReferencesOpen] = useState(false);
+  const [selectedCourse, setSelectedCourse] = useState<CourseWithTeacher | null>(null);
 
   const loadCourses = async () => {
     setLoading(true);
@@ -85,6 +88,11 @@ export function Courses() {
     setIsModalOpen(true);
   };
 
+  const openBookReferences = (course: CourseWithTeacher) => {
+    setSelectedCourse(course);
+    setIsBookReferencesOpen(true);
+  };
+
   return (
     <div className="space-y-4 md:space-y-6 p-4 md:p-0">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
@@ -143,6 +151,14 @@ export function Courses() {
                         <div className="flex gap-1 md:gap-2 justify-end flex-nowrap">
                           <Button 
                             size="sm" 
+                            variant="outline" 
+                            onClick={() => openBookReferences(course)}
+                            className="text-xs md:text-sm px-2 md:px-3"
+                          >
+                            📚
+                          </Button>
+                          <Button 
+                            size="sm" 
                             variant="secondary" 
                             onClick={() => {
                               const password = prompt('Enter password to edit:');
@@ -175,6 +191,27 @@ export function Courses() {
         }}
         title={editingCourse ? 'Edit Course' : 'Add New Course'}
       >
+
+      <Modal
+        isOpen={isBookReferencesOpen}
+        onClose={() => {
+          setIsBookReferencesOpen(false);
+          setSelectedCourse(null);
+        }}
+        title="Manage Book References"
+        size="xl"
+      >
+        {selectedCourse && (
+          <BookReferencesManager
+            courseId={selectedCourse.course_id}
+            courseName={selectedCourse.course_name}
+            onClose={() => {
+              setIsBookReferencesOpen(false);
+              setSelectedCourse(null);
+            }}
+          />
+        )}
+      </Modal>
         <CourseForm
           course={editingCourse}
           onSubmit={editingCourse ? handleUpdateCourse : handleAddCourse}
