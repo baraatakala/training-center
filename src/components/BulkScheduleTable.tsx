@@ -678,20 +678,30 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       });
     }
     
-    // Check coverage
+    // Check coverage - dates before first assigned date are considered covered
     const assignedDates = new Set(Object.values(hostDateMap).filter(Boolean));
-    const coveragePercent = fullDates.length > 0 ? Math.round((assignedDates.size / fullDates.length) * 100) : 0;
+    const assignedDatesArray = Array.from(assignedDates).sort();
+    const firstAssignedDate = assignedDatesArray.length > 0 ? assignedDatesArray[0] : null;
     
-    if (assignedDates.size < fullDates.length) {
-      const uncoveredCount = fullDates.length - assignedDates.size;
+    let coveredCount = assignedDates.size;
+    if (firstAssignedDate) {
+      // Count dates before first assignment as covered
+      const datesBeforeFirst = fullDates.filter(d => d < firstAssignedDate).length;
+      coveredCount += datesBeforeFirst;
+    }
+    
+    const totalDates = fullDates.length;
+    const remainingDates = totalDates - coveredCount;
+    
+    if (remainingDates > 0) {
       issues.push({
         type: 'info',
-        message: `ℹ️ Coverage: ${coveragePercent}% (${uncoveredCount} dates without assigned host)`
+        message: `📊 Date Coverage: ${coveredCount}/${totalDates} dates covered • ${remainingDates} dates still need hosts`
       });
-    } else if (assignedDates.size === fullDates.length && unassignedHosts.length === 0) {
+    } else if (remainingDates === 0 && unassignedHosts.length === 0) {
       issues.push({
         type: 'info',
-        message: `✅ Perfect! All ${fullDates.length} dates have hosts assigned`
+        message: `✅ Perfect! All ${totalDates} dates are covered`
       });
     }
     
