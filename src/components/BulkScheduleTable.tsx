@@ -99,6 +99,18 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
   const [cancelledDates, setCancelledDates] = useState<Set<string>>(new Set());
   // Host filter state
   const [hostFilter, setHostFilter] = useState<'all' | 'can-host' | 'cannot-host'>('all');
+  // Export dialog state
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'csv' | 'csv-arabic' | 'pdf'>('csv');
+  const [exportFields, setExportFields] = useState({
+    studentName: true,
+    address: true,
+    phone: true,
+    canHost: true,
+    hostDate: true,
+    enrollmentStatus: false,
+    studentId: false
+  });
 
   useEffect(() => {
     const all = getDatesBetween(startDate, endDate, day);
@@ -399,14 +411,27 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
   const exportCSV = () => {
     const displayedEnrollments = getSortedDisplayedEnrollments();
 
-    const header = ['Student Name', 'Address', 'Phone', 'Can Host', 'Host Date'];
+    // Build header based on selected fields
+    const header: string[] = [];
+    if (exportFields.studentName) header.push('Student Name');
+    if (exportFields.address) header.push('Address');
+    if (exportFields.phone) header.push('Phone');
+    if (exportFields.canHost) header.push('Can Host');
+    if (exportFields.hostDate) header.push('Host Date');
+    if (exportFields.enrollmentStatus) header.push('Status');
+    if (exportFields.studentId) header.push('Student ID');
+
+    // Build rows based on selected fields
     const rows = displayedEnrollments.map((e) => {
-      const name = e.student?.name || '';
-      const addr = e.student?.address || '';
-      const phone = e.student?.phone || '';
-      const host = e.can_host ? 'Yes' : 'No';
-      const hd = hostDateMap[e.enrollment_id] || '';
-      return [name, addr, phone, host, hd];
+      const row: string[] = [];
+      if (exportFields.studentName) row.push(e.student?.name || '');
+      if (exportFields.address) row.push(e.student?.address || '');
+      if (exportFields.phone) row.push(e.student?.phone || '');
+      if (exportFields.canHost) row.push(e.can_host ? 'Yes' : 'No');
+      if (exportFields.hostDate) row.push(hostDateMap[e.enrollment_id] || '');
+      if (exportFields.enrollmentStatus) row.push(e.status || '');
+      if (exportFields.studentId) row.push(e.student_id || '');
+      return row;
     });
 
     const csv = [header, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -422,16 +447,30 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
   // Arabic CSV export
   const exportCSVArabic = () => {
     const displayedEnrollments = getSortedDisplayedEnrollments();
-    // Arabic headers (RTL order)
-    const header = ['اسم الطالب', 'العنوان', 'الهاتف', 'يمكن الاستضافة', 'تاريخ الاستضافة'];
+    
+    // Build Arabic headers based on selected fields
+    const header: string[] = [];
+    if (exportFields.studentName) header.push('اسم الطالب');
+    if (exportFields.address) header.push('العنوان');
+    if (exportFields.phone) header.push('الهاتف');
+    if (exportFields.canHost) header.push('يمكن الاستضافة');
+    if (exportFields.hostDate) header.push('تاريخ الاستضافة');
+    if (exportFields.enrollmentStatus) header.push('الحالة');
+    if (exportFields.studentId) header.push('رقم الطالب');
+
+    // Build rows based on selected fields
     const rows = displayedEnrollments.map((e) => {
-      const name = e.student?.name || '';
-      const addr = e.student?.address || '';
-      const phone = e.student?.phone || '';
-      const host = e.can_host ? 'نعم' : 'لا';
-      const hd = hostDateMap[e.enrollment_id] || '';
-      return [name, addr, phone, host, hd];
+      const row: string[] = [];
+      if (exportFields.studentName) row.push(e.student?.name || '');
+      if (exportFields.address) row.push(e.student?.address || '');
+      if (exportFields.phone) row.push(e.student?.phone || '');
+      if (exportFields.canHost) row.push(e.can_host ? 'نعم' : 'لا');
+      if (exportFields.hostDate) row.push(hostDateMap[e.enrollment_id] || '');
+      if (exportFields.enrollmentStatus) row.push(e.status || '');
+      if (exportFields.studentId) row.push(e.student_id || '');
+      return row;
     });
+    
     // Add UTF-8 BOM for Excel compatibility
     const csv = '\uFEFF' + [header, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -460,14 +499,28 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
         autoTable?: (options: Record<string, unknown>) => void;
       };
       const doc = new (jsPDF as unknown as JsPDFConstructor)('l'); // landscape mode for better column fit
-      const tableColumn = ['Student Name', 'Address', 'Phone', 'Can Host', 'Host Date'];
+      
+      // Build table columns based on selected fields
+      const tableColumn: string[] = [];
+      if (exportFields.studentName) tableColumn.push('Student Name');
+      if (exportFields.address) tableColumn.push('Address');
+      if (exportFields.phone) tableColumn.push('Phone');
+      if (exportFields.canHost) tableColumn.push('Can Host');
+      if (exportFields.hostDate) tableColumn.push('Host Date');
+      if (exportFields.enrollmentStatus) tableColumn.push('Status');
+      if (exportFields.studentId) tableColumn.push('Student ID');
+
+      // Build table rows based on selected fields
       const tableRows = displayedEnrollments.map((e) => {
-        const name = e.student?.name || '';
-        const addr = e.student?.address || '';
-        const phone = e.student?.phone || '';
-        const host = e.can_host ? 'Yes' : 'No';
-        const hd = hostDateMap[e.enrollment_id] || '';
-        return [name, addr, phone, host, hd];
+        const row: string[] = [];
+        if (exportFields.studentName) row.push(e.student?.name || '');
+        if (exportFields.address) row.push(e.student?.address || '');
+        if (exportFields.phone) row.push(e.student?.phone || '');
+        if (exportFields.canHost) row.push(e.can_host ? 'Yes' : 'No');
+        if (exportFields.hostDate) row.push(hostDateMap[e.enrollment_id] || '');
+        if (exportFields.enrollmentStatus) row.push(e.status || '');
+        if (exportFields.studentId) row.push(e.student_id || '');
+        return row;
       });
 
       // Simple, frontend-like pdf layout (NO clickable links) - landscape orientation
@@ -495,13 +548,10 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
           fontSize: 10,
           cellPadding: 4
         },
-        columnStyles: {
-          0: { halign: 'left' }, // Student Name
-          1: { halign: 'left' }, // Address
-          2: { halign: 'left' }, // Phone
-          3: { halign: 'center' }, // Can Host
-          4: { halign: 'center' }  // Host Date
-        }
+        columnStyles: tableColumn.reduce((acc, _, idx) => {
+          acc[idx] = { halign: idx >= tableColumn.length - 2 ? 'center' : 'left' };
+          return acc;
+        }, {} as Record<number, { halign: string }>)
       };
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -733,9 +783,160 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
     alert(`Fixed ${duplicateDates.length} duplicate date(s)`);
   };
   
-
   return (
     <div style={{ width: '80vw', maxWidth: '1100px', margin: '0 auto' }} className="p-6 bg-white min-h-screen">
+      {/* Export Dialog Modal */}
+      {showExportDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-xl font-bold mb-4">📤 Export Options</h3>
+            
+            {/* Format Selection */}
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Export Format</label>
+              <div className="space-y-2">
+                <label className="flex items-center p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="format"
+                    value="csv"
+                    checked={exportFormat === 'csv'}
+                    onChange={(e) => setExportFormat(e.target.value as 'csv' | 'csv-arabic' | 'pdf')}
+                    className="mr-3"
+                  />
+                  <span>📊 CSV (English)</span>
+                </label>
+                <label className="flex items-center p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="format"
+                    value="csv-arabic"
+                    checked={exportFormat === 'csv-arabic'}
+                    onChange={(e) => setExportFormat(e.target.value as 'csv' | 'csv-arabic' | 'pdf')}
+                    className="mr-3"
+                  />
+                  <span>📊 CSV (عربي)</span>
+                </label>
+                <label className="flex items-center p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="format"
+                    value="pdf"
+                    checked={exportFormat === 'pdf'}
+                    onChange={(e) => setExportFormat(e.target.value as 'csv' | 'csv-arabic' | 'pdf')}
+                    className="mr-3"
+                  />
+                  <span>📄 PDF</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Field Selection */}
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Select Fields to Export</label>
+              <div className="space-y-2 max-h-60 overflow-y-auto border rounded p-2">
+                <label className="flex items-center p-2 hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={exportFields.studentName}
+                    onChange={(e) => setExportFields({ ...exportFields, studentName: e.target.checked })}
+                    className="mr-3"
+                  />
+                  <span className="text-sm">👤 Student Name</span>
+                </label>
+                <label className="flex items-center p-2 hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={exportFields.address}
+                    onChange={(e) => setExportFields({ ...exportFields, address: e.target.checked })}
+                    className="mr-3"
+                  />
+                  <span className="text-sm">📍 Address</span>
+                </label>
+                <label className="flex items-center p-2 hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={exportFields.phone}
+                    onChange={(e) => setExportFields({ ...exportFields, phone: e.target.checked })}
+                    className="mr-3"
+                  />
+                  <span className="text-sm">📱 Phone</span>
+                </label>
+                <label className="flex items-center p-2 hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={exportFields.canHost}
+                    onChange={(e) => setExportFields({ ...exportFields, canHost: e.target.checked })}
+                    className="mr-3"
+                  />
+                  <span className="text-sm">🏠 Can Host</span>
+                </label>
+                <label className="flex items-center p-2 hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={exportFields.hostDate}
+                    onChange={(e) => setExportFields({ ...exportFields, hostDate: e.target.checked })}
+                    className="mr-3"
+                  />
+                  <span className="text-sm">📅 Host Date</span>
+                </label>
+                <label className="flex items-center p-2 hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={exportFields.enrollmentStatus}
+                    onChange={(e) => setExportFields({ ...exportFields, enrollmentStatus: e.target.checked })}
+                    className="mr-3"
+                  />
+                  <span className="text-sm">✓ Enrollment Status</span>
+                </label>
+                <label className="flex items-center p-2 hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={exportFields.studentId}
+                    onChange={(e) => setExportFields({ ...exportFields, studentId: e.target.checked })}
+                    className="mr-3"
+                  />
+                  <span className="text-sm">🆔 Student ID</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Preview */}
+            <div className="mb-4 p-3 bg-gray-50 rounded text-sm">
+              <div className="font-semibold mb-1">Preview:</div>
+              <div className="text-gray-600">
+                {Object.values(exportFields).filter(Boolean).length} field(s) selected for {displayedEnrollments.length} student(s)
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  if (Object.values(exportFields).every(v => !v)) {
+                    alert('Please select at least one field to export');
+                    return;
+                  }
+                  setShowExportDialog(false);
+                  if (exportFormat === 'csv') exportCSV();
+                  else if (exportFormat === 'csv-arabic') exportCSVArabic();
+                  else if (exportFormat === 'pdf') exportPDF();
+                }}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
+              >
+                📤 Export
+              </button>
+              <button
+                onClick={() => setShowExportDialog(false)}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-semibold"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="mb-6">
         <h3 className="text-2xl font-bold mb-4">Host Schedule Setup</h3>
         
@@ -877,16 +1078,16 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
             >
               🗑️ Clear All
             </button>
-            <button className="btn btn-sm btn-outline" onClick={exportCSV}>
-              📥 CSV
-            </button>
-            <button className="btn btn-sm btn-outline" onClick={exportCSVArabic}>
-              📥 CSV (عربي)
-            </button>
-            <button className="btn btn-sm btn-outline" onClick={exportPDF}>
-              📄 PDF
-            </button>
           </div>
+          
+          {/* Export Button */}
+          <button 
+            className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2"
+            onClick={() => setShowExportDialog(true)}
+          >
+            <span>📤</span>
+            <span>Export Data</span>
+          </button>
         </div>
 
         {/* Calendar View */}
