@@ -28,6 +28,10 @@ interface ImportRow {
   notes?: string;
   // Optional: can host column (yes/no/true/1)
   canHost?: string;
+  // Excuse reason for excused absences (required when status is 'excused')
+  excuseReason?: string;
+  // Host date for enrollment (when student is scheduled to host)
+  hostDate?: string;
 }
 
 interface ImportResult {
@@ -197,6 +201,8 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
       hostAddress: row['host_address'] || row['hostaddress'] || row['address'] || undefined,
       notes: row['notes'] || undefined,
       canHost: row['can_host'] || row['canhost'] || row['host'] || undefined,
+      excuseReason: row['excuse_reason'] || row['excusereason'] || row['reason'] || undefined,
+      hostDate: normalizeDate(row['host_date'] || row['hostdate'] || row['hosting_date'] || ''),
     };
   };
 
@@ -443,6 +449,9 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
             // parse can_host from import row if provided
             const canHostRaw = row.canHost || '';
             const canHost = /^(1|yes|true|y)$/i.test(String(canHostRaw).trim());
+            
+            // parse host_date if provided (only relevant when can_host is true)
+            const hostDate = row.hostDate || null;
 
             const { error } = await supabase
               .from('enrollment')
@@ -452,6 +461,7 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
                 enrollment_date: row.sessionStartDate,
                 status: 'active',
                 can_host: canHost,
+                host_date: hostDate,
               });
 
             if (error) throw new Error(`Row ${rowNum}: Failed to create enrollment - ${error.message}`);
@@ -476,7 +486,12 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
         const { data: { user } } = await supabase.auth.getUser();
         const userEmail = user?.email || 'system';
 
-        // 8. Create attendance record
+        // 8. Validate excuse_reason for excused status
+        if (row.status === 'excused' && !row.excuseReason) {
+          throw new Error(`Row ${rowNum}: excuse_reason is required when status is 'excused'`);
+        }
+        
+        // 9. Create attendance record
         const { error: attendanceError } = await supabase
           .from('attendance')
           .insert({
@@ -485,6 +500,7 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
             session_id: sessionId,
             attendance_date: row.attendanceDate,
             status: row.status,
+            excuse_reason: row.status === 'excused' ? row.excuseReason : null,
             gps_latitude: row.gpsLatitude || null,
             gps_longitude: row.gpsLongitude || null,
             gps_accuracy: row.gpsAccuracy || null,
@@ -521,9 +537,10 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
   };
 
   const downloadTemplate = () => {
-    const template = `student_name,student_email,student_phone,course_name,course_category,instructor_name,instructor_email,instructor_phone,session_start_date,session_end_date,session_day,session_time,session_location,attendance_date,status,gps_latitude,gps_longitude,gps_accuracy,gps_timestamp,host_address,notes,can_host
-John Doe,john@example.com,1234567890,Web Development,Programming,Jane Teacher,jane@example.com,9876543210,2025-01-01,2025-03-31,Monday,09:00-12:00,Main Campus,2025-01-15,present,25.2048,55.2708,10,2025-01-15T10:30:00Z,123 Main St,,yes
-Mary Smith,mary@example.com,1234567891,Web Development,Programming,Jane Teacher,jane@example.com,9876543210,2025-01-01,2025-03-31,Monday,09:00-12:00,Main Campus,2025-01-15,absent,,,, Excused absence`;
+    const template = `student_name,student_email,student_phone,course_name,course_category,instructor_name,instructor_email,instructor_phone,session_start_date,session_end_date,session_day,session_time,session_location,attendance_date,status,excuse_reason,gps_latitude,gps_longitude,gps_accuracy,gps_timestamp,host_address,notes,can_host,host_date
+John Doe,john@example.com,1234567890,Web Development,Programming,Jane Teacher,jane@example.com,9876543210,2025-01-01,2025-03-31,Monday,09:00-12:00,Main Campus,2025-01-15,present,,25.2048,55.2708,10,2025-01-15T10:30:00Z,123 Main St,,yes,2025-02-01
+Mary Smith,mary@example.com,1234567891,Web Development,Programming,Jane Teacher,jane@example.com,9876543210,2025-01-01,2025-03-31,Monday,09:00-12:00,Main Campus,2025-01-22,excused,sick,,,,,456 Oak Ave,Medical appointment,no,
+Bob Johnson,bob@example.com,1234567892,Web Development,Programming,Jane Teacher,jane@example.com,9876543210,2025-01-01,2025-03-31,Monday,09:00-12:00,Main Campus,2025-01-29,late,,25.2050,55.2710,12,2025-01-29T09:15:00Z,789 Elm St,,no,`;
 
     const blob = new Blob([template], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -558,11 +575,13 @@ Mary Smith,mary@example.com,1234567891,Web Development,Programming,Jane Teacher,
             <li>Download the CSV template using the button below (or prepare your own Excel/CSV file)</li>
             <li>Fill in your attendance data following the template format</li>
             <li>Required fields: student_name, student_email, course_name, instructor_name, instructor_email, session_start_date, session_end_date, attendance_date, status</li>
-            <li>Optional fields: student_phone, course_category, instructor_phone, session_day, session_time, session_location, gps_latitude, gps_longitude, gps_accuracy, gps_timestamp, host_address, notes, can_host</li>
+            <li>Optional fields: student_phone, course_category, instructor_phone, session_day, session_time, session_location, excuse_reason, gps_latitude, gps_longitude, gps_accuracy, gps_timestamp, host_address, notes, can_host, host_date</li>
             <li>Status must be one of: present, absent, late, excused</li>
+            <li><strong>excuse_reason is REQUIRED when status is 'excused'</strong> (e.g., sick, abroad, working, family emergency)</li>
             <li>Dates must be in YYYY-MM-DD format (e.g., 2025-01-15)</li>
             <li>GPS timestamp format: ISO 8601 (e.g., 2025-01-15T10:30:00Z)</li>
             <li>can_host: yes/no/true/false/1/0 to indicate if student can host sessions</li>
+            <li>host_date: The specific date when student is scheduled to host (YYYY-MM-DD, only relevant when can_host is true)</li>
             <li>The system will automatically match or create teachers, courses, sessions, students, and enrollments</li>
             <li>Duplicate attendance records will be skipped</li>
           </ol>
