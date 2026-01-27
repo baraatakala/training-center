@@ -69,4 +69,43 @@ export const teacherService = {
       .eq('teacher_id', teacherId)
       .order('course_name');
   },
+
+  async getEnrolledStudentsCount(teacherId: string) {
+    // Get courses taught by this teacher
+    const { data: courses } = await supabase
+      .from(Tables.COURSE)
+      .select('course_id')
+      .eq('teacher_id', teacherId);
+
+    if (!courses || courses.length === 0) {
+      return { count: 0, error: null };
+    }
+
+    const courseIds = courses.map(c => c.course_id);
+
+    // Get sessions for these courses
+    const { data: sessions } = await supabase
+      .from(Tables.SESSION)
+      .select('session_id')
+      .in('course_id', courseIds);
+
+    if (!sessions || sessions.length === 0) {
+      return { count: 0, error: null };
+    }
+
+    const sessionIds = sessions.map(s => s.session_id);
+
+    // Get unique enrolled students
+    const { data: enrollments } = await supabase
+      .from(Tables.ENROLLMENT)
+      .select('student_id')
+      .in('session_id', sessionIds);
+
+    if (!enrollments || enrollments.length === 0) {
+      return { count: 0, error: null };
+    }
+
+    const uniqueStudents = [...new Set(enrollments.map(e => e.student_id))];
+    return { count: uniqueStudents.length, error: null };
+  },
 };

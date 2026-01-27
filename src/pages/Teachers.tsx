@@ -4,12 +4,17 @@ import { Modal } from '../components/ui/Modal';
 import { SearchBar } from '../components/ui/SearchBar';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
 import { TeacherForm } from '../components/TeacherForm';
+import { Badge } from '../components/ui/Badge';
 import { teacherService } from '../services/teacherService';
 import type { Teacher, CreateTeacher } from '../types/database.types';
 
+interface TeacherWithCount extends Teacher {
+  enrolledCount?: number;
+}
+
 export function Teachers() {
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [filteredTeachers, setFilteredTeachers] = useState<Teacher[]>([]);
+  const [teachers, setTeachers] = useState<TeacherWithCount[]>([]);
+  const [filteredTeachers, setFilteredTeachers] = useState<TeacherWithCount[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -19,8 +24,15 @@ export function Teachers() {
     setLoading(true);
     const { data } = await teacherService.getAll();
     if (data) {
-      setTeachers(data as Teacher[]);
-      setFilteredTeachers(data as Teacher[]);
+      // Fetch enrolled student counts for each teacher
+      const teachersWithCounts = await Promise.all(
+        data.map(async (teacher) => {
+          const { count } = await teacherService.getEnrolledStudentsCount(teacher.teacher_id);
+          return { ...teacher, enrolledCount: count };
+        })
+      );
+      setTeachers(teachersWithCounts);
+      setFilteredTeachers(teachersWithCounts);
     }
     setLoading(false);
   };
@@ -112,6 +124,7 @@ export function Teachers() {
                     <TableHead className="whitespace-nowrap">Name</TableHead>
                     <TableHead className="whitespace-nowrap hidden md:table-cell">Email</TableHead>
                     <TableHead className="whitespace-nowrap hidden lg:table-cell">Phone</TableHead>
+                    <TableHead className="whitespace-nowrap hidden sm:table-cell">Enrolled Students</TableHead>
                     <TableHead className="text-right whitespace-nowrap">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -126,6 +139,11 @@ export function Teachers() {
                       </TableCell>
                       <TableCell className="text-gray-600 hidden md:table-cell min-w-[200px]">{teacher.email}</TableCell>
                       <TableCell className="text-gray-600 hidden lg:table-cell whitespace-nowrap">{teacher.phone || '-'}</TableCell>
+                      <TableCell className="hidden sm:table-cell">
+                        <Badge variant="info">
+                          {teacher.enrolledCount || 0} students
+                        </Badge>
+                      </TableCell>
                       <TableCell>
                         <div className="flex gap-1 md:gap-2 justify-end flex-nowrap">
                           <Button 
