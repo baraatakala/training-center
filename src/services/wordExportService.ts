@@ -38,27 +38,45 @@ export interface AttendanceExportData {
 }
 
 export interface StudentSummaryData {
+  rank: number;
   student_name: string;
-  total_sessions: number;
-  present: number;
-  absent: number;
-  excused: number;
+  on_time: number;
   late: number;
+  present_total: number;
+  unexcused_absent: number;
+  excused: number;
+  effective_days: number;
+  days_covered: number;
   attendance_rate: number;
+  punctuality_rate: number;
+  weighted_score: number;
+  consistency_index: number;
+  avg_rate: number;
+  min_rate: number;
+  max_rate: number;
 }
 
 export interface DateAnalyticsData {
   date: string;
-  total_students: number;
-  present: number;
-  absent: number;
-  excused: number;
+  book_topic: string;
+  book_pages: string;
+  host_address: string;
+  on_time: number;
   late: number;
+  excused: number;
+  absent: number;
+  attendance_rate: number;
+  on_time_names: string;
+  late_names: string;
+  excused_names: string;
+  absent_names: string;
 }
 
 export interface HostRankingData {
+  rank: number;
   host_name: string;
   total_hosted: number;
+  dates: string;
   present: number;
   absent: number;
   excused: number;
@@ -277,7 +295,7 @@ export class WordExportService {
   }
 
   /**
-   * Export analytics report to Word document with multiple sheets/sections
+   * Export analytics report to Word document with ALL fields from Excel/PDF
    */
   async exportAnalyticsToWord(
     studentData: StudentSummaryData[],
@@ -286,13 +304,18 @@ export class WordExportService {
     summaryStats: {
       totalStudents: number;
       totalSessions: number;
-      overallAttendanceRate: number;
+      classAvgRate: number;
+      avgWeightedScore: number;
+      avgAttendanceByDate: number;
+      avgAttendanceByAccruedDate: number;
       totalPresent: number;
       totalAbsent: number;
       totalExcused: number;
       totalLate: number;
     },
     isArabic: boolean = false,
+    startDate?: string,
+    endDate?: string,
     filename?: string
   ): Promise<void> {
     const sections: (Paragraph | Table)[] = [];
@@ -304,55 +327,56 @@ export class WordExportService {
     const dateText = isArabic
       ? `تاريخ التقرير: ${format(new Date(), 'yyyy-MM-dd HH:mm')}`
       : `Report Generated: ${format(new Date(), 'yyyy-MM-dd HH:mm')}`;
+    const dateRangeText = startDate && endDate
+      ? (isArabic 
+        ? `الفترة: ${format(new Date(startDate), 'yyyy-MM-dd')} - ${format(new Date(endDate), 'yyyy-MM-dd')}`
+        : `Date Range: ${format(new Date(startDate), 'MMM dd, yyyy')} - ${format(new Date(endDate), 'MMM dd, yyyy')}`)
+      : '';
 
     sections.push(this.createHeading(titleText, HeadingLevel.HEADING_1, isArabic));
     sections.push(this.createParagraph(dateText, isArabic));
+    if (dateRangeText) {
+      sections.push(this.createParagraph(dateRangeText, isArabic));
+    }
     sections.push(new Paragraph({ text: '', spacing: { after: 300 } }));
 
-    // Summary Statistics Section
+    // Summary Statistics Section - ALL fields from Excel
     const summaryTitle = isArabic ? 'الإحصائيات العامة' : 'Summary Statistics';
     sections.push(
       this.createHeading(summaryTitle, HeadingLevel.HEADING_2, isArabic)
     );
 
     const summaryHeaders = isArabic
-      ? ['المقياس', 'القيمة']
+      ? ['العنصر', 'القيمة']
       : ['Metric', 'Value'];
-    const summaryRows = [
-      [
-        isArabic ? 'إجمالي الطلاب' : 'Total Students',
-        summaryStats.totalStudents.toString(),
-      ],
-      [
-        isArabic ? 'إجمالي الجلسات' : 'Total Sessions',
-        summaryStats.totalSessions.toString(),
-      ],
-      [
-        isArabic ? 'معدل الحضور الإجمالي' : 'Overall Attendance Rate',
-        `${summaryStats.overallAttendanceRate.toFixed(1)}%`,
-      ],
-      [
-        isArabic ? 'إجمالي الحاضرين' : 'Total Present',
-        summaryStats.totalPresent.toString(),
-      ],
-      [
-        isArabic ? 'إجمالي الغياب' : 'Total Absent',
-        summaryStats.totalAbsent.toString(),
-      ],
-      [
-        isArabic ? 'إجمالي الأعذار' : 'Total Excused',
-        summaryStats.totalExcused.toString(),
-      ],
-      [
-        isArabic ? 'إجمالي المتأخرين' : 'Total Late',
-        summaryStats.totalLate.toString(),
-      ],
+    const summaryRows = isArabic ? [
+      ['عدد الطلاب', summaryStats.totalStudents.toString()],
+      ['إجمالي الجلسات', summaryStats.totalSessions.toString()],
+      ['معدل الحضور للصف (%)', `${summaryStats.classAvgRate.toFixed(1)}%`],
+      ['متوسط النقاط المرجحة', summaryStats.avgWeightedScore.toFixed(1)],
+      ['متوسط الحضور حسب التاريخ (%)', `${summaryStats.avgAttendanceByDate.toFixed(1)}%`],
+      ['متوسط الحضور حسب التاريخ للحصص النشطة (%)', `${summaryStats.avgAttendanceByAccruedDate.toFixed(1)}%`],
+      ['إجمالي الحاضرين', summaryStats.totalPresent.toString()],
+      ['إجمالي الغياب', summaryStats.totalAbsent.toString()],
+      ['إجمالي الأعذار', summaryStats.totalExcused.toString()],
+      ['إجمالي المتأخرين', summaryStats.totalLate.toString()],
+    ] : [
+      ['Total Students', summaryStats.totalStudents.toString()],
+      ['Total Sessions', summaryStats.totalSessions.toString()],
+      ['Class Avg Rate (%)', `${summaryStats.classAvgRate.toFixed(1)}%`],
+      ['Avg Weighted Score', summaryStats.avgWeightedScore.toFixed(1)],
+      ['Avg Attendance by Date (%)', `${summaryStats.avgAttendanceByDate.toFixed(1)}%`],
+      ['Avg Attendance by Accrued Date (%)', `${summaryStats.avgAttendanceByAccruedDate.toFixed(1)}%`],
+      ['Total Present', summaryStats.totalPresent.toString()],
+      ['Total Absent', summaryStats.totalAbsent.toString()],
+      ['Total Excused', summaryStats.totalExcused.toString()],
+      ['Total Late', summaryStats.totalLate.toString()],
     ];
 
     sections.push(this.createTable(summaryHeaders, summaryRows, isArabic));
     sections.push(new Paragraph({ text: '', spacing: { after: 400 } }));
 
-    // Student Performance Section
+    // Student Performance Section - ALL fields matching Excel
     const studentTitle = isArabic ? 'أداء الطلاب' : 'Student Performance';
     sections.push(
       this.createHeading(studentTitle, HeadingLevel.HEADING_2, isArabic)
@@ -360,37 +384,65 @@ export class WordExportService {
 
     const studentHeaders = isArabic
       ? [
+          'الترتيب',
           'اسم الطالب',
-          'إجمالي الجلسات',
+          'في الوقت',
+          'متأخر',
           'حاضر',
           'غائب',
           'معذور',
-          'متأخر',
-          'معدل الحضور',
+          'الأيام الفعلية',
+          'الأيام المغطاة',
+          'معدل الحضور %',
+          'معدل الالتزام %',
+          'النقاط',
+          'الانتظام',
+          'متوسط %',
+          'أدنى %',
+          'أعلى %',
         ]
       : [
+          'Rank',
           'Student Name',
-          'Total Sessions',
+          'On Time',
+          'Late',
           'Present',
           'Absent',
           'Excused',
-          'Late',
-          'Attendance Rate',
+          'Effective Days',
+          'Days Covered',
+          'Attendance %',
+          'Punctuality %',
+          'Score',
+          'Consistency',
+          'Avg %',
+          'Min %',
+          'Max %',
         ];
+    
     const studentRows = studentData.map((s) => [
+      s.rank.toString(),
       s.student_name,
-      s.total_sessions.toString(),
-      s.present.toString(),
-      s.absent.toString(),
-      s.excused.toString(),
+      s.on_time.toString(),
       s.late.toString(),
+      s.present_total.toString(),
+      s.unexcused_absent.toString(),
+      s.excused.toString(),
+      s.effective_days.toString(),
+      s.days_covered.toString(),
       `${s.attendance_rate.toFixed(1)}%`,
+      `${s.punctuality_rate.toFixed(1)}%`,
+      s.weighted_score.toFixed(1),
+      s.consistency_index.toFixed(2),
+      `${s.avg_rate.toFixed(1)}%`,
+      `${s.min_rate.toFixed(1)}%`,
+      `${s.max_rate.toFixed(1)}%`,
     ]);
 
     sections.push(this.createTable(studentHeaders, studentRows, isArabic));
     sections.push(new Paragraph({ text: '', spacing: { after: 400 } }));
 
-    // Date-wise Attendance Section
+    // Date-wise Attendance Section - ALL fields including book info and student names
     const dateTitle = isArabic
       ? 'الحضور حسب التاريخ'
       : 'Attendance by Date';
@@ -398,29 +450,83 @@ export class WordExportService {
       this.createHeading(dateTitle, HeadingLevel.HEADING_2, isArabic)
     );
 
-    const dateHeaders = isArabic
+    // Split into two tables for better readability
+    // Table 1: Statistics
+    const dateStatsHeaders = isArabic
       ? [
           'التاريخ',
-          'إجمالي الطلاب',
-          'حاضر',
-          'غائب',
-          'معذور',
+          'الموضوع',
+          'الصفحات',
+          'عنوان المضيف',
+          'في الوقت',
           'متأخر',
+          'معذور',
+          'غائب',
+          'النسبة %',
         ]
-      : ['Date', 'Total Students', 'Present', 'Absent', 'Excused', 'Late'];
-    const dateRows = dateData.map((d) => [
+      : [
+          'Date',
+          'Book Topic',
+          'Pages',
+          'Host Address',
+          'On Time',
+          'Late',
+          'Excused',
+          'Absent',
+          'Rate %',
+        ];
+    
+    const dateStatsRows = dateData.map((d) => [
       d.date,
-      d.total_students.toString(),
-      d.present.toString(),
-      d.absent.toString(),
-      d.excused.toString(),
+      d.book_topic,
+      d.book_pages,
+      d.host_address,
+      d.on_time.toString(),
       d.late.toString(),
+      d.excused.toString(),
+      d.absent.toString(),
+      `${d.attendance_rate.toFixed(1)}%`,
     ]);
 
-    sections.push(this.createTable(dateHeaders, dateRows, isArabic));
+    sections.push(this.createTable(dateStatsHeaders, dateStatsRows, isArabic));
+    sections.push(new Paragraph({ text: '', spacing: { after: 200 } }));
+
+    // Table 2: Student Names by Status
+    const dateNamesTitle = isArabic 
+      ? 'أسماء الطلاب حسب الحالة'
+      : 'Student Names by Status';
+    sections.push(
+      this.createHeading(dateNamesTitle, HeadingLevel.HEADING_3, isArabic)
+    );
+
+    const dateNamesHeaders = isArabic
+      ? [
+          'التاريخ',
+          'في الوقت',
+          'متأخر',
+          'معذور',
+          'غائب',
+        ]
+      : [
+          'Date',
+          'On Time',
+          'Late',
+          'Excused',
+          'Absent',
+        ];
+    
+    const dateNamesRows = dateData.map((d) => [
+      d.date,
+      d.on_time_names,
+      d.late_names,
+      d.excused_names,
+      d.absent_names,
+    ]);
+
+    sections.push(this.createTable(dateNamesHeaders, dateNamesRows, isArabic));
     sections.push(new Paragraph({ text: '', spacing: { after: 400 } }));
 
-    // Host Rankings Section
+    // Host Rankings Section - ALL fields
     if (hostData.length > 0) {
       const hostTitle = isArabic
         ? 'تصنيف المضيفين'
@@ -431,31 +537,38 @@ export class WordExportService {
 
       const hostHeaders = isArabic
         ? [
-            'اسم المضيف',
-            'إجمالي الاستضافة',
-            'حاضر',
-            'غائب',
-            'معذور',
+            'الرتبة',
+            'عنوان المضيف',
+            'عدد المرات',
+            'في الوقت',
             'متأخر',
-            'معدل الحضور',
+            'معذور',
+            'غائب',
+            'معدل الحضور %',
+            'التواريخ',
           ]
         : [
-            'Host Name',
-            'Total Hosted',
-            'Present',
-            'Absent',
-            'Excused',
+            'Rank',
+            'Host Address',
+            'Times Hosted',
+            'On Time',
             'Late',
-            'Attendance Rate',
+            'Excused',
+            'Absent',
+            'Attendance %',
+            'Dates',
           ];
+      
       const hostRows = hostData.map((h) => [
+        h.rank.toString(),
         h.host_name,
         h.total_hosted.toString(),
         h.present.toString(),
-        h.absent.toString(),
-        h.excused.toString(),
         h.late.toString(),
+        h.excused.toString(),
+        h.absent.toString(),
         `${h.attendance_rate.toFixed(1)}%`,
+        h.dates,
       ]);
 
       sections.push(this.createTable(hostHeaders, hostRows, isArabic));
@@ -468,10 +581,10 @@ export class WordExportService {
           properties: {
             page: {
               margin: {
-                top: convertInchesToTwip(1),
-                right: convertInchesToTwip(0.75),
-                bottom: convertInchesToTwip(1),
-                left: convertInchesToTwip(0.75),
+                top: convertInchesToTwip(0.75),
+                right: convertInchesToTwip(0.5),
+                bottom: convertInchesToTwip(0.75),
+                left: convertInchesToTwip(0.5),
               },
             },
           },
@@ -487,7 +600,7 @@ export class WordExportService {
   }
 
   /**
-   * Export student summary to Word document
+   * Export student summary to Word document with all fields
    */
   async exportStudentSummaryToWord(
     data: StudentSummaryData[],
@@ -503,31 +616,34 @@ export class WordExportService {
 
     const headers = isArabic
       ? [
+          'الترتيب',
           'اسم الطالب',
-          'إجمالي الجلسات',
+          'في الوقت',
+          'متأخر',
           'حاضر',
           'غائب',
           'معذور',
-          'متأخر',
           'معدل الحضور',
         ]
       : [
+          'Rank',
           'Student Name',
-          'Total Sessions',
+          'On Time',
+          'Late',
           'Present',
           'Absent',
           'Excused',
-          'Late',
           'Attendance Rate',
         ];
 
     const rows = data.map((s) => [
+      s.rank.toString(),
       s.student_name,
-      s.total_sessions.toString(),
-      s.present.toString(),
-      s.absent.toString(),
-      s.excused.toString(),
+      s.on_time.toString(),
       s.late.toString(),
+      s.present_total.toString(),
+      s.unexcused_absent.toString(),
+      s.excused.toString(),
       `${s.attendance_rate.toFixed(1)}%`,
     ]);
 

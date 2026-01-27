@@ -949,12 +949,23 @@ const AttendanceRecords = () => {
 
     const isArabic = reportLanguage === 'ar';
 
-    // Prepare summary statistics
+    // Prepare comprehensive summary statistics matching Excel/PDF
     const totalStudents = studentAnalytics.length;
     const totalSessions = dateAnalytics.length;
-    const overallAttendanceRate = studentAnalytics.length > 0 
+    const classAvgRate = studentAnalytics.length > 0
       ? studentAnalytics.reduce((sum, s) => sum + s.attendanceRate, 0) / studentAnalytics.length
       : 0;
+    const avgWeightedScore = studentAnalytics.length > 0
+      ? studentAnalytics.reduce((sum, s) => sum + s.weightedScore, 0) / studentAnalytics.length
+      : 0;
+    const avgAttendanceByDate = dateAnalytics.length > 0
+      ? dateAnalytics.reduce((sum, d) => sum + d.attendanceRate, 0) / dateAnalytics.length
+      : 0;
+    const avgAttendanceByAccruedDate = (() => {
+      const accruedDates = dateAnalytics.filter(d => (d.presentCount + d.lateCount) > 0);
+      if (accruedDates.length === 0) return 0;
+      return accruedDates.reduce((sum, d) => sum + d.attendanceRate, 0) / accruedDates.length;
+    })();
     
     const totalPresent = studentAnalytics.reduce((sum, s) => sum + s.presentCount, 0);
     const totalLate = studentAnalytics.reduce((sum, s) => sum + s.lateCount, 0);
@@ -964,48 +975,82 @@ const AttendanceRecords = () => {
     const summaryStats = {
       totalStudents,
       totalSessions,
-      overallAttendanceRate,
+      classAvgRate,
+      avgWeightedScore,
+      avgAttendanceByDate,
+      avgAttendanceByAccruedDate,
       totalPresent,
       totalAbsent,
       totalExcused,
       totalLate,
     };
 
-    // Prepare student data
-    const studentData = studentAnalytics.map(s => ({
-      student_name: s.student_name,
-      total_sessions: s.totalRecords,
-      present: s.presentCount + s.lateCount,
-      absent: s.unexcusedAbsent,
-      excused: s.excusedCount,
-      late: s.lateCount,
-      attendance_rate: s.attendanceRate,
-    }));
+    // Prepare comprehensive student data with ALL fields matching Excel
+    const studentData = studentAnalytics.map((s, index) => {
+      const totalPresent = s.presentCount + s.lateCount;
+      const punctualityRate = totalPresent > 0 
+        ? (s.presentCount / totalPresent * 100)
+        : 0;
 
-    // Prepare date data
+      return {
+        rank: index + 1,
+        student_name: s.student_name,
+        on_time: s.presentCount,
+        late: s.lateCount,
+        present_total: totalPresent,
+        unexcused_absent: s.unexcusedAbsent,
+        excused: s.excusedCount,
+        effective_days: s.effectiveDays,
+        days_covered: s.daysCovered,
+        attendance_rate: s.attendanceRate,
+        punctuality_rate: punctualityRate,
+        weighted_score: s.weightedScore,
+        consistency_index: s.consistencyIndex,
+        avg_rate: s.avgRate,
+        min_rate: s.minRate,
+        max_rate: s.maxRate,
+      };
+    });
+
+    // Prepare comprehensive date data with ALL fields including book info and names
     const dateData = dateAnalytics.map(d => {
       let excusedCount = d.excusedAbsentCount;
+      let excusedNames = d.excusedNames.join(', ') || '-';
       const totalStudents = d.presentCount + d.lateCount + d.excusedAbsentCount + d.unexcusedAbsentCount;
+      
       if (
         d.hostAddress === 'SESSION_NOT_HELD' ||
         (d.hostAddress && d.hostAddress.toUpperCase() === 'SESSION_NOT_HELD')
       ) {
-        excusedCount = totalStudents; // All students excused when session not held
+        excusedCount = totalStudents;
+        excusedNames = isArabic ? 'جميع الطلاب' : 'All Students';
       }
+      
+      const bookPages = d.bookStartPage && d.bookEndPage 
+        ? `${d.bookStartPage}-${d.bookEndPage}` 
+        : '-';
       
       return {
         date: format(new Date(d.date), 'MMM dd, yyyy'),
-        total_students: totalStudents,
-        present: d.presentCount,
-        absent: d.unexcusedAbsentCount,
-        excused: excusedCount,
+        book_topic: d.bookTopic || '-',
+        book_pages: bookPages,
+        host_address: d.hostAddress || '-',
+        on_time: d.presentCount,
         late: d.lateCount,
+        excused: excusedCount,
+        absent: d.unexcusedAbsentCount,
+        attendance_rate: d.attendanceRate,
+        on_time_names: d.presentNames.join(', ') || '-',
+        late_names: d.lateNames.join(', ') || '-',
+        excused_names: excusedNames,
+        absent_names: d.absentNames.join(', ') || '-',
       };
     });
 
-    // Prepare host rankings data
+    // Prepare host rankings data with all details and dates
     const hostMap = new Map<string, {
       count: number;
+      dates: string[];
       present: number;
       late: number;
       absent: number;
@@ -1016,12 +1061,14 @@ const AttendanceRecords = () => {
       if (dateData.hostAddress && dateData.hostAddress !== 'SESSION_NOT_HELD') {
         const existing = hostMap.get(dateData.hostAddress) || {
           count: 0,
+          dates: [],
           present: 0,
           late: 0,
           absent: 0,
           excused: 0,
         };
         existing.count++;
+        existing.dates.push(format(new Date(dateData.date), 'MMM dd'));
         existing.present += dateData.presentCount;
         existing.late += dateData.lateCount;
         existing.absent += dateData.unexcusedAbsentCount;
@@ -1031,14 +1078,16 @@ const AttendanceRecords = () => {
     });
 
     const hostData = Array.from(hostMap.entries())
-      .map(([name, data]) => {
+      .map(([name, data], index) => {
         const totalAttendance = data.present + data.late;
         const totalPossible = data.present + data.late + data.absent;
         const attendanceRate = totalPossible > 0 ? (totalAttendance / totalPossible) * 100 : 0;
         
         return {
+          rank: index + 1,
           host_name: name,
           total_hosted: data.count,
+          dates: data.dates.join(', '),
           present: data.present,
           absent: data.absent,
           excused: data.excused,
@@ -1046,7 +1095,7 @@ const AttendanceRecords = () => {
           attendance_rate: attendanceRate,
         };
       })
-      .sort((a, b) => b.attendance_rate - a.attendance_rate);
+      .sort((a, b) => b.total_hosted - a.total_hosted);
 
     try {
       await wordExportService.exportAnalyticsToWord(
@@ -1054,7 +1103,9 @@ const AttendanceRecords = () => {
         dateData,
         hostData,
         summaryStats,
-        isArabic
+        isArabic,
+        filters.startDate,
+        filters.endDate
       );
     } catch (error) {
       console.error('Error exporting to Word:', error);
