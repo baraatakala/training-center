@@ -455,8 +455,7 @@ export class WordExportService {
     const dateStatsHeaders = isArabic
       ? [
           'التاريخ',
-          'الموضوع',
-          'الصفحات',
+          'تقدم الكتاب',
           'عنوان المضيف',
           'في الوقت',
           'متأخر',
@@ -466,8 +465,7 @@ export class WordExportService {
         ]
       : [
           'Date',
-          'Book Topic',
-          'Pages',
+          'Book Progress',
           'Host Address',
           'On Time',
           'Late',
@@ -476,17 +474,25 @@ export class WordExportService {
           'Rate %',
         ];
     
-    const dateStatsRows = dateData.map((d) => [
-      d.date,
-      d.book_topic,
-      d.book_pages,
-      d.host_address,
-      d.on_time.toString(),
-      d.late.toString(),
-      d.excused.toString(),
-      d.absent.toString(),
-      `${d.attendance_rate.toFixed(1)}%`,
-    ]);
+    const dateStatsRows = dateData.map((d) => {
+      // Combine topic and pages into one field
+      const bookProgress = d.book_topic !== '-' && d.book_pages !== '-'
+        ? `${d.book_topic} (p.${d.book_pages})`
+        : d.book_topic !== '-'
+        ? d.book_topic
+        : '-';
+      
+      return [
+        d.date,
+        bookProgress,
+        d.host_address,
+        d.on_time.toString(),
+        d.late.toString(),
+        d.excused.toString(),
+        d.absent.toString(),
+        `${d.attendance_rate.toFixed(1)}%`,
+      ];
+    });
 
     sections.push(this.createTable(dateStatsHeaders, dateStatsRows, isArabic));
     sections.push(new Paragraph({ text: '', spacing: { after: 200 } }));
