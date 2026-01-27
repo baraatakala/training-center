@@ -185,6 +185,24 @@ export function Attendance() {
     if (!sessionId) return;
 
     try {
+      // First, load the session to get teacher info
+      const { data: sessionData, error: sessionError } = await supabase
+        .from(Tables.SESSION)
+        .select(`
+          teacher_id,
+          teacher:teacher_id (
+            teacher_id,
+            name,
+            address
+          )
+        `)
+        .eq('session_id', sessionId)
+        .single();
+
+      if (sessionError) {
+        console.error('Error loading session teacher:', sessionError);
+      }
+
       // Load ALL students with non-null addresses from student table
       const { data: students, error: studentsError } = await supabase
         .from(Tables.STUDENT)
@@ -203,7 +221,7 @@ export function Attendance() {
         return;
       }
 
-    // Map to HostInfo format and sort alphabetically by name
+    // Map to HostInfo format
     const allHosts: HostInfo[] = students
       .map((s: { student_id: string; name: string; address: string }) => ({
         student_id: s.student_id,
@@ -211,10 +229,26 @@ export function Attendance() {
         address: s.address,
         host_date: null,
         is_active: true
-      }))
-      .sort((a, b) => a.student_name.localeCompare(b.student_name));
+      }));
     
-    setHostAddresses(allHosts);
+    // Add teacher as first option if they have address
+    const teacher = Array.isArray(sessionData?.teacher) ? sessionData?.teacher[0] : sessionData?.teacher;
+    if (teacher?.address && teacher.address.trim() !== '') {
+      allHosts.unshift({
+        student_id: teacher.teacher_id,
+        student_name: `🎓 ${teacher.name} (Teacher)`,
+        address: teacher.address,
+        host_date: null,
+        is_active: true
+      });
+    }
+    
+    // Sort student hosts alphabetically (teacher already at top)
+    const teacherHost = allHosts.filter(h => h.student_name.includes('Teacher'));
+    const studentHosts = allHosts.filter(h => !h.student_name.includes('Teacher'));
+    studentHosts.sort((a, b) => a.student_name.localeCompare(b.student_name));
+    
+    setHostAddresses([...teacherHost, ...studentHosts]);
     } catch (err) {
       console.error('Unexpected error loading host addresses:', err);
       setHostAddresses([]);

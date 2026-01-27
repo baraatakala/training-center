@@ -14,6 +14,7 @@ export function TeacherForm({ teacher, onSubmit, onCancel }: TeacherFormProps) {
     name: teacher?.name || '',
     phone: teacher?.phone || '',
     email: teacher?.email || '',
+    address: teacher?.address || '',
   });
 
   const [loading, setLoading] = useState(false);
@@ -65,6 +66,14 @@ export function TeacherForm({ teacher, onSubmit, onCancel }: TeacherFormProps) {
         value={formData.phone || ''}
         onChange={(value) => setFormData({ ...formData, phone: value || null })}
         placeholder="+1-555-0000"
+      />
+
+      <Input
+        label="Address (for hosting sessions)"
+        type="text"
+        value={formData.address || ''}
+        onChange={(value) => setFormData({ ...formData, address: value || null })}
+        placeholder="Enter address where sessions can be hosted"
       />
 
       <div className="flex gap-3 justify-end pt-4">

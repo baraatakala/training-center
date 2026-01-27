@@ -5,6 +5,7 @@ export interface Teacher {
   name: string;
   phone: string | null;
   email: string;
+  address: string | null;
   created_at: string;
   updated_at: string;
 }

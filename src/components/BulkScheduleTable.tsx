@@ -10,6 +10,7 @@ type EnrollmentRow = {
   can_host?: boolean | null;
   host_date?: string | null;
   status?: string;
+  is_teacher?: boolean; // Flag to identify teacher row
 };
 
 interface Props {
@@ -145,6 +146,25 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
     try {
       console.log('Loading enrolled students for session:', sessionId);
       
+      // First, load the session to get teacher info
+      const { data: sessionData, error: sessionError } = await supabase
+        .from(Tables.SESSION)
+        .select(`
+          teacher_id,
+          teacher:teacher_id (
+            teacher_id,
+            name,
+            address,
+            phone
+          )
+        `)
+        .eq('session_id', sessionId)
+        .single();
+
+      if (sessionError) {
+        console.error('Error loading session:', sessionError);
+      }
+      
       // Load ONLY students who are enrolled in this session
       const { data: enrollmentData, error: enrollmentError } = await supabase
         .from(Tables.ENROLLMENT)
@@ -203,14 +223,36 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
           };
         });
 
-      // Sort by student name
-      rows.sort((a, b) => {
+      // Add teacher as potential host if they have an address
+      const teacher = Array.isArray(sessionData?.teacher) ? sessionData?.teacher[0] : sessionData?.teacher;
+      if (teacher?.address && teacher.address.trim() !== '') {
+        const teacherRow: EnrollmentRow = {
+          enrollment_id: `teacher-${teacher.teacher_id}`,
+          student_id: teacher.teacher_id,
+          student: {
+            name: `🎓 ${teacher.name} (Teacher)`,
+            address: teacher.address,
+            phone: teacher.phone
+          },
+          can_host: true, // Teacher always can host
+          host_date: null,
+          status: 'active',
+          is_teacher: true
+        };
+        rows.unshift(teacherRow); // Add teacher at the beginning
+        console.log('Added teacher as potential host:', teacher.name);
+      }
+
+      // Sort students by name (teacher already at top)
+      const teacherRows = rows.filter(r => r.is_teacher);
+      const studentRows = rows.filter(r => !r.is_teacher);
+      studentRows.sort((a, b) => {
         const nameA = a.student?.name || '';
         const nameB = b.student?.name || '';
         return nameA.localeCompare(nameB);
       });
 
-      setEnrollments(rows);
+      setEnrollments([...teacherRows, ...studentRows]);
       console.log('Loaded enrolled students with addresses:', rows.length);
 
       // initialize hostDateMap from DB host_date values (convert DATE to ISO string yyyy-mm-dd)
@@ -233,6 +275,12 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
 
   const toggleHost = async (enrollmentId: string, value: boolean) => {
     const enrollment = enrollments.find(e => e.enrollment_id === enrollmentId);
+    
+    // Prevent toggling teacher hosting status
+    if (enrollment?.is_teacher) {
+      alert('Teacher is always available to host. You cannot change this setting.');
+      return;
+    }
     
     // Check if this is a temp enrollment (student not enrolled in session yet)
     if (enrollmentId.startsWith('temp-')) {
@@ -263,9 +311,9 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
 
   // Save host_date to DB for an enrollment
   const saveHostDate = async (enrollmentId: string, hostDate: string | null) => {
-    // Skip if temp enrollment
-    if (enrollmentId.startsWith('temp-')) {
-      console.log('Skipping save for temp enrollment');
+    // Skip if temp enrollment or teacher
+    if (enrollmentId.startsWith('temp-') || enrollmentId.startsWith('teacher-')) {
+      console.log('Skipping save for temp enrollment or teacher');
       return;
     }
     
