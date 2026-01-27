@@ -3,11 +3,52 @@ import { listeners } from './toastUtils';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
+export interface ToastProps {
+  id: string;
+  message: string;
+  type: ToastType;
+  duration?: number;
+  onClose: (id: string) => void;
+}
+
 interface Toast {
   id: string;
   message: string;
   type: ToastType;
   duration?: number;
+}
+
+export function Toast({ id, message, type, onClose }: ToastProps) {
+  const icons = {
+    success: '✓',
+    error: '✕',
+    warning: '⚠',
+    info: 'ℹ'
+  };
+
+  const styles = {
+    success: 'bg-green-50 text-green-800 border-green-200',
+    error: 'bg-red-50 text-red-800 border-red-200',
+    warning: 'bg-yellow-50 text-yellow-800 border-yellow-200',
+    info: 'bg-blue-50 text-blue-800 border-blue-200'
+  };
+
+  return (
+    <div
+      className={`${styles[type]} border rounded-lg shadow-lg p-4 flex items-start gap-3 animate-slide-in-right`}
+    >
+      <div className="flex-shrink-0 text-lg font-bold">
+        {icons[type]}
+      </div>
+      <p className="flex-1 text-sm font-medium">{message}</p>
+      <button
+        onClick={() => onClose(id)}
+        className="flex-shrink-0 hover:opacity-70 transition-opacity text-lg leading-none"
+      >
+        ×
+      </button>
+    </div>
+  );
 }
 
 export function ToastContainer() {
@@ -35,38 +76,16 @@ export function ToastContainer() {
     setToasts(prev => prev.filter(t => t.id !== id));
   };
 
-  const icons = {
-    success: '✓',
-    error: '✕',
-    warning: '⚠',
-    info: 'ℹ'
-  };
-
-  const styles = {
-    success: 'bg-green-50 text-green-800 border-green-200',
-    error: 'bg-red-50 text-red-800 border-red-200',
-    warning: 'bg-yellow-50 text-yellow-800 border-yellow-200',
-    info: 'bg-blue-50 text-blue-800 border-blue-200'
-  };
-
   return (
     <div className="fixed top-4 right-4 z-50 space-y-2 max-w-md">
       {toasts.map(toast => (
-        <div
+        <Toast
           key={toast.id}
-          className={`${styles[toast.type]} border rounded-lg shadow-lg p-4 flex items-start gap-3 animate-slide-in-right`}
-        >
-          <div className="flex-shrink-0 text-lg font-bold">
-            {icons[toast.type]}
-          </div>
-          <p className="flex-1 text-sm font-medium">{toast.message}</p>
-          <button
-            onClick={() => removeToast(toast.id)}
-            className="flex-shrink-0 hover:opacity-70 transition-opacity text-lg leading-none"
-          >
-            ×
-          </button>
-        </div>
+          id={toast.id}
+          message={toast.message}
+          type={toast.type}
+          onClose={removeToast}
+        />
       ))}
     </div>
   );

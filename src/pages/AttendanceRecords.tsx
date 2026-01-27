@@ -10,6 +10,8 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { wordExportService } from '../services/wordExportService';
+import { useToast } from '../hooks/useToast';
+import { ToastContainer } from '../components/ui/ToastContainer';
 
 interface AttendanceRecord {
   attendance_id: string;
@@ -90,9 +92,12 @@ interface FilterOptions {
 const AttendanceRecords = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { toasts, success, error: showError, warning, removeToast } = useToast();
+  
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(false);
+  const [exportingWord, setExportingWord] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [studentAnalytics, setStudentAnalytics] = useState<StudentAnalytics[]>([]);
@@ -524,7 +529,7 @@ const AttendanceRecords = () => {
 
   const exportAnalyticsToExcel = () => {
     if (!showAnalytics || studentAnalytics.length === 0) {
-      alert('Please show analytics first to export analytics data');
+      warning('Please show analytics first to export analytics data');
       return;
     }
 
@@ -753,7 +758,7 @@ const AttendanceRecords = () => {
 
   const exportAnalyticsToPDF = () => {
     if (!showAnalytics || studentAnalytics.length === 0 || dateAnalytics.length === 0) {
-      alert('Please show analytics first to export PDF report');
+      warning('Please show analytics first to export PDF report');
       return;
     }
 
@@ -943,10 +948,13 @@ const AttendanceRecords = () => {
 
   const exportAnalyticsToWord = async () => {
     if (!showAnalytics || studentAnalytics.length === 0 || dateAnalytics.length === 0) {
-      alert('Please show analytics first to export Word report');
+      warning('Please show analytics first to export Word report');
       return;
     }
 
+    if (exportingWord) return; // Prevent double-clicks
+
+    setExportingWord(true);
     const isArabic = reportLanguage === 'ar';
 
     // Prepare comprehensive summary statistics matching Excel/PDF
@@ -1107,9 +1115,12 @@ const AttendanceRecords = () => {
         filters.startDate,
         filters.endDate
       );
-    } catch (error) {
-      console.error('Error exporting to Word:', error);
-      alert('Failed to export Word document. Please try again.');
+      success('Word document exported successfully!');
+    } catch (err) {
+      console.error('Error exporting to Word:', err);
+      showError('Failed to export Word document. Please try again.');
+    } finally {
+      setExportingWord(false);
     }
   };
 
@@ -1439,6 +1450,9 @@ const AttendanceRecords = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6">
+      {/* Toast Container */}
+      <ToastContainer toasts={toasts} onClose={removeToast} />
+      
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
@@ -1481,8 +1495,13 @@ const AttendanceRecords = () => {
               <Button variant="outline" onClick={exportAnalyticsToPDF} className="text-xs sm:text-sm">
                 📄 Export PDF
               </Button>
-              <Button variant="outline" onClick={exportAnalyticsToWord} className="text-xs sm:text-sm">
-                📝 Export Word
+              <Button 
+                variant="outline" 
+                onClick={exportAnalyticsToWord} 
+                disabled={exportingWord}
+                className={`text-xs sm:text-sm ${exportingWord ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {exportingWord ? '⏳ Exporting...' : '📝 Export Word'}
               </Button>
             </>
           )}
