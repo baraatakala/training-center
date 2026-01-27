@@ -13,12 +13,14 @@ import { StudentCheckIn } from './pages/StudentCheckIn';
 import Login from './pages/Login';
 import PrivateRoute from './components/PrivateRoute';
 import { AuthProvider } from './context/AuthContext';
+import { ToastContainer } from './components/ui/Toast';
 import './App.css';
 
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <ToastContainer />
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/checkin/:token" element={<StudentCheckIn />} />

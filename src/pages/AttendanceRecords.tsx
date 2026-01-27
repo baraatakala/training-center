@@ -246,6 +246,7 @@ const AttendanceRecords = () => {
   const loadRecords = async () => {
     setLoading(true);
     try {
+      // First load attendance records
       const { data, error } = await supabase
         .from('attendance')
         .select(`
@@ -269,9 +270,6 @@ const AttendanceRecords = () => {
             location,
             course_id,
             teacher_id,
-            book_topic,
-            book_start_page,
-            book_end_page,
             course:course_id (course_name),
             teacher:teacher_id (name)
           )
@@ -282,8 +280,42 @@ const AttendanceRecords = () => {
 
       if (error) throw error;
 
+      // Get unique session IDs and dates to load book coverage
+      const sessionDatePairs = [...new Set(data?.map(r => `${r.session_id}|${r.attendance_date}`) || [])];
+      const bookCoverageMap = new Map<string, { topic: string; start_page: number; end_page: number }>();
+      
+      if (sessionDatePairs.length > 0) {
+        const { data: coverageData } = await supabase
+          .from('session_book_coverage')
+          .select(`
+            session_id,
+            attendance_date,
+            course_book_reference!inner (
+              topic,
+              start_page,
+              end_page
+            )
+          `);
+        
+        if (coverageData) {
+          coverageData.forEach((cov: any) => {
+            const key = `${cov.session_id}|${cov.attendance_date}`;
+            const ref = cov.course_book_reference;
+            if (ref) {
+              bookCoverageMap.set(key, {
+                topic: ref.topic,
+                start_page: ref.start_page,
+                end_page: ref.end_page
+              });
+            }
+          });
+        }
+      }
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const formattedRecords: AttendanceRecord[] = (data || []).map((record: any) => {
+        const bookKey = `${record.session_id}|${record.attendance_date}`;
+        const bookInfo = bookCoverageMap.get(bookKey);
         const session = record.session || {};
         const student = record.student || {};
         const course = session.course || {};
@@ -332,9 +364,9 @@ const AttendanceRecords = () => {
           teacher_id: session.teacher_id || '',
           instructor_name: teacher.name || 'Unknown',
           session_location: session.location || null,
-          book_topic: session.book_topic || null,
-          book_start_page: session.book_start_page || null,
-          book_end_page: session.book_end_page || null,
+          book_topic: bookInfo?.topic || null,
+          book_start_page: bookInfo?.start_page || null,
+          book_end_page: bookInfo?.end_page || null,
           _enrollmentDate: enrollmentDate, // For debugging
         };
       });
@@ -618,7 +650,7 @@ const AttendanceRecords = () => {
       'أسماء الغائبين'
     ] : [
       'Date',
-      'Topic',
+      'Book Topic',
       'Pages',
       'Host Address',
       'On Time',
@@ -812,47 +844,53 @@ const AttendanceRecords = () => {
 
     autoTable(doc, {
       startY: performanceTableY + 14,
-      head: [['Date', 'Topic', 'Pages', 'Host Address', 'On Time', 'Late', 'Excused', 'Absent', 'Rate %']],
+      head: [['Date', 'Book Progress', 'Host', 'On Time', 'Late', 'Excused', 'Absent', 'Rate %', 'On Time Names', 'Late Names', 'Excused Names', 'Absent Names']],
       body: dateAnalytics.map((dateData) => {
         let excusedLabel = dateData.excusedAbsentCount.toString();
+        let excusedNamesLabel = dateData.excusedNames.join(', ') || '-';
         if (
           dateData.hostAddress === 'SESSION_NOT_HELD' ||
           (dateData.hostAddress && dateData.hostAddress.toUpperCase() === 'SESSION_NOT_HELD')
         ) {
           excusedLabel = reportLanguage === 'ar' ? 'جميع الطلاب' : 'All Students';
+          excusedNamesLabel = reportLanguage === 'ar' ? 'جميع الطلاب' : 'All Students';
         }
         
-        const bookPages = dateData.bookStartPage && dateData.bookEndPage 
-          ? `${dateData.bookStartPage}-${dateData.bookEndPage}` 
-          : '-';
+        const bookProgress = dateData.bookTopic && dateData.bookStartPage && dateData.bookEndPage
+          ? `${dateData.bookTopic} (p.${dateData.bookStartPage}-${dateData.bookEndPage})`
+          : dateData.bookTopic || '-';
         
         return [
           format(new Date(dateData.date), 'MMM dd, yyyy'),
-          dateData.bookTopic || '-',
-          bookPages,
+          bookProgress,
           dateData.hostAddress || '-',
           dateData.presentCount,
           dateData.lateCount,
           excusedLabel,
           dateData.unexcusedAbsentCount,
           `${dateData.attendanceRate}%`,
+          dateData.presentNames.join(', ') || '-',
+          dateData.lateNames.join(', ') || '-',
+          excusedNamesLabel,
+          dateData.absentNames.join(', ') || '-',
         ];
       }),
-      styles: { fontSize: 7, cellPadding: 2 },
-      headStyles: { fillColor: [59, 130, 246], fontSize: 7 },
+      styles: { fontSize: 6, cellPadding: 1.5 },
+      headStyles: { fillColor: [59, 130, 246], fontSize: 6 },
       alternateRowStyles: { fillColor: [245, 245, 245] },
       columnStyles: {
-        0: { cellWidth: 22 },
-        1: { cellWidth: 35 },
-        2: { cellWidth: 18 },
-        3: { cellWidth: 30 },
-        4: { cellWidth: 15 },
-        5: { cellWidth: 15 },
-        6: { cellWidth: 15 },
-        7: { cellWidth: 15 },
-        8: { cellWidth: 18 },
+        0: { cellWidth: 20 },
+        1: { cellWidth: 40 },
+        2: { cellWidth: 22 },
+        3: { cellWidth: 10 },
+        4: { cellWidth: 10 },
+        5: { cellWidth: 12 },
+        6: { cellWidth: 10 },
+        7: { cellWidth: 12 },
+        8: { cellWidth: 'auto' },
         9: { cellWidth: 'auto' },
-        10: { cellWidth: 'auto' }
+        10: { cellWidth: 'auto' },
+        11: { cellWidth: 'auto' },
       },
     });
 
@@ -1131,12 +1169,6 @@ const AttendanceRecords = () => {
         excusedNames = excusedRecords.map(r => r.student_name);
       }
       
-      // Get book tracking info from first record (all records for same date/session will have same book info)
-      const firstRecord = dateRecords[0];
-      const bookTopic = firstRecord?.book_topic || null;
-      const bookStartPage = firstRecord?.book_start_page || null;
-      const bookEndPage = firstRecord?.book_end_page || null;
-      
       return {
         date,
         presentCount,
@@ -1149,9 +1181,9 @@ const AttendanceRecords = () => {
         excusedNames,
         absentNames: [...absentRecords.map(r => r.student_name), ...unmarkedNames],
         hostAddress,
-        bookTopic,
-        bookStartPage,
-        bookEndPage,
+        bookTopic: dateRecords[0]?.book_topic || null,
+        bookStartPage: dateRecords[0]?.book_start_page || null,
+        bookEndPage: dateRecords[0]?.book_end_page || null,
       };
     }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
