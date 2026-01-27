@@ -456,7 +456,7 @@ export function Attendance() {
       .select('reference_id')
       .eq('session_id', sessionId)
       .eq('attendance_date', selectedDate)
-      .single();
+      .maybeSingle();
 
     if (data) {
       setSelectedBookReference(data.reference_id);

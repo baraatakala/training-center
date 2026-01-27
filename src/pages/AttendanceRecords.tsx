@@ -298,9 +298,9 @@ const AttendanceRecords = () => {
           `);
         
         if (coverageData) {
-          coverageData.forEach((cov: any) => {
+          coverageData.forEach((cov: { session_id: string; attendance_date: string; course_book_reference: Array<{ topic: string; start_page: number; end_page: number }> }) => {
             const key = `${cov.session_id}|${cov.attendance_date}`;
-            const ref = cov.course_book_reference;
+            const ref = Array.isArray(cov.course_book_reference) ? cov.course_book_reference[0] : cov.course_book_reference;
             if (ref) {
               bookCoverageMap.set(key, {
                 topic: ref.topic,

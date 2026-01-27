@@ -23,7 +23,6 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const loadReferences = async () => {
-    setLoading(true);
     const { data, error } = await supabase
       .from(Tables.COURSE_BOOK_REFERENCE)
       .select('*')
@@ -33,11 +32,16 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
     if (!error && data) {
       setReferences(data);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
-    loadReferences();
+    const fetchData = async () => {
+      setLoading(true);
+      await loadReferences();
+      setLoading(false);
+    };
+    fetchData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseId]);
 
   const handleAdd = async () => {
