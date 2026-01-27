@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Select } from '../components/ui/Select';
+import { Skeleton, TableSkeleton } from '../components/ui/Skeleton';
 import { supabase } from '../lib/supabase';
 import { Tables, type Session } from '../types/database.types';
 import { format } from 'date-fns';
@@ -62,6 +63,7 @@ export function Attendance() {
   const [selectedDate, setSelectedDate] = useState<string>(passedDate || '');
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [excuseReason, setExcuseReason] = useState<{ [key: string]: string }>({});
   const [excuseDropdownOpen, setExcuseDropdownOpen] = useState<string | null>(null);
@@ -111,17 +113,25 @@ export function Attendance() {
 
   const loadSession = useCallback(async () => {
     if (!sessionId) return;
+    
+    try {
+      setError(null);
+      const { data, error: sessionError } = await supabase
+        .from(Tables.SESSION)
+        .select(`
+          *,
+          course:course_id(course_id, course_name)
+        `)
+        .eq('session_id', sessionId)
+        .single();
 
-    const { data } = await supabase
-      .from(Tables.SESSION)
-      .select(`
-        *,
-        course:course_id(course_id, course_name)
-      `)
-      .eq('session_id', sessionId)
-      .single();
+      if (sessionError) {
+        setError('Failed to load session: ' + sessionError.message);
+        setLoading(false);
+        return;
+      }
 
-    if (data) {
+      if (data) {
       setSession(data);
       
       // Load book references for this course
@@ -165,22 +175,33 @@ export function Attendance() {
       // If passedDate exists, it's already set in the initial state
     }
     setLoading(false);
+    } catch (err) {
+      setError('Unexpected error loading session: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      setLoading(false);
+    }
   }, [sessionId, passedDate]);
 
   const loadHostAddresses = useCallback(async () => {
     if (!sessionId) return;
 
-    // Load ALL students with non-null addresses from student table
-    const { data: students } = await supabase
-      .from(Tables.STUDENT)
-      .select('student_id, name, address')
-      .not('address', 'is', null)
-      .neq('address', '');
+    try {
+      // Load ALL students with non-null addresses from student table
+      const { data: students, error: studentsError } = await supabase
+        .from(Tables.STUDENT)
+        .select('student_id, name, address')
+        .not('address', 'is', null)
+        .neq('address', '');
 
-    if (!students || students.length === 0) {
-      setHostAddresses([]);
-      return;
-    }
+      if (studentsError) {
+        console.error('Error loading host addresses:', studentsError);
+        setHostAddresses([]);
+        return;
+      }
+
+      if (!students || students.length === 0) {
+        setHostAddresses([]);
+        return;
+      }
 
     // Map to HostInfo format and sort alphabetically by name
     const allHosts: HostInfo[] = students
@@ -194,13 +215,18 @@ export function Attendance() {
       .sort((a, b) => a.student_name.localeCompare(b.student_name));
     
     setHostAddresses(allHosts);
+    } catch (err) {
+      console.error('Unexpected error loading host addresses:', err);
+      setHostAddresses([]);
+    }
   }, [sessionId]);
 
   const loadAttendance = useCallback(async () => {
     if (!sessionId || !selectedDate) return;
 
-    // Check existing attendance records FIRST to see if address is already saved
-    const { data: existingAttendance } = await supabase
+    try {
+      // Check existing attendance records FIRST to see if address is already saved
+      const { data: existingAttendance, error: attendanceError } = await supabase
       .from(Tables.ATTENDANCE)
       .select(`
         attendance_id,
@@ -218,6 +244,11 @@ export function Attendance() {
       `)
       .eq('session_id', sessionId)
       .eq('attendance_date', selectedDate);
+
+      if (attendanceError) {
+        console.error('Error loading attendance:', attendanceError);
+        return;
+      }
 
     // Check if address is already saved for this date
     const savedHostAddress = existingAttendance?.find(r => r.host_address)?.host_address;
@@ -253,7 +284,7 @@ export function Attendance() {
     }
 
     // Get all enrollments for this session
-    const { data: enrollments } = await supabase
+    const { data: enrollments, error: enrollmentsError } = await supabase
       .from(Tables.ENROLLMENT)
       .select(`
         enrollment_id,
@@ -263,6 +294,12 @@ export function Attendance() {
       `)
       .eq('session_id', sessionId)
       .eq('status', 'active');
+
+      if (enrollmentsError) {
+        console.error('Error loading enrollments:', enrollmentsError);
+        setAttendance([]);
+        return;
+      }
 
     if (!enrollments || enrollments.length === 0) {
       setAttendance([]);
@@ -429,6 +466,10 @@ export function Attendance() {
         
         setAttendance(updatedList as AttendanceRecord[]);
       }
+    }
+    } catch (err) {
+      console.error('Unexpected error loading attendance:', err);
+      setAttendance([]);
     }
   }, [sessionId, selectedDate]);
 
@@ -947,8 +988,27 @@ export function Attendance() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="text-lg">Loading...</div>
+      <div className="space-y-6 p-4 md:p-6">
+        <Skeleton className="h-10 w-64" />
+        <div className="space-y-4">
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-32 w-full" />
+          <TableSkeleton rows={5} columns={5} />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <div className="inline-block p-6 bg-red-50 border-2 border-red-200 rounded-lg">
+          <p className="text-red-600 font-semibold mb-2">⚠️ Error Loading Attendance</p>
+          <p className="text-red-500 text-sm">{error}</p>
+          <Button onClick={() => { setError(null); setLoading(true); loadSession(); }} className="mt-4">
+            Retry
+          </Button>
+        </div>
       </div>
     );
   }
