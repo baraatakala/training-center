@@ -50,10 +50,6 @@ export interface StudentSummaryData {
   attendance_rate: number;
   punctuality_rate: number;
   weighted_score: number;
-  consistency_index: number;
-  avg_rate: number;
-  min_rate: number;
-  max_rate: number;
 }
 
 export interface DateAnalyticsData {

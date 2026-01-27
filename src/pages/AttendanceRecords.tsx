@@ -589,10 +589,6 @@ const AttendanceRecords = () => {
       'معدل الحضور (%)',
       'معدل الالتزام بالوقت (%)',
       'النقاط المرجحة',
-      'مؤشر الانتظام',
-      'متوسط المعدل (%)',
-      'أدنى معدل (%)',
-      'أعلى معدل (%)'
     ] : [
       'Rank',
       'Student Name',
@@ -606,10 +602,6 @@ const AttendanceRecords = () => {
       'Attendance Rate (%)',
       'Punctuality Rate (%)',
       'Weighted Score',
-      'Consistency Index',
-      'Avg Rate (%)',
-      'Min Rate (%)',
-      'Max Rate (%)'
     ];
 
     const studentRows = studentAnalytics.map((student, index) => {
@@ -631,10 +623,6 @@ const AttendanceRecords = () => {
         student.attendanceRate,
         punctualityRate,
         student.weightedScore,
-        parseFloat(student.consistencyIndex.toFixed(2)),
-        parseFloat(student.avgRate.toFixed(1)),
-        parseFloat(student.minRate.toFixed(1)),
-        parseFloat(student.maxRate.toFixed(1))
       ];
     });
 
@@ -1012,10 +1000,6 @@ const AttendanceRecords = () => {
         attendance_rate: s.attendanceRate,
         punctuality_rate: punctualityRate,
         weighted_score: s.weightedScore,
-        consistency_index: s.consistencyIndex,
-        avg_rate: s.avgRate,
-        min_rate: s.minRate,
-        max_rate: s.maxRate,
       };
     });
 
