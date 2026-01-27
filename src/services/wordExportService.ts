@@ -414,10 +414,6 @@ export class WordExportService {
           'Attendance %',
           'Punctuality %',
           'Score',
-          'Consistency',
-          'Avg %',
-          'Min %',
-          'Max %',
         ];
     
     const studentRows = studentData.map((s) => [
@@ -433,10 +429,6 @@ export class WordExportService {
       `${s.attendance_rate.toFixed(1)}%`,
       `${s.punctuality_rate.toFixed(1)}%`,
       s.weighted_score.toFixed(1),
-      s.consistency_index.toFixed(2),
-      `${s.avg_rate.toFixed(1)}%`,
-      `${s.min_rate.toFixed(1)}%`,
-      `${s.max_rate.toFixed(1)}%`,
     ]);
 
     sections.push(this.createTable(studentHeaders, studentRows, isArabic));
