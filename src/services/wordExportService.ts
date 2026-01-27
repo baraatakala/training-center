@@ -285,8 +285,9 @@ export class WordExportService {
     });
 
     const blob = await Packer.toBlob(doc);
-    const fileName =
-      filename || `attendance-records-${format(new Date(), 'yyyy-MM-dd')}.docx`;
+    const fileName = filename || (isArabic
+      ? `سجلات_الحضور_${format(new Date(), 'yyyy-MM-dd')}.docx`
+      : `attendance-records-${format(new Date(), 'yyyy-MM-dd')}.docx`);
     saveAs(blob, fileName);
   }
 
@@ -584,8 +585,9 @@ export class WordExportService {
     });
 
     const blob = await Packer.toBlob(doc);
-    const fileName =
-      filename || `analytics-report-${format(new Date(), 'yyyy-MM-dd')}.docx`;
+    const fileName = filename || (isArabic
+      ? `تقرير_التحليلات_${format(new Date(), 'yyyy-MM-dd')}.docx`
+      : `analytics-report-${format(new Date(), 'yyyy-MM-dd')}.docx`);
     saveAs(blob, fileName);
   }
 
@@ -661,8 +663,9 @@ export class WordExportService {
     });
 
     const blob = await Packer.toBlob(doc);
-    const fileName =
-      filename || `student-summary-${format(new Date(), 'yyyy-MM-dd')}.docx`;
+    const fileName = filename || (isArabic
+      ? `ملخص_الطلاب_${format(new Date(), 'yyyy-MM-dd')}.docx`
+      : `student-summary-${format(new Date(), 'yyyy-MM-dd')}.docx`);
     saveAs(blob, fileName);
   }
 }

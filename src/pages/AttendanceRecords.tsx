@@ -740,7 +740,10 @@ const AttendanceRecords = () => {
     XLSX.utils.book_append_sheet(wb, ws3, isArabic ? 'تصنيف المضيفين' : 'Host Rankings');
 
     // Export to file
-    XLSX.writeFile(wb, `analytics-report-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    const excelFileName = isArabic 
+      ? `تقرير_التحليلات_${format(new Date(), 'yyyy-MM-dd')}.xlsx`
+      : `analytics-report-${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+    XLSX.writeFile(wb, excelFileName);
   };
 
   const exportAnalyticsToPDF = () => {
@@ -930,7 +933,10 @@ const AttendanceRecords = () => {
       });
     }
 
-    doc.save(`analytics-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    const pdfFileName = isArabic 
+      ? `تقرير_التحليلات_${format(new Date(), 'yyyy-MM-dd')}.pdf`
+      : `analytics-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+    doc.save(pdfFileName);
   };
 
   const exportAnalyticsToWord = async () => {
