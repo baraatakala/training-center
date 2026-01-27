@@ -154,7 +154,7 @@ export interface AttendanceWithDetails extends Attendance {
 export type CreateTeacher = Omit<Teacher, 'teacher_id' | 'created_at' | 'updated_at'>;
 export type UpdateTeacher = Partial<CreateTeacher>;
 
-export type CreateStudent = Omit<Student, 'student_id' | 'created_at' | 'updated_at'>;
+export type CreateStudent = Omit<Student, 'student_id' | 'created_at' | 'updated_at' | 'teacher_id'>;
 export type UpdateStudent = Partial<CreateStudent>;
 
 export type CreateCourse = Omit<Course, 'course_id' | 'created_at' | 'updated_at'>;

@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { SearchBar } from '../components/ui/SearchBar';
-import { Select } from '../components/ui/Select';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
 import { Pagination } from '../components/ui/Pagination';
 import { StudentForm } from '../components/StudentForm';
@@ -11,25 +9,14 @@ import { studentService } from '../services/studentService';
 import type { Student, CreateStudent } from '../types/database.types';
 
 export function Students() {
-  const [searchParams] = useSearchParams();
   const [students, setStudents] = useState<Student[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [teacherFilter, setTeacherFilter] = useState('');
-  const [teachers, setTeachers] = useState<Array<{ teacher_id: string; name: string }>>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | undefined>();
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
-
-  // Check for teacher filter in URL
-  useEffect(() => {
-    const teacherFromUrl = searchParams.get('teacher');
-    if (teacherFromUrl) {
-      setTeacherFilter(teacherFromUrl);
-    }
-  }, [searchParams]);
 
   const loadStudents = async () => {
     setLoading(true);
@@ -37,16 +24,6 @@ export function Students() {
     if (data) {
       setStudents(data as Student[]);
       setFilteredStudents(data as Student[]);
-      
-      // Extract unique teachers from students
-      const uniqueTeachers = Array.from(
-        new Map(
-          data
-            .filter((s: any) => s.teacher)
-            .map((s: any) => [s.teacher.teacher_id, { teacher_id: s.teacher.teacher_id, name: s.teacher.name }])
-        ).values()
-      );
-      setTeachers(uniqueTeachers);
     }
     setLoading(false);
   };
@@ -56,24 +33,21 @@ export function Students() {
   }, []);
 
   useEffect(() => {
-    if (searchQuery || teacherFilter) {
+    if (searchQuery) {
       const query = searchQuery.toLowerCase();
       setFilteredStudents(
-        students.filter((s: any) => {
-          const matchesSearch = !searchQuery || (
+        students.filter(
+          (s) =>
             s.name.toLowerCase().includes(query) ||
             s.email.toLowerCase().includes(query) ||
             s.phone?.toLowerCase().includes(query) ||
             s.nationality?.toLowerCase().includes(query)
-          );
-          const matchesTeacher = !teacherFilter || s.teacher_id === teacherFilter;
-          return matchesSearch && matchesTeacher;
-        })
+        )
       );
     } else {
       setFilteredStudents(students);
     }
-  }, [searchQuery, teacherFilter, students]);
+  }, [searchQuery, students]);
 
   async function handleAddStudent(data: CreateStudent) {
     const { error } = await studentService.create(data);
@@ -122,39 +96,12 @@ export function Students() {
       </div>
 
       {/* Search Bar */}
-      <div className="bg-white p-4 md:p-6 rounded-lg shadow space-y-4">
+      <div className="bg-white p-4 md:p-6 rounded-lg shadow">
         <SearchBar
           value={searchQuery}
           onChange={setSearchQuery}
           placeholder="Search students..."
         />
-        
-        {teachers.length > 0 && (
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-              Filter by Teacher:
-            </label>
-            <Select
-              value={teacherFilter}
-              onChange={setTeacherFilter}
-              options={[
-                { value: '', label: 'All Teachers' },
-                ...teachers.map(t => ({ value: t.teacher_id, label: t.name }))
-              ]}
-              className="flex-1"
-            />
-            {teacherFilter && (
-              <Button 
-                size="sm" 
-                variant="outline" 
-                onClick={() => setTeacherFilter('')}
-                className="whitespace-nowrap"
-              >
-                Clear
-              </Button>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Students Table */}
@@ -173,8 +120,7 @@ export function Students() {
                   <TableHead className="whitespace-nowrap">Name</TableHead>
                   <TableHead className="whitespace-nowrap hidden md:table-cell">Email</TableHead>
                   <TableHead className="whitespace-nowrap hidden lg:table-cell">Phone</TableHead>
-                  <TableHead className="whitespace-nowrap hidden lg:table-cell">Assigned Teacher</TableHead>
-                  <TableHead className="whitespace-nowrap hidden xl:table-cell">Nationality</TableHead>
+                  <TableHead className="whitespace-nowrap hidden lg:table-cell">Nationality</TableHead>
                   <TableHead className="whitespace-nowrap hidden xl:table-cell">Age</TableHead>
                   <TableHead className="text-right whitespace-nowrap">Actions</TableHead>
                 </TableRow>
@@ -182,7 +128,7 @@ export function Students() {
               <TableBody>
                 {filteredStudents
                   .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-                  .map((student: any) => (
+                  .map((student) => (
                     <TableRow key={student.student_id}>
                       <TableCell className="font-medium text-gray-900 min-w-[150px]">
                         <div className="flex flex-col">
@@ -192,16 +138,7 @@ export function Students() {
                       </TableCell>
                       <TableCell className="text-gray-600 hidden md:table-cell min-w-[200px]">{student.email}</TableCell>
                       <TableCell className="text-gray-600 hidden lg:table-cell whitespace-nowrap">{student.phone || '-'}</TableCell>
-                      <TableCell className="text-gray-600 hidden lg:table-cell whitespace-nowrap">
-                        {student.teacher?.name ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
-                            {student.teacher.name}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400 italic">Not assigned</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-gray-600 hidden xl:table-cell whitespace-nowrap">{student.nationality || '-'}</TableCell>
+                      <TableCell className="text-gray-600 hidden lg:table-cell whitespace-nowrap">{student.nationality || '-'}</TableCell>
                       <TableCell className="text-gray-600 hidden xl:table-cell">{student.age || '-'}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-1 md:gap-2 justify-end flex-nowrap">

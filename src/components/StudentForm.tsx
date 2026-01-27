@@ -1,10 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Input } from './ui/Input';
-import { Select } from './ui/Select';
 import { Button } from './ui/Button';
 import type { Student, CreateStudent } from '../types/database.types';
-import { supabase } from '../lib/supabase';
-import { Tables } from '../types/database.types';
 
 type StudentFormProps = {
   student?: Student;
@@ -21,14 +18,12 @@ export function StudentForm({ student, onSubmit, onCancel }: StudentFormProps) {
     location: '',
     nationality: '',
     age: null,
-    teacher_id: null,
   });
-  const [teachers, setTeachers] = useState<Array<{ teacher_id: string; name: string }>>([]);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    loadTeachers();
     if (student) {
       setFormData({
         name: student.name,
@@ -38,15 +33,9 @@ export function StudentForm({ student, onSubmit, onCancel }: StudentFormProps) {
         location: student.location || '',
         nationality: student.nationality || '',
         age: student.age,
-        teacher_id: student.teacher_id,
       });
     }
   }, [student]);
-
-  async function loadTeachers() {
-    const { data } = await supabase.from(Tables.TEACHER).select('teacher_id, name');
-    if (data) setTeachers(data);
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -122,14 +111,6 @@ export function StudentForm({ student, onSubmit, onCancel }: StudentFormProps) {
         value={formData.age?.toString() || ''}
         onChange={(value) => setFormData({ ...formData, age: value ? parseInt(value) : null })}
         placeholder="18"
-      />
-
-      <Select
-        label="Assigned Teacher"
-        value={formData.teacher_id || ''}
-        onChange={(value) => setFormData({ ...formData, teacher_id: value || null })}
-        options={teachers.map((t) => ({ value: t.teacher_id, label: t.name }))}
-        placeholder="Select a teacher"
       />
 
       <div className="flex gap-3 mt-6">

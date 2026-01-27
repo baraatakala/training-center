@@ -148,4 +148,43 @@ export const enrollmentService = {
 
     return { data: !!data, error };
   },
+
+  // Get session capacity and current enrollment count
+  async getSessionCapacity(sessionId: string) {
+    // Get total enrollments (active + pending)
+    const { data: enrollments, error: enrollError } = await supabase
+      .from(Tables.ENROLLMENT)
+      .select('enrollment_id')
+      .eq('session_id', sessionId)
+      .in('status', ['active', 'pending']);
+
+    if (enrollError) return { data: null, error: enrollError };
+
+    // Get session details with course capacity
+    const { data: session, error: sessionError } = await supabase
+      .from(Tables.SESSION)
+      .select(`
+        session_id,
+        course:course_id (
+          max_students
+        )
+      `)
+      .eq('session_id', sessionId)
+      .single();
+
+    if (sessionError) return { data: null, error: sessionError };
+
+    const maxCapacity = (session.course as any)?.max_students || null;
+    const currentCount = enrollments?.length || 0;
+
+    return {
+      data: {
+        currentCount,
+        maxCapacity,
+        isAtCapacity: maxCapacity ? currentCount >= maxCapacity : false,
+        spotsRemaining: maxCapacity ? Math.max(0, maxCapacity - currentCount) : null,
+      },
+      error: null,
+    };
+  },
 };

@@ -8,10 +8,7 @@ export const studentService = {
   async getAll() {
     return await supabase
       .from(Tables.STUDENT)
-      .select(`
-        *,
-        teacher:teacher_id(name, email)
-      `)
+      .select('*')
       .order('name', { ascending: true });
   },
 
@@ -19,20 +16,53 @@ export const studentService = {
   async getById(id: string) {
     return await supabase
       .from(Tables.STUDENT)
-      .select(`
-        *,
-        teacher:teacher_id(*)
-      `)
+      .select('*')
       .eq('student_id', id)
       .single();
   },
 
-  // Get students by teacher
+  // Get students by teacher (through enrollments)
   async getByTeacher(teacherId: string) {
+    // Get courses taught by this teacher
+    const { data: courses } = await supabase
+      .from(Tables.COURSE)
+      .select('course_id')
+      .eq('teacher_id', teacherId);
+
+    if (!courses || courses.length === 0) {
+      return { data: [], error: null };
+    }
+
+    const courseIds = courses.map(c => c.course_id);
+
+    // Get sessions for these courses
+    const { data: sessions } = await supabase
+      .from(Tables.SESSION)
+      .select('session_id')
+      .in('course_id', courseIds);
+
+    if (!sessions || sessions.length === 0) {
+      return { data: [], error: null };
+    }
+
+    const sessionIds = sessions.map(s => s.session_id);
+
+    // Get enrolled students
+    const { data: enrollments } = await supabase
+      .from(Tables.ENROLLMENT)
+      .select('student_id')
+      .in('session_id', sessionIds);
+
+    if (!enrollments || enrollments.length === 0) {
+      return { data: [], error: null };
+    }
+
+    const studentIds = [...new Set(enrollments.map(e => e.student_id))];
+    
     return await supabase
       .from(Tables.STUDENT)
       .select('*')
-      .eq('teacher_id', teacherId)
+      .in('student_id', studentIds)
       .order('name', { ascending: true });
   },
 
@@ -40,10 +70,7 @@ export const studentService = {
   async search(query: string) {
     return await supabase
       .from(Tables.STUDENT)
-      .select(`
-        *,
-        teacher:teacher_id(name, email)
-      `)
+      .select('*')
       .or(`name.ilike.%${query}%,email.ilike.%${query}%`)
       .order('name', { ascending: true });
   },
