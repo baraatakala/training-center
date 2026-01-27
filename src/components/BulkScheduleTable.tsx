@@ -102,7 +102,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
   const [hostFilter, setHostFilter] = useState<'all' | 'can-host' | 'cannot-host'>('can-host');
   // Export dialog state
   const [showExportDialog, setShowExportDialog] = useState(false);
-  const [exportFormat, setExportFormat] = useState<'csv' | 'csv-arabic' | 'pdf'>('csv');
+  const [exportFormat, setExportFormat] = useState<'csv' | 'csv-arabic' | 'pdf' | 'word' | 'word-arabic'>('csv');
   const [exportFields, setExportFields] = useState({
     studentName: true,
     address: true,
@@ -712,6 +712,160 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
 
   const escapeHtml = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
+  const exportWord = async () => {
+    try {
+      const isArabic = exportFormat === 'word-arabic';
+      const displayedEnrollments = getSortedDisplayedEnrollments();
+
+      // Build headers based on selected fields and language
+      const headers: string[] = [];
+      if (exportFields.studentName) headers.push(isArabic ? 'اسم الطالب' : 'Student Name');
+      if (exportFields.address) headers.push(isArabic ? 'العنوان' : 'Address');
+      if (exportFields.phone) headers.push(isArabic ? 'الهاتف' : 'Phone');
+      if (exportFields.canHost) headers.push(isArabic ? 'يمكنه الاستضافة' : 'Can Host');
+      if (exportFields.hostDate) headers.push(isArabic ? 'تاريخ الاستضافة' : 'Host Date');
+      if (exportFields.enrollmentStatus) headers.push(isArabic ? 'الحالة' : 'Status');
+      if (exportFields.studentId) headers.push(isArabic ? 'معرف الطالب' : 'Student ID');
+
+      // Build rows based on selected fields
+      const rows = displayedEnrollments.map((e) => {
+        const row: string[] = [];
+        if (exportFields.studentName) row.push(e.student?.name || '');
+        if (exportFields.address) row.push(e.student?.address || '');
+        if (exportFields.phone) row.push(e.student?.phone || '');
+        if (exportFields.canHost) row.push(e.can_host ? (isArabic ? 'نعم' : 'Yes') : (isArabic ? 'لا' : 'No'));
+        if (exportFields.hostDate) row.push(hostDateMap[e.enrollment_id] || '');
+        if (exportFields.enrollmentStatus) row.push(e.status || '');
+        if (exportFields.studentId) row.push(e.student_id || '');
+        return row;
+      });
+
+      // Use wordExportService to create a simple table document
+      const { Document, Packer, Paragraph, Table, TableCell, TableRow, TextRun, AlignmentType, WidthType, BorderStyle, HeadingLevel, convertInchesToTwip } = await import('docx');
+      const { saveAs } = await import('file-saver');
+
+      const borderStyle = {
+        style: BorderStyle.SINGLE,
+        size: 1,
+        color: '000000',
+      };
+
+      // Create header row
+      const headerRow = new TableRow({
+        children: headers.map(
+          (header) =>
+            new TableCell({
+              children: [
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: header,
+                      bold: true,
+                      font: isArabic ? 'Arial' : 'Calibri',
+                      size: 22,
+                    }),
+                  ],
+                  alignment: isArabic ? AlignmentType.RIGHT : AlignmentType.CENTER,
+                  bidirectional: isArabic,
+                }),
+              ],
+              shading: { fill: 'D9E1F2' },
+              borders: {
+                top: borderStyle,
+                bottom: borderStyle,
+                left: borderStyle,
+                right: borderStyle,
+              },
+            })
+        ),
+        cantSplit: true,
+      });
+
+      // Create data rows
+      const dataRows = rows.map(
+        (row) =>
+          new TableRow({
+            children: row.map(
+              (cell) =>
+                new TableCell({
+                  children: [
+                    new Paragraph({
+                      children: [
+                        new TextRun({
+                          text: cell,
+                          font: isArabic ? 'Arial' : 'Calibri',
+                          size: 20,
+                        }),
+                      ],
+                      alignment: isArabic ? AlignmentType.RIGHT : AlignmentType.LEFT,
+                      bidirectional: isArabic,
+                    }),
+                  ],
+                  borders: {
+                    top: borderStyle,
+                    bottom: borderStyle,
+                    left: borderStyle,
+                    right: borderStyle,
+                  },
+                })
+            ),
+          })
+      );
+
+      const table = new Table({
+        rows: [headerRow, ...dataRows],
+        width: {
+          size: 100,
+          type: WidthType.PERCENTAGE,
+        },
+        margins: {
+          top: convertInchesToTwip(0.05),
+          bottom: convertInchesToTwip(0.05),
+          left: convertInchesToTwip(0.05),
+          right: convertInchesToTwip(0.05),
+        },
+      });
+
+      const titleText = isArabic ? 'جدول الاستضافة' : 'Host Schedule';
+
+      const doc = new Document({
+        sections: [
+          {
+            properties: {
+              page: {
+                margin: {
+                  top: convertInchesToTwip(1),
+                  right: convertInchesToTwip(0.75),
+                  bottom: convertInchesToTwip(1),
+                  left: convertInchesToTwip(0.75),
+                },
+              },
+            },
+            children: [
+              new Paragraph({
+                text: titleText,
+                heading: HeadingLevel.HEADING_1,
+                alignment: isArabic ? AlignmentType.RIGHT : AlignmentType.LEFT,
+                spacing: { after: 200, before: 200 },
+                bidirectional: isArabic,
+              }),
+              new Paragraph({ text: '', spacing: { after: 200 } }),
+              table,
+            ],
+          },
+        ],
+      });
+
+      const blob = await Packer.toBlob(doc);
+      const fileName = isArabic ? `جدول_الاستضافة_${sessionId}.docx` : `host_schedule_${sessionId}.docx`;
+      saveAs(blob, fileName);
+    } catch (err) {
+      const error = err as Error;
+      console.error('Word export error:', error);
+      alert('Failed to export Word: ' + error.message);
+    }
+  };
+
   const getSortedDisplayedEnrollments = () => {
     // Apply host filter
     let arr = [...enrollments];
@@ -912,7 +1066,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
                     name="format"
                     value="csv"
                     checked={exportFormat === 'csv'}
-                    onChange={(e) => setExportFormat(e.target.value as 'csv' | 'csv-arabic' | 'pdf')}
+                    onChange={(e) => setExportFormat(e.target.value as typeof exportFormat)}
                     className="mr-3"
                   />
                   <span>📊 CSV (English)</span>
@@ -923,7 +1077,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
                     name="format"
                     value="csv-arabic"
                     checked={exportFormat === 'csv-arabic'}
-                    onChange={(e) => setExportFormat(e.target.value as 'csv' | 'csv-arabic' | 'pdf')}
+                    onChange={(e) => setExportFormat(e.target.value as typeof exportFormat)}
                     className="mr-3"
                   />
                   <span>📊 CSV (عربي)</span>
@@ -934,10 +1088,32 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
                     name="format"
                     value="pdf"
                     checked={exportFormat === 'pdf'}
-                    onChange={(e) => setExportFormat(e.target.value as 'csv' | 'csv-arabic' | 'pdf')}
+                    onChange={(e) => setExportFormat(e.target.value as typeof exportFormat)}
                     className="mr-3"
                   />
                   <span>📄 PDF</span>
+                </label>
+                <label className="flex items-center p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="format"
+                    value="word"
+                    checked={exportFormat === 'word'}
+                    onChange={(e) => setExportFormat(e.target.value as typeof exportFormat)}
+                    className="mr-3"
+                  />
+                  <span>📝 Word (English)</span>
+                </label>
+                <label className="flex items-center p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="format"
+                    value="word-arabic"
+                    checked={exportFormat === 'word-arabic'}
+                    onChange={(e) => setExportFormat(e.target.value as typeof exportFormat)}
+                    className="mr-3"
+                  />
+                  <span>📝 Word (عربي)</span>
                 </label>
               </div>
             </div>
@@ -1032,6 +1208,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
                   if (exportFormat === 'csv') exportCSV();
                   else if (exportFormat === 'csv-arabic') exportCSVArabic();
                   else if (exportFormat === 'pdf') exportPDF();
+                  else if (exportFormat === 'word' || exportFormat === 'word-arabic') exportWord();
                 }}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
               >

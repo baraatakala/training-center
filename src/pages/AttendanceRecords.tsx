@@ -9,6 +9,7 @@ import { Pagination } from '../components/ui/Pagination';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { wordExportService } from '../services/wordExportService';
 
 interface AttendanceRecord {
   attendance_id: string;
@@ -940,6 +941,127 @@ const AttendanceRecords = () => {
     doc.save(`analytics-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   };
 
+  const exportAnalyticsToWord = async () => {
+    if (!showAnalytics || studentAnalytics.length === 0 || dateAnalytics.length === 0) {
+      alert('Please show analytics first to export Word report');
+      return;
+    }
+
+    const isArabic = reportLanguage === 'ar';
+
+    // Prepare summary statistics
+    const totalStudents = studentAnalytics.length;
+    const totalSessions = dateAnalytics.length;
+    const overallAttendanceRate = studentAnalytics.length > 0 
+      ? studentAnalytics.reduce((sum, s) => sum + s.attendanceRate, 0) / studentAnalytics.length
+      : 0;
+    
+    const totalPresent = studentAnalytics.reduce((sum, s) => sum + s.presentCount, 0);
+    const totalLate = studentAnalytics.reduce((sum, s) => sum + s.lateCount, 0);
+    const totalAbsent = studentAnalytics.reduce((sum, s) => sum + s.unexcusedAbsent, 0);
+    const totalExcused = studentAnalytics.reduce((sum, s) => sum + s.excusedCount, 0);
+
+    const summaryStats = {
+      totalStudents,
+      totalSessions,
+      overallAttendanceRate,
+      totalPresent,
+      totalAbsent,
+      totalExcused,
+      totalLate,
+    };
+
+    // Prepare student data
+    const studentData = studentAnalytics.map(s => ({
+      student_name: s.student_name,
+      total_sessions: s.totalRecords,
+      present: s.presentCount + s.lateCount,
+      absent: s.unexcusedAbsent,
+      excused: s.excusedCount,
+      late: s.lateCount,
+      attendance_rate: s.attendanceRate,
+    }));
+
+    // Prepare date data
+    const dateData = dateAnalytics.map(d => {
+      let excusedCount = d.excusedAbsentCount;
+      const totalStudents = d.presentCount + d.lateCount + d.excusedAbsentCount + d.unexcusedAbsentCount;
+      if (
+        d.hostAddress === 'SESSION_NOT_HELD' ||
+        (d.hostAddress && d.hostAddress.toUpperCase() === 'SESSION_NOT_HELD')
+      ) {
+        excusedCount = totalStudents; // All students excused when session not held
+      }
+      
+      return {
+        date: format(new Date(d.date), 'MMM dd, yyyy'),
+        total_students: totalStudents,
+        present: d.presentCount,
+        absent: d.unexcusedAbsentCount,
+        excused: excusedCount,
+        late: d.lateCount,
+      };
+    });
+
+    // Prepare host rankings data
+    const hostMap = new Map<string, {
+      count: number;
+      present: number;
+      late: number;
+      absent: number;
+      excused: number;
+    }>();
+    
+    dateAnalytics.forEach((dateData) => {
+      if (dateData.hostAddress && dateData.hostAddress !== 'SESSION_NOT_HELD') {
+        const existing = hostMap.get(dateData.hostAddress) || {
+          count: 0,
+          present: 0,
+          late: 0,
+          absent: 0,
+          excused: 0,
+        };
+        existing.count++;
+        existing.present += dateData.presentCount;
+        existing.late += dateData.lateCount;
+        existing.absent += dateData.unexcusedAbsentCount;
+        existing.excused += dateData.excusedAbsentCount;
+        hostMap.set(dateData.hostAddress, existing);
+      }
+    });
+
+    const hostData = Array.from(hostMap.entries())
+      .map(([name, data]) => {
+        const totalAttendance = data.present + data.late;
+        const totalPossible = data.present + data.late + data.absent;
+        const attendanceRate = totalPossible > 0 ? (totalAttendance / totalPossible) * 100 : 0;
+        
+        return {
+          host_name: name,
+          total_hosted: data.count,
+          present: data.present,
+          absent: data.absent,
+          excused: data.excused,
+          late: data.late,
+          attendance_rate: attendanceRate,
+        };
+      })
+      .sort((a, b) => b.attendance_rate - a.attendance_rate);
+
+    try {
+      await wordExportService.exportAnalyticsToWord(
+        studentData,
+        dateData,
+        hostData,
+        summaryStats,
+        isArabic
+      );
+    } catch (error) {
+      console.error('Error exporting to Word:', error);
+      alert('Failed to export Word document. Please try again.');
+    }
+  };
+
   const resetFilters = () => {
     setFilters({
       student_id: '',
@@ -1307,6 +1429,9 @@ const AttendanceRecords = () => {
               </Button>
               <Button variant="outline" onClick={exportAnalyticsToPDF} className="text-xs sm:text-sm">
                 📄 Export PDF
+              </Button>
+              <Button variant="outline" onClick={exportAnalyticsToWord} className="text-xs sm:text-sm">
+                📝 Export Word
               </Button>
             </>
           )}
