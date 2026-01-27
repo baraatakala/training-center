@@ -11,7 +11,6 @@ interface Student {
   student_id: string;
   name: string;
   email: string;
-  teacher_id: string | null;
 }
 
 interface Session {
@@ -42,7 +41,6 @@ export function EnrollmentForm({ onSubmit, onCancel, initialData = null }: Enrol
   const [students, setStudents] = useState<Student[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [filteredSessions, setFilteredSessions] = useState<Session[]>([]);
-  const [selectedStudentTeacherId, setSelectedStudentTeacherId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [studentEnrollments, setStudentEnrollments] = useState<any[]>([]);
@@ -50,7 +48,7 @@ export function EnrollmentForm({ onSubmit, onCancel, initialData = null }: Enrol
 
   const loadData = async () => {
     const [studentsRes, sessionsRes] = await Promise.all([
-      supabase.from(Tables.STUDENT).select('student_id, name, email, teacher_id').order('name'),
+      supabase.from(Tables.STUDENT).select('student_id, name, email').order('name'),
       supabase.from(Tables.SESSION).select(`
         session_id,
         start_date,
@@ -74,18 +72,8 @@ export function EnrollmentForm({ onSubmit, onCancel, initialData = null }: Enrol
   // Load student's current enrollments when student is selected
   useEffect(() => {
     if (formData.student_id) {
-      // Find the selected student and get their teacher_id
-      const student = students.find(s => s.student_id === formData.student_id);
-      const teacherId = student?.teacher_id || null;
-      setSelectedStudentTeacherId(teacherId);
-
-      // Filter sessions by teacher if student has assigned teacher
-      if (teacherId) {
-        const filtered = sessions.filter(s => s.teacher_id === teacherId);
-        setFilteredSessions(filtered);
-      } else {
-        setFilteredSessions(sessions);
-      }
+      // Show all sessions - no teacher filtering needed
+      setFilteredSessions(sessions);
 
       // Load student's enrollments
       enrollmentService.getByStudent(formData.student_id).then(({ data }) => {
@@ -95,7 +83,6 @@ export function EnrollmentForm({ onSubmit, onCancel, initialData = null }: Enrol
       });
     } else {
       setStudentEnrollments([]);
-      setSelectedStudentTeacherId(null);
       setFilteredSessions(sessions);
     }
   }, [formData.student_id, students, sessions]);
@@ -165,18 +152,6 @@ export function EnrollmentForm({ onSubmit, onCancel, initialData = null }: Enrol
                 +{studentEnrollments.length - 3} more enrollment(s)
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* Teacher Filter Indicator */}
-      {selectedStudentTeacherId && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-          <div className="text-sm font-medium text-green-900">
-            ✓ Sessions filtered by student's assigned teacher
-          </div>
-          <div className="text-xs text-green-700 mt-1">
-            Showing only sessions taught by this student's assigned teacher
           </div>
         </div>
       )}
