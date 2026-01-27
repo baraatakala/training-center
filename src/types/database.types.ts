@@ -12,7 +12,6 @@ export interface Teacher {
 
 export interface Student {
   student_id: string;
-  teacher_id: string | null;
   name: string;
   phone: string | null;
   email: string;
