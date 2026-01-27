@@ -6,7 +6,10 @@ export const teacherService = {
   async getAll() {
     return await supabase
       .from(Tables.TEACHER)
-      .select('*')
+      .select(`
+        *,
+        assigned_students:student(count)
+      `)
       .order('name');
   },
 

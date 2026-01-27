@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { SearchBar } from '../components/ui/SearchBar';
@@ -8,6 +9,7 @@ import { teacherService } from '../services/teacherService';
 import type { Teacher, CreateTeacher } from '../types/database.types';
 
 export function Teachers() {
+  const navigate = useNavigate();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [filteredTeachers, setFilteredTeachers] = useState<Teacher[]>([]);
   const [loading, setLoading] = useState(true);
@@ -112,11 +114,12 @@ export function Teachers() {
                     <TableHead className="whitespace-nowrap">Name</TableHead>
                     <TableHead className="whitespace-nowrap hidden md:table-cell">Email</TableHead>
                     <TableHead className="whitespace-nowrap hidden lg:table-cell">Phone</TableHead>
+                    <TableHead className="whitespace-nowrap hidden lg:table-cell">Assigned Students</TableHead>
                     <TableHead className="text-right whitespace-nowrap">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredTeachers.map((teacher) => (
+                  {filteredTeachers.map((teacher: any) => (
                     <TableRow key={teacher.teacher_id}>
                       <TableCell className="font-medium text-gray-900 min-w-[150px]">
                         <div className="flex flex-col">
@@ -126,6 +129,23 @@ export function Teachers() {
                       </TableCell>
                       <TableCell className="text-gray-600 hidden md:table-cell min-w-[200px]">{teacher.email}</TableCell>
                       <TableCell className="text-gray-600 hidden lg:table-cell whitespace-nowrap">{teacher.phone || '-'}</TableCell>
+                      <TableCell className="text-gray-600 hidden lg:table-cell whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700">
+                            {teacher.assigned_students?.[0]?.count || 0} students
+                          </span>
+                          {(teacher.assigned_students?.[0]?.count || 0) > 0 && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => navigate(`/students?teacher=${teacher.teacher_id}`)}
+                              className="text-xs"
+                            >
+                              View
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <div className="flex gap-1 md:gap-2 justify-end flex-nowrap">
                           <Button 
