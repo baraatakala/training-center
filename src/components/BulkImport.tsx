@@ -541,36 +541,185 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
   };
 
   const downloadTemplate = () => {
-    const template = `student_name,student_email,student_phone,course_name,course_category,instructor_name,instructor_email,instructor_phone,session_start_date,session_end_date,session_day,session_time,session_location,attendance_date,status,excuse_reason,gps_latitude,gps_longitude,gps_accuracy,gps_timestamp,host_address,notes,can_host,host_date
-# EXAMPLE 1: Present student with GPS location and can host
-John Doe,john@example.com,1234567890,Web Development,Programming,Jane Teacher,jane@example.com,9876543210,2025-01-01,2025-03-31,Monday,09:00-12:00,Main Campus,2025-01-15,present,,25.2048,55.2708,10,2025-01-15T10:30:00Z,123 Main St,,yes,2025-02-01
-# EXAMPLE 2: Excused absence with REQUIRED excuse_reason
-Mary Smith,mary@example.com,1234567891,Web Development,Programming,Jane Teacher,jane@example.com,9876543210,2025-01-01,2025-03-31,Monday,09:00-12:00,Main Campus,2025-01-22,excused,sick,,,,,456 Oak Ave,Medical appointment,no,
-# EXAMPLE 3: Late arrival with GPS timestamp
-Bob Johnson,bob@example.com,1234567892,Web Development,Programming,Jane Teacher,jane@example.com,9876543210,2025-01-01,2025-03-31,Monday,09:00-12:00,Main Campus,2025-01-29,late,,25.2050,55.2710,12,2025-01-29T09:15:00Z,789 Elm St,,no,
-# EXAMPLE 4: Absent without GPS (unexcused)
-Sarah Wilson,sarah@example.com,5551234567,Web Development,Programming,Jane Teacher,jane@example.com,9876543210,2025-01-01,2025-03-31,Monday,09:00-12:00,Main Campus,2025-02-05,absent,,,,,,,Left early without permission,,
-# EXAMPLE 5: Excused for family emergency (showing different excuse reasons)
-Tom Brown,tom@example.com,5559876543,Web Development,Programming,Jane Teacher,jane@example.com,9876543210,2025-01-01,2025-03-31,Monday,09:00-12:00,Main Campus,2025-02-12,excused,family emergency,,,,,321 Pine St,Notified in advance,yes,2025-03-15
-# EXAMPLE 6: Present student can host on specific date
-Lisa Green,lisa@example.com,5551112222,Web Development,Programming,Jane Teacher,jane@example.com,9876543210,2025-01-01,2025-03-31,Monday,09:00-12:00,Main Campus,2025-02-19,present,,25.2055,55.2715,8,2025-02-19T09:05:00Z,555 Maple Dr,,yes,2025-03-22
-# EXAMPLE 7: Multiple courses - same student different course
-John Doe,john@example.com,1234567890,Data Science,Analytics,Dr. Smith,drsmith@example.com,9998887777,2025-01-10,2025-04-10,Wednesday,14:00-17:00,Lab Building,2025-01-17,present,,25.2049,55.2709,15,2025-01-17T14:10:00Z,123 Main St,Excellent participation,yes,
-# EXAMPLE 8: Excused for work commitment
-Ahmed Ali,ahmed@example.com,5553334444,Web Development,Programming,Jane Teacher,jane@example.com,9876543210,2025-01-01,2025-03-31,Monday,09:00-12:00,Main Campus,2025-02-26,excused,working,,,,,Downtown Office,Work schedule conflict,,
-# EXAMPLE 9: Excused for being abroad
-Fatima Hassan,fatima@example.com,5556667777,Web Development,Programming,Jane Teacher,jane@example.com,9876543210,2025-01-01,2025-03-31,Monday,09:00-12:00,Main Campus,2025-03-05,excused,abroad,,,,,Traveling for family,Out of country,no,
-# INSTRUCTIONS:
-# - REQUIRED FIELDS: student_name student_email course_name instructor_name instructor_email session_start_date session_end_date attendance_date status
-# - excuse_reason is MANDATORY when status=excused (valid: sick abroad working family emergency other)
-# - status options: present absent late excused
-# - Dates format: YYYY-MM-DD (e.g. 2025-01-15)
-# - can_host: yes/no/true/false/1/0
-# - host_date: Only when can_host=yes (format YYYY-MM-DD)
-# - GPS fields optional but recommended for location tracking
-# - Delete these comment lines before importing`;
+    // Create CSV with proper formatting - clean data ready to use
+    const headers = [
+      'student_name',
+      'student_email',
+      'student_phone',
+      'course_name',
+      'course_category',
+      'instructor_name',
+      'instructor_email',
+      'instructor_phone',
+      'session_start_date',
+      'session_end_date',
+      'session_day',
+      'session_time',
+      'session_location',
+      'attendance_date',
+      'status',
+      'excuse_reason',
+      'gps_latitude',
+      'gps_longitude',
+      'gps_accuracy',
+      'gps_timestamp',
+      'host_address',
+      'notes',
+      'can_host',
+      'host_date'
+    ];
 
-    const blob = new Blob([template], { type: 'text/csv' });
+    // Clean example rows ready to import
+    const exampleRows = [
+      [
+        'John Doe',
+        'john@example.com',
+        '1234567890',
+        'Web Development',
+        'Programming',
+        'Jane Teacher',
+        'jane@example.com',
+        '9876543210',
+        '2025-01-01',
+        '2025-03-31',
+        'Monday',
+        '09:00-12:00',
+        'Main Campus',
+        '2025-01-15',
+        'present',
+        '',
+        '25.2048',
+        '55.2708',
+        '10',
+        '2025-01-15T10:30:00Z',
+        '123 Main St',
+        'Present with GPS',
+        'yes',
+        '2025-02-01'
+      ],
+      [
+        'Mary Smith',
+        'mary@example.com',
+        '1234567891',
+        'Web Development',
+        'Programming',
+        'Jane Teacher',
+        'jane@example.com',
+        '9876543210',
+        '2025-01-01',
+        '2025-03-31',
+        'Monday',
+        '09:00-12:00',
+        'Main Campus',
+        '2025-01-22',
+        'excused',
+        'sick',
+        '',
+        '',
+        '',
+        '',
+        '456 Oak Ave',
+        'Medical appointment',
+        'no',
+        ''
+      ],
+      [
+        'Bob Johnson',
+        'bob@example.com',
+        '1234567892',
+        'Web Development',
+        'Programming',
+        'Jane Teacher',
+        'jane@example.com',
+        '9876543210',
+        '2025-01-01',
+        '2025-03-31',
+        'Monday',
+        '09:00-12:00',
+        'Main Campus',
+        '2025-01-29',
+        'late',
+        '',
+        '25.2050',
+        '55.2710',
+        '12',
+        '2025-01-29T09:15:00Z',
+        '789 Elm St',
+        'Late arrival',
+        'no',
+        ''
+      ],
+      [
+        'Sarah Wilson',
+        'sarah@example.com',
+        '5551234567',
+        'Web Development',
+        'Programming',
+        'Jane Teacher',
+        'jane@example.com',
+        '9876543210',
+        '2025-01-01',
+        '2025-03-31',
+        'Monday',
+        '09:00-12:00',
+        'Main Campus',
+        '2025-02-05',
+        'absent',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        'Unexcused absence',
+        '',
+        ''
+      ],
+      [
+        'Tom Brown',
+        'tom@example.com',
+        '5559876543',
+        'Web Development',
+        'Programming',
+        'Jane Teacher',
+        'jane@example.com',
+        '9876543210',
+        '2025-01-01',
+        '2025-03-31',
+        'Monday',
+        '09:00-12:00',
+        'Main Campus',
+        '2025-02-12',
+        'excused',
+        'family emergency',
+        '',
+        '',
+        '',
+        '',
+        '321 Pine St',
+        'Notified in advance',
+        'yes',
+        '2025-03-15'
+      ]
+    ];
+
+    // Build CSV content with proper escaping
+    const csvRows = [headers];
+    exampleRows.forEach(row => {
+      csvRows.push(row.map(cell => {
+        // Escape cells containing commas, quotes, or newlines
+        if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
+          return `"${cell.replace(/"/g, '""')}"`;
+        }
+        return cell;
+      }));
+    });
+
+    const csvContent = csvRows.map(row => row.join(',')).join('\n');
+
+    // Add BOM for proper UTF-8 encoding in Excel
+    const bom = '\uFEFF';
+    const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -600,18 +749,18 @@ Fatima Hassan,fatima@example.com,5556667777,Web Development,Programming,Jane Tea
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
           <h3 className="font-semibold text-blue-900 mb-2">📋 Import Instructions</h3>
           <ol className="list-decimal list-inside space-y-2 text-sm text-blue-800">
-            <li>Download the CSV template using the button below (or prepare your own Excel/CSV file)</li>
-            <li>Fill in your attendance data following the template format</li>
-            <li>Required fields: student_name, student_email, course_name, instructor_name, instructor_email, session_start_date, session_end_date, attendance_date, status</li>
-            <li>Optional fields: student_phone, course_category, instructor_phone, session_day, session_time, session_location, excuse_reason, gps_latitude, gps_longitude, gps_accuracy, gps_timestamp, host_address, notes, can_host, host_date</li>
-            <li>Status must be one of: present, absent, late, excused</li>
-            <li><strong>excuse_reason is REQUIRED when status is 'excused'</strong> (e.g., sick, abroad, working, family emergency)</li>
-            <li>Dates must be in YYYY-MM-DD format (e.g., 2025-01-15)</li>
-            <li>GPS timestamp format: ISO 8601 (e.g., 2025-01-15T10:30:00Z)</li>
-            <li>can_host: yes/no/true/false/1/0 to indicate if student can host sessions</li>
-            <li>host_date: The specific date when student is scheduled to host (YYYY-MM-DD, only relevant when can_host is true)</li>
-            <li>The system will automatically match or create teachers, courses, sessions, students, and enrollments</li>
-            <li>Duplicate attendance records will be skipped</li>
+            <li><strong>Download the clean CSV template</strong> - Contains 5 ready-to-use example rows with all field types</li>
+            <li><strong>Edit the template</strong> - Replace example data with your actual attendance records or add new rows</li>
+            <li><strong>Required fields:</strong> student_name, student_email, course_name, instructor_name, instructor_email, session_start_date, session_end_date, attendance_date, status</li>
+            <li><strong>Optional fields:</strong> student_phone, course_category, instructor_phone, session_day, session_time, session_location, excuse_reason, gps_latitude, gps_longitude, gps_accuracy, gps_timestamp, host_address, notes, can_host, host_date</li>
+            <li><strong>Status values:</strong> present, absent, late, excused</li>
+            <li><strong>⚠️ excuse_reason is REQUIRED when status='excused'</strong> (valid values: sick, abroad, working, family emergency, other)</li>
+            <li><strong>Date format:</strong> YYYY-MM-DD (e.g., 2025-01-15)</li>
+            <li><strong>GPS timestamp format:</strong> ISO 8601 (e.g., 2025-01-15T10:30:00Z)</li>
+            <li><strong>can_host:</strong> yes/no/true/false/1/0 to indicate if student can host sessions</li>
+            <li><strong>host_date:</strong> Date when student is scheduled to host (YYYY-MM-DD, only when can_host=yes)</li>
+            <li>The system automatically matches or creates teachers, courses, sessions, students, and enrollments</li>
+            <li>Duplicate attendance records are automatically skipped</li>
           </ol>
         </div>
       )}
