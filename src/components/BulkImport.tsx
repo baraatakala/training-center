@@ -132,11 +132,39 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
     // Detect delimiter: check if first line has tabs or commas
     const delimiter = lines[0].includes('\t') ? '\t' : ',';
     
-    const headers = lines[0].split(delimiter).map(h => h.trim().toLowerCase().replace(/\s+/g, '_'));
+    // Parse CSV with proper quote handling
+    const parseLine = (line: string): string[] => {
+      const values: string[] = [];
+      let current = '';
+      let inQuotes = false;
+      
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        
+        if (char === '"') {
+          // Handle escaped quotes ("")
+          if (inQuotes && line[i + 1] === '"') {
+            current += '"';
+            i++; // Skip next quote
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (char === delimiter && !inQuotes) {
+          values.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      values.push(current.trim());
+      return values;
+    };
+    
+    const headers = parseLine(lines[0]).map(h => h.trim().toLowerCase().replace(/\s+/g, '_'));
     const rows: ImportRow[] = [];
 
     for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(delimiter).map(v => v.trim());
+      const values = parseLine(lines[i]);
       const row: Record<string, string> = {};
 
       headers.forEach((header, index) => {
