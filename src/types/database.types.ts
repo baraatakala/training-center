@@ -102,7 +102,6 @@ export interface Enrollment {
 export interface Attendance {
   attendance_id: string;
   enrollment_id: string;
-  session_location_id: string | null;
   session_id: string;
   attendance_date: string;
   student_id: string;

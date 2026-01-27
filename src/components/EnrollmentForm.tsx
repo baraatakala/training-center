@@ -34,7 +34,7 @@ export function EnrollmentForm({ onSubmit, onCancel, initialData = null }: Enrol
     student_id: initialData?.student_id || '',
     session_id: initialData?.session_id || '',
     enrollment_date: initialData?.enrollment_date || new Date().toISOString().split('T')[0],
-    status: (initialData?.status as any) || 'active',
+    status: (initialData?.status as 'active' | 'completed' | 'dropped' | 'pending') || 'active',
     can_host: typeof initialData?.can_host === 'boolean' ? initialData!.can_host : false,
   });
 
@@ -43,8 +43,21 @@ export function EnrollmentForm({ onSubmit, onCancel, initialData = null }: Enrol
   const [filteredSessions, setFilteredSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [studentEnrollments, setStudentEnrollments] = useState<any[]>([]);
-  const [sessionCapacity, setSessionCapacity] = useState<any>(null);
+  const [studentEnrollments, setStudentEnrollments] = useState<Array<{
+    enrollment_id: string;
+    status: string;
+    session?: {
+      course?: {
+        course_name: string;
+      };
+    };
+  }>>([]);
+  const [sessionCapacity, setSessionCapacity] = useState<{
+    currentCount: number;
+    maxCapacity: number | null;
+    isAtCapacity: boolean;
+    spotsRemaining: number | null;
+  } | null>(null);
 
   const loadData = async () => {
     const [studentsRes, sessionsRes] = await Promise.all([
@@ -139,7 +152,7 @@ export function EnrollmentForm({ onSubmit, onCancel, initialData = null }: Enrol
             Student's Current Enrollments ({studentEnrollments.length})
           </div>
           <div className="space-y-1">
-            {studentEnrollments.slice(0, 3).map((e: any) => (
+            {studentEnrollments.slice(0, 3).map((e) => (
               <div key={e.enrollment_id} className="text-xs text-blue-700 flex items-center justify-between">
                 <span>{e.session?.course?.course_name || 'Unknown Course'}</span>
                 <Badge variant={e.status === 'active' ? 'success' : 'default'}>
@@ -198,7 +211,7 @@ export function EnrollmentForm({ onSubmit, onCancel, initialData = null }: Enrol
                 {sessionCapacity.currentCount} / {sessionCapacity.maxCapacity} enrolled
                 {sessionCapacity.isAtCapacity ? (
                   <span className="font-semibold"> - Session is FULL</span>
-                ) : sessionCapacity.spotsRemaining <= 3 ? (
+                ) : sessionCapacity.spotsRemaining !== null && sessionCapacity.spotsRemaining <= 3 ? (
                   <span className="font-semibold"> - Only {sessionCapacity.spotsRemaining} spot(s) remaining</span>
                 ) : (
                   <span> - {sessionCapacity.spotsRemaining} spots available</span>

@@ -22,16 +22,7 @@ export const attendanceService = {
       .select(`
         *,
         student:student_id(*),
-        enrollment:enrollment_id(*),
-        session_location:session_location_id(
-          *,
-          location:location_id(*),
-          session:session_id(
-            *,
-            course:course_id(*),
-            teacher:teacher_id(*)
-          )
-        )
+        enrollment:enrollment_id(*)
       `)
       .eq('attendance_id', id)
       .single();
@@ -43,14 +34,9 @@ export const attendanceService = {
       .from(Tables.ATTENDANCE)
       .select(`
         *,
-        session_location:session_location_id(
-          date,
-          start_time,
-          end_time,
-          location:location_id(location_name),
-          session:session_id(
-            course:course_id(course_name)
-          )
+        session:session_id(
+          *,
+          course:course_id(course_name)
         )
       `)
       .eq('student_id', studentId)
@@ -63,24 +49,10 @@ export const attendanceService = {
       .from(Tables.ATTENDANCE)
       .select(`
         *,
-        student:student_id(name, email),
-        session_location:session_location_id(date, start_time, end_time)
+        student:student_id(name, email)
       `)
-      .eq('session_location.session_id', sessionId)
-      .order('session_location.date', { ascending: true });
-  },
-
-  // Get attendance for a specific session location
-  async getBySessionLocation(sessionLocationId: string) {
-    return await supabase
-      .from(Tables.ATTENDANCE)
-      .select(`
-        *,
-        student:student_id(name, email, phone),
-        enrollment:enrollment_id(status)
-      `)
-      .eq('session_location_id', sessionLocationId)
-      .order('student.name', { ascending: true });
+      .eq('session_id', sessionId)
+      .order('attendance_date', { ascending: true });
   },
 
   // Get attendance statistics for a session
@@ -169,9 +141,9 @@ export const attendanceService = {
   async getStudentAttendanceRate(studentId: string, sessionId: string) {
     const { data, error } = await supabase
       .from(Tables.ATTENDANCE)
-      .select('status, session_location:session_location_id(session_id)')
+      .select('status')
       .eq('student_id', studentId)
-      .eq('session_location.session_id', sessionId);
+      .eq('session_id', sessionId);
 
     if (error) return { data: null, error };
 
