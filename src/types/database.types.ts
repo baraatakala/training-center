@@ -184,6 +184,7 @@ export type UpdateAttendance = Partial<CreateAttendance>;
 // Database table names
 export const Tables = {
   TEACHER: 'teacher',
+  TEACHER_HOST_SCHEDULE: 'teacher_host_schedule',
   STUDENT: 'student',
   COURSE_BOOK_REFERENCE: 'course_book_reference',
   SESSION_BOOK_COVERAGE: 'session_book_coverage',

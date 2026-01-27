@@ -226,6 +226,14 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       // Add teacher as potential host if they have an address
       const teacher = Array.isArray(sessionData?.teacher) ? sessionData?.teacher[0] : sessionData?.teacher;
       if (teacher?.address && teacher.address.trim() !== '') {
+        // Load teacher's hosting date from teacher_host_schedule table
+        const { data: teacherHostData } = await supabase
+          .from('teacher_host_schedule')
+          .select('host_date')
+          .eq('teacher_id', teacher.teacher_id)
+          .eq('session_id', sessionId)
+          .maybeSingle();
+
         const teacherRow: EnrollmentRow = {
           enrollment_id: `teacher-${teacher.teacher_id}`,
           student_id: teacher.teacher_id,
@@ -235,7 +243,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
             phone: teacher.phone
           },
           can_host: true, // Teacher always can host
-          host_date: null,
+          host_date: teacherHostData?.host_date || null,
           status: 'active',
           is_teacher: true
         };
@@ -311,9 +319,54 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
 
   // Save host_date to DB for an enrollment
   const saveHostDate = async (enrollmentId: string, hostDate: string | null) => {
-    // Skip if temp enrollment or teacher
-    if (enrollmentId.startsWith('temp-') || enrollmentId.startsWith('teacher-')) {
-      console.log('Skipping save for temp enrollment or teacher');
+    // Skip if temp enrollment
+    if (enrollmentId.startsWith('temp-')) {
+      console.log('Skipping save for temp enrollment');
+      return;
+    }
+    
+    // Handle teacher hosting dates separately
+    if (enrollmentId.startsWith('teacher-')) {
+      const teacherId = enrollmentId.replace('teacher-', '');
+      console.log(`Saving teacher host_date for teacher ${teacherId}:`, hostDate);
+      
+      try {
+        if (hostDate) {
+          // Upsert teacher hosting date
+          const { error } = await supabase
+            .from('teacher_host_schedule')
+            .upsert({
+              teacher_id: teacherId,
+              session_id: sessionId,
+              host_date: hostDate,
+              updated_at: new Date().toISOString()
+            }, {
+              onConflict: 'teacher_id,session_id'
+            });
+          
+          if (error) {
+            console.error('Failed to save teacher host_date:', error);
+          } else {
+            console.log(`Successfully saved teacher host_date for teacher ${teacherId}`);
+          }
+        } else {
+          // Delete if hostDate is null
+          const { error } = await supabase
+            .from('teacher_host_schedule')
+            .delete()
+            .eq('teacher_id', teacherId)
+            .eq('session_id', sessionId);
+          
+          if (error) {
+            console.error('Failed to delete teacher host_date:', error);
+          } else {
+            console.log(`Successfully deleted teacher host_date for teacher ${teacherId}`);
+          }
+        }
+      } catch (err) {
+        const error = err as Error;
+        console.error('Failed to save teacher host_date:', error.message);
+      }
       return;
     }
     
