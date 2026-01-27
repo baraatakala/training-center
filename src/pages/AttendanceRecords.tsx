@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { format, subDays } from 'date-fns';
-import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { BulkImport } from '../components/BulkImport';
 import { Pagination } from '../components/ui/Pagination';
@@ -1449,76 +1448,93 @@ const AttendanceRecords = () => {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-gray-50 pb-8">
       {/* Toast Container */}
       <ToastContainer toasts={toasts} onClose={removeToast} />
       
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Attendance Records</h1>
-          <p className="text-sm sm:text-base text-gray-600 mt-1">
-            View all attendance records with GPS location tracking
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setShowAnalytics(!showAnalytics)} className="text-xs sm:text-sm">
-            {showAnalytics ? 'Hide' : 'Show'} Analytics
-          </Button>
-          {showAnalytics && (
-            <>
-              <div className="flex items-center gap-1 border border-gray-300 rounded-md">
-                <button
-                  onClick={() => setReportLanguage('en')}
-                  className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-l-md transition-colors ${
-                    reportLanguage === 'en' 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  EN
-                </button>
-                <button
-                  onClick={() => setReportLanguage('ar')}
-                  className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-r-md transition-colors ${
-                    reportLanguage === 'ar' 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  ع
-                </button>
+      {/* Modern Header with Gradient */}
+      <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 text-white shadow-xl">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4">
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <div className="bg-white/20 p-3 rounded-lg backdrop-blur-sm">
+                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Attendance Records</h1>
+                  <p className="text-blue-100 text-sm sm:text-base mt-1">
+                    📍 GPS-Tracked Attendance with Advanced Analytics
+                  </p>
+                </div>
               </div>
-              <Button variant="outline" onClick={exportAnalyticsToExcel} className="text-xs sm:text-sm">
-                📊 Export Excel
-              </Button>
-              <Button variant="outline" onClick={exportAnalyticsToPDF} className="text-xs sm:text-sm">
-                📄 Export PDF
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={exportAnalyticsToWord} 
-                disabled={exportingWord}
-                className={`text-xs sm:text-sm ${exportingWord ? 'opacity-50 cursor-not-allowed' : ''}`}
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setShowAnalytics(!showAnalytics)}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 border border-white/20"
               >
-                {exportingWord ? '⏳ Exporting...' : '📝 Export Word'}
-              </Button>
-            </>
-          )}
-          <Button variant="outline" onClick={() => setShowBulkImport(!showBulkImport)} className="text-xs sm:text-sm">
-            {showBulkImport ? 'Hide' : 'Show'} Import
-          </Button>
-          <Button variant="outline" onClick={resetFilters} className="text-xs sm:text-sm">
-            Reset
-          </Button>
-          <Button onClick={exportToCSV} className="text-xs sm:text-sm">
-            📥 Export
-          </Button>
-          <Button onClick={loadRecords} className="text-xs sm:text-sm">
-            🔄 Refresh
-          </Button>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                {showAnalytics ? 'Hide' : 'Show'} Analytics
+              </button>
+              
+              {showAnalytics && (
+                <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg p-1 border border-white/20">
+                  <button
+                    onClick={() => setReportLanguage('en')}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
+                      reportLanguage === 'en' 
+                        ? 'bg-white text-blue-700 shadow-md' 
+                        : 'text-white hover:bg-white/10'
+                    }`}
+                  >
+                    EN
+                  </button>
+                  <button
+                    onClick={() => setReportLanguage('ar')}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
+                      reportLanguage === 'ar' 
+                        ? 'bg-white text-blue-700 shadow-md' 
+                        : 'text-white hover:bg-white/10'
+                    }`}
+                  >
+                    ع
+                  </button>
+                </div>
+              )}
+              
+              <button
+                onClick={() => setShowBulkImport(!showBulkImport)}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 border border-white/20"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                {showBulkImport ? 'Hide' : 'Import'}
+              </button>
+              
+              <button
+                onClick={loadRecords}
+                className="px-4 py-2 bg-white hover:bg-blue-50 text-blue-700 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-lg"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh
+              </button>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* Main Content Container */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-4 space-y-6">
 
       {/* Bulk Import Section */}
       {showBulkImport && (
@@ -1762,66 +1778,156 @@ const AttendanceRecords = () => {
         </div>
       )}
 
-      {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-sm text-gray-600">Total Records</div>
-          <div className="text-2xl font-bold text-gray-900">{filteredRecords.length}</div>
-        </div>
-        <div className="bg-green-50 p-4 rounded-lg shadow">
-          <div className="text-sm text-green-600">On Time</div>
-          <div className="text-2xl font-bold text-green-900">
-            {filteredRecords.filter(r => r.status === 'on time').length}
+      {/* Summary Stats Cards - Enhanced Design */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="bg-gradient-to-br from-white to-gray-50 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 mb-1">Total Records</p>
+              <p className="text-3xl font-bold text-gray-900">{filteredRecords.length}</p>
+              <p className="text-xs text-gray-500 mt-2">All attendance entries</p>
+            </div>
+            <div className="bg-gradient-to-br from-gray-100 to-gray-200 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
+              <svg className="w-8 h-8 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
           </div>
         </div>
-        <div className="bg-red-50 p-4 rounded-lg shadow">
-          <div className="text-sm text-red-600">Absent</div>
-          <div className="text-2xl font-bold text-red-900">
-            {filteredRecords.filter(r => r.status === 'absent').length}
+        
+        <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-green-100 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-green-700 mb-1">On Time</p>
+              <p className="text-3xl font-bold text-green-900">{filteredRecords.filter(r => r.status === 'on time').length}</p>
+              <p className="text-xs text-green-600 mt-2">
+                {filteredRecords.length > 0 
+                  ? `${Math.round((filteredRecords.filter(r => r.status === 'on time').length / filteredRecords.length) * 100)}%` 
+                  : '0%'} of total
+              </p>
+            </div>
+            <div className="bg-gradient-to-br from-green-200 to-emerald-300 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
+              <svg className="w-8 h-8 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
           </div>
         </div>
-        <div className="bg-yellow-50 p-4 rounded-lg shadow">
-          <div className="text-sm text-yellow-600">Late</div>
-          <div className="text-2xl font-bold text-yellow-900">
-            {filteredRecords.filter(r => r.status === 'late').length}
+        
+        <div className="bg-gradient-to-br from-red-50 to-rose-50 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-red-100 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-red-700 mb-1">Absent</p>
+              <p className="text-3xl font-bold text-red-900">{filteredRecords.filter(r => r.status === 'absent').length}</p>
+              <p className="text-xs text-red-600 mt-2">
+                {filteredRecords.length > 0 
+                  ? `${Math.round((filteredRecords.filter(r => r.status === 'absent').length / filteredRecords.length) * 100)}%` 
+                  : '0%'} of total
+              </p>
+            </div>
+            <div className="bg-gradient-to-br from-red-200 to-rose-300 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
+              <svg className="w-8 h-8 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </div>
           </div>
         </div>
-        <div className="bg-blue-50 p-4 rounded-lg shadow">
-          <div className="text-sm text-blue-600">Excused</div>
-          <div className="text-2xl font-bold text-blue-900">
-            {filteredRecords.filter(r => r.status === 'excused').length}
+        
+        <div className="bg-gradient-to-br from-yellow-50 to-amber-50 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-yellow-100 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-yellow-700 mb-1">Late</p>
+              <p className="text-3xl font-bold text-yellow-900">{filteredRecords.filter(r => r.status === 'late').length}</p>
+              <p className="text-xs text-yellow-600 mt-2">
+                {filteredRecords.length > 0 
+                  ? `${Math.round((filteredRecords.filter(r => r.status === 'late').length / filteredRecords.length) * 100)}%` 
+                  : '0%'} of total
+              </p>
+            </div>
+            <div className="bg-gradient-to-br from-yellow-200 to-amber-300 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
+              <svg className="w-8 h-8 text-yellow-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-blue-100 group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-blue-700 mb-1">Excused</p>
+              <p className="text-3xl font-bold text-blue-900">{filteredRecords.filter(r => r.status === 'excused').length}</p>
+              <p className="text-xs text-blue-600 mt-2">
+                {filteredRecords.length > 0 
+                  ? `${Math.round((filteredRecords.filter(r => r.status === 'excused').length / filteredRecords.length) * 100)}%` 
+                  : '0%'} of total
+              </p>
+            </div>
+            <div className="bg-gradient-to-br from-blue-200 to-indigo-300 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
+              <svg className="w-8 h-8 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white p-6 rounded-lg shadow">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold">Filters</h2>
-          <div className="flex gap-2">
+      {/* Filters - Modern Card Design */}
+      <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <div className="flex items-center gap-3">
+            <div className="bg-blue-100 p-2 rounded-lg">
+              <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              </svg>
+            </div>
+            <h2 className="text-lg font-semibold text-gray-900">Advanced Filters</h2>
+          </div>
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={quickFilterLastWeek}
-              className="text-xs px-3 py-1 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition"
+              className="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-100 transition-all duration-200 flex items-center gap-2 border border-blue-100"
             >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
               Last Week
             </button>
             <button
               onClick={quickFilterLastMonth}
-              className="text-xs px-3 py-1 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition"
+              className="px-4 py-2 bg-purple-50 text-purple-700 rounded-lg text-sm font-medium hover:bg-purple-100 transition-all duration-200 flex items-center gap-2 border border-purple-100"
             >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
               Last Month
             </button>
             <button
               onClick={quickFilterAbsentOnly}
-              className="text-xs px-3 py-1 bg-red-50 text-red-700 rounded-md hover:bg-red-100 transition"
+              className="px-4 py-2 bg-red-50 text-red-700 rounded-lg text-sm font-medium hover:bg-red-100 transition-all duration-200 flex items-center gap-2 border border-red-100"
             >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
               Absent Only
+            </button>
+            <button
+              onClick={resetFilters}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-all duration-200 flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Reset All
             </button>
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
               Student
             </label>
             <Select
@@ -1831,8 +1937,11 @@ const AttendanceRecords = () => {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              </svg>
               Course
             </label>
             <Select
@@ -1842,8 +1951,11 @@ const AttendanceRecords = () => {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
               Instructor
             </label>
             <Select
@@ -1853,8 +1965,11 @@ const AttendanceRecords = () => {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
               Status
             </label>
             <Select
@@ -1870,54 +1985,197 @@ const AttendanceRecords = () => {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
               Start Date
             </label>
             <input
               type="date"
               value={filters.startDate}
               onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
               End Date
             </label>
             <input
               type="date"
               value={filters.endDate}
               onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             />
           </div>
         </div>
       </div>
 
-      {/* Records Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      {/* Export Actions Bar */}
+      {showAnalytics && (
+        <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-2xl shadow-lg p-4 border border-indigo-100">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="bg-indigo-100 p-2 rounded-lg">
+                <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900">Export Analytics</h3>
+                <p className="text-xs text-gray-600">Download comprehensive reports in your preferred format</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={exportAnalyticsToExcel}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Excel
+              </button>
+              <button
+                onClick={exportAnalyticsToPDF}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                PDF
+              </button>
+              <button
+                onClick={exportAnalyticsToWord}
+                disabled={exportingWord}
+                className={`px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md ${exportingWord ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                {exportingWord ? 'Exporting...' : 'Word'}
+              </button>
+              <button
+                onClick={exportToCSV}
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-800 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                CSV
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Records Table - Enhanced Design */}
+      <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+        {/* Table Header with Info */}
+        <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div className="flex items-center gap-3">
+              <div className="bg-blue-100 p-2 rounded-lg">
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Attendance Records</h3>
+                <p className="text-sm text-gray-600">
+                  Showing <span className="font-semibold text-blue-600">{filteredRecords.length}</span> records
+                  {filteredRecords.length !== records.length && (
+                    <span className="text-gray-500"> (filtered from {records.length} total)</span>
+                  )}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-gray-600">Items per page:</span>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 space-y-4">
+            <div className="relative">
+              <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+            </div>
+            <p className="text-gray-600 font-medium">Loading attendance records...</p>
+            <p className="text-sm text-gray-500">Please wait while we fetch the data</p>
+          </div>
+        ) : filteredRecords.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 space-y-4">
+            <div className="bg-gray-100 p-6 rounded-full">
+              <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-semibold text-gray-900">No Records Found</h3>
+            <p className="text-gray-600 text-center max-w-md">
+              Try adjusting your filters or date range to see attendance records
+            </p>
+            <button
+              onClick={resetFilters}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 flex items-center gap-2 shadow-md"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Reset Filters
+            </button>
+          </div>
+        ) : (
         <div className="overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
+            <thead className="bg-gradient-to-r from-gray-50 to-gray-100 sticky top-0 z-10 shadow-sm">
               <tr>
                 <th 
-                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 transition-colors group"
+                  className="px-3 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-200 transition-colors group"
                   onClick={() => handleSort('attendance_date')}
                 >
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
                     Date
-                    <span className="opacity-0 group-hover:opacity-100">
+                    <span className="opacity-50 group-hover:opacity-100 transition-opacity">
                       {sortColumn === 'attendance_date' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
                     </span>
                   </div>
                 </th>
                 <th 
-                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 transition-colors group"
+                  className="px-3 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-200 transition-colors group"
                   onClick={() => handleSort('student_name')}
                 >
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
                     Student
                     <span className="opacity-0 group-hover:opacity-100">
                       {sortColumn === 'student_name' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
@@ -2076,9 +2334,13 @@ const AttendanceRecords = () => {
                             e.stopPropagation();
                             openMapLocation(record);
                           }}
-                          className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50"
+                          className="px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-all duration-200 flex items-center gap-2 text-xs font-medium border border-blue-200"
                         >
-                          🗺️ View Map
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          View Map
                         </button>
                       )}
                     </td>
@@ -2088,21 +2350,25 @@ const AttendanceRecords = () => {
             </tbody>
           </table>
         </div>
-        
-        {/* Pagination */}
-        {filteredRecords.length > 0 && (
-          <Pagination
-            currentPage={currentPage}
-            totalPages={Math.ceil(filteredRecords.length / itemsPerPage)}
-            totalItems={filteredRecords.length}
-            itemsPerPage={itemsPerPage}
-            onPageChange={(page) => setCurrentPage(page)}
-            onItemsPerPageChange={(items) => {
-              setItemsPerPage(items);
-              setCurrentPage(1);
-            }}
-          />
         )}
+        
+        {/* Modern Pagination */}
+        {filteredRecords.length > 0 && !loading && (
+          <div className="px-6 py-4 border-t border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(filteredRecords.length / itemsPerPage)}
+              totalItems={filteredRecords.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={(page) => setCurrentPage(page)}
+              onItemsPerPageChange={(items) => {
+                setItemsPerPage(items);
+                setCurrentPage(1);
+              }}
+            />
+          </div>
+        )}
+      </div>
       </div>
     </div>
   );
