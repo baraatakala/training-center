@@ -6,6 +6,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 import { Pagination } from '../components/ui/Pagination';
 import { StudentForm } from '../components/StudentForm';
 import { PhotoUpload } from '../components/PhotoUpload';
+import { PhotoAvatar } from '../components/PhotoAvatar';
 import { studentService } from '../services/studentService';
 import type { Student, CreateStudent } from '../types/database.types';
 
@@ -135,18 +136,11 @@ export function Students() {
                   .map((student) => (
                     <TableRow key={student.student_id}>
                       <TableCell className="w-12">
-                        {student.photo_url ? (
-                          <img
-                            src={student.photo_url}
-                            alt={student.name}
-                            className="w-10 h-10 rounded-full object-cover border-2 border-green-400"
-                            title="Photo uploaded ✓"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-400" title="No photo">
-                            👤
-                          </div>
-                        )}
+                        <PhotoAvatar 
+                          photoPath={student.photo_url} 
+                          name={student.name} 
+                          size="md"
+                        />
                       </TableCell>
                       <TableCell className="font-medium text-gray-900 min-w-[150px]">
                         <div className="flex flex-col">
