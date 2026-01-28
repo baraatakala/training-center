@@ -148,14 +148,17 @@ export const attendanceService = {
     if (error) return { data: null, error };
 
     const total = data.length;
-    const present = data.filter((a: { status: string }) => a.status === 'present' || a.status === 'late').length;
+    // Note: Status can be 'on time', 'late', 'absent', 'excused', 'not enrolled'
+    const present = data.filter((a: { status: string }) => a.status === 'on time' || a.status === 'late').length;
+    const excused = data.filter((a: { status: string }) => a.status === 'excused').length;
     const rate = total > 0 ? (present / total) * 100 : 0;
 
     return { 
       data: { 
         total, 
         present, 
-        absent: total - present,
+        excused,
+        absent: total - present - excused,
         rate: Math.round(rate * 100) / 100 
       }, 
       error: null 

@@ -90,11 +90,12 @@ export class ExcelExportService {
    */
   private generateSummaryData(data: AttendanceExportData[]): Record<string, string | number>[] {
     const total = data.length;
-    const presentCount = data.filter((r) => r.status === 'present').length;
+    // Status values: 'on time', 'late', 'absent', 'excused', 'not enrolled'
+    const presentCount = data.filter((r) => r.status === 'on time').length;
     const absentCount = data.filter((r) => r.status === 'absent').length;
     const lateCount = data.filter((r) => r.status === 'late').length;
     const excusedCount = data.filter((r) => r.status === 'excused').length;
-    const vacationCount = data.filter((r) => r.status === 'vacation').length;
+    const notEnrolledCount = data.filter((r) => r.status === 'not enrolled').length;
 
     const uniqueStudents = new Set(data.map((r) => r.student_email)).size;
     const uniqueDates = new Set(data.map((r) => r.date)).size;
@@ -113,11 +114,11 @@ export class ExcelExportService {
       { 'Metric': 'Unique Dates', 'Value': uniqueDates },
       { 'Metric': 'Unique Sessions', 'Value': uniqueSessions },
       { 'Metric': '', 'Value': '' },
-      { 'Metric': 'Present', 'Value': presentCount },
+      { 'Metric': 'On Time', 'Value': presentCount },
       { 'Metric': 'Absent', 'Value': absentCount },
       { 'Metric': 'Late', 'Value': lateCount },
       { 'Metric': 'Excused', 'Value': excusedCount },
-      { 'Metric': 'Vacation', 'Value': vacationCount },
+      { 'Metric': 'Not Enrolled', 'Value': notEnrolledCount },
       { 'Metric': '', 'Value': '' },
       { 'Metric': 'Attendance Rate', 'Value': `${attendanceRate}%` },
       { 'Metric': 'Records with GPS', 'Value': withGPS },

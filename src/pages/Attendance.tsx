@@ -259,7 +259,15 @@ export function Attendance() {
     if (!sessionId || !selectedDate) return;
 
     try {
-      // Check existing attendance records FIRST to see if address is already saved
+      // Load host address from session_date_host table (single source of truth)
+      const { data: hostData } = await supabase
+        .from(Tables.SESSION_DATE_HOST)
+        .select('host_id, host_type, host_address')
+        .eq('session_id', sessionId)
+        .eq('attendance_date', selectedDate)
+        .maybeSingle();
+
+      // Check existing attendance records
       const { data: existingAttendance, error: attendanceError } = await supabase
       .from(Tables.ATTENDANCE)
       .select(`
@@ -284,8 +292,18 @@ export function Attendance() {
         return;
       }
 
-    // Check if address is already saved for this date
-    const savedHostAddress = existingAttendance?.find(r => r.host_address)?.host_address;
+    // Determine host address: prefer session_date_host table, fallback to attendance records
+    let savedHostAddress: string | null = null;
+    let savedHostId: string | null = null;
+    
+    if (hostData?.host_address) {
+      // New system: load from session_date_host table
+      savedHostAddress = hostData.host_address;
+      savedHostId = hostData.host_id;
+    } else {
+      // Fallback: check attendance records (backwards compatibility)
+      savedHostAddress = existingAttendance?.find(r => r.host_address)?.host_address || null;
+    }
     
     // Check if this date was marked as "Session Not Held"
     const isSessionNotHeld = savedHostAddress === 'SESSION_NOT_HELD';
@@ -295,8 +313,12 @@ export function Attendance() {
       if (savedHostAddress === 'SESSION_NOT_HELD') {
         setSessionNotHeld(true);
         setSelectedAddress('SESSION_NOT_HELD');
+      } else if (savedHostId) {
+        // We have host_id from new table - use it directly
+        setSelectedAddress(`${savedHostId}|||${savedHostAddress}`);
+        setSessionNotHeld(false);
       } else {
-        // Address is saved - need to find matching student to get student_id|||address format
+        // Address is saved but no host_id - need to find matching student
         const { data: students, error: studentError } = await supabase
           .from(Tables.STUDENT)
           .select('student_id, address')
@@ -565,6 +587,49 @@ export function Attendance() {
       // Delete if empty
       await supabase
         .from(Tables.SESSION_BOOK_COVERAGE)
+        .delete()
+        .eq('session_id', sessionId)
+        .eq('attendance_date', selectedDate);
+    }
+  };
+
+  // Save host address immediately when selected (single source of truth)
+  const handleHostAddressChange = async (value: string) => {
+    setSelectedAddress(value);
+    
+    if (!sessionId || !selectedDate) return;
+
+    // Extract host info from value format: "student_id|||address"
+    const parts = value.split('|||');
+    const hostId = parts[0] || null;
+    const hostAddress = parts[1] || value;
+    
+    // Determine if host is teacher (check if name contains "Teacher")
+    const hostInfo = hostAddresses.find(h => h.student_id === hostId);
+    const hostType = hostInfo?.student_name?.includes('Teacher') ? 'teacher' : 'student';
+
+    if (value && value !== '') {
+      // Upsert the host address to session_date_host table
+      const { error } = await supabase
+        .from(Tables.SESSION_DATE_HOST)
+        .upsert({
+          session_id: sessionId,
+          attendance_date: selectedDate,
+          host_id: hostId,
+          host_type: hostType,
+          host_address: hostAddress,
+        }, {
+          onConflict: 'session_id,attendance_date'
+        });
+
+      if (error) {
+        console.error('Error saving host address:', error);
+        alert('Failed to save host address selection');
+      }
+    } else {
+      // Delete if empty/cleared
+      await supabase
+        .from(Tables.SESSION_DATE_HOST)
         .delete()
         .eq('session_id', sessionId)
         .eq('attendance_date', selectedDate);
@@ -961,6 +1026,19 @@ export function Attendance() {
           .in('attendance_id', realIds.map(r => r.attendance_id));
       }
       
+      // Also save to session_date_host table (single source of truth)
+      await supabase
+        .from(Tables.SESSION_DATE_HOST)
+        .upsert({
+          session_id: sessionId,
+          attendance_date: selectedDate,
+          host_id: null,
+          host_type: 'student',
+          host_address: 'SESSION_NOT_HELD',
+        }, {
+          onConflict: 'session_id,attendance_date'
+        });
+      
       setSessionNotHeld(true);
       setSelectedAddress('SESSION_NOT_HELD');
       loadAttendance();
@@ -994,6 +1072,13 @@ export function Attendance() {
           .delete()
           .in('attendance_id', realIds.map(r => r.attendance_id));
       }
+      
+      // Also delete from session_date_host table
+      await supabase
+        .from(Tables.SESSION_DATE_HOST)
+        .delete()
+        .eq('session_id', sessionId)
+        .eq('attendance_date', selectedDate);
       
       setSessionNotHeld(false);
       setSelectedAddress('');
@@ -1169,7 +1254,7 @@ export function Attendance() {
           <CardContent>
             <Select
               value={selectedAddress}
-              onChange={(value) => setSelectedAddress(value)}
+              onChange={handleHostAddressChange}
               options={hostAddresses.map(host => ({
                 value: `${host.student_id}|||${host.address}`,
                 label: `${host.student_name} - ${host.address}`

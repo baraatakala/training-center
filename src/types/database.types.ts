@@ -179,6 +179,21 @@ export type UpdateEnrollment = Partial<CreateEnrollment>;
 export type CreateAttendance = Omit<Attendance, 'attendance_id' | 'created_at' | 'updated_at'>;
 export type UpdateAttendance = Partial<CreateAttendance>;
 
+// Session Date Host - stores host per session+date (single source of truth)
+export interface SessionDateHost {
+  id: string;
+  session_id: string;
+  attendance_date: string;
+  host_id: string | null;
+  host_type: 'student' | 'teacher';
+  host_address: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type CreateSessionDateHost = Omit<SessionDateHost, 'id' | 'created_at' | 'updated_at'>;
+export type UpdateSessionDateHost = Partial<CreateSessionDateHost>;
+
 // Database table names
 export const Tables = {
   TEACHER: 'teacher',
@@ -186,6 +201,7 @@ export const Tables = {
   STUDENT: 'student',
   COURSE_BOOK_REFERENCE: 'course_book_reference',
   SESSION_BOOK_COVERAGE: 'session_book_coverage',
+  SESSION_DATE_HOST: 'session_date_host',
   COURSE: 'course',
   SESSION: 'session',
   LOCATION: 'location',

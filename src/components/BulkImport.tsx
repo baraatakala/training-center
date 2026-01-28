@@ -523,6 +523,9 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
           throw new Error(`Row ${rowNum}: excuse_reason is required when status is 'excused'`);
         }
         
+        // Convert 'present' to 'on time' to match system conventions
+        const actualStatus = row.status === 'present' ? 'on time' : row.status;
+        
         // 9. Create attendance record
         const { error: attendanceError } = await supabase
           .from('attendance')
@@ -531,7 +534,7 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
             student_id: studentId,
             session_id: sessionId,
             attendance_date: row.attendanceDate,
-            status: row.status,
+            status: actualStatus,
             excuse_reason: row.status === 'excused' ? row.excuseReason : null,
             gps_latitude: row.gpsLatitude || null,
             gps_longitude: row.gpsLongitude || null,
@@ -902,7 +905,8 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
                         row.status === 'present' ? 'bg-green-100 text-green-800' :
                         row.status === 'absent' ? 'bg-red-100 text-red-800' :
                         row.status === 'late' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-blue-100 text-blue-800'
+                        row.status === 'excused' ? 'bg-blue-100 text-blue-800' :
+                        'bg-gray-100 text-gray-800'
                       }`}>
                         {row.status}
                       </span>
