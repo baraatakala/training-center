@@ -375,14 +375,7 @@ export function Sessions() {
                           <Button
                             size="sm"
                             variant="success"
-                            onClick={() => {
-                              const password = prompt('Enter password to view attendance:');
-                              if (password === '2021') {
-                                window.location.href = `/attendance/${session.session_id}`;
-                              } else if (password !== null) {
-                                alert('Incorrect password');
-                              }
-                            }}
+                            onClick={() => window.location.href = `/attendance/${session.session_id}`}
                           >
                             Attendance
                           </Button>
@@ -392,14 +385,7 @@ export function Sessions() {
                           <Button 
                             size="sm" 
                             variant="outline" 
-                            onClick={() => {
-                              const password = prompt('Enter password to edit:');
-                              if (password === '2021') {
-                                openEditModal(session);
-                              } else if (password !== null) {
-                                alert('Incorrect password');
-                              }
-                            }}
+                            onClick={() => openEditModal(session)}
                           >
                             Edit
                           </Button>

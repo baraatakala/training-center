@@ -32,8 +32,11 @@ export function PhotoCheckInModal({
       const { data: { user } } = await supabase.auth.getUser();
       const userEmail = user?.email || 'system';
 
-      // Generate unique token
-      const token = `photo-${sessionId.slice(0, 8)}-${date}-${Date.now().toString(36)}`;
+      // Generate cryptographically secure token using crypto API
+      const tokenBytes = crypto.getRandomValues(new Uint8Array(16));
+      const token = Array.from(tokenBytes)
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
       const expires = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours from now
 
       // Insert into photo_checkin_sessions table

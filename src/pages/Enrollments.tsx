@@ -339,15 +339,10 @@ export function Enrollments() {
                     <TableCell>
                                     <div className="flex gap-2 justify-end">
                                       <button
-                                        className="text-sm border rounded px-2 py-1 bg-white"
+                                        className="text-sm border rounded px-2 py-1 bg-white hover:bg-gray-50"
                                         onClick={() => {
-                                          const password = prompt('Enter password to edit:');
-                                          if (password === '2021') {
-                                            setEditingEnrollment(enrollment);
-                                            setIsModalOpen(true);
-                                          } else if (password !== null) {
-                                            alert('Incorrect password');
-                                          }
+                                          setEditingEnrollment(enrollment);
+                                          setIsModalOpen(true);
                                         }}
                                       >
                                         Edit

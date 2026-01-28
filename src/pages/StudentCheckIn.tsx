@@ -65,7 +65,11 @@ export function StudentCheckIn() {
   const [selectedAddress, setSelectedAddress] = useState<string>('');
 
   useEffect(() => {
-    validateAndLoadCheckIn();
+    // Small delay to ensure auth state is fully propagated after login redirect
+    const timer = setTimeout(() => {
+      validateAndLoadCheckIn();
+    }, 100);
+    return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
@@ -80,7 +84,20 @@ export function StudentCheckIn() {
         return;
       }
 
-      // STEP 1: Validate QR token via database (NEW SECURE VALIDATION)
+      // STEP 1: Check authentication FIRST (required for RLS to work)
+      // Use getSession for more reliable session state after redirect
+      const { data: { session: authSession }, error: authError } = await supabase.auth.getSession();
+      
+      if (authError || !authSession?.user) {
+        // Redirect to login with return URL - user must log in first
+        const returnUrl = encodeURIComponent(window.location.pathname);
+        navigate(`/login?returnUrl=${returnUrl}`);
+        return;
+      }
+      
+      const user = authSession.user;
+
+      // STEP 2: Validate QR token via database (requires authentication)
       const { data: qrSession, error: qrError } = await supabase
         .from('qr_sessions')
         .select('session_id, attendance_date, expires_at, is_valid')
@@ -113,16 +130,6 @@ export function StudentCheckIn() {
       const date = qrSession.attendance_date;
 
       console.log('✅ QR token validated:', { sessionId, date, expiresAt: qrSession.expires_at });
-
-      // STEP 2: Get current authenticated user
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      
-      if (authError || !user) {
-        // Redirect to login with return URL
-        const returnUrl = encodeURIComponent(window.location.pathname);
-        navigate(`/login?returnUrl=${returnUrl}`);
-        return;
-      }
 
       // STEP 3: Get student info (case-insensitive email lookup)
       const { data: student, error: studentError } = await supabase

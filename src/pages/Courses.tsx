@@ -160,14 +160,7 @@ export function Courses() {
                           <Button 
                             size="sm" 
                             variant="secondary" 
-                            onClick={() => {
-                              const password = prompt('Enter password to edit:');
-                              if (password === '2021') {
-                                openEditModal(course);
-                              } else if (password !== null) {
-                                alert('Incorrect password');
-                              }
-                            }} 
+                            onClick={() => openEditModal(course)} 
                             className="text-xs md:text-sm px-2 md:px-3"
                           >
                             Edit

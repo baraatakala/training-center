@@ -240,6 +240,15 @@ export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: Pho
     setShowCamera(false);
   }, [stream]);
 
+  // Cleanup camera stream on unmount to prevent camera staying on
+  useEffect(() => {
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [stream]);
+
   // Capture photo from camera
   const capturePhoto = async () => {
     if (!videoRef.current || !canvasRef.current) return;

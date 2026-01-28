@@ -91,7 +91,11 @@ export function PhotoCheckIn() {
 
   // Validate token and load check-in data
   useEffect(() => {
-    validateAndLoadCheckIn();
+    // Small delay to ensure auth state is fully propagated after login redirect
+    const timer = setTimeout(() => {
+      validateAndLoadCheckIn();
+    }, 100);
+    return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
@@ -106,7 +110,20 @@ export function PhotoCheckIn() {
         return;
       }
 
-      // Validate photo check-in token
+      // STEP 1: Check authentication FIRST (required for RLS to work)
+      // Use getSession for more reliable session state after redirect
+      const { data: { session: authSession }, error: authError } = await supabase.auth.getSession();
+      
+      if (authError || !authSession?.user) {
+        // Redirect to login with return URL - user must log in first
+        const returnUrl = encodeURIComponent(window.location.pathname);
+        navigate(`/login?returnUrl=${returnUrl}`);
+        return;
+      }
+      
+      const user = authSession.user;
+
+      // STEP 2: Validate photo check-in token (requires authentication)
       const { data: photoSession, error: tokenError } = await supabase
         .from('photo_checkin_sessions')
         .select('session_id, attendance_date, expires_at, is_valid')
@@ -139,16 +156,7 @@ export function PhotoCheckIn() {
 
       console.log('✅ Photo check-in token validated:', { sessionId, date });
 
-      // Get current authenticated user
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      
-      if (authError || !user) {
-        const returnUrl = encodeURIComponent(window.location.pathname);
-        navigate(`/login?returnUrl=${returnUrl}`);
-        return;
-      }
-
-      // Get student info with photo_url (case-insensitive email lookup)
+      // STEP 3: Get student info with photo_url (user already authenticated in STEP 1)
       const { data: student, error: studentError } = await supabase
         .from('student')
         .select('student_id, name, email, photo_url')
@@ -360,6 +368,15 @@ export function PhotoCheckIn() {
       setStream(null);
     }
     setShowCamera(false);
+  }, [stream]);
+
+  // Cleanup camera stream on unmount to prevent camera staying on
+  useEffect(() => {
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
   }, [stream]);
 
   // Capture photo from camera
