@@ -105,7 +105,8 @@ export interface Attendance {
   session_id: string;
   attendance_date: string;
   student_id: string;
-  status: 'on time' | 'absent' | 'late' | 'excused' | 'not enrolled';
+  // 'pending' is used for UI placeholders before attendance is marked
+  status: 'on time' | 'absent' | 'late' | 'excused' | 'not enrolled' | 'pending';
   check_in_time: string | null;
   notes: string | null;
   // Reason for excused absence (sick, abroad, on working, etc.)

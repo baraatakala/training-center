@@ -11,6 +11,7 @@ interface Student {
   student_id: string;
   name: string;
   email: string;
+  address?: string | null;
 }
 
 interface Session {
@@ -61,7 +62,7 @@ export function EnrollmentForm({ onSubmit, onCancel, initialData = null }: Enrol
 
   const loadData = async () => {
     const [studentsRes, sessionsRes] = await Promise.all([
-      supabase.from(Tables.STUDENT).select('student_id, name, email').order('name'),
+      supabase.from(Tables.STUDENT).select('student_id, name, email, address').order('name'),
       supabase.from(Tables.SESSION).select(`
         session_id,
         start_date,
@@ -117,6 +118,25 @@ export function EnrollmentForm({ onSubmit, onCancel, initialData = null }: Enrol
     setLoading(true);
 
     try {
+      // Check if student is already enrolled in this session
+      const { data: isAlreadyEnrolled } = await enrollmentService.checkEnrollment(
+        formData.student_id,
+        formData.session_id
+      );
+      
+      if (isAlreadyEnrolled && !initialData) {
+        setError('This student is already enrolled in this session.');
+        setLoading(false);
+        return;
+      }
+
+      // Prevent enrollment when session is at capacity (only for new enrollments)
+      if (sessionCapacity?.isAtCapacity && !initialData) {
+        setError('Cannot enroll - session is at full capacity.');
+        setLoading(false);
+        return;
+      }
+
       await onSubmit(formData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -253,22 +273,33 @@ export function EnrollmentForm({ onSubmit, onCancel, initialData = null }: Enrol
         required
       />
 
-      <label className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          checked={!!formData.can_host}
-          onChange={(e) => setFormData({ ...formData, can_host: e.target.checked })}
-          disabled={formData.status !== 'active'}
-          className={`h-4 w-4 border-gray-300 rounded ${
-            formData.status === 'active' 
-              ? 'text-blue-600 cursor-pointer' 
-              : 'text-gray-300 cursor-not-allowed'
-          }`}
-        />
-        <span className={`text-sm ${formData.status === 'active' ? 'text-gray-700' : 'text-gray-400'}`}>
-          Can host sessions at home {formData.status !== 'active' && '(only for active enrollments)'}
-        </span>
-      </label>
+      {/* Check if selected student has an address */}
+      {(() => {
+        const selectedStudent = students.find(s => s.student_id === formData.student_id);
+        const hasAddress = selectedStudent?.address && selectedStudent.address.trim() !== '';
+        const canEnableHosting = formData.status === 'active' && hasAddress;
+        
+        return (
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={!!formData.can_host}
+              onChange={(e) => setFormData({ ...formData, can_host: e.target.checked })}
+              disabled={!canEnableHosting}
+              className={`h-4 w-4 border-gray-300 rounded ${
+                canEnableHosting
+                  ? 'text-blue-600 cursor-pointer' 
+                  : 'text-gray-300 cursor-not-allowed'
+              }`}
+            />
+            <span className={`text-sm ${canEnableHosting ? 'text-gray-700' : 'text-gray-400'}`}>
+              Can host sessions at home
+              {formData.status !== 'active' && ' (only for active enrollments)'}
+              {formData.status === 'active' && !hasAddress && ' (student has no address)'}
+            </span>
+          </label>
+        );
+      })()}
 
       <div className="flex gap-3 justify-end pt-4">
         <Button type="button" variant="outline" onClick={onCancel}>
