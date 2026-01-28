@@ -1,41 +1,107 @@
-import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+
+// Validate email format
+const isValidEmail = (email: string): boolean => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
+// Sanitize returnUrl to prevent XSS - only allow relative paths
+const sanitizeReturnUrl = (url: string | null): string => {
+  if (!url) return '/';
+  
+  try {
+    const decoded = decodeURIComponent(url);
+    // Only allow relative paths starting with /
+    // Reject absolute URLs, javascript:, data:, or any protocol
+    if (
+      !decoded.startsWith('/') ||
+      decoded.startsWith('//') ||
+      decoded.includes(':') ||
+      decoded.includes('\\') ||
+      decoded.toLowerCase().includes('javascript') ||
+      decoded.toLowerCase().includes('data')
+    ) {
+      console.warn('Invalid returnUrl detected, redirecting to home');
+      return '/';
+    }
+    return decoded;
+  } catch {
+    return '/';
+  }
+};
 
 export const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<{ email?: string; password?: string }>({});
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, signIn } = useAuth();
   
-  const returnUrl = searchParams.get('returnUrl') || '/';
+  // Sanitize returnUrl to prevent XSS attacks
+  const returnUrl = useMemo(() => sanitizeReturnUrl(searchParams.get('returnUrl')), [searchParams]);
+
+  const validateForm = (): boolean => {
+    const errors: { email?: string; password?: string } = {};
+    
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      errors.email = 'Email is required';
+    } else if (!isValidEmail(trimmedEmail)) {
+      errors.email = 'Please enter a valid email address';
+    }
+    
+    if (!password) {
+      errors.password = 'Password is required';
+    } else if (password.length < 6) {
+      errors.password = 'Password must be at least 6 characters';
+    }
+    
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setValidationErrors({});
+    
+    // Validate before submitting
+    if (!validateForm()) {
+      return;
+    }
+    
     setLoading(true);
 
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { error: signInError } = await signIn(email.trim(), password);
 
       if (signInError) {
-        setError(signInError.message);
+        // Provide user-friendly error messages
+        const errorMessage = signInError.message.toLowerCase();
+        if (errorMessage.includes('invalid login credentials')) {
+          setError('Invalid email or password. Please try again.');
+        } else if (errorMessage.includes('email not confirmed')) {
+          setError('Please verify your email address before logging in.');
+        } else if (errorMessage.includes('too many requests')) {
+          setError('Too many login attempts. Please wait a few minutes and try again.');
+        } else {
+          setError(signInError.message);
+        }
         setLoading(false);
         return;
       }
 
-      // Redirect to return URL or dashboard on successful login
-      navigate(decodeURIComponent(returnUrl));
+      // Redirect to sanitized return URL or dashboard on successful login
+      navigate(returnUrl);
     } catch (err) {
       const error = err as Error;
-      setError(error.message || 'An error occurred');
+      setError(error.message || 'An unexpected error occurred. Please try again.');
       setLoading(false);
     }
   };
@@ -43,7 +109,7 @@ export const Login: React.FC = () => {
   // If already signed in, redirect to return URL or dashboard
   useEffect(() => {
     if (!authLoading && user) {
-      navigate(decodeURIComponent(returnUrl));
+      navigate(returnUrl);
     }
   }, [authLoading, user, navigate, returnUrl]);
 
@@ -75,13 +141,28 @@ export const Login: React.FC = () => {
               id="email"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (validationErrors.email) {
+                  setValidationErrors(prev => ({ ...prev, email: undefined }));
+                }
+              }}
               autoFocus
               placeholder="Enter your email"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-              required
+              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+                validationErrors.email 
+                  ? 'border-red-400 focus:border-red-500 focus:ring-red-200' 
+                  : 'border-gray-300 focus:border-blue-500 focus:ring-blue-200'
+              }`}
+              aria-invalid={!!validationErrors.email}
+              aria-describedby={validationErrors.email ? 'email-error' : undefined}
               disabled={loading}
             />
+            {validationErrors.email && (
+              <p id="email-error" className="mt-1 text-sm text-red-600" role="alert">
+                {validationErrors.email}
+              </p>
+            )}
           </div>
 
           <div>
@@ -92,15 +173,37 @@ export const Login: React.FC = () => {
               id="password"
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (validationErrors.password) {
+                  setValidationErrors(prev => ({ ...prev, password: undefined }));
+                }
+              }}
               placeholder="Enter your password"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-              required
+              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+                validationErrors.password 
+                  ? 'border-red-400 focus:border-red-500 focus:ring-red-200' 
+                  : 'border-gray-300 focus:border-blue-500 focus:ring-blue-200'
+              }`}
+              aria-invalid={!!validationErrors.password}
+              aria-describedby={validationErrors.password ? 'password-error' : undefined}
               disabled={loading}
             />
+            {validationErrors.password && (
+              <p id="password-error" className="mt-1 text-sm text-red-600" role="alert">
+                {validationErrors.password}
+              </p>
+            )}
           </div>
 
-          {error && <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded">{error}</div>}
+          {error && (
+            <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded" role="alert">
+              <span className="flex items-center gap-2">
+                <span>⚠️</span>
+                {error}
+              </span>
+            </div>
+          )}
 
           <button
             type="submit"

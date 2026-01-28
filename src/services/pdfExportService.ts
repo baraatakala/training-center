@@ -304,6 +304,7 @@ export class PDFExportService {
       alternateRowStyles: {
         fillColor: [249, 250, 251]
       },
+      rowPageBreak: 'avoid',
       didDrawCell: (data) => {
         // Color code the effective rate column
         if (data.column.index === 9 && data.section === 'body') {

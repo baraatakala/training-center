@@ -1,10 +1,11 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import type { User } from '@supabase/supabase-js';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -13,6 +14,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const initialCheckDone = useRef(false);
 
   useEffect(() => {
     // Check if user is already logged in
@@ -40,6 +42,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('Session check failed:', error);
         setUser(null);
       } finally {
+        initialCheckDone.current = true;
         setLoading(false);
       }
     };
@@ -49,13 +52,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Listen for auth state changes
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
-      setLoading(false);
+      // Only update loading if initial check is done to prevent race condition
+      if (initialCheckDone.current) {
+        setLoading(false);
+      }
     });
 
     return () => {
       authListener?.subscription.unsubscribe();
     };
   }, []);
+
+  const signIn = async (email: string, password: string): Promise<{ error: Error | null }> => {
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) {
+        return { error };
+      }
+      return { error: null };
+    } catch (err) {
+      return { error: err as Error };
+    }
+  };
 
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
@@ -67,7 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );

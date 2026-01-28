@@ -320,6 +320,8 @@ export class WordExportService {
         alignment: isArabic ? AlignmentType.RIGHT : AlignmentType.LEFT,
         spacing: { before: 400, after: 200 },
         bidirectional: isArabic,
+        keepNext: true,
+        keepLines: true,
       })
     );
 
@@ -424,6 +426,7 @@ export class WordExportService {
     return new Table({
       rows: [
         new TableRow({
+          cantSplit: true,
           children: [
             new TableCell({
               children: [
@@ -540,6 +543,8 @@ export class WordExportService {
         alignment: AlignmentType.CENTER,
         spacing: { before: 0, after: 300 },
         bidirectional: isArabic,
+        keepNext: true,
+        keepLines: true,
       })
     );
 
@@ -564,6 +569,7 @@ export class WordExportService {
       rows: [
         // Row 1
         new TableRow({
+          cantSplit: true,
           children: [
             this.createMetricCell(
               '📊',
@@ -585,6 +591,7 @@ export class WordExportService {
         }),
         // Row 2
         new TableRow({
+          cantSplit: true,
           children: [
             this.createMetricCell(
               '🏆',
@@ -606,6 +613,7 @@ export class WordExportService {
         }),
         // Row 3
         new TableRow({
+          cantSplit: true,
           children: [
             this.createMetricCell(
               '⭐',
@@ -647,6 +655,8 @@ export class WordExportService {
         alignment: isArabic ? AlignmentType.RIGHT : AlignmentType.LEFT,
         spacing: { before: 200, after: 200 },
         bidirectional: isArabic,
+        keepNext: true,
+        keepLines: true,
       })
     );
 
@@ -763,6 +773,8 @@ export class WordExportService {
       alignment: isArabic ? AlignmentType.RIGHT : AlignmentType.LEFT,
       spacing: { after: 200, before: 200 },
       bidirectional: isArabic,
+      keepNext: true,  // Keep heading with the following table/content
+      keepLines: true, // Keep all lines of heading together
       shading: theme
         ? {
             type: ShadingType.CLEAR,
@@ -820,6 +832,8 @@ export class WordExportService {
 
     // Create header row with theme color
     const headerRow = new TableRow({
+      cantSplit: true,
+      tableHeader: true,
       children: headers.map(
         (header) =>
           new TableCell({
@@ -856,6 +870,7 @@ export class WordExportService {
     // Create data rows with conditional formatting
     const dataRows = rows.map((row, rowIndex) =>
       new TableRow({
+        cantSplit: true,
         children: row.map(
           (cell, cellIndex) => {
             // Determine cell background color
@@ -1068,6 +1083,8 @@ export class WordExportService {
         alignment: AlignmentType.CENTER,
         spacing: { after: 200 },
         bidirectional: isArabic,
+        keepNext: true,
+        keepLines: true,
       })
     );
     sections.push(this.createParagraph(dateText, isArabic));

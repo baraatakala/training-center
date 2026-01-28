@@ -856,6 +856,7 @@ const AttendanceRecords = () => {
       styles: { fontSize: 8, cellPadding: 2 },
       headStyles: { fillColor: [59, 130, 246], fontSize: 8 },
       alternateRowStyles: { fillColor: [245, 245, 245] },
+      rowPageBreak: 'avoid',
     });
 
     // Date Analytics Table
@@ -899,6 +900,7 @@ const AttendanceRecords = () => {
       styles: { fontSize: 6, cellPadding: 1.5 },
       headStyles: { fillColor: [59, 130, 246], fontSize: 6 },
       alternateRowStyles: { fillColor: [245, 245, 245] },
+      rowPageBreak: 'avoid',
       columnStyles: {
         0: { cellWidth: 20 },
         1: { cellWidth: 40 },
@@ -949,6 +951,7 @@ const AttendanceRecords = () => {
         styles: { fontSize: 8, cellPadding: 2 },
         headStyles: { fillColor: [59, 130, 246], fontSize: 8 },
         alternateRowStyles: { fillColor: [245, 245, 245] },
+        rowPageBreak: 'avoid',
         columnStyles: {
           0: { cellWidth: 15 },
           1: { cellWidth: 60 },
