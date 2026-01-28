@@ -1100,13 +1100,12 @@ const AttendanceRecords = () => {
     });
 
     const hostData = Array.from(hostMap.entries())
-      .map(([name, data], index) => {
+      .map(([name, data]) => {
         const totalAttendance = data.present + data.late;
         const totalPossible = data.present + data.late + data.absent;
         const attendanceRate = totalPossible > 0 ? (totalAttendance / totalPossible) * 100 : 0;
         
         return {
-          rank: index + 1,
           host_name: name,
           total_hosted: data.count,
           dates: data.dates.join(', '),
@@ -1117,7 +1116,11 @@ const AttendanceRecords = () => {
           attendance_rate: attendanceRate,
         };
       })
-      .sort((a, b) => b.total_hosted - a.total_hosted);
+      .sort((a, b) => b.total_hosted - a.total_hosted)
+      .map((host, index) => ({
+        rank: index + 1,
+        ...host,
+      }));
 
     try {
       await wordExportService.exportAnalyticsToWord(

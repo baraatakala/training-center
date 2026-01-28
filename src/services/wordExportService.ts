@@ -1,7 +1,8 @@
 /**
- * Word Export Service with Full Arabic Support
+ * Word Export Service with Full Arabic Support & Premium Enhancements
  * Export attendance analytics and records to Word (.docx) format
- * Supports RTL (right-to-left) text, Arabic fonts, and advanced formatting
+ * Features: RTL support, color themes, AI insights, progress bars, trend indicators
+ * Version: 2.0 - Enhanced Edition
  */
 
 import {
@@ -17,9 +18,69 @@ import {
   BorderStyle,
   HeadingLevel,
   convertInchesToTwip,
+  Header,
+  Footer,
+  PageNumber,
+  ShadingType,
 } from 'docx';
 import { saveAs } from 'file-saver';
 import { format } from 'date-fns';
+
+// ===== COLOR THEMES =====
+export interface DocumentTheme {
+  name: string;
+  primary: string;
+  secondary: string;
+  success: string;
+  warning: string;
+  danger: string;
+  neutral: string;
+  headerBg: string;
+}
+
+export const THEMES: Record<string, DocumentTheme> = {
+  professional: {
+    name: 'Professional',
+    primary: '1e3a8a',
+    secondary: '3b82f6',
+    success: '10b981',
+    warning: 'f59e0b',
+    danger: 'ef4444',
+    neutral: '6b7280',
+    headerBg: 'd9e1f2',
+  },
+  modern: {
+    name: 'Modern',
+    primary: '7c3aed',
+    secondary: 'a78bfa',
+    success: '34d399',
+    warning: 'fbbf24',
+    danger: 'f87171',
+    neutral: '9ca3af',
+    headerBg: 'ede9fe',
+  },
+  academic: {
+    name: 'Academic',
+    primary: '0c4a6e',
+    secondary: '0284c7',
+    success: '059669',
+    warning: 'd97706',
+    danger: 'dc2626',
+    neutral: '64748b',
+    headerBg: 'dbeafe',
+  },
+};
+
+// ===== AI INSIGHTS =====
+export interface AnalyticsInsight {
+  type: 'positive' | 'negative' | 'neutral' | 'warning';
+  icon: string;
+  title: string;
+  titleAr: string;
+  description: string;
+  descriptionAr: string;
+  metric: string;
+}
 
 export interface AttendanceExportData {
   date: string;
@@ -80,14 +141,619 @@ export interface HostRankingData {
   attendance_rate: number;
 }
 
+export interface ExportOptions {
+  theme?: DocumentTheme;
+  includeInsights?: boolean;
+  includeExecutiveSummary?: boolean;
+  includeProgressBars?: boolean;
+  includeTrendIndicators?: boolean;
+}
+
 export class WordExportService {
+  private defaultTheme: DocumentTheme = THEMES.professional;
+
+  /**
+   * Generate AI-powered insights from student data
+   */
+  private generateInsights(data: StudentSummaryData[]): AnalyticsInsight[] {
+    const insights: AnalyticsInsight[] = [];
+
+    if (data.length === 0) return insights;
+
+    // Insight 1: Top Performers
+    const topPerformers = data.filter((s) => s.attendance_rate >= 95).length;
+    if (topPerformers > 0) {
+      insights.push({
+        type: 'positive',
+        icon: '🌟',
+        title: `${topPerformers} Excellent Performers`,
+        titleAr: `${topPerformers} أداء ممتاز`,
+        description: `${topPerformers} students achieved 95%+ attendance rate. Outstanding commitment to learning!`,
+        descriptionAr: `${topPerformers} طالب حققوا معدل حضور 95% أو أكثر. التزام متميز بالتعلم!`,
+        metric: '≥95%',
+      });
+    }
+
+    // Insight 2: Perfect Attendance
+    const perfect = data.filter((s) => s.attendance_rate === 100).length;
+    if (perfect > 0) {
+      insights.push({
+        type: 'positive',
+        icon: '🏆',
+        title: `${perfect} Perfect Attendance`,
+        titleAr: `${perfect} حضور كامل`,
+        description: `${perfect} students achieved 100% attendance. Exceptional dedication!`,
+        descriptionAr: `${perfect} طلاب حققوا حضور 100%. تفاني استثنائي!`,
+        metric: '100%',
+      });
+    }
+
+    // Insight 3: At-Risk Students
+    const atRisk = data.filter((s) => s.attendance_rate < 70).length;
+    if (atRisk > 0) {
+      insights.push({
+        type: 'warning',
+        icon: '⚠️',
+        title: `${atRisk} Students Need Attention`,
+        titleAr: `${atRisk} طلاب بحاجة لاهتمام`,
+        description: `${atRisk} students have attendance below 70%. Immediate intervention recommended.`,
+        descriptionAr: `${atRisk} طلاب لديهم حضور أقل من 70%. يُنصح بالتدخل الفوري.`,
+        metric: '<70%',
+      });
+    }
+
+    // Insight 4: Punctuality Analysis
+    const avgPunctuality =
+      data.reduce((sum, s) => sum + s.punctuality_rate, 0) / data.length;
+    if (avgPunctuality < 80) {
+      insights.push({
+        type: 'warning',
+        icon: '⏰',
+        title: 'Late Arrivals Issue',
+        titleAr: 'مشكلة التأخير',
+        description: `Average punctuality is ${avgPunctuality.toFixed(
+          1
+        )}%. Focus needed on on-time arrivals.`,
+        descriptionAr: `متوسط الالتزام بالوقت ${avgPunctuality.toFixed(
+          1
+        )}%. يحتاج التركيز على الحضور في الوقت المحدد.`,
+        metric: `${avgPunctuality.toFixed(1)}%`,
+      });
+    } else if (avgPunctuality >= 90) {
+      insights.push({
+        type: 'positive',
+        icon: '⏱️',
+        title: 'Excellent Punctuality',
+        titleAr: 'التزام ممتاز بالوقت',
+        description: `Average punctuality is ${avgPunctuality.toFixed(
+          1
+        )}%. Students demonstrate excellent time management.`,
+        descriptionAr: `متوسط الالتزام بالوقت ${avgPunctuality.toFixed(
+          1
+        )}%. الطلاب يظهرون إدارة ممتازة للوقت.`,
+        metric: `${avgPunctuality.toFixed(1)}%`,
+      });
+    }
+
+    // Insight 5: Class Size Analysis
+    if (data.length < 10) {
+      insights.push({
+        type: 'neutral',
+        icon: '👥',
+        title: 'Small Class Size',
+        titleAr: 'حجم صف صغير',
+        description: `Class has ${data.length} students. Ideal for personalized attention and engagement.`,
+        descriptionAr: `الصف يحتوي على ${data.length} طلاب. مثالي للاهتمام الشخصي والمشاركة.`,
+        metric: `${data.length} students`,
+      });
+    } else if (data.length > 30) {
+      insights.push({
+        type: 'neutral',
+        icon: '👥',
+        title: 'Large Class Size',
+        titleAr: 'حجم صف كبير',
+        description: `Class has ${data.length} students. Consider additional support for optimal engagement.`,
+        descriptionAr: `الصف يحتوي على ${data.length} طلاب. النظر في دعم إضافي للمشاركة المثالية.`,
+        metric: `${data.length} students`,
+      });
+    }
+
+    // Insight 6: Overall Performance
+    const avgAttendance =
+      data.reduce((sum, s) => sum + s.attendance_rate, 0) / data.length;
+    if (avgAttendance >= 85) {
+      insights.push({
+        type: 'positive',
+        icon: '📊',
+        title: 'Strong Class Performance',
+        titleAr: 'أداء قوي للصف',
+        description: `Class average attendance is ${avgAttendance.toFixed(
+          1
+        )}%. Excellent overall engagement.`,
+        descriptionAr: `متوسط حضور الصف ${avgAttendance.toFixed(
+          1
+        )}%. مشاركة عامة ممتازة.`,
+        metric: `${avgAttendance.toFixed(1)}%`,
+      });
+    } else if (avgAttendance < 70) {
+      insights.push({
+        type: 'negative',
+        icon: '📉',
+        title: 'Low Class Attendance',
+        titleAr: 'حضور منخفض للصف',
+        description: `Class average is ${avgAttendance.toFixed(
+          1
+        )}%. Urgent review of attendance policies needed.`,
+        descriptionAr: `متوسط الصف ${avgAttendance.toFixed(
+          1
+        )}%. مراجعة عاجلة لسياسات الحضور مطلوبة.`,
+        metric: `${avgAttendance.toFixed(1)}%`,
+      });
+    }
+
+    return insights;
+  }
+
+  /**
+   * Create insights section with colored backgrounds
+   */
+  private createInsightsSection(
+    insights: AnalyticsInsight[],
+    isArabic: boolean,
+    theme: DocumentTheme
+  ): (Paragraph | Table)[] {
+    if (insights.length === 0) return [];
+
+    const elements: (Paragraph | Table)[] = [];
+
+    elements.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: isArabic ? '💡 رؤى تحليلية ذكية' : '💡 Smart Insights',
+            bold: true,
+            size: 32,
+            color: theme.primary,
+          }),
+        ],
+        heading: HeadingLevel.HEADING_2,
+        alignment: isArabic ? AlignmentType.RIGHT : AlignmentType.LEFT,
+        spacing: { before: 400, after: 200 },
+        bidirectional: isArabic,
+      })
+    );
+
+    insights.forEach((insight) => {
+      const bgColor = {
+        positive: 'd1fae5',
+        negative: 'fee2e2',
+        warning: 'fef3c7',
+        neutral: 'f3f4f6',
+      }[insight.type];
+
+      const borderColor = {
+        positive: theme.success,
+        negative: theme.danger,
+        warning: theme.warning,
+        neutral: theme.neutral,
+      }[insight.type];
+
+      // Title with icon
+      elements.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `${insight.icon} `,
+              size: 28,
+            }),
+            new TextRun({
+              text: isArabic ? insight.titleAr : insight.title,
+              bold: true,
+              size: 24,
+              color: borderColor,
+            }),
+            new TextRun({
+              text: ` [${insight.metric}]`,
+              size: 22,
+              color: '666666',
+              italics: true,
+            }),
+          ],
+          alignment: isArabic ? AlignmentType.RIGHT : AlignmentType.LEFT,
+          spacing: { before: 200, after: 100 },
+          shading: {
+            type: ShadingType.CLEAR,
+            fill: bgColor,
+            color: bgColor,
+          },
+          border: {
+            left: {
+              style: BorderStyle.SINGLE,
+              size: 12,
+              color: borderColor,
+            },
+          },
+          bidirectional: isArabic,
+        })
+      );
+
+      // Description
+      elements.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: isArabic ? insight.descriptionAr : insight.description,
+              size: 22,
+            }),
+          ],
+          alignment: isArabic ? AlignmentType.RIGHT : AlignmentType.LEFT,
+          spacing: { after: 150, before: 50 },
+          indent: { left: convertInchesToTwip(0.3) },
+          bidirectional: isArabic,
+        })
+      );
+    });
+
+    elements.push(new Paragraph({ text: '', spacing: { after: 300 } }));
+
+    return elements;
+  }
+
+  /**
+   * Create progress bar visualization
+   */
+  private createProgressBar(
+    percentage: number,
+    label: string,
+    labelAr: string,
+    isArabic: boolean,
+    theme: DocumentTheme
+  ): Table {
+    const barWidth = Math.min(Math.max(Math.round(percentage), 0), 100);
+    const emptyWidth = 100 - barWidth;
+
+    const color =
+      percentage >= 90
+        ? theme.success
+        : percentage >= 75
+        ? theme.secondary
+        : percentage >= 60
+        ? theme.warning
+        : theme.danger;
+
+    return new Table({
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              children: [
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: isArabic ? labelAr : label,
+                      size: 22,
+                      bold: true,
+                    }),
+                  ],
+                  alignment: isArabic ? AlignmentType.RIGHT : AlignmentType.LEFT,
+                  bidirectional: isArabic,
+                }),
+              ],
+              width: { size: 25, type: WidthType.PERCENTAGE },
+              borders: {
+                top: { style: BorderStyle.SINGLE, size: 1, color: 'e5e7eb' },
+                bottom: { style: BorderStyle.SINGLE, size: 1, color: 'e5e7eb' },
+                left: { style: BorderStyle.SINGLE, size: 1, color: 'e5e7eb' },
+                right: { style: BorderStyle.NONE, size: 0 },
+              },
+            }),
+            // Filled portion
+            new TableCell({
+              children: [new Paragraph({ text: '' })],
+              width: { size: barWidth * 0.6, type: WidthType.PERCENTAGE },
+              shading: {
+                type: ShadingType.CLEAR,
+                fill: color,
+                color: color,
+              },
+              borders: {
+                top: { style: BorderStyle.SINGLE, size: 1, color: 'e5e7eb' },
+                bottom: { style: BorderStyle.SINGLE, size: 1, color: 'e5e7eb' },
+                left: { style: BorderStyle.NONE, size: 0 },
+                right: { style: BorderStyle.NONE, size: 0 },
+              },
+            }),
+            // Empty portion
+            new TableCell({
+              children: [new Paragraph({ text: '' })],
+              width: { size: emptyWidth * 0.6, type: WidthType.PERCENTAGE },
+              shading: {
+                type: ShadingType.CLEAR,
+                fill: 'f3f4f6',
+                color: 'f3f4f6',
+              },
+              borders: {
+                top: { style: BorderStyle.SINGLE, size: 1, color: 'e5e7eb' },
+                bottom: { style: BorderStyle.SINGLE, size: 1, color: 'e5e7eb' },
+                left: { style: BorderStyle.NONE, size: 0 },
+                right: { style: BorderStyle.NONE, size: 0 },
+              },
+            }),
+            // Percentage
+            new TableCell({
+              children: [
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: `${percentage.toFixed(1)}%`,
+                      size: 22,
+                      bold: true,
+                      color: color,
+                    }),
+                  ],
+                  alignment: AlignmentType.CENTER,
+                }),
+              ],
+              width: { size: 15, type: WidthType.PERCENTAGE },
+              borders: {
+                top: { style: BorderStyle.SINGLE, size: 1, color: 'e5e7eb' },
+                bottom: { style: BorderStyle.SINGLE, size: 1, color: 'e5e7eb' },
+                left: { style: BorderStyle.NONE, size: 0 },
+                right: { style: BorderStyle.SINGLE, size: 1, color: 'e5e7eb' },
+              },
+            }),
+          ],
+        }),
+      ],
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      margins: {
+        top: convertInchesToTwip(0.05),
+        bottom: convertInchesToTwip(0.05),
+      },
+    });
+  }
+
+  /**
+   * Create executive summary with key metrics
+   */
+  private createExecutiveSummary(
+    studentData: StudentSummaryData[],
+    isArabic: boolean,
+    theme: DocumentTheme
+  ): (Paragraph | Table)[] {
+    if (studentData.length === 0) return [];
+
+    const elements: (Paragraph | Table)[] = [];
+
+    // Title
+    elements.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: isArabic ? '📋 الملخص التنفيذي' : '📋 Executive Summary',
+            bold: true,
+            size: 36,
+            color: theme.primary,
+          }),
+        ],
+        heading: HeadingLevel.HEADING_1,
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 0, after: 300 },
+        bidirectional: isArabic,
+      })
+    );
+
+    // Calculate metrics
+    const totalStudents = studentData.length;
+    const avgAttendance =
+      studentData.reduce((sum, s) => sum + s.attendance_rate, 0) /
+      totalStudents;
+    const avgPunctuality =
+      studentData.reduce((sum, s) => sum + s.punctuality_rate, 0) /
+      totalStudents;
+    const topPerformer = studentData.sort(
+      (a, b) => b.weighted_score - a.weighted_score
+    )[0];
+    const perfectAttendance = studentData.filter(
+      (s) => s.attendance_rate === 100
+    ).length;
+    const atRisk = studentData.filter((s) => s.attendance_rate < 70).length;
+
+    // Metrics grid
+    const metricsTable = new Table({
+      rows: [
+        // Row 1
+        new TableRow({
+          children: [
+            this.createMetricCell(
+              '📊',
+              totalStudents.toString(),
+              'Total Students',
+              'إجمالي الطلاب',
+              isArabic,
+              theme.secondary
+            ),
+            this.createMetricCell(
+              '✅',
+              `${avgAttendance.toFixed(1)}%`,
+              'Avg Attendance',
+              'متوسط الحضور',
+              isArabic,
+              avgAttendance >= 85 ? theme.success : theme.warning
+            ),
+          ],
+        }),
+        // Row 2
+        new TableRow({
+          children: [
+            this.createMetricCell(
+              '🏆',
+              topPerformer?.student_name || 'N/A',
+              'Top Performer',
+              'الأفضل أداءً',
+              isArabic,
+              theme.primary
+            ),
+            this.createMetricCell(
+              '⏱️',
+              `${avgPunctuality.toFixed(1)}%`,
+              'Avg Punctuality',
+              'متوسط الالتزام',
+              isArabic,
+              avgPunctuality >= 85 ? theme.success : theme.warning
+            ),
+          ],
+        }),
+        // Row 3
+        new TableRow({
+          children: [
+            this.createMetricCell(
+              '⭐',
+              perfectAttendance.toString(),
+              'Perfect Attendance',
+              'حضور كامل',
+              isArabic,
+              theme.success
+            ),
+            this.createMetricCell(
+              '⚠️',
+              atRisk.toString(),
+              'At Risk',
+              'في خطر',
+              isArabic,
+              theme.danger
+            ),
+          ],
+        }),
+      ],
+      width: { size: 100, type: WidthType.PERCENTAGE },
+    });
+
+    elements.push(metricsTable);
+    elements.push(new Paragraph({ text: '', spacing: { after: 400 } }));
+
+    // Progress bars
+    elements.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: isArabic ? '📈 مؤشرات الأداء' : '📈 Performance Indicators',
+            bold: true,
+            size: 28,
+            color: theme.primary,
+          }),
+        ],
+        heading: HeadingLevel.HEADING_2,
+        alignment: isArabic ? AlignmentType.RIGHT : AlignmentType.LEFT,
+        spacing: { before: 200, after: 200 },
+        bidirectional: isArabic,
+      })
+    );
+
+    elements.push(
+      this.createProgressBar(
+        avgAttendance,
+        'Overall Attendance',
+        'الحضور العام',
+        isArabic,
+        theme
+      )
+    );
+    elements.push(new Paragraph({ text: '', spacing: { after: 100 } }));
+
+    elements.push(
+      this.createProgressBar(
+        avgPunctuality,
+        'Punctuality Rate',
+        'معدل الالتزام بالوقت',
+        isArabic,
+        theme
+      )
+    );
+    elements.push(new Paragraph({ text: '', spacing: { after: 100 } }));
+
+    const onTimeRate =
+      (studentData.reduce((sum, s) => sum + s.on_time, 0) /
+        studentData.reduce((sum, s) => sum + s.present_total, 0)) *
+      100;
+    elements.push(
+      this.createProgressBar(
+        onTimeRate,
+        'On-Time Rate',
+        'معدل الحضور في الوقت',
+        isArabic,
+        theme
+      )
+    );
+    elements.push(new Paragraph({ text: '', spacing: { after: 400 } }));
+
+    return elements;
+  }
+
+  /**
+   * Create metric cell for executive summary
+   */
+  private createMetricCell(
+    icon: string,
+    value: string,
+    label: string,
+    labelAr: string,
+    isArabic: boolean,
+    color: string
+  ): TableCell {
+    return new TableCell({
+      children: [
+        new Paragraph({
+          children: [
+            new TextRun({ text: icon + ' ', size: 36 }),
+            new TextRun({
+              text: value,
+              bold: true,
+              size: 40,
+              color: color,
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { before: 100, after: 50 },
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: isArabic ? labelAr : label,
+              size: 22,
+              color: '666666',
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 100 },
+          bidirectional: isArabic,
+        }),
+      ],
+      shading: {
+        type: ShadingType.CLEAR,
+        fill: 'f9fafb',
+        color: 'f9fafb',
+      },
+      margins: {
+        top: convertInchesToTwip(0.2),
+        bottom: convertInchesToTwip(0.2),
+      },
+      borders: {
+        top: { style: BorderStyle.SINGLE, size: 1, color: 'e5e7eb' },
+        bottom: { style: BorderStyle.SINGLE, size: 1, color: 'e5e7eb' },
+        left: { style: BorderStyle.SINGLE, size: 1, color: 'e5e7eb' },
+        right: { style: BorderStyle.SINGLE, size: 1, color: 'e5e7eb' },
+      },
+    });
+  }
   /**
    * Create a styled heading paragraph
    */
   private createHeading(
     text: string,
     level: typeof HeadingLevel[keyof typeof HeadingLevel],
-    isArabic: boolean = false
+    isArabic: boolean = false,
+    theme?: DocumentTheme
   ): Paragraph {
     return new Paragraph({
       text,
@@ -95,6 +761,13 @@ export class WordExportService {
       alignment: isArabic ? AlignmentType.RIGHT : AlignmentType.LEFT,
       spacing: { after: 200, before: 200 },
       bidirectional: isArabic,
+      shading: theme
+        ? {
+            type: ShadingType.CLEAR,
+            fill: theme.headerBg,
+            color: theme.headerBg,
+          }
+        : undefined,
     });
   }
 
@@ -122,15 +795,17 @@ export class WordExportService {
   private createTable(
     headers: string[],
     rows: string[][],
-    isArabic: boolean = false
+    isArabic: boolean = false,
+    theme?: DocumentTheme
   ): Table {
+    const activeTheme = theme || this.defaultTheme;
     const borderStyle = {
       style: BorderStyle.SINGLE,
       size: 1,
       color: '000000',
     };
 
-    // Create header row
+    // Create header row with theme color
     const headerRow = new TableRow({
       children: headers.map(
         (header) =>
@@ -143,13 +818,18 @@ export class WordExportService {
                     bold: true,
                     font: isArabic ? 'Arial' : 'Calibri',
                     size: 22,
+                    color: 'FFFFFF',
                   }),
                 ],
                 alignment: isArabic ? AlignmentType.RIGHT : AlignmentType.CENTER,
                 bidirectional: isArabic,
               }),
             ],
-            shading: { fill: 'D9E1F2' },
+            shading: {
+              type: ShadingType.CLEAR,
+              fill: activeTheme.primary,
+              color: activeTheme.primary,
+            },
             borders: {
               top: borderStyle,
               bottom: borderStyle,
@@ -158,40 +838,53 @@ export class WordExportService {
             },
           })
       ),
-      cantSplit: true,
     });
 
-    // Create data rows
-    const dataRows = rows.map(
-      (row) =>
-        new TableRow({
-          children: row.map(
-            (cell) =>
-              new TableCell({
-                children: [
-                  new Paragraph({
-                    children: [
-                      new TextRun({
-                        text: cell,
-                        font: isArabic ? 'Arial' : 'Calibri',
-                        size: 20,
-                      }),
-                    ],
-                    alignment: isArabic
-                      ? AlignmentType.RIGHT
-                      : AlignmentType.LEFT,
-                    bidirectional: isArabic,
-                  }),
-                ],
-                borders: {
-                  top: borderStyle,
-                  bottom: borderStyle,
-                  left: borderStyle,
-                  right: borderStyle,
-                },
-              })
-          ),
-        })
+    // Create data rows with zebra striping
+    const dataRows = rows.map((row, rowIndex) =>
+      new TableRow({
+        children: row.map(
+          (cell, cellIndex) =>
+            new TableCell({
+              children: [
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: cell,
+                      font: isArabic ? 'Arial' : 'Calibri',
+                      size: 20,
+                    }),
+                  ],
+                  alignment:
+                    isArabic || cellIndex === 0
+                      ? isArabic
+                        ? AlignmentType.RIGHT
+                        : AlignmentType.LEFT
+                      : AlignmentType.CENTER,
+                  bidirectional: isArabic,
+                }),
+              ],
+              shading:
+                rowIndex % 2 === 0
+                  ? {
+                      type: ShadingType.CLEAR,
+                      fill: 'FFFFFF',
+                      color: 'FFFFFF',
+                    }
+                  : {
+                      type: ShadingType.CLEAR,
+                      fill: 'F9FAFB',
+                      color: 'F9FAFB',
+                    },
+              borders: {
+                top: borderStyle,
+                bottom: borderStyle,
+                left: borderStyle,
+                right: borderStyle,
+              },
+            })
+        ),
+      })
     );
 
     return new Table({
@@ -199,12 +892,6 @@ export class WordExportService {
       width: {
         size: 100,
         type: WidthType.PERCENTAGE,
-      },
-      margins: {
-        top: convertInchesToTwip(0.05),
-        bottom: convertInchesToTwip(0.05),
-        left: convertInchesToTwip(0.05),
-        right: convertInchesToTwip(0.05),
       },
     });
   }
@@ -313,11 +1000,18 @@ export class WordExportService {
     isArabic: boolean = false,
     startDate?: string,
     endDate?: string,
-    filename?: string
+    filename?: string,
+    options?: ExportOptions
   ): Promise<void> {
+    // Apply theme and options
+    const theme = options?.theme || this.defaultTheme;
+    const includeInsights = options?.includeInsights ?? true;
+    const includeExecutiveSummary = options?.includeExecutiveSummary ?? true;
+    const includeProgressBars = options?.includeProgressBars ?? true;
+
     const sections: (Paragraph | Table)[] = [];
 
-    // Title and Summary Section
+    // Title and Date Info
     const titleText = isArabic
       ? 'تقرير تحليل الحضور الشامل'
       : 'Comprehensive Attendance Analytics Report';
@@ -330,18 +1024,69 @@ export class WordExportService {
         : `Date Range: ${format(new Date(startDate), 'MMM dd, yyyy')} - ${format(new Date(endDate), 'MMM dd, yyyy')}`)
       : '';
 
-    sections.push(this.createHeading(titleText, HeadingLevel.HEADING_1, isArabic));
+    sections.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: titleText,
+            bold: true,
+            size: 40,
+            color: theme.primary,
+          }),
+        ],
+        heading: HeadingLevel.HEADING_1,
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 200 },
+        bidirectional: isArabic,
+      })
+    );
     sections.push(this.createParagraph(dateText, isArabic));
     if (dateRangeText) {
       sections.push(this.createParagraph(dateRangeText, isArabic));
     }
-    sections.push(new Paragraph({ text: '', spacing: { after: 300 } }));
+    sections.push(new Paragraph({ text: '', spacing: { after: 400 } }));
 
-    // Summary Statistics Section - ALL fields from Excel
-    const summaryTitle = isArabic ? 'الإحصائيات العامة' : 'Summary Statistics';
+    // Executive Summary (NEW)
+    if (includeExecutiveSummary && studentData.length > 0) {
+      sections.push(...this.createExecutiveSummary(studentData, isArabic, theme));
+    }
+
+    // AI Insights (NEW)
+    if (includeInsights && studentData.length > 0) {
+      const insights = this.generateInsights(studentData);
+      sections.push(...this.createInsightsSection(insights, isArabic, theme));
+    }
+
+    // Summary Statistics Section
+    const summaryTitle = isArabic ? '📊 الإحصائيات العامة' : '📊 Summary Statistics';
     sections.push(
-      this.createHeading(summaryTitle, HeadingLevel.HEADING_2, isArabic)
+      this.createHeading(summaryTitle, HeadingLevel.HEADING_2, isArabic, theme)
     );
+
+    // Progress Bars for Key Metrics (NEW)
+    if (includeProgressBars) {
+      sections.push(
+        this.createProgressBar(
+          summaryStats.classAvgRate,
+          'Class Average Attendance',
+          'متوسط حضور الصف',
+          isArabic,
+          theme
+        )
+      );
+      sections.push(new Paragraph({ text: '', spacing: { after: 100 } }));
+
+      sections.push(
+        this.createProgressBar(
+          summaryStats.avgAttendanceByDate,
+          'Attendance by Date',
+          'الحضور حسب التاريخ',
+          isArabic,
+          theme
+        )
+      );
+      sections.push(new Paragraph({ text: '', spacing: { after: 200 } }));
+    }
 
     const summaryHeaders = isArabic
       ? ['العنصر', 'القيمة']
@@ -370,13 +1115,13 @@ export class WordExportService {
       ['Total Late', summaryStats.totalLate.toString()],
     ];
 
-    sections.push(this.createTable(summaryHeaders, summaryRows, isArabic));
+    sections.push(this.createTable(summaryHeaders, summaryRows, isArabic, theme));
     sections.push(new Paragraph({ text: '', spacing: { after: 400 } }));
 
-    // Student Performance Section - ALL fields matching Excel
-    const studentTitle = isArabic ? 'أداء الطلاب' : 'Student Performance';
+    // Student Performance Section
+    const studentTitle = isArabic ? '👨‍🎓 أداء الطلاب' : '👨‍🎓 Student Performance';
     sections.push(
-      this.createHeading(studentTitle, HeadingLevel.HEADING_2, isArabic)
+      this.createHeading(studentTitle, HeadingLevel.HEADING_2, isArabic, theme)
     );
 
     const studentHeaders = isArabic
@@ -424,15 +1169,15 @@ export class WordExportService {
       s.weighted_score.toFixed(1),
     ]);
 
-    sections.push(this.createTable(studentHeaders, studentRows, isArabic));
+    sections.push(this.createTable(studentHeaders, studentRows, isArabic, theme));
     sections.push(new Paragraph({ text: '', spacing: { after: 400 } }));
 
-    // Date-wise Attendance Section - ALL fields including book info and student names
+    // Date-wise Attendance Section
     const dateTitle = isArabic
-      ? 'الحضور حسب التاريخ'
-      : 'Attendance by Date';
+      ? '📅 الحضور حسب التاريخ'
+      : '📅 Attendance by Date';
     sections.push(
-      this.createHeading(dateTitle, HeadingLevel.HEADING_2, isArabic)
+      this.createHeading(dateTitle, HeadingLevel.HEADING_2, isArabic, theme)
     );
 
     // Split into two tables for better readability
@@ -479,7 +1224,7 @@ export class WordExportService {
       ];
     });
 
-    sections.push(this.createTable(dateStatsHeaders, dateStatsRows, isArabic));
+    sections.push(this.createTable(dateStatsHeaders, dateStatsRows, isArabic, theme));
     sections.push(new Paragraph({ text: '', spacing: { after: 200 } }));
 
     // Table 2: Student Names by Status
@@ -487,7 +1232,7 @@ export class WordExportService {
       ? 'أسماء الطلاب حسب الحالة'
       : 'Student Names by Status';
     sections.push(
-      this.createHeading(dateNamesTitle, HeadingLevel.HEADING_3, isArabic)
+      this.createHeading(dateNamesTitle, HeadingLevel.HEADING_3, isArabic, theme)
     );
 
     const dateNamesHeaders = isArabic
@@ -514,16 +1259,16 @@ export class WordExportService {
       d.absent_names,
     ]);
 
-    sections.push(this.createTable(dateNamesHeaders, dateNamesRows, isArabic));
+    sections.push(this.createTable(dateNamesHeaders, dateNamesRows, isArabic, theme));
     sections.push(new Paragraph({ text: '', spacing: { after: 400 } }));
 
-    // Host Rankings Section - ALL fields
+    // Host Rankings Section
     if (hostData.length > 0) {
       const hostTitle = isArabic
-        ? 'تصنيف المضيفين'
-        : 'Host Rankings';
+        ? '🏠 تصنيف المضيفين'
+        : '🏠 Host Rankings';
       sections.push(
-        this.createHeading(hostTitle, HeadingLevel.HEADING_2, isArabic)
+        this.createHeading(hostTitle, HeadingLevel.HEADING_2, isArabic, theme)
       );
 
       const hostHeaders = isArabic
@@ -562,22 +1307,89 @@ export class WordExportService {
         h.dates,
       ]);
 
-      sections.push(this.createTable(hostHeaders, hostRows, isArabic));
+      sections.push(this.createTable(hostHeaders, hostRows, isArabic, theme));
     }
 
-    // Create document
+    // Create document with header and footer
     const doc = new Document({
       sections: [
         {
           properties: {
             page: {
               margin: {
-                top: convertInchesToTwip(0.75),
+                top: convertInchesToTwip(1.25),
                 right: convertInchesToTwip(0.5),
-                bottom: convertInchesToTwip(0.75),
+                bottom: convertInchesToTwip(1),
                 left: convertInchesToTwip(0.5),
               },
             },
+          },
+          headers: {
+            default: new Header({
+              children: [
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: isArabic 
+                        ? '📊 تقرير تحليل الحضور' 
+                        : '📊 Attendance Analytics Report',
+                      bold: true,
+                      size: 24,
+                      color: theme.primary,
+                    }),
+                  ],
+                  alignment: isArabic ? AlignmentType.RIGHT : AlignmentType.LEFT,
+                  border: {
+                    bottom: { 
+                      style: BorderStyle.SINGLE, 
+                      size: 6, 
+                      color: theme.secondary 
+                    },
+                  },
+                  spacing: { after: 100 },
+                  bidirectional: isArabic,
+                }),
+              ],
+            }),
+          },
+          footers: {
+            default: new Footer({
+              children: [
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: isArabic 
+                        ? `تم إنشاؤه في ${format(new Date(), 'yyyy-MM-dd')} • صفحة `
+                        : `Generated on ${format(new Date(), 'MMM dd, yyyy')} • Page `,
+                      size: 18,
+                      color: '6b7280',
+                    }),
+                    new TextRun({
+                      children: [PageNumber.CURRENT],
+                      size: 18,
+                    }),
+                    new TextRun({ 
+                      text: isArabic ? ' من ' : ' of ', 
+                      size: 18,
+                      color: '6b7280',
+                    }),
+                    new TextRun({
+                      children: [PageNumber.TOTAL_PAGES],
+                      size: 18,
+                    }),
+                  ],
+                  alignment: AlignmentType.CENTER,
+                  border: {
+                    top: { 
+                      style: BorderStyle.SINGLE, 
+                      size: 6, 
+                      color: 'e5e7eb' 
+                    },
+                  },
+                  spacing: { before: 100 },
+                }),
+              ],
+            }),
           },
           children: sections,
         },
