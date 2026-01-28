@@ -124,11 +124,11 @@ export function StudentCheckIn() {
         return;
       }
 
-      // STEP 3: Get student info
+      // STEP 3: Get student info (case-insensitive email lookup)
       const { data: student, error: studentError } = await supabase
         .from('student')
         .select('student_id, name, email')
-        .eq('email', user.email)
+        .ilike('email', user.email || '')
         .single();
 
       if (studentError || !student) {

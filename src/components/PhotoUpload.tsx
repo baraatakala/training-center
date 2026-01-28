@@ -270,21 +270,113 @@ export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: Pho
     }, 'image/jpeg', 0.8);
   };
 
+  // Compress image if too large
+  const compressImage = async (file: File, maxSizeMB: number = 5): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const img = document.createElement('img');
+      const url = URL.createObjectURL(file);
+      
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        
+        // Calculate dimensions (max 1200px on longest side)
+        let { width, height } = img;
+        const maxDimension = 1200;
+        
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = (height / width) * maxDimension;
+            width = maxDimension;
+          } else {
+            width = (width / height) * maxDimension;
+            height = maxDimension;
+          }
+        }
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Failed to get canvas context'));
+          return;
+        }
+        
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Start with high quality, reduce if needed
+        let quality = 0.9;
+        const tryCompress = () => {
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                reject(new Error('Failed to compress image'));
+                return;
+              }
+              
+              // If still too large and quality can be reduced
+              if (blob.size > maxSizeMB * 1024 * 1024 && quality > 0.3) {
+                quality -= 0.1;
+                tryCompress();
+              } else {
+                resolve(blob);
+              }
+            },
+            'image/jpeg',
+            quality
+          );
+        };
+        
+        tryCompress();
+      };
+      
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Failed to load image for compression'));
+      };
+      
+      img.src = url;
+    });
+  };
+
   // Handle file selection
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      setError('Please select an image file');
+    // Validate file type - be more lenient for mobile devices
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
+    const isImage = file.type.startsWith('image/') || validTypes.some(t => file.name.toLowerCase().endsWith(t.split('/')[1]));
+    
+    if (!isImage) {
+      setError('Please select an image file (JPG, PNG, or WEBP)');
       return;
     }
 
-    // Validate file size (max 5MB)
+    // Check file size - if larger than 5MB, compress it
     if (file.size > 5 * 1024 * 1024) {
-      setError('Image must be less than 5MB');
-      return;
+      try {
+        setUploading(true);
+        setError(null);
+        const compressedBlob = await compressImage(file, 5);
+        
+        if (compressedBlob.size > 5 * 1024 * 1024) {
+          setError('Image is too large. Please select a smaller image.');
+          setUploading(false);
+          return;
+        }
+        
+        console.log(`✅ Image compressed from ${(file.size / 1024 / 1024).toFixed(2)}MB to ${(compressedBlob.size / 1024 / 1024).toFixed(2)}MB`);
+        setUploading(false);
+        await uploadPhoto(compressedBlob);
+        return;
+      } catch (err) {
+        console.error('Compression error:', err);
+        setError('Failed to process image. Please try a different image.');
+        setUploading(false);
+        return;
+      }
     }
 
     await uploadPhoto(file);

@@ -148,11 +148,11 @@ export function PhotoCheckIn() {
         return;
       }
 
-      // Get student info with photo_url
+      // Get student info with photo_url (case-insensitive email lookup)
       const { data: student, error: studentError } = await supabase
         .from('student')
         .select('student_id, name, email, photo_url')
-        .eq('email', user.email)
+        .ilike('email', user.email || '')
         .single();
 
       if (studentError || !student) {
