@@ -20,6 +20,7 @@ export function QRCodeModal({
   const [totalStudents, setTotalStudents] = useState<number>(0);
   const [timeLeft, setTimeLeft] = useState<string>('Loading...');
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   const [qrToken, setQrToken] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<Date | null>(null);
   const [refreshCount, setRefreshCount] = useState<number>(0);
@@ -28,12 +29,22 @@ export function QRCodeModal({
   const generateQRCode = useCallback(async (isRefresh = false) => {
     try {
       setLoading(true);
+      setError(null);
 
-      // Get current user email for audit
-      const { data: { user } } = await supabase.auth.getUser();
-      const userEmail = user?.email || 'system';
+      // Step 1: Refresh session to ensure valid token (prevents 403 errors)
+      const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
+      
+      if (refreshError || !session) {
+        console.error('Session refresh failed:', refreshError);
+        setError('Your session has expired. Please refresh the page and try again.');
+        setLoading(false);
+        return;
+      }
+      
+      const userEmail = session.user.email || 'system';
+      console.log('✅ Session refreshed for QR generation');
 
-      // Generate secure QR session token via Supabase function
+      // Step 2: Generate secure QR session token via Supabase function
       const { data: qrSession, error: qrError } = await supabase
         .rpc('generate_qr_session', {
           p_session_id: sessionId,
@@ -43,7 +54,8 @@ export function QRCodeModal({
 
       if (qrError || !qrSession) {
         console.error('Failed to generate QR session:', qrError);
-        alert('Failed to generate QR code. Please try again.');
+        setError('Failed to generate QR code. Please close and try again.');
+        setLoading(false);
         return;
       }
 
@@ -74,7 +86,7 @@ export function QRCodeModal({
       }
     } catch (error) {
       console.error('QR code generation error:', error);
-      alert('Error generating QR code. Please try again.');
+      setError('Failed to generate QR code. Please close and reopen the QR modal.');
     } finally {
       setLoading(false);
     }
@@ -235,12 +247,32 @@ export function QRCodeModal({
         </div>
 
         <div className="p-6 space-y-6">
+          {/* Error Display */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+              <span className="text-3xl">⚠️</span>
+              <div>
+                <p className="font-semibold text-red-800">Session Error</p>
+                <p className="text-sm text-red-700 mt-1">{error}</p>
+                <button
+                  onClick={() => {
+                    setError(null);
+                    generateQRCode();
+                  }}
+                  className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium"
+                >
+                  Try Again
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* QR */}
           {loading ? (
             <div className="flex justify-center py-16">
               <div className="animate-spin h-16 w-16 border-b-2 border-blue-600 rounded-full" />
             </div>
-          ) : (
+          ) : !error && (
             <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-8 text-center">
               <img
                 src={qrCodeUrl}
