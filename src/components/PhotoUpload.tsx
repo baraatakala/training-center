@@ -2,11 +2,141 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Button } from './ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
+import * as faceapi from 'face-api.js';
 
 interface PhotoUploadProps {
   studentId: string;
   currentPhotoUrl: string | null; // This is actually the file path stored in DB
   onPhotoUploaded: (url: string) => void;
+}
+
+interface PhotoQualityResult {
+  valid: boolean;
+  issues: string[];
+  warnings: string[];
+  faceSize?: number;
+  brightness?: number;
+}
+
+// Validate photo quality for face recognition
+async function validatePhotoQuality(imageFile: File | Blob): Promise<PhotoQualityResult> {
+  return new Promise((resolve) => {
+    const img = document.createElement('img');
+    const url = URL.createObjectURL(imageFile);
+    
+    img.onload = async () => {
+      try {
+        const issues: string[] = [];
+        const warnings: string[] = [];
+
+        // Detect face
+        const detection = await faceapi
+          .detectSingleFace(img, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.3 }))
+          .withFaceLandmarks();
+
+        // Check 1: Face detected
+        if (!detection) {
+          issues.push('No face detected in photo');
+          URL.revokeObjectURL(url);
+          return resolve({ valid: false, issues, warnings });
+        }
+
+        // Check 2: Only one face
+        const allDetections = await faceapi.detectAllFaces(img);
+        if (allDetections.length > 1) {
+          issues.push(`Multiple faces detected (${allDetections.length}). Please use a photo with only your face.`);
+        }
+
+        // Check 3: Face size (should be at least 20% of image)
+        const faceBox = detection.detection.box;
+        const faceArea = faceBox.width * faceBox.height;
+        const imageArea = img.width * img.height;
+        const faceRatio = faceArea / imageArea;
+
+        if (faceRatio < 0.10) {
+          issues.push('Face is too small. Please take a closer photo or crop the image.');
+        } else if (faceRatio < 0.20) {
+          warnings.push('Face could be larger for better recognition. Consider moving closer.');
+        }
+
+        // Check 4: Face too close (occupies > 80%)
+        if (faceRatio > 0.80) {
+          warnings.push('Face is very close. Ensure entire face including hair is visible.');
+        }
+
+        // Check 5: Brightness check (simple average of RGB)
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+          
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const pixels = imageData.data;
+          let sum = 0;
+          
+          for (let i = 0; i < pixels.length; i += 4) {
+            sum += (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
+          }
+          
+          const avgBrightness = sum / (pixels.length / 4) / 255; // 0-1 scale
+
+          if (avgBrightness < 0.20) {
+            issues.push('Photo is too dark. Use better lighting.');
+          } else if (avgBrightness < 0.35) {
+            warnings.push('Photo is dim. Better lighting will improve recognition.');
+          } else if (avgBrightness > 0.85) {
+            warnings.push('Photo is very bright. Avoid overexposure.');
+          }
+        }
+
+        // Check 6: Face angle (landmarks can detect profile vs frontal)
+        const landmarks = detection.landmarks;
+        const nose = landmarks.getNose();
+        const leftEye = landmarks.getLeftEye();
+        const rightEye = landmarks.getRightEye();
+        
+        // Simple check: if nose is too far from center between eyes, face is angled
+        const eyeCenterX = (leftEye[0].x + rightEye[0].x) / 2;
+        const noseX = nose[3].x; // Nose tip
+        const deviation = Math.abs(noseX - eyeCenterX) / faceBox.width;
+        
+        if (deviation > 0.25) {
+          warnings.push('Face appears angled. A frontal view works best.');
+        }
+
+        URL.revokeObjectURL(url);
+        
+        resolve({
+          valid: issues.length === 0,
+          issues,
+          warnings,
+          faceSize: faceRatio,
+          brightness: 0 // We can't calculate from here
+        });
+      } catch (error) {
+        console.error('Photo validation error:', error);
+        URL.revokeObjectURL(url);
+        resolve({
+          valid: false,
+          issues: ['Failed to analyze photo. Please try again.'],
+          warnings: []
+        });
+      }
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve({
+        valid: false,
+        issues: ['Failed to load image. Please try a different photo.'],
+        warnings: []
+      });
+    };
+
+    img.src = url;
+  });
 }
 
 // Helper function to get signed URL from file path
@@ -36,10 +166,31 @@ export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: Pho
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showCamera, setShowCamera] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [validating, setValidating] = useState(false);
+  const [qualityResult, setQualityResult] = useState<PhotoQualityResult | null>(null);
+  const [modelsLoaded, setModelsLoaded] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Load face-api models
+  useEffect(() => {
+    const loadModels = async () => {
+      try {
+        const MODEL_URL = '/models';
+        await Promise.all([
+          faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+        ]);
+        setModelsLoaded(true);
+        console.log('✅ Face detection models loaded for photo quality check');
+      } catch (err) {
+        console.error('Failed to load face detection models:', err);
+      }
+    };
+    loadModels();
+  }, []);
 
   // Load signed URL when component mounts or photo path changes
   useEffect(() => {
@@ -143,8 +294,28 @@ export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: Pho
   const uploadPhoto = async (file: Blob | File) => {
     setUploading(true);
     setError(null);
+    setQualityResult(null);
 
     try {
+      // Validate photo quality if models are loaded
+      if (modelsLoaded) {
+        setValidating(true);
+        const quality = await validatePhotoQuality(file);
+        setQualityResult(quality);
+        setValidating(false);
+
+        if (!quality.valid) {
+          setError(`Photo quality issues:\n${quality.issues.join('\n')}`);
+          setUploading(false);
+          return;
+        }
+
+        // Show warnings but allow upload
+        if (quality.warnings.length > 0) {
+          console.warn('Photo quality warnings:', quality.warnings);
+        }
+      }
+
       // Generate unique filename
       const timestamp = Date.now();
       const fileName = `${studentId}/${timestamp}.jpg`;
@@ -340,9 +511,47 @@ export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: Pho
 
         {/* Upload progress */}
         {uploading && (
-          <div className="flex items-center justify-center gap-2 text-blue-600">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-            <span className="text-sm">Processing...</span>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-center gap-2 text-blue-600">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+              <span className="text-sm">
+                {validating ? 'Validating photo quality...' : 'Uploading...'}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Quality validation results */}
+        {qualityResult && !uploading && (
+          <div className="space-y-2">
+            {qualityResult.valid && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <p className="text-green-800 font-medium flex items-center gap-2">
+                  <span>✅</span>
+                  <span>Photo quality: Excellent</span>
+                </p>
+                {qualityResult.warnings.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {qualityResult.warnings.map((warning, idx) => (
+                      <p key={idx} className="text-yellow-700 text-sm flex items-start gap-2">
+                        <span>⚠️</span>
+                        <span>{warning}</span>
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {!qualityResult.valid && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-red-800 font-medium mb-2">❌ Photo quality issues:</p>
+                <ul className="list-disc list-inside space-y-1">
+                  {qualityResult.issues.map((issue, idx) => (
+                    <li key={idx} className="text-red-700 text-sm">{issue}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
 

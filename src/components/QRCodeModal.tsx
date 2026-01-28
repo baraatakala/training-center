@@ -22,9 +22,10 @@ export function QRCodeModal({
   const [loading, setLoading] = useState<boolean>(true);
   const [qrToken, setQrToken] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<Date | null>(null);
+  const [refreshCount, setRefreshCount] = useState<number>(0);
 
   /* -------------------- QR CODE -------------------- */
-  const generateQRCode = useCallback(async () => {
+  const generateQRCode = useCallback(async (isRefresh = false) => {
     try {
       setLoading(true);
 
@@ -65,7 +66,12 @@ export function QRCodeModal({
       });
 
       setQrCodeUrl(qrDataUrl);
-      console.log('✅ Secure QR session created:', { token, expires });
+      console.log('✅ Secure QR session created:', { token, expires, isRefresh });
+      
+      if (isRefresh) {
+        setRefreshCount(prev => prev + 1);
+        console.log('🔄 QR code refreshed automatically');
+      }
     } catch (error) {
       console.error('QR code generation error:', error);
       alert('Error generating QR code. Please try again.');
@@ -186,6 +192,23 @@ export function QRCodeModal({
     };
   }, [expiresAt, updateTimeLeft]);
 
+  // Dynamic QR refresh every 3 minutes for enhanced security
+  useEffect(() => {
+    const REFRESH_INTERVAL = 3 * 60 * 1000; // 3 minutes
+    
+    const refreshTimer = setInterval(async () => {
+      console.log('🔄 Auto-refreshing QR code for security...');
+      // Invalidate old QR session
+      await invalidateQRSession();
+      // Generate new QR code
+      await generateQRCode(true);
+    }, REFRESH_INTERVAL);
+
+    return () => {
+      clearInterval(refreshTimer);
+    };
+  }, [generateQRCode, invalidateQRSession]);
+
   const percentage =
     totalStudents > 0
       ? Math.round((checkInCount / totalStudents) * 100)
@@ -225,6 +248,12 @@ export function QRCodeModal({
                 className="mx-auto mb-4 w-72"
               />
               <p className="font-semibold">Scan to Check In</p>
+              {refreshCount > 0 && (
+                <div className="mt-3 inline-flex items-center gap-2 bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm">
+                  <span>🔄</span>
+                  <span>Refreshed {refreshCount}x (every 3 min for security)</span>
+                </div>
+              )}
             </div>
           )}
 

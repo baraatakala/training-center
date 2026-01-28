@@ -6,6 +6,27 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { Button } from '../components/ui/Button';
 import { format } from 'date-fns';
 
+// GPS distance calculation using Haversine formula
+function calculateGPSDistance(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const R = 6371000; // Earth radius in meters
+  const φ1 = (lat1 * Math.PI) / 180;
+  const φ2 = (lat2 * Math.PI) / 180;
+  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+  const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c; // Distance in meters
+}
+
 type CheckInData = {
   session_id: string;
   attendance_date: string;
@@ -17,6 +38,7 @@ type CheckInData = {
     time?: string;
     location?: string;
     grace_period_minutes?: number;
+    proximity_radius?: number;
   };
 };
 
@@ -126,6 +148,7 @@ export function StudentCheckIn() {
           location,
           course_id,
           grace_period_minutes,
+          proximity_radius,
           course:course_id (
             course_name
           )
@@ -329,6 +352,50 @@ export function StudentCheckIn() {
     try {
       // Capture GPS
       const gpsData = await captureGPSLocation();
+
+      // PROXIMITY VALIDATION: Check if student is within allowed radius
+      if (gpsData && checkInData.session?.proximity_radius) {
+        // Get host location (selected address or session location)
+        let hostLat: number | null = null;
+        let hostLon: number | null = null;
+
+        if (selectedAddress) {
+          // Parse host coordinates from selected address (format: "studentId|||address|||lat,lon")
+          const parts = selectedAddress.split('|||');
+          if (parts.length >= 3 && parts[2]) {
+            const [lat, lon] = parts[2].split(',').map(parseFloat);
+            if (!isNaN(lat) && !isNaN(lon)) {
+              hostLat = lat;
+              hostLon = lon;
+            }
+          }
+        }
+
+        // Validate proximity if host coordinates are available
+        if (hostLat !== null && hostLon !== null) {
+          const distance = calculateGPSDistance(
+            gpsData.latitude,
+            gpsData.longitude,
+            hostLat,
+            hostLon
+          );
+
+          const maxDistance = checkInData.session.proximity_radius;
+          
+          console.log(`📍 Proximity check: ${Math.round(distance)}m from host (max: ${maxDistance}m)`);
+
+          if (distance > maxDistance) {
+            setError(
+              `You are too far from the session location (${Math.round(distance)}m away, maximum: ${maxDistance}m). ` +
+              `Please move closer to check in.`
+            );
+            setSubmitting(false);
+            return;
+          }
+          
+          console.log('✅ Proximity validated: within allowed radius');
+        }
+      }
 
       // Get enrollment
       const { data: enrollment } = await supabase
