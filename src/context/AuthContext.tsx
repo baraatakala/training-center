@@ -28,7 +28,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const { data, error } = await Promise.race([
           sessionPromise,
           timeoutPromise
-        ]) as any;
+        ]) as { data: { session: { user: User | null } | null } | null; error: Error | null };
         
         if (error) {
           console.error('Error getting session:', error);

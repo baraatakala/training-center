@@ -1,8 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
 import * as fs from 'fs';
-
-const supabaseUrl = 'https://qrznvvjlzqzoqsmzljvk.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFyem52dmpsenF6b3FzbXpsanZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQwODU3NDksImV4cCI6MjA3OTY2MTc0OX0.CBIjHpxwX-S5JlMPm9gzwB7AwpknaI_Nl52sgjPxm68';
 
 console.log('🔍 Validating SQL files...\n');
 

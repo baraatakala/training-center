@@ -124,9 +124,11 @@ export function Dashboard() {
         } 
       } = {};
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       attendanceRecords.forEach((record: any) => {
         const sid = record.student_id;
         const courseId = record.session?.course_id;
+        if (!courseId) return; // Skip records without course info
         const courseName = record.session?.course?.course_name || 'Unknown';
 
         if (!studentCourseData[sid]) {

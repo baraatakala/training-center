@@ -6,7 +6,7 @@ import { SearchBar } from '../components/ui/SearchBar';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
 import { EnrollmentForm } from '../components/EnrollmentForm';
 import { enrollmentService } from '../services/enrollmentService';
-import type { CreateEnrollment } from '../types/database.types';
+import type { CreateEnrollment, UpdateEnrollment } from '../types/database.types';
 
 interface EnrollmentWithDetails {
   enrollment_id: string;
@@ -92,12 +92,13 @@ export function Enrollments() {
         case 'status':
           comparison = a.status.localeCompare(b.status);
           break;
-        case 'canHost':
+        case 'canHost': {
           // Sort by can_host: true values first, then false
           const aHost = a.can_host ? 1 : 0;
           const bHost = b.can_host ? 1 : 0;
           comparison = bHost - aHost; // Descending by default (true first)
           break;
+        }
         default:
           comparison = a.student.name.localeCompare(b.student.name);
       }
@@ -129,7 +130,7 @@ export function Enrollments() {
 
   const handleUpdateEnrollment = async (data: CreateEnrollment) => {
     if (!editingEnrollment) return;
-    const { error } = await enrollmentService.update(editingEnrollment.enrollment_id, data as any);
+    const { error } = await enrollmentService.update(editingEnrollment.enrollment_id, data as UpdateEnrollment);
     if (error) {
       alert('Error updating enrollment: ' + error.message);
     } else {
@@ -209,7 +210,7 @@ export function Enrollments() {
             <label className="text-sm font-medium text-gray-700">Sort by:</label>
             <select
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
+              onChange={(e) => setSortBy(e.target.value as 'student' | 'course' | 'date' | 'status' | 'canHost')}
               className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="student">Student Name</option>
@@ -384,11 +385,11 @@ export function Enrollments() {
             setEditingEnrollment(null);
           }}
           initialData={editingEnrollment ? {
-            student_id: (editingEnrollment as any).student_id || undefined,
-            session_id: (editingEnrollment as any).session_id || undefined,
+            student_id: (editingEnrollment as EnrollmentWithDetails & { student_id?: string }).student_id || undefined,
+            session_id: (editingEnrollment as EnrollmentWithDetails & { session_id?: string }).session_id || undefined,
             enrollment_date: editingEnrollment.enrollment_date,
-            status: editingEnrollment.status as any,
-            can_host: (editingEnrollment as any).can_host,
+            status: editingEnrollment.status as 'active' | 'completed' | 'dropped' | 'pending',
+            can_host: (editingEnrollment as EnrollmentWithDetails & { can_host?: boolean }).can_host,
           } : null}
         />
       </Modal>

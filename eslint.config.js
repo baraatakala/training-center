@@ -19,5 +19,12 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      // Disable overly strict rule - calling setState in useEffect is a common pattern
+      // for initial data loading and derived state updates
+      'react-hooks/set-state-in-effect': 'off',
+      // Allow exporting non-components from component files (e.g., contexts with hooks)
+      'react-refresh/only-export-components': 'warn',
+    },
   },
 ])

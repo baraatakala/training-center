@@ -58,7 +58,7 @@ export function Sessions() {
       setFilteredSessions(data as SessionWithDetails[]);
       
       // Load enrollment counts for each session
-      const sessionIds = data.map((s: any) => s.session_id);
+      const sessionIds = data.map((s: SessionWithDetails) => s.session_id);
       const { data: enrollments } = await supabase
         .from(Tables.ENROLLMENT)
         .select('session_id')
@@ -66,7 +66,7 @@ export function Sessions() {
       
       if (enrollments) {
         const counts: Record<string, number> = {};
-        enrollments.forEach((e: any) => {
+        enrollments.forEach((e: { session_id: string }) => {
           counts[e.session_id] = (counts[e.session_id] || 0) + 1;
         });
         setEnrollmentCounts(counts);
@@ -263,7 +263,7 @@ export function Sessions() {
           <span className="font-medium text-gray-700">Sort by:</span>
           <select
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
+            onChange={(e) => setSortBy(e.target.value as 'course' | 'teacher' | 'startDate' | 'endDate')}
             className="border border-gray-300 rounded px-3 py-1.5 focus:ring-2 focus:ring-blue-500"
           >
             <option value="startDate">Start Date</option>

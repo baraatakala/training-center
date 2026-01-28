@@ -174,7 +174,7 @@ export const enrollmentService = {
 
     if (sessionError) return { data: null, error: sessionError };
 
-    const maxCapacity = (session.course as any)?.max_students || null;
+    const maxCapacity = (session.course as { max_students?: number } | null)?.max_students || null;
     const currentCount = enrollments?.length || 0;
 
     return {

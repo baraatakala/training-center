@@ -225,7 +225,7 @@ export class PDFExportService {
     const col2X = pageWidth / 3;
     const col3X = (pageWidth / 3) * 2;
     
-    let summaryY = yPos + 12;
+    const summaryY = yPos + 12;
     const lineHeight = 5;
     
     // Column 1
