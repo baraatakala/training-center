@@ -19,6 +19,8 @@ export interface Student {
   location: string | null;
   nationality: string | null;
   age: number | null;
+  // URL to student reference photo for face recognition attendance
+  photo_url: string | null;
   created_at: string;
   updated_at: string;
 }

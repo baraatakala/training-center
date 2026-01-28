@@ -5,6 +5,7 @@ import { SearchBar } from '../components/ui/SearchBar';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
 import { Pagination } from '../components/ui/Pagination';
 import { StudentForm } from '../components/StudentForm';
+import { PhotoUpload } from '../components/PhotoUpload';
 import { studentService } from '../services/studentService';
 import type { Student, CreateStudent } from '../types/database.types';
 
@@ -14,7 +15,9 @@ export function Students() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | undefined>();
+  const [photoStudent, setPhotoStudent] = useState<Student | undefined>();
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
 
@@ -117,6 +120,7 @@ export function Students() {
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-gray-50">
                 <TableRow>
+                  <TableHead className="whitespace-nowrap w-12">Photo</TableHead>
                   <TableHead className="whitespace-nowrap">Name</TableHead>
                   <TableHead className="whitespace-nowrap hidden md:table-cell">Email</TableHead>
                   <TableHead className="whitespace-nowrap hidden lg:table-cell">Phone</TableHead>
@@ -130,6 +134,20 @@ export function Students() {
                   .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                   .map((student) => (
                     <TableRow key={student.student_id}>
+                      <TableCell className="w-12">
+                        {student.photo_url ? (
+                          <img
+                            src={student.photo_url}
+                            alt={student.name}
+                            className="w-10 h-10 rounded-full object-cover border-2 border-green-400"
+                            title="Photo uploaded ✓"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-400" title="No photo">
+                            👤
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell className="font-medium text-gray-900 min-w-[150px]">
                         <div className="flex flex-col">
                           <span>{student.name}</span>
@@ -142,6 +160,20 @@ export function Students() {
                       <TableCell className="text-gray-600 hidden xl:table-cell">{student.age || '-'}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-1 md:gap-2 justify-end flex-nowrap">
+                          <button
+                            onClick={() => {
+                              setPhotoStudent(student);
+                              setIsPhotoModalOpen(true);
+                            }}
+                            className={`px-2 md:px-3 py-1 text-xs md:text-sm rounded border ${
+                              student.photo_url 
+                                ? 'text-green-600 border-green-300 bg-green-50 hover:bg-green-100' 
+                                : 'text-orange-600 border-orange-300 bg-orange-50 hover:bg-orange-100'
+                            }`}
+                            title={student.photo_url ? 'Update photo' : 'Add photo for face check-in'}
+                          >
+                            📸
+                          </button>
                           <Button 
                             size="sm" 
                             variant="secondary" 
@@ -198,6 +230,42 @@ export function Students() {
             setEditingStudent(undefined);
           }}
         />
+      </Modal>
+
+      {/* Photo Upload Modal */}
+      <Modal
+        isOpen={isPhotoModalOpen}
+        onClose={() => {
+          setIsPhotoModalOpen(false);
+          setPhotoStudent(undefined);
+        }}
+        title={`Photo for ${photoStudent?.name || 'Student'}`}
+      >
+        {photoStudent && (
+          <PhotoUpload
+            studentId={photoStudent.student_id}
+            currentPhotoUrl={photoStudent.photo_url}
+            onPhotoUploaded={(url) => {
+              // Update local state
+              setStudents(prev => 
+                prev.map(s => 
+                  s.student_id === photoStudent.student_id 
+                    ? { ...s, photo_url: url || null }
+                    : s
+                )
+              );
+              setFilteredStudents(prev =>
+                prev.map(s =>
+                  s.student_id === photoStudent.student_id
+                    ? { ...s, photo_url: url || null }
+                    : s
+                )
+              );
+              // Update photoStudent for the modal
+              setPhotoStudent(prev => prev ? { ...prev, photo_url: url || null } : undefined);
+            }}
+          />
+        )}
       </Modal>
     </div>
   );

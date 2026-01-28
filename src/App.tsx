@@ -10,6 +10,7 @@ import { Attendance } from './pages/Attendance';
 import AttendanceRecords from './pages/AttendanceRecords';
 import { AuditLogs } from './pages/AuditLogs';
 import { StudentCheckIn } from './pages/StudentCheckIn';
+import { PhotoCheckIn } from './pages/PhotoCheckIn';
 import Login from './pages/Login';
 import PrivateRoute from './components/PrivateRoute';
 import { AuthProvider } from './context/AuthContext';
@@ -24,6 +25,7 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/checkin/:token" element={<StudentCheckIn />} />
+          <Route path="/photo-checkin/:token" element={<PhotoCheckIn />} />
           <Route
             path="/*"
             element={

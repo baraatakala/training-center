@@ -10,6 +10,7 @@ import { Tables, type Session } from '../types/database.types';
 import { format } from 'date-fns';
 import { getAttendanceDateOptions } from '../utils/attendanceGenerator';
 import { QRCodeModal } from '../components/QRCodeModal';
+import { PhotoCheckInModal } from '../components/PhotoCheckInModal';
 import { logDelete } from '../services/auditService';
 
 type AttendanceRecord = {
@@ -71,6 +72,7 @@ export function Attendance() {
   const [selectedAddress, setSelectedAddress] = useState<string>('');
   const [sessionNotHeld, setSessionNotHeld] = useState<boolean>(false);
   const [showQRModal, setShowQRModal] = useState<boolean>(false);
+  const [showPhotoModal, setShowPhotoModal] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [bookReferences, setBookReferences] = useState<Array<{ reference_id: string; topic: string; start_page: number; end_page: number }>>([]);
   const [selectedBookReference, setSelectedBookReference] = useState<string>('');
@@ -1145,17 +1147,25 @@ export function Attendance() {
 
   return (
     <div className="space-y-6 p-4 md:p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-2xl sm:text-3xl font-bold">Mark Attendance</h1>
         {selectedDate && !sessionNotHeld && (
-          <Button
-            onClick={() => setShowQRModal(true)}
-            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 flex items-center gap-2"
-          >
-            <span className="text-xl">📱</span>
-            <span className="hidden sm:inline">Generate QR Code</span>
-            <span className="sm:hidden">QR Code</span>
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => setShowQRModal(true)}
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 flex items-center gap-2"
+            >
+              <span className="text-xl">📱</span>
+              <span className="hidden sm:inline">QR Code</span>
+            </Button>
+            <Button
+              onClick={() => setShowPhotoModal(true)}
+              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 flex items-center gap-2"
+            >
+              <span className="text-xl">📸</span>
+              <span className="hidden sm:inline">Face Check-In</span>
+            </Button>
+          </div>
         )}
       </div>
 
@@ -1589,6 +1599,16 @@ export function Attendance() {
           date={selectedDate}
           courseName={courseName}
           onClose={() => setShowQRModal(false)}
+        />
+      )}
+
+      {/* Photo Check-In Modal */}
+      {showPhotoModal && sessionId && selectedDate && (
+        <PhotoCheckInModal
+          sessionId={sessionId}
+          date={selectedDate}
+          courseName={courseName}
+          onClose={() => setShowPhotoModal(false)}
         />
       )}
     </div>

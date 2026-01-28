@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { Tables } from '../types/database.types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { format } from 'date-fns';
@@ -24,6 +25,7 @@ type HostInfo = {
   student_name: string;
   address: string | null;
   host_date: string | null;
+  is_teacher?: boolean;
 };
 
 export function StudentCheckIn() {
@@ -181,38 +183,76 @@ export function StudentCheckIn() {
         return;
       }
 
-      // Load host addresses if student can host
-      if (enrollment.can_host) {
-        const { data: hosts } = await supabase
-          .from('enrollment')
-          .select(`
-            student_id,
-            host_date,
-            can_host,
-            student:student_id(name, address)
-          `)
-          .eq('session_id', sessionId)
-          .eq('can_host', true)
-          .not('student.address', 'is', null);
+      // STEP 7: Load ALL host addresses (students with addresses + teacher)
+      // First, get session's teacher info
+      const { data: sessionData } = await supabase
+        .from(Tables.SESSION)
+        .select(`
+          teacher_id,
+          teacher:teacher_id (
+            teacher_id,
+            name,
+            address
+          )
+        `)
+        .eq('session_id', sessionId)
+        .single();
 
-        const hostList: HostInfo[] = (hosts || [])
-          .map((h: { student_id: string; host_date: string | null; student?: { name: string; address: string | null } | { name: string; address: string | null }[] }) => {
-            const student = h.student ? (Array.isArray(h.student) ? h.student[0] : h.student) : null;
-            return {
-              student_id: h.student_id,
-              student_name: student?.name || 'Unknown',
-              address: student?.address || null,
-              host_date: h.host_date,
-            };
-          })
-          .filter(h => h.address);
+      // Load ALL students with non-null addresses
+      const { data: allStudentsWithAddress } = await supabase
+        .from(Tables.STUDENT)
+        .select('student_id, name, address')
+        .not('address', 'is', null)
+        .neq('address', '');
 
-        setHostAddresses(hostList);
+      const hostList: HostInfo[] = [];
 
-        // Auto-select if this student is today's host
-        const myHost = hostList.find(h => h.student_id === student.student_id && h.host_date === date);
-        if (myHost && myHost.address) {
-          setSelectedAddress(`${student.student_id}|||${myHost.address}`);
+      // Add teacher as first option if they have address
+      const teacher = Array.isArray(sessionData?.teacher) ? sessionData?.teacher[0] : sessionData?.teacher;
+      if (teacher?.address && teacher.address.trim() !== '') {
+        hostList.push({
+          student_id: teacher.teacher_id,
+          student_name: `🎓 ${teacher.name} (Teacher)`,
+          address: teacher.address,
+          host_date: null,
+          is_teacher: true
+        });
+      }
+
+      // Add all students with addresses
+      if (allStudentsWithAddress) {
+        const studentHosts: HostInfo[] = allStudentsWithAddress
+          .map((s: { student_id: string; name: string; address: string }) => ({
+            student_id: s.student_id,
+            student_name: s.name,
+            address: s.address,
+            host_date: null,
+            is_teacher: false
+          }))
+          .sort((a, b) => a.student_name.localeCompare(b.student_name));
+        hostList.push(...studentHosts);
+      }
+
+      setHostAddresses(hostList);
+
+      // STEP 8: Check if host is already set for this date in session_date_host table
+      const { data: hostData } = await supabase
+        .from(Tables.SESSION_DATE_HOST)
+        .select('host_id, host_type, host_address')
+        .eq('session_id', sessionId)
+        .eq('attendance_date', date)
+        .maybeSingle();
+
+      if (hostData?.host_address && hostData.host_address !== 'SESSION_NOT_HELD') {
+        // Auto-select the pre-saved host address
+        if (hostData.host_id) {
+          setSelectedAddress(`${hostData.host_id}|||${hostData.host_address}`);
+        } else {
+          // Find matching student by address
+          const matchingHost = hostList.find(h => h.address === hostData.host_address);
+          if (matchingHost) {
+            setSelectedAddress(`${matchingHost.student_id}|||${matchingHost.address}`);
+          }
         }
       }
 

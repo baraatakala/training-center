@@ -18,6 +18,7 @@ export function StudentForm({ student, onSubmit, onCancel }: StudentFormProps) {
     location: '',
     nationality: '',
     age: null,
+    photo_url: null,
   });
 
   const [loading, setLoading] = useState(false);
@@ -33,6 +34,7 @@ export function StudentForm({ student, onSubmit, onCancel }: StudentFormProps) {
         location: student.location || '',
         nationality: student.nationality || '',
         age: student.age,
+        photo_url: student.photo_url || null,
       });
     }
   }, [student]);
