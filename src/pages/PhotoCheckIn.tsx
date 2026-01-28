@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { Tables } from '../types/database.types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { getSignedPhotoUrl } from '../components/PhotoUpload';
 import { format } from 'date-fns';
 import * as faceapi from 'face-api.js';
 
@@ -49,6 +50,7 @@ export function PhotoCheckIn() {
   const [checkedInAfterSession, setCheckedInAfterSession] = useState(false);
   const [checkInData, setCheckInData] = useState<CheckInData | null>(null);
   const [studentInfo, setStudentInfo] = useState<{ student_id: string; name: string; email: string; photo_url: string | null } | null>(null);
+  const [signedPhotoUrl, setSignedPhotoUrl] = useState<string | null>(null); // Signed URL for display/comparison
   const [hostAddresses, setHostAddresses] = useState<HostInfo[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<string>('');
   
@@ -166,7 +168,16 @@ export function PhotoCheckIn() {
         return;
       }
 
+      // Get signed URL for the reference photo
+      const photoSignedUrl = await getSignedPhotoUrl(student.photo_url);
+      if (!photoSignedUrl) {
+        setError('Failed to load reference photo. Please try again or re-upload your photo.');
+        setLoading(false);
+        return;
+      }
+
       setStudentInfo(student);
+      setSignedPhotoUrl(photoSignedUrl);
 
       // Load session details
       const { data: session, error: sessionError } = await supabase
@@ -379,7 +390,7 @@ export function PhotoCheckIn() {
 
   // Verify face against reference photo
   const verifyFace = async (capturedDataUrl: string) => {
-    if (!studentInfo?.photo_url) {
+    if (!signedPhotoUrl) {
       setFaceMatchResult({ matched: false, confidence: 0, error: 'No reference photo found' });
       return;
     }
@@ -388,8 +399,8 @@ export function PhotoCheckIn() {
     setFaceMatchResult(null);
 
     try {
-      // Load reference image
-      const refImg = await faceapi.fetchImage(studentInfo.photo_url);
+      // Load reference image using signed URL
+      const refImg = await faceapi.fetchImage(signedPhotoUrl);
       const refDetection = await faceapi
         .detectSingleFace(refImg)
         .withFaceLandmarks()
@@ -734,9 +745,9 @@ export function PhotoCheckIn() {
           {/* Student Info with Reference Photo */}
           <div className="bg-blue-50 rounded-lg p-4">
             <div className="flex items-center gap-3">
-              {studentInfo?.photo_url ? (
+              {signedPhotoUrl ? (
                 <img 
-                  src={studentInfo.photo_url} 
+                  src={signedPhotoUrl} 
                   alt="Reference" 
                   className="w-16 h-16 rounded-full object-cover border-2 border-blue-300"
                 />

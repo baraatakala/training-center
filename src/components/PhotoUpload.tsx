@@ -1,24 +1,58 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Button } from './ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 
 interface PhotoUploadProps {
   studentId: string;
-  currentPhotoUrl: string | null;
+  currentPhotoUrl: string | null; // This is actually the file path stored in DB
   onPhotoUploaded: (url: string) => void;
+}
+
+// Helper function to get signed URL from file path
+export async function getSignedPhotoUrl(filePath: string): Promise<string | null> {
+  if (!filePath) return null;
+  
+  // If it's already a full URL (legacy), try to use it
+  if (filePath.startsWith('http')) {
+    return filePath;
+  }
+  
+  const { data, error } = await supabase.storage
+    .from('student-photos')
+    .createSignedUrl(filePath, 60 * 60); // 1 hour validity
+    
+  if (error || !data?.signedUrl) {
+    console.error('Failed to get signed URL:', error);
+    return null;
+  }
+  
+  return data.signedUrl;
 }
 
 export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: PhotoUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(currentPhotoUrl);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showCamera, setShowCamera] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Load signed URL when component mounts or photo path changes
+  useEffect(() => {
+    const loadSignedUrl = async () => {
+      if (currentPhotoUrl) {
+        const signedUrl = await getSignedPhotoUrl(currentPhotoUrl);
+        setPreviewUrl(signedUrl);
+      } else {
+        setPreviewUrl(null);
+      }
+    };
+    loadSignedUrl();
+  }, [currentPhotoUrl]);
 
   // Start camera for live capture
   const startCamera = async () => {
@@ -127,27 +161,30 @@ export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: Pho
         throw uploadError;
       }
 
-      // Get public URL
-      const { data: urlData } = supabase.storage
+      // Get signed URL for private bucket (valid for 1 year)
+      const { data: signedUrlData, error: signedUrlError } = await supabase.storage
         .from('student-photos')
-        .getPublicUrl(fileName);
+        .createSignedUrl(fileName, 60 * 60 * 24 * 365); // 1 year
 
-      const publicUrl = urlData.publicUrl;
+      if (signedUrlError || !signedUrlData?.signedUrl) {
+        throw signedUrlError || new Error('Failed to get signed URL');
+      }
 
-      // Update student record with photo URL
+      // Store the file path in database (not the signed URL, as it expires)
+      // We'll generate fresh signed URLs when displaying
       const { error: updateError } = await supabase
         .from('student')
-        .update({ photo_url: publicUrl })
+        .update({ photo_url: fileName }) // Store path, not URL
         .eq('student_id', studentId);
 
       if (updateError) {
         throw updateError;
       }
 
-      setPreviewUrl(publicUrl);
-      onPhotoUploaded(publicUrl);
+      setPreviewUrl(signedUrlData.signedUrl);
+      onPhotoUploaded(fileName);
 
-      console.log('✅ Photo uploaded successfully:', publicUrl);
+      console.log('✅ Photo uploaded successfully:', fileName);
     } catch (err) {
       console.error('Upload error:', err);
       setError(err instanceof Error ? err.message : 'Failed to upload photo');
@@ -164,14 +201,17 @@ export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: Pho
     setError(null);
 
     try {
-      // Extract file path from URL
-      const urlParts = currentPhotoUrl.split('/student-photos/');
-      if (urlParts.length > 1) {
-        const filePath = urlParts[1];
-        await supabase.storage
-          .from('student-photos')
-          .remove([filePath]);
+      // currentPhotoUrl is now a file path like "studentId/timestamp.jpg"
+      // Handle both old URLs and new paths
+      let filePath = currentPhotoUrl;
+      if (currentPhotoUrl.includes('/student-photos/')) {
+        const urlParts = currentPhotoUrl.split('/student-photos/');
+        filePath = urlParts[1] || currentPhotoUrl;
       }
+      
+      await supabase.storage
+        .from('student-photos')
+        .remove([filePath]);
 
       // Clear photo_url in database
       const { error: updateError } = await supabase
