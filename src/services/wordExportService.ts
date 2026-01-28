@@ -166,9 +166,9 @@ export class WordExportService {
       insights.push({
         type: 'positive',
         icon: '🌟',
-        title: `${topPerformers} Excellent Performers`,
+        title: `${topPerformers} Excellent ${topPerformers === 1 ? 'Performer' : 'Performers'}`,
         titleAr: `${topPerformers} أداء ممتاز`,
-        description: `${topPerformers} students achieved 95%+ attendance rate. Outstanding commitment to learning!`,
+        description: `${topPerformers} ${topPerformers === 1 ? 'student' : 'students'} achieved 95%+ attendance rate. Outstanding commitment to learning!`,
         descriptionAr: `${topPerformers} طالب حققوا معدل حضور 95% أو أكثر. التزام متميز بالتعلم!`,
         metric: '≥95%',
       });
@@ -182,7 +182,7 @@ export class WordExportService {
         icon: '🏆',
         title: `${perfect} Perfect Attendance`,
         titleAr: `${perfect} حضور كامل`,
-        description: `${perfect} students achieved 100% attendance. Exceptional dedication!`,
+        description: `${perfect} ${perfect === 1 ? 'student' : 'students'} achieved 100% attendance. Exceptional dedication!`,
         descriptionAr: `${perfect} طلاب حققوا حضور 100%. تفاني استثنائي!`,
         metric: '100%',
       });
@@ -194,9 +194,9 @@ export class WordExportService {
       insights.push({
         type: 'warning',
         icon: '⚠️',
-        title: `${atRisk} Students Need Attention`,
+        title: `${atRisk} ${atRisk === 1 ? 'Student Needs' : 'Students Need'} Attention`,
         titleAr: `${atRisk} طلاب بحاجة لاهتمام`,
-        description: `${atRisk} students have attendance below 70%. Immediate intervention recommended.`,
+        description: `${atRisk} ${atRisk === 1 ? 'student has' : 'students have'} attendance below 70%. Immediate intervention recommended.`,
         descriptionAr: `${atRisk} طلاب لديهم حضور أقل من 70%. يُنصح بالتدخل الفوري.`,
         metric: '<70%',
       });
@@ -705,27 +705,26 @@ export class WordExportService {
       children: [
         new Paragraph({
           children: [
-            new TextRun({ text: icon + ' ', size: 36 }),
             new TextRun({
-              text: value,
+              text: `${icon}  ${value}`,
               bold: true,
-              size: 40,
+              size: 32,
               color: color,
             }),
           ],
           alignment: AlignmentType.CENTER,
-          spacing: { before: 100, after: 50 },
+          spacing: { before: 150, after: 80 },
         }),
         new Paragraph({
           children: [
             new TextRun({
               text: isArabic ? labelAr : label,
-              size: 22,
+              size: 20,
               color: '666666',
             }),
           ],
           alignment: AlignmentType.CENTER,
-          spacing: { after: 100 },
+          spacing: { after: 150 },
           bidirectional: isArabic,
         }),
       ],
@@ -735,8 +734,10 @@ export class WordExportService {
         color: 'f9fafb',
       },
       margins: {
-        top: convertInchesToTwip(0.2),
-        bottom: convertInchesToTwip(0.2),
+        top: convertInchesToTwip(0.3),
+        bottom: convertInchesToTwip(0.3),
+        left: convertInchesToTwip(0.2),
+        right: convertInchesToTwip(0.2),
       },
       borders: {
         top: { style: BorderStyle.SINGLE, size: 1, color: 'e5e7eb' },
@@ -744,6 +745,7 @@ export class WordExportService {
         left: { style: BorderStyle.SINGLE, size: 1, color: 'e5e7eb' },
         right: { style: BorderStyle.SINGLE, size: 1, color: 'e5e7eb' },
       },
+      width: { size: 50, type: WidthType.PERCENTAGE },
     });
   }
   /**
@@ -790,13 +792,24 @@ export class WordExportService {
   }
 
   /**
-   * Create a table with proper styling and RTL support
+   * Get cell background color based on percentage value
+   */
+  private getColorForPercentage(value: number, theme: DocumentTheme): string {
+    if (value >= 90) return theme.success;      // Excellent (Green)
+    if (value >= 75) return theme.secondary;    // Good (Blue)
+    if (value >= 60) return theme.warning;      // Moderate (Yellow)
+    return theme.danger;                        // Needs attention (Red)
+  }
+
+  /**
+   * Create a table with proper styling, RTL support, and conditional formatting
    */
   private createTable(
     headers: string[],
     rows: string[][],
     isArabic: boolean = false,
-    theme?: DocumentTheme
+    theme?: DocumentTheme,
+    colorColumns?: number[]  // Column indices to apply percentage coloring
   ): Table {
     const activeTheme = theme || this.defaultTheme;
     const borderStyle = {
@@ -840,12 +853,33 @@ export class WordExportService {
       ),
     });
 
-    // Create data rows with zebra striping
+    // Create data rows with conditional formatting
     const dataRows = rows.map((row, rowIndex) =>
       new TableRow({
         children: row.map(
-          (cell, cellIndex) =>
-            new TableCell({
+          (cell, cellIndex) => {
+            // Determine cell background color
+            let cellBgColor: string;
+            let textColor = '000000'; // Default black text
+            
+            // Check if this column should have percentage-based coloring
+            if (colorColumns && colorColumns.includes(cellIndex)) {
+              // Extract percentage value (remove % sign)
+              const percentMatch = cell.match(/^(\d+\.?\d*)%?$/);
+              if (percentMatch) {
+                const percentValue = parseFloat(percentMatch[1]);
+                cellBgColor = this.getColorForPercentage(percentValue, activeTheme);
+                textColor = 'FFFFFF'; // White text for colored backgrounds
+              } else {
+                // Use zebra striping if not a percentage
+                cellBgColor = rowIndex % 2 === 0 ? 'FFFFFF' : 'F9FAFB';
+              }
+            } else {
+              // Default zebra striping
+              cellBgColor = rowIndex % 2 === 0 ? 'FFFFFF' : 'F9FAFB';
+            }
+
+            return new TableCell({
               children: [
                 new Paragraph({
                   children: [
@@ -853,6 +887,8 @@ export class WordExportService {
                       text: cell,
                       font: isArabic ? 'Arial' : 'Calibri',
                       size: 20,
+                      color: textColor,
+                      bold: colorColumns && colorColumns.includes(cellIndex) && cell.includes('%'),
                     }),
                   ],
                   alignment:
@@ -864,25 +900,19 @@ export class WordExportService {
                   bidirectional: isArabic,
                 }),
               ],
-              shading:
-                rowIndex % 2 === 0
-                  ? {
-                      type: ShadingType.CLEAR,
-                      fill: 'FFFFFF',
-                      color: 'FFFFFF',
-                    }
-                  : {
-                      type: ShadingType.CLEAR,
-                      fill: 'F9FAFB',
-                      color: 'F9FAFB',
-                    },
+              shading: {
+                type: ShadingType.CLEAR,
+                fill: cellBgColor,
+                color: cellBgColor,
+              },
               borders: {
                 top: borderStyle,
                 bottom: borderStyle,
                 left: borderStyle,
                 right: borderStyle,
               },
-            })
+            });
+          }
         ),
       })
     );
@@ -1003,11 +1033,11 @@ export class WordExportService {
     filename?: string,
     options?: ExportOptions
   ): Promise<void> {
-    // Apply theme and options
+    // Apply theme and options (default to false for cleaner reports)
     const theme = options?.theme || this.defaultTheme;
-    const includeInsights = options?.includeInsights ?? true;
-    const includeExecutiveSummary = options?.includeExecutiveSummary ?? true;
-    const includeProgressBars = options?.includeProgressBars ?? true;
+    const includeInsights = options?.includeInsights ?? false;
+    const includeExecutiveSummary = options?.includeExecutiveSummary ?? false;
+    const includeProgressBars = options?.includeProgressBars ?? false;
 
     const sections: (Paragraph | Table)[] = [];
 
@@ -1094,10 +1124,10 @@ export class WordExportService {
     const summaryRows = isArabic ? [
       ['عدد الطلاب', summaryStats.totalStudents.toString()],
       ['إجمالي الجلسات', summaryStats.totalSessions.toString()],
-      ['معدل الحضور للصف (%)', `${summaryStats.classAvgRate.toFixed(1)}%`],
+      ['معدل الصف', `${summaryStats.classAvgRate.toFixed(1)}%`],
       ['متوسط النقاط المرجحة', summaryStats.avgWeightedScore.toFixed(1)],
-      ['متوسط الحضور حسب التاريخ (%)', `${summaryStats.avgAttendanceByDate.toFixed(1)}%`],
-      ['متوسط الحضور حسب التاريخ للحصص النشطة (%)', `${summaryStats.avgAttendanceByAccruedDate.toFixed(1)}%`],
+      ['متوسط الحضور حسب التاريخ', `${summaryStats.avgAttendanceByDate.toFixed(1)}%`],
+      ['متوسط الحضور للتواريخ النشطة', `${summaryStats.avgAttendanceByAccruedDate.toFixed(1)}%`],
       ['إجمالي الحاضرين', summaryStats.totalPresent.toString()],
       ['إجمالي الغياب', summaryStats.totalAbsent.toString()],
       ['إجمالي الأعذار', summaryStats.totalExcused.toString()],
@@ -1105,10 +1135,10 @@ export class WordExportService {
     ] : [
       ['Total Students', summaryStats.totalStudents.toString()],
       ['Total Sessions', summaryStats.totalSessions.toString()],
-      ['Class Avg Rate (%)', `${summaryStats.classAvgRate.toFixed(1)}%`],
+      ['Class Avg Rate', `${summaryStats.classAvgRate.toFixed(1)}%`],
       ['Avg Weighted Score', summaryStats.avgWeightedScore.toFixed(1)],
-      ['Avg Attendance by Date (%)', `${summaryStats.avgAttendanceByDate.toFixed(1)}%`],
-      ['Avg Attendance by Accrued Date (%)', `${summaryStats.avgAttendanceByAccruedDate.toFixed(1)}%`],
+      ['Avg Attendance by Date', `${summaryStats.avgAttendanceByDate.toFixed(1)}%`],
+      ['Avg Attendance by Accrued Date', `${summaryStats.avgAttendanceByAccruedDate.toFixed(1)}%`],
       ['Total Present', summaryStats.totalPresent.toString()],
       ['Total Absent', summaryStats.totalAbsent.toString()],
       ['Total Excused', summaryStats.totalExcused.toString()],
@@ -1169,7 +1199,8 @@ export class WordExportService {
       s.weighted_score.toFixed(1),
     ]);
 
-    sections.push(this.createTable(studentHeaders, studentRows, isArabic, theme));
+    // Apply color to columns: Attendance % (index 9), Punctuality % (index 10), and Score (index 11)
+    sections.push(this.createTable(studentHeaders, studentRows, isArabic, theme, [9, 10, 11]));
     sections.push(new Paragraph({ text: '', spacing: { after: 400 } }));
 
     // Date-wise Attendance Section
@@ -1224,7 +1255,8 @@ export class WordExportService {
       ];
     });
 
-    sections.push(this.createTable(dateStatsHeaders, dateStatsRows, isArabic, theme));
+    // Apply color to Rate % column (index 7)
+    sections.push(this.createTable(dateStatsHeaders, dateStatsRows, isArabic, theme, [7]));
     sections.push(new Paragraph({ text: '', spacing: { after: 200 } }));
 
     // Table 2: Student Names by Status
@@ -1307,7 +1339,8 @@ export class WordExportService {
         h.dates,
       ]);
 
-      sections.push(this.createTable(hostHeaders, hostRows, isArabic, theme));
+      // Apply color to Attendance % column (index 7)
+      sections.push(this.createTable(hostHeaders, hostRows, isArabic, theme, [7]));
     }
 
     // Create document with header and footer
