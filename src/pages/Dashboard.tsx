@@ -152,7 +152,7 @@ export function Dashboard() {
         studentCourseData[sid].courses[courseId].statuses.push(record.status);
       });
 
-      // 🎯 ADVANCED ANALYTICS: Multi-level risk assessment
+      // 🎯 ADVANCED AI-POWERED ANALYTICS: Multi-dimensional risk assessment
       const alertStudents: AbsentStudent[] = [];
 
       Object.entries(studentCourseData).forEach(([studentId, studentInfo]) => {
@@ -166,62 +166,123 @@ export function Dashboard() {
             return idx >= 0 ? courseInfo.statuses[idx] : 'absent';
           });
 
-          // === CORE METRICS ===
+          // === CORE METRICS WITH CONTEXT AWARENESS ===
           const totalDays = uniqueDates.length;
-          // Count only 'on time' and 'late' as present; 'excused' is neutral
-          const presentDays = uniqueStatuses.filter(s => s === 'on time' || s === 'late').length;
+          const presentDays = uniqueStatuses.filter(s => s === 'present' || s === 'on time' || s === 'late').length;
+          const lateDays = uniqueStatuses.filter(s => s === 'late').length;
           const daysAbsent = uniqueStatuses.filter(s => s === 'absent').length;
-          // Exclude 'excused' from denominator for attendance rate
-          const effectiveDays = uniqueStatuses.filter(s => s !== 'excused').length;
+          // Effective days = days that "count" toward performance (exclude excused)
+          const effectiveDays = uniqueStatuses.filter(s => s !== 'excused' && s !== 'not enrolled').length;
           const attendanceRate = effectiveDays > 0 ? (presentDays / effectiveDays) * 100 : 0;
+          
+          // Quality score: late arrivals reduce quality slightly
+          const qualityAdjustment = lateDays * 0.3; // 0.3 penalty per late
+          const qualityScore = Math.max(0, attendanceRate - qualityAdjustment);
 
-          // === CONSECUTIVE ABSENCE DETECTION ===
+          // === INTELLIGENT CONSECUTIVE ABSENCE DETECTION ===
           let currentStreak = 0;
           let maxConsecutive = 0;
-          let recentConsecutive = 0; // Consecutive absences in last 30 days or ongoing
+          let recentConsecutive = 0; // Consecutive in last 21 days (3 weeks)
+          let ongoingStreak = 0; // Current streak if latest status is absent
           let lastAbsenceDate = '';
           const absentDates: string[] = [];
-          const thirtyDaysAgo = new Date();
-          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          const today = new Date();
+          const threeWeeksAgo = new Date(today.getTime() - 21 * 24 * 60 * 60 * 1000);
+          const oneWeekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
 
           uniqueStatuses.forEach((status, idx) => {
+            const dateObj = new Date(uniqueDates[idx]);
+            
             if (status === 'absent') {
               currentStreak++;
               lastAbsenceDate = uniqueDates[idx];
               maxConsecutive = Math.max(maxConsecutive, currentStreak);
               absentDates.push(uniqueDates[idx]);
               
-              // Track recent consecutive absences (last 30 days or ongoing)
-              if (idx === 0 || new Date(uniqueDates[idx]) >= thirtyDaysAgo) {
-                recentConsecutive = currentStreak;
+              // Track recent consecutive (last 3 weeks)
+              if (dateObj >= threeWeeksAgo) {
+                recentConsecutive = Math.max(recentConsecutive, currentStreak);
               }
-            } else if (status === 'on time' || status === 'late') {
-              // Only reset streak if they actually attended
+              
+              // Ongoing streak if this is the most recent record
+              if (idx === 0) {
+                ongoingStreak = currentStreak;
+              }
+            } else if (status === 'present' || status === 'on time' || status === 'late') {
+              // Reset streak on actual attendance
               currentStreak = 0;
             }
-            // If 'excused', do not change streak
+            // Excused absences don't break or extend streak (neutral)
           });
 
-          // === TREND ANALYSIS ===
-          const recentWindow = Math.min(7, Math.floor(totalDays / 2));
+          // === TIME-WEIGHTED RECENCY ANALYSIS ===
+          // Recent absences carry more weight using exponential decay
+          let recencyScore = 0;
+          const recentAbsences = absentDates.filter(d => new Date(d) >= oneWeekAgo).length;
+          const weeklyAbsences = absentDates.filter(d => new Date(d) >= oneWeekAgo).length;
+          
+          absentDates.forEach((absDate) => {
+            const daysAgo = Math.floor((today.getTime() - new Date(absDate).getTime()) / (24 * 60 * 60 * 1000));
+            // Exponential decay: recent absences have higher weight
+            const weight = Math.exp(-daysAgo / 30); // 30-day half-life
+            recencyScore += weight;
+          });
+          
+          // Normalize recency score (0-100 scale)
+          const normalizedRecency = Math.min(100, recencyScore * 10);
+
+          // === ADVANCED TREND ANALYSIS WITH MOMENTUM ===
+          const recentWindow = Math.max(4, Math.min(10, Math.floor(totalDays * 0.3))); // Adaptive window
+          const olderWindow = Math.max(4, Math.min(10, Math.floor(totalDays * 0.3)));
           
           let trend: 'improving' | 'declining' | 'stable' = 'stable';
-          if (totalDays >= 6) {
-            // Exclude 'excused' from trend windows
-            const recentStatuses = uniqueStatuses.slice(0, recentWindow).filter(s => s !== 'excused');
-            const oldStatuses = uniqueStatuses.slice(recentWindow).filter(s => s !== 'excused');
-            const recentPresent = recentStatuses.filter(s => s === 'on time' || s === 'late').length;
-            const oldPresent = oldStatuses.filter(s => s === 'on time' || s === 'late').length;
+          let trendStrength = 0; // -1 to +1: how strong the trend is
+          
+          if (totalDays >= 8) {
+            const recentStatuses = uniqueStatuses.slice(0, recentWindow).filter(s => s !== 'excused' && s !== 'not enrolled');
+            const olderStatuses = uniqueStatuses.slice(recentWindow, recentWindow + olderWindow).filter(s => s !== 'excused' && s !== 'not enrolled');
+            
+            const recentPresent = recentStatuses.filter(s => s === 'present' || s === 'on time' || s === 'late').length;
+            const olderPresent = olderStatuses.filter(s => s === 'present' || s === 'on time' || s === 'late').length;
+            
             const recentRate = recentStatuses.length > 0 ? recentPresent / recentStatuses.length : 0;
-            const oldRate = oldStatuses.length > 0 ? oldPresent / oldStatuses.length : 0;
-            if (recentRate > oldRate + 0.2) trend = 'improving';
-            else if (recentRate < oldRate - 0.2) trend = 'declining';
+            const olderRate = olderStatuses.length > 0 ? olderPresent / olderStatuses.length : 0;
+            
+            const trendDelta = recentRate - olderRate;
+            trendStrength = trendDelta; // -1 to +1
+            
+            // Dynamic thresholds based on overall performance
+            const improvementThreshold = attendanceRate < 70 ? 0.15 : 0.25;
+            const declineThreshold = attendanceRate > 80 ? -0.15 : -0.25;
+            
+            if (trendDelta > improvementThreshold) {
+              trend = 'improving';
+            } else if (trendDelta < declineThreshold) {
+              trend = 'declining';
+            }
+          }
+          
+          // Momentum: acceleration of the trend
+          let momentum = 0;
+          if (totalDays >= 12) {
+            const veryRecentWindow = Math.min(4, Math.floor(recentWindow / 2));
+            const veryRecentStatuses = uniqueStatuses.slice(0, veryRecentWindow).filter(s => s !== 'excused' && s !== 'not enrolled');
+            const midRecentStatuses = uniqueStatuses.slice(veryRecentWindow, recentWindow).filter(s => s !== 'excused' && s !== 'not enrolled');
+            
+            const veryRecentRate = veryRecentStatuses.length > 0 
+              ? veryRecentStatuses.filter(s => s === 'present' || s === 'on time' || s === 'late').length / veryRecentStatuses.length 
+              : 0;
+            const midRecentRate = midRecentStatuses.length > 0 
+              ? midRecentStatuses.filter(s => s === 'present' || s === 'on time' || s === 'late').length / midRecentStatuses.length 
+              : 0;
+            
+            momentum = veryRecentRate - midRecentRate; // Trend acceleration
           }
 
-          // === PATTERN DETECTION ===
+          // === INTELLIGENT PATTERN DETECTION ===
           const patterns: string[] = [];
           
-          // Day of week pattern analysis
+          // 1. Day-of-week pattern analysis with statistical significance
           if (totalDays >= 8) {
             const dateObjects = uniqueDates.map(d => new Date(d));
             const dayAbsences: { [key: number]: number } = {};
@@ -237,74 +298,229 @@ export function Dashboard() {
 
             Object.entries(dayAbsences).forEach(([day, count]) => {
               const total = dayCounts[parseInt(day)] || 1;
-              if (count >= 3 && count / total >= 0.75) {
+              const absenceRate = count / total;
+              // Require both frequency AND rate for pattern
+              if (count >= 3 && absenceRate >= 0.7 && total >= 4) {
                 const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][parseInt(day)];
-                patterns.push(`Often absent on ${dayName}s`);
+                patterns.push(`High ${dayName} absence rate (${Math.round(absenceRate * 100)}%)`);
               }
             });
           }
 
-          // Recent spike detection
+          // 2. Sudden spike detection with statistical variance
           if (totalDays >= 10) {
-            const last5 = uniqueStatuses.slice(0, 5);
+            const last5 = uniqueStatuses.slice(0, 5).filter(s => s !== 'excused');
+            const previous5 = uniqueStatuses.slice(5, 10).filter(s => s !== 'excused');
             const absencesInLast5 = last5.filter(s => s === 'absent').length;
-            if (absencesInLast5 >= 4) {
-              patterns.push('Sudden increase in absences');
+            const absencesInPrevious5 = previous5.filter(s => s === 'absent').length;
+            
+            // Spike if recent absences are 2+ more than previous period
+            if (absencesInLast5 >= 3 && absencesInLast5 >= absencesInPrevious5 + 2) {
+              patterns.push('Recent absence spike detected');
             }
           }
 
-          // Long absence streak
-          if (maxConsecutive >= 5) {
-            patterns.push('Extended absence streak');
+          // 3. Extended absence pattern
+          if (maxConsecutive >= 4) {
+            patterns.push(`Extended ${maxConsecutive}-session absence streak`);
+          }
+          
+          // 4. Intermittent pattern (frequent short absences)
+          if (totalDays >= 10 && daysAbsent >= 5) {
+            const avgAbsenceGap = daysAbsent > 1 
+              ? (uniqueDates.length - 1) / (daysAbsent - 1) 
+              : 0;
+            if (avgAbsenceGap < 3 && avgAbsenceGap > 0) {
+              patterns.push('Frequent intermittent absences');
+            }
+          }
+          
+          // 5. Late arrival habit pattern
+          if (lateDays >= 3 && totalDays >= 8) {
+            const lateRate = lateDays / totalDays;
+            if (lateRate >= 0.3) {
+              patterns.push(`Chronic lateness (${Math.round(lateRate * 100)}% of sessions)`);
+            }
+          }
+          
+          // 6. Recent disengagement (was good, now declining)
+          if (trend === 'declining' && trendStrength < -0.3 && attendanceRate < 70) {
+            patterns.push('Sharp recent decline in attendance');
+          }
+          
+          // 7. Absence clustering (absences grouped together)
+          if (absentDates.length >= 4) {
+            const gaps = [];
+            for (let i = 1; i < absentDates.length; i++) {
+              const gap = Math.abs(new Date(absentDates[i - 1]).getTime() - new Date(absentDates[i]).getTime()) / (24 * 60 * 60 * 1000);
+              gaps.push(gap);
+            }
+            const avgGap = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+            if (avgGap <= 7) { // Absences within a week of each other
+              patterns.push('Clustered absence pattern');
+            }
           }
 
-          // === ENGAGEMENT SCORE (0-100) ===
-          let engagementScore = attendanceRate;
-          if (trend === 'improving') engagementScore += 10;
-          if (trend === 'declining') engagementScore -= 15;
-          if (maxConsecutive >= 3) engagementScore -= 10;
-          if (patterns.length > 0) engagementScore -= 5;
+          // === MULTI-DIMENSIONAL ENGAGEMENT SCORE (0-100) ===
+          // Weighted scoring system based on multiple factors
+          let engagementScore = 0;
+          
+          // Base attendance (40% weight) - using quality score
+          engagementScore += qualityScore * 0.4;
+          
+          // Recency impact (25% weight) - recent performance matters more
+          const recencyComponent = (100 - normalizedRecency) * 0.25;
+          engagementScore += recencyComponent;
+          
+          // Trend momentum (20% weight)
+          let trendComponent = 0;
+          if (trend === 'improving') {
+            trendComponent = 20 + (trendStrength * 20); // 20-40 points
+          } else if (trend === 'declining') {
+            trendComponent = -Math.abs(trendStrength) * 30; // -30 to 0 points
+          } else {
+            trendComponent = 10; // Stable gets baseline
+          }
+          engagementScore += trendComponent;
+          
+          // Consistency (15% weight) - penalize streaks and patterns
+          const consistencyPenalty = (maxConsecutive * 3) + (patterns.length * 5);
+          const consistencyScore = Math.max(0, 15 - consistencyPenalty);
+          engagementScore += consistencyScore;
+          
+          // Momentum bonus/penalty (small but important)
+          engagementScore += momentum * 10;
+          
+          // Clamp to 0-100
           engagementScore = Math.max(0, Math.min(100, engagementScore));
 
-          // === ADVANCED RISK ASSESSMENT ===
+          // Clamp to 0-100
+          engagementScore = Math.max(0, Math.min(100, engagementScore));
+
+          // === AI-POWERED RISK ASSESSMENT WITH DYNAMIC THRESHOLDS ===
           let riskLevel: 'critical' | 'high' | 'medium' | 'watch' = 'watch';
           let shouldAlert = false;
+          let riskScore = 0; // Composite risk score
 
-          // Only alert if there's meaningful data to analyze (at least 3 sessions)
+          // EARLY EXIT: Need meaningful data (at least 3 sessions)
           if (totalDays < 3) {
             return;
           }
 
-          // Don't alert if no absences at all
-          if (daysAbsent === 0) {
+          // EARLY EXIT: Perfect or near-perfect performance with no concerns
+          if (daysAbsent === 0 && lateDays <= 1) {
             return;
           }
 
-          // SMART FILTERING: Don't alert if performance is good
-          // High attendance + improving/stable trend + good engagement = no alert
-          if (attendanceRate >= 80 && engagementScore >= 85 && trend !== 'declining' && recentConsecutive < 2) {
-            return;
+          // === CALCULATE COMPOSITE RISK SCORE (0-100, higher = more risk) ===
+          
+          // Factor 1: Absence rate severity (0-35 points)
+          const absenceRate = daysAbsent / effectiveDays;
+          let absenceRiskPoints = 0;
+          if (absenceRate >= 0.5) absenceRiskPoints = 35;
+          else if (absenceRate >= 0.4) absenceRiskPoints = 30;
+          else if (absenceRate >= 0.3) absenceRiskPoints = 22;
+          else if (absenceRate >= 0.2) absenceRiskPoints = 15;
+          else absenceRiskPoints = absenceRate * 50; // Linear for low rates
+          
+          // Factor 2: Recent behavior (0-30 points) - weighted heavily
+          let recentRiskPoints = 0;
+          if (ongoingStreak >= 4) recentRiskPoints = 30;
+          else if (ongoingStreak >= 3) recentRiskPoints = 25;
+          else if (ongoingStreak >= 2) recentRiskPoints = 18;
+          else if (recentConsecutive >= 3) recentRiskPoints = 20;
+          else if (recentConsecutive >= 2) recentRiskPoints = 12;
+          else if (weeklyAbsences >= 2) recentRiskPoints = 10;
+          else if (recentAbsences >= 1) recentRiskPoints = 5;
+          
+          // Add recency weight
+          recentRiskPoints += normalizedRecency * 0.15;
+          
+          // Factor 3: Trend direction (0-20 points)
+          let trendRiskPoints = 0;
+          if (trend === 'declining') {
+            trendRiskPoints = 15 + Math.abs(trendStrength) * 5; // 15-20 points
+            if (momentum < -0.2) trendRiskPoints += 5; // Accelerating decline
+          } else if (trend === 'improving') {
+            trendRiskPoints = Math.max(0, 5 - trendStrength * 10); // 0-5 points
+          } else {
+            trendRiskPoints = 8; // Stable but not improving
           }
-
-          // CRITICAL: Severe attendance issues (focus on RECENT consecutive or very low rate)
-          if (recentConsecutive >= 4 || attendanceRate < 40 || (recentConsecutive >= 3 && attendanceRate < 50) || (daysAbsent >= 5 && attendanceRate < 50) || (maxConsecutive >= 5 && attendanceRate < 60)) {
+          
+          // Factor 4: Pattern complexity (0-15 points)
+          const patternRiskPoints = Math.min(15, patterns.length * 4 + (lateDays >= 3 ? 3 : 0));
+          
+          // Calculate total risk score
+          riskScore = absenceRiskPoints + recentRiskPoints + trendRiskPoints + patternRiskPoints;
+          
+          // === INTELLIGENT RISK LEVEL CLASSIFICATION ===
+          // Dynamic thresholds that adapt to overall attendance
+          const isRecentlyConcerning = ongoingStreak >= 2 || weeklyAbsences >= 2;
+          const hasSignificantAbsences = daysAbsent >= 3;
+          
+          // CRITICAL: Immediate intervention required (risk score 70+)
+          if (
+            riskScore >= 70 ||
+            ongoingStreak >= 5 ||
+            (ongoingStreak >= 4 && attendanceRate < 50) ||
+            (recentConsecutive >= 5 && attendanceRate < 60) ||
+            attendanceRate < 35 ||
+            (weeklyAbsences >= 3 && trend === 'declining')
+          ) {
             riskLevel = 'critical';
             shouldAlert = true;
           }
-          // HIGH: Significant concerns (recent consecutive absences matter most)
-          else if (recentConsecutive >= 3 || attendanceRate < 60 || (recentConsecutive >= 2 && trend === 'declining') || (daysAbsent >= 4 && attendanceRate < 60) || (maxConsecutive >= 4 && attendanceRate < 70)) {
+          // HIGH: Urgent attention needed (risk score 50-69)
+          else if (
+            riskScore >= 50 ||
+            ongoingStreak >= 3 ||
+            recentConsecutive >= 4 ||
+            attendanceRate < 50 ||
+            (ongoingStreak >= 2 && attendanceRate < 60 && trend === 'declining') ||
+            (weeklyAbsences >= 2 && attendanceRate < 65) ||
+            (patterns.length >= 2 && attendanceRate < 60)
+          ) {
             riskLevel = 'high';
             shouldAlert = true;
           }
-          // MEDIUM: Moderate concerns (only if recent issues OR low rate)
-          else if (recentConsecutive >= 2 || attendanceRate < 70 || (patterns.length > 0 && attendanceRate < 75 && trend === 'declining') || (maxConsecutive >= 3 && attendanceRate < 75 && trend === 'declining')) {
+          // MEDIUM: Monitor closely (risk score 30-49)
+          else if (
+            riskScore >= 30 ||
+            ongoingStreak >= 2 ||
+            recentConsecutive >= 3 ||
+            attendanceRate < 65 ||
+            (isRecentlyConcerning && attendanceRate < 75) ||
+            (trend === 'declining' && trendStrength < -0.3 && attendanceRate < 75) ||
+            (patterns.length >= 2 && attendanceRate < 75)
+          ) {
             riskLevel = 'medium';
             shouldAlert = true;
           }
-          // WATCH: Early warning patterns (requires recent concern)
-          else if ((patterns.length > 0 && attendanceRate < 85) || (trend === 'declining' && attendanceRate < 85 && daysAbsent >= 2) || (recentConsecutive >= 1 && attendanceRate < 80)) {
+          // WATCH: Early warning (risk score 15-29)
+          else if (
+            riskScore >= 15 ||
+            hasSignificantAbsences ||
+            (patterns.length >= 1 && attendanceRate < 85) ||
+            (trend === 'declining' && attendanceRate < 80) ||
+            (isRecentlyConcerning && attendanceRate < 85) ||
+            (lateDays >= 4 && attendanceRate < 85) ||
+            engagementScore < 70
+          ) {
             riskLevel = 'watch';
             shouldAlert = true;
+          }
+          
+          // SMART FILTERING: Don't alert if performance is genuinely good
+          // High engagement + good attendance + positive trend = no alert
+          if (
+            engagementScore >= 85 &&
+            attendanceRate >= 85 &&
+            trend !== 'declining' &&
+            ongoingStreak === 0 &&
+            recentConsecutive <= 1 &&
+            patterns.length === 0
+          ) {
+            shouldAlert = false;
           }
 
           // Find last attended date (on time or late only)
