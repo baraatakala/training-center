@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { format, subDays } from 'date-fns';
@@ -197,51 +197,71 @@ const AttendanceRecords = () => {
     }
   }, [location.search, students]);
 
-  useEffect(() => {
-    applyFilters();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Memoize filtered records to avoid recalculation on every render
+  const applyFilters = useCallback(() => {
+    let filtered = [...records];
+
+    // Filter by course (only if not already filtered at DB level)
+    if (filters.course_id) {
+      filtered = filtered.filter(r => r.course_id === filters.course_id);
+    }
+
+    // Filter by instructor (only if not already filtered at DB level)
+    if (filters.teacher_id) {
+      filtered = filtered.filter(r => r.teacher_id === filters.teacher_id);
+    }
+
+    // Filter by status (only if not already filtered at DB level)
+    if (filters.status) {
+      filtered = filtered.filter(r => r.status === filters.status);
+    }
+
+    setFilteredRecords(filtered);
   }, [records, filters]);
 
   useEffect(() => {
-    if (filteredRecords.length > 0) {
+    applyFilters();
+  }, [applyFilters]);
+
+  useEffect(() => {
+    if (filteredRecords.length > 0 && showAnalytics) {
+      // Only calculate analytics when explicitly shown
       calculateAnalytics();
     } else {
       setStudentAnalytics([]);
       setDateAnalytics([]);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredRecords]);
+  }, [filteredRecords, showAnalytics]);
 
   const loadFilterOptions = async () => {
     try {
-      // Load students
-      const { data: studentsData } = await supabase
-        .from('student')
-        .select('student_id, name')
-        .order('name');
-      
-      if (studentsData) {
-        setStudents(studentsData.map(s => ({ value: s.student_id, label: s.name })));
+      // Load all filter options in parallel for better performance
+      const [studentsRes, coursesRes, teachersRes] = await Promise.all([
+        supabase
+          .from('student')
+          .select('student_id, name')
+          .order('name'),
+        supabase
+          .from('course')
+          .select('course_id, course_name')
+          .order('course_name'),
+        supabase
+          .from('teacher')
+          .select('teacher_id, name')
+          .order('name')
+      ]);
+
+      if (studentsRes.data) {
+        setStudents(studentsRes.data.map(s => ({ value: s.student_id, label: s.name })));
       }
 
-      // Load courses
-      const { data: coursesData } = await supabase
-        .from('course')
-        .select('course_id, course_name')
-        .order('course_name');
-      
-      if (coursesData) {
-        setCourses(coursesData.map(c => ({ value: c.course_id, label: c.course_name })));
+      if (coursesRes.data) {
+        setCourses(coursesRes.data.map(c => ({ value: c.course_id, label: c.course_name })));
       }
 
-      // Load instructors
-      const { data: teachersData } = await supabase
-        .from('teacher')
-        .select('teacher_id, name')
-        .order('name');
-      
-      if (teachersData) {
-        setInstructors(teachersData.map(t => ({ value: t.teacher_id, label: t.name })));
+      if (teachersRes.data) {
+        setInstructors(teachersRes.data.map(t => ({ value: t.teacher_id, label: t.name })));
       }
     } catch (error) {
       console.error('Error loading filter options:', error);
@@ -251,8 +271,8 @@ const AttendanceRecords = () => {
   const loadRecords = async () => {
     setLoading(true);
     try {
-      // First load attendance records
-      const { data, error } = await supabase
+      // Build query with filters at database level for better performance
+      let query = supabase
         .from('attendance')
         .select(`
           attendance_id,
@@ -279,56 +299,79 @@ const AttendanceRecords = () => {
             teacher:teacher_id (name)
           )
         `)
-        .not('status', 'is', null)
+        .not('status', 'is', null);
+      
+      // Apply filters at database level to reduce data transfer
+      if (filters.student_id) {
+        query = query.eq('student_id', filters.student_id);
+      }
+      
+      if (filters.startDate) {
+        query = query.gte('attendance_date', filters.startDate);
+      }
+      
+      if (filters.endDate) {
+        query = query.lte('attendance_date', filters.endDate);
+      }
+      
+      // Order and limit
+      query = query
         .order('attendance_date', { ascending: false })
-        .order('marked_at', { ascending: false });
+        .order('marked_at', { ascending: false })
+        .limit(5000); // Safety limit to prevent loading too much data
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
       // Get unique session IDs and dates to load book coverage and host addresses
       const sessionDatePairs = [...new Set(data?.map(r => `${r.session_id}|${r.attendance_date}`) || [])];
-      const bookCoverageMap = new Map<string, { topic: string; start_page: number; end_page: number }>();
-      const hostAddressMap = new Map<string, string>(); // NEW: Map of session_id|date -> host_address
       
-      if (sessionDatePairs.length > 0) {
-        // Load book coverage
-        const { data: coverageData } = await supabase
-          .from('session_book_coverage')
-          .select(`
-            session_id,
-            attendance_date,
-            course_book_reference!inner (
-              topic,
-              start_page,
-              end_page
-            )
-          `);
-        
-        if (coverageData) {
-          coverageData.forEach((cov: { session_id: string; attendance_date: string; course_book_reference: Array<{ topic: string; start_page: number; end_page: number }> }) => {
-            const key = `${cov.session_id}|${cov.attendance_date}`;
-            const ref = Array.isArray(cov.course_book_reference) ? cov.course_book_reference[0] : cov.course_book_reference;
-            if (ref) {
-              bookCoverageMap.set(key, {
-                topic: ref.topic,
-                start_page: ref.start_page,
-                end_page: ref.end_page
-              });
-            }
-          });
-        }
+      // Load book coverage and host addresses in parallel
+      const [coverageRes, hostRes] = await Promise.all([
+        sessionDatePairs.length > 0 
+          ? supabase
+              .from('session_book_coverage')
+              .select(`
+                session_id,
+                attendance_date,
+                course_book_reference!inner (
+                  topic,
+                  start_page,
+                  end_page
+                )
+              `)
+          : Promise.resolve({ data: null }),
+        sessionDatePairs.length > 0
+          ? supabase
+              .from('session_date_host')
+              .select('session_id, attendance_date, host_address')
+          : Promise.resolve({ data: null })
+      ]);
 
-        // NEW: Load host addresses from session_date_host table (single source of truth)
-        const { data: hostData } = await supabase
-          .from('session_date_host')
-          .select('session_id, attendance_date, host_address');
-        
-        if (hostData) {
-          hostData.forEach((h: { session_id: string; attendance_date: string; host_address: string }) => {
-            const key = `${h.session_id}|${h.attendance_date}`;
-            hostAddressMap.set(key, h.host_address);
-          });
-        }
+      // Create lookup maps for O(1) access
+      const bookCoverageMap = new Map<string, { topic: string; start_page: number; end_page: number }>();
+      const hostAddressMap = new Map<string, string>();
+      
+      if (coverageRes.data) {
+        coverageRes.data.forEach((cov: { session_id: string; attendance_date: string; course_book_reference: Array<{ topic: string; start_page: number; end_page: number }> }) => {
+          const key = `${cov.session_id}|${cov.attendance_date}`;
+          const ref = Array.isArray(cov.course_book_reference) ? cov.course_book_reference[0] : cov.course_book_reference;
+          if (ref) {
+            bookCoverageMap.set(key, {
+              topic: ref.topic,
+              start_page: ref.start_page,
+              end_page: ref.end_page
+            });
+          }
+        });
+      }
+
+      if (hostRes.data) {
+        hostRes.data.forEach((h: { session_id: string; attendance_date: string; host_address: string }) => {
+          const key = `${h.session_id}|${h.attendance_date}`;
+          hostAddressMap.set(key, h.host_address);
+        });
       }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -421,40 +464,6 @@ const AttendanceRecords = () => {
       console.error('Error loading records:', error);
     }
     setLoading(false);
-  };
-
-  const applyFilters = () => {
-    let filtered = [...records];
-
-    // Filter by student
-    if (filters.student_id) {
-      filtered = filtered.filter(r => r.student_id === filters.student_id);
-    }
-
-    // Filter by course
-    if (filters.course_id) {
-      filtered = filtered.filter(r => r.course_id === filters.course_id);
-    }
-
-    // Filter by instructor
-    if (filters.teacher_id) {
-      filtered = filtered.filter(r => r.teacher_id === filters.teacher_id);
-    }
-
-    // Filter by status
-    if (filters.status) {
-      filtered = filtered.filter(r => r.status === filters.status);
-    }
-
-    // Filter by date range
-    if (filters.startDate) {
-      filtered = filtered.filter(r => r.attendance_date >= filters.startDate);
-    }
-    if (filters.endDate) {
-      filtered = filtered.filter(r => r.attendance_date <= filters.endDate);
-    }
-
-    setFilteredRecords(filtered);
   };
 
   const getStatusColor = (status: string) => {
@@ -1200,8 +1209,8 @@ const AttendanceRecords = () => {
     return sorted;
   };
 
-  // Calculate advanced analytics
-  const calculateAnalytics = () => {
+  // Calculate advanced analytics - memoized for performance
+  const calculateAnalytics = useCallback(() => {
     // Filter out 'not enrolled' records from analytics
     const analyticsRecords = filteredRecords.filter(r => r.status !== 'not enrolled');
     
@@ -1377,7 +1386,7 @@ const AttendanceRecords = () => {
     }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     setDateAnalytics(dateStats);
-  };
+  }, [filteredRecords]); // Memoize with filteredRecords dependency
 
   const calculateConsistencyIndex = (pattern: number[]): number => {
     // Consistency Index: measures how consistently present the student is
