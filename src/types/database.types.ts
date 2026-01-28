@@ -105,7 +105,7 @@ export interface Attendance {
   session_id: string;
   attendance_date: string;
   student_id: string;
-  status: 'present' | 'absent' | 'late' | 'excused' | 'not enrolled';
+  status: 'on time' | 'absent' | 'late' | 'excused' | 'not enrolled';
   check_in_time: string | null;
   notes: string | null;
   // Reason for excused absence (sick, abroad, on working, etc.)

@@ -92,10 +92,10 @@ export const attendanceService = {
       .single();
   },
 
-  // Mark student as present
+  // Mark student as on time (present)
   async markPresent(attendanceId: string, checkInTime?: string) {
     return await this.update(attendanceId, {
-      status: 'present',
+      status: 'on time',
       check_in_time: checkInTime || new Date().toISOString(),
     });
   },

@@ -285,11 +285,13 @@ const AttendanceRecords = () => {
 
       if (error) throw error;
 
-      // Get unique session IDs and dates to load book coverage
+      // Get unique session IDs and dates to load book coverage and host addresses
       const sessionDatePairs = [...new Set(data?.map(r => `${r.session_id}|${r.attendance_date}`) || [])];
       const bookCoverageMap = new Map<string, { topic: string; start_page: number; end_page: number }>();
+      const hostAddressMap = new Map<string, string>(); // NEW: Map of session_id|date -> host_address
       
       if (sessionDatePairs.length > 0) {
+        // Load book coverage
         const { data: coverageData } = await supabase
           .from('session_book_coverage')
           .select(`
@@ -315,12 +317,26 @@ const AttendanceRecords = () => {
             }
           });
         }
+
+        // NEW: Load host addresses from session_date_host table (single source of truth)
+        const { data: hostData } = await supabase
+          .from('session_date_host')
+          .select('session_id, attendance_date, host_address');
+        
+        if (hostData) {
+          hostData.forEach((h: { session_id: string; attendance_date: string; host_address: string }) => {
+            const key = `${h.session_id}|${h.attendance_date}`;
+            hostAddressMap.set(key, h.host_address);
+          });
+        }
       }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const formattedRecords: AttendanceRecord[] = (data || []).map((record: any) => {
         const bookKey = `${record.session_id}|${record.attendance_date}`;
         const bookInfo = bookCoverageMap.get(bookKey);
+        // Use host address from session_date_host (new), fallback to attendance.host_address (old)
+        const hostAddress = hostAddressMap.get(bookKey) || record.host_address || null;
         const session = record.session || {};
         const student = record.student || {};
         const course = session.course || {};
@@ -362,7 +378,7 @@ const AttendanceRecords = () => {
           gps_timestamp: record.gps_timestamp,
           marked_by: record.marked_by,
           marked_at: record.marked_at,
-          host_address: record.host_address || null,
+          host_address: hostAddress, // Use host from session_date_host table (new) or attendance (fallback)
           student_name: student.name || 'Unknown',
           course_id: session.course_id || '',
           course_name: course.course_name || 'Unknown',
