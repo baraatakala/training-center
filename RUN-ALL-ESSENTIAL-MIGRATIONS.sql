@@ -176,7 +176,7 @@ CREATE TABLE IF NOT EXISTS public.audit_log (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   table_name TEXT NOT NULL,
   record_id TEXT NOT NULL,
-  action TEXT NOT NULL CHECK (action IN ('INSERT', 'UPDATE', 'DELETE')),
+  action TEXT NOT NULL,
   old_data JSONB,
   new_data JSONB,
   changed_by UUID,
@@ -185,9 +185,24 @@ CREATE TABLE IF NOT EXISTS public.audit_log (
   user_agent TEXT
 );
 
+-- Add missing columns if table already existed
+ALTER TABLE public.audit_log 
+ADD COLUMN IF NOT EXISTS changed_at TIMESTAMPTZ DEFAULT NOW(),
+ADD COLUMN IF NOT EXISTS changed_by UUID,
+ADD COLUMN IF NOT EXISTS ip_address TEXT,
+ADD COLUMN IF NOT EXISTS user_agent TEXT,
+ADD COLUMN IF NOT EXISTS old_data JSONB,
+ADD COLUMN IF NOT EXISTS new_data JSONB;
+
 CREATE INDEX IF NOT EXISTS idx_audit_log_table ON public.audit_log(table_name);
 CREATE INDEX IF NOT EXISTS idx_audit_log_record ON public.audit_log(record_id);
-CREATE INDEX IF NOT EXISTS idx_audit_log_changed_at ON public.audit_log(changed_at DESC);
+
+-- Only create index if column exists
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'audit_log' AND column_name = 'changed_at') THEN
+    CREATE INDEX IF NOT EXISTS idx_audit_log_changed_at ON public.audit_log(changed_at DESC);
+  END IF;
+END $$;
 
 -- Enable RLS
 ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
