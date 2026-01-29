@@ -5,6 +5,7 @@ import { Tables } from '../types/database.types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { format } from 'date-fns';
+import { isWithinProximity, formatDistance } from '../services/geocodingService';
 
 type CheckInData = {
   session_id: string;
@@ -247,7 +248,7 @@ export function StudentCheckIn() {
       // STEP 8: Check if host is already set for this date in session_date_host table
       const { data: hostData } = await supabase
         .from(Tables.SESSION_DATE_HOST)
-        .select('host_id, host_type, host_address')
+        .select('host_id, host_type, host_address, host_latitude, host_longitude')
         .eq('session_id', sessionId)
         .eq('attendance_date', date)
         .maybeSingle();
@@ -339,13 +340,48 @@ export function StudentCheckIn() {
       // Capture GPS
       const gpsData = await captureGPSLocation();
 
-      // PROXIMITY VALIDATION: Currently disabled as host coordinates are not stored
-      // The feature requires geocoding host addresses to lat/lon coordinates
-      // For future implementation: store coordinates in session_date_host or student.address_coordinates
-      if (gpsData && checkInData.session?.proximity_radius) {
-        // Proximity validation is configured but coordinates not available
-        // Log for debugging purposes
-        console.log('📍 Proximity radius configured:', checkInData.session.proximity_radius, 'm (validation skipped - no host coordinates)');
+      // PROXIMITY VALIDATION: Check if student is within allowed radius
+      const { data: hostData } = await supabase
+        .from(Tables.SESSION_DATE_HOST)
+        .select('host_latitude, host_longitude, host_address')
+        .eq('session_id', checkInData.session_id)
+        .eq('attendance_date', checkInData.attendance_date)
+        .maybeSingle();
+
+      if (gpsData && checkInData.session?.proximity_radius && hostData?.host_latitude && hostData?.host_longitude) {
+        const proximityResult = isWithinProximity(
+          gpsData.latitude,
+          gpsData.longitude,
+          hostData.host_latitude,
+          hostData.host_longitude,
+          checkInData.session.proximity_radius
+        );
+
+        console.log('📍 Proximity check:', {
+          userLat: gpsData.latitude,
+          userLon: gpsData.longitude,
+          hostLat: hostData.host_latitude,
+          hostLon: hostData.host_longitude,
+          distance: proximityResult.distance,
+          allowed: checkInData.session.proximity_radius,
+          isWithin: proximityResult.isWithinRadius
+        });
+
+        if (!proximityResult.isWithinRadius) {
+          setError(
+            `⚠️ You are too far from the session location!\n\n` +
+            `Your distance: ${formatDistance(proximityResult.distance)}\n` +
+            `Maximum allowed: ${formatDistance(checkInData.session.proximity_radius)}\n\n` +
+            `Please move closer to ${hostData.host_address} to check in.`
+          );
+          setSubmitting(false);
+          return;
+        }
+
+        console.log('✅ Proximity validation passed:', formatDistance(proximityResult.distance), 'from host');
+      } else if (checkInData.session?.proximity_radius) {
+        console.warn('📍 Proximity radius configured but validation skipped:', 
+          !gpsData ? 'No GPS data' : 'No host coordinates');
       }
 
       // Get enrollment

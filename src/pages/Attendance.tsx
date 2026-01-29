@@ -1336,6 +1336,84 @@ export function Attendance() {
                 <p className="text-sm text-blue-800">
                   📍 Selected Address: <span className="font-medium">{selectedAddress.split('|||')[1] || selectedAddress}</span>
                 </p>
+                
+                {/* GPS Coordinates Section */}
+                <div className="mt-4 border-t border-blue-200 pt-4">
+                  <p className="text-sm font-medium text-blue-900 mb-2">🌐 GPS Coordinates (for proximity validation)</p>
+                  <p className="text-xs text-blue-700 mb-3">
+                    Enter coordinates to enable location-based check-in validation. Students will only be able to check in if they're within the proximity radius of this location.
+                  </p>
+                  <button
+                    onClick={async () => {
+                      const coords = prompt(
+                        'Enter GPS coordinates in format: latitude,longitude\\n\\n' +
+                        'Example: 33.5138,36.2765\\n\\n' +
+                        'You can find coordinates by:\\n' +
+                        '• Right-clicking a location on Google Maps\\n' +
+                        '• Using your phone GPS app\\n' +
+                        '• Or leave blank to disable proximity validation'
+                      );
+                      
+                      if (coords === null) return; // Cancelled
+                      
+                      if (coords.trim() === '') {
+                        // Clear coordinates
+                        const confirmClear = window.confirm('Remove GPS coordinates? This will disable proximity validation.');
+                        if (!confirmClear) return;
+                        
+                        await supabase
+                          .from(Tables.SESSION_DATE_HOST)
+                          .update({ host_latitude: null, host_longitude: null })
+                          .eq('session_id', sessionId!)
+                          .eq('attendance_date', selectedDate!);
+                        
+                        alert('✅ Coordinates cleared. Proximity validation disabled.');
+                        return;
+                      }
+                      
+                      // Parse coordinates
+                      const parts = coords.split(',');
+                      if (parts.length !== 2) {
+                        alert('❌ Invalid format. Please use: latitude,longitude');
+                        return;
+                      }
+                      
+                      const lat = parseFloat(parts[0].trim());
+                      const lon = parseFloat(parts[1].trim());
+                      
+                      const isValidLat = !isNaN(lat) && lat >= -90 && lat <= 90;
+                      const isValidLon = !isNaN(lon) && lon >= -180 && lon <= 180;
+                      
+                      if (!isValidLat || !isValidLon) {
+                        alert('❌ Invalid coordinates. Latitude must be -90 to 90, longitude must be -180 to 180.');
+                        return;
+                      }
+                      
+                      // Save coordinates
+                      const { error } = await supabase
+                        .from(Tables.SESSION_DATE_HOST)
+                        .update({ 
+                          host_latitude: lat,
+                          host_longitude: lon 
+                        })
+                        .eq('session_id', sessionId!)
+                        .eq('attendance_date', selectedDate!);
+                      
+                      if (error) {
+                        console.error('Failed to save coordinates:', error);
+                        alert('❌ Failed to save coordinates. Please try again.');
+                      } else {
+                        alert('✅ Coordinates saved!\\n\\nLat: ' + lat + '\\nLon: ' + lon + '\\n\\nProximity validation is now enabled.');
+                      }
+                    }}
+                    className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    📍 Set/Update GPS Coordinates
+                  </button>
+                  <p className="text-xs text-gray-500 mt-2">
+                    💡 Tip: Proximity radius is {session?.proximity_radius || 'not set'}{session?.proximity_radius ? 'm' : ''}. Update in Sessions page if needed.
+                  </p>
+                </div>
               </div>
             )}
           </CardContent>

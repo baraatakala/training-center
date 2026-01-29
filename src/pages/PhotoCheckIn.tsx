@@ -7,6 +7,7 @@ import { Button } from '../components/ui/Button';
 import { getSignedPhotoUrl } from '../components/PhotoUpload';
 import { format } from 'date-fns';
 import * as faceapi from 'face-api.js';
+import { isWithinProximity, formatDistance } from '../services/geocodingService';
 
 type CheckInData = {
   session_id: string;
@@ -19,6 +20,7 @@ type CheckInData = {
     time?: string;
     location?: string;
     grace_period_minutes?: number;
+    proximity_radius?: number;
   };
 };
 
@@ -196,6 +198,7 @@ export function PhotoCheckIn() {
           location,
           course_id,
           grace_period_minutes,
+          proximity_radius,
           course:course_id (
             course_name
           )
@@ -323,6 +326,7 @@ export function PhotoCheckIn() {
           time: session.time,
           location: session.location,
           grace_period_minutes: session.grace_period_minutes,
+          proximity_radius: session.proximity_radius,
         },
       });
 
@@ -504,6 +508,37 @@ export function PhotoCheckIn() {
 
     try {
       const gpsData = await captureGPSLocation();
+
+      // PROXIMITY VALIDATION: Check if student is within allowed radius
+      const { data: hostData } = await supabase
+        .from(Tables.SESSION_DATE_HOST)
+        .select('host_latitude, host_longitude, host_address')
+        .eq('session_id', checkInData.session_id)
+        .eq('attendance_date', checkInData.attendance_date)
+        .maybeSingle();
+
+      if (gpsData && checkInData.session?.proximity_radius && hostData?.host_latitude && hostData?.host_longitude) {
+        const proximityResult = isWithinProximity(
+          gpsData.latitude,
+          gpsData.longitude,
+          hostData.host_latitude,
+          hostData.host_longitude,
+          checkInData.session.proximity_radius
+        );
+
+        if (!proximityResult.isWithinRadius) {
+          setError(
+            `⚠️ You are too far from the session location!\n\n` +
+            `Your distance: ${formatDistance(proximityResult.distance)}\n` +
+            `Maximum allowed: ${formatDistance(checkInData.session.proximity_radius)}\n\n` +
+            `Please move closer to ${hostData.host_address} to check in.`
+          );
+          setSubmitting(false);
+          return;
+        }
+
+        console.log('✅ Proximity validation passed:', formatDistance(proximityResult.distance), 'from host');
+      }
 
       const { data: enrollment } = await supabase
         .from('enrollment')
