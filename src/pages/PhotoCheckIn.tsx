@@ -525,30 +525,33 @@ export function PhotoCheckIn() {
       const gracePeriodMinutes = checkInData.session?.grace_period_minutes ?? 15;
       
       if (checkInData.session?.time) {
-        const timeMatches = checkInData.session.time.match(/(\d{1,2}):(\d{2})/g);
-        if (timeMatches && timeMatches.length >= 2) {
-          const startMatch = timeMatches[0].match(/(\d{1,2}):(\d{2})/);
-          let startHour = parseInt(startMatch![1], 10);
-          const startMinute = parseInt(startMatch![2], 10);
+        // Helper function to parse time with AM/PM support
+        const parseTime = (timeStr: string): { hours: number; minutes: number } | null => {
+          // Match time like "09:00", "9:00 AM", "12:30 PM"
+          const match = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+          if (!match) return null;
           
-          const endMatch = timeMatches[1].match(/(\d{1,2}):(\d{2})/);
-          let endHour = parseInt(endMatch![1], 10);
-          const endMinute = parseInt(endMatch![2], 10);
+          let hours = parseInt(match[1], 10);
+          const minutes = parseInt(match[2], 10);
+          const period = match[3]?.toUpperCase();
           
-          const timeLower = checkInData.session.time.toLowerCase();
-          if (timeLower.includes('pm')) {
-            if (startHour !== 12) startHour += 12;
-            if (endHour !== 12) endHour += 12;
-          } else if (timeLower.includes('am')) {
-            if (startHour === 12) startHour = 0;
-            if (endHour === 12) endHour = 0;
-          }
+          if (period === 'PM' && hours !== 12) hours += 12;
+          if (period === 'AM' && hours === 12) hours = 0;
           
+          return { hours, minutes };
+        };
+        
+        // Split by common separators and parse each time
+        const timeParts = checkInData.session.time.split(/[-–—]/);
+        const startTime = timeParts[0] ? parseTime(timeParts[0].trim()) : null;
+        const endTime = timeParts[1] ? parseTime(timeParts[1].trim()) : null;
+        
+        if (startTime && endTime) {
           const sessionStart = new Date(checkInData.attendance_date);
-          sessionStart.setHours(startHour, startMinute, 0, 0);
+          sessionStart.setHours(startTime.hours, startTime.minutes, 0, 0);
           
           const sessionEnd = new Date(checkInData.attendance_date);
-          sessionEnd.setHours(endHour, endMinute, 0, 0);
+          sessionEnd.setHours(endTime.hours, endTime.minutes, 0, 0);
           
           const graceEnd = new Date(sessionStart.getTime() + gracePeriodMinutes * 60 * 1000);
           

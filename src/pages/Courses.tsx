@@ -30,11 +30,16 @@ export function Courses() {
   const [isBookReferencesOpen, setIsBookReferencesOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<CourseWithTeacher | null>(null);
   const [isTeacher, setIsTeacher] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const loadCourses = async () => {
     setLoading(true);
-    const { data } = await courseService.getAll();
-    if (data) {
+    setError(null);
+    const { data, error: fetchError } = await courseService.getAll();
+    if (fetchError) {
+      setError('Failed to load courses. Please try again.');
+      console.error('Load courses error:', fetchError);
+    } else if (data) {
       setCourses(data as CourseWithTeacher[]);
       setFilteredCourses(data as CourseWithTeacher[]);
     }
@@ -126,6 +131,19 @@ export function Courses() {
           <p className="text-yellow-800 text-sm">
             ⚠️ You are viewing as a student. Edit and add functions are disabled.
           </p>
+        </div>
+      )}
+
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-800 text-sm">❌ {error}</p>
+          <button 
+            onClick={loadCourses} 
+            className="mt-2 text-sm text-red-600 underline hover:text-red-800"
+          >
+            Retry
+          </button>
         </div>
       )}
 

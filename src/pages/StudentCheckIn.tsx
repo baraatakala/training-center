@@ -6,27 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { Button } from '../components/ui/Button';
 import { format } from 'date-fns';
 
-// GPS distance calculation using Haversine formula
-function calculateGPSDistance(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number
-): number {
-  const R = 6371000; // Earth radius in meters
-  const φ1 = (lat1 * Math.PI) / 180;
-  const φ2 = (lat2 * Math.PI) / 180;
-  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-  const Δλ = ((lon2 - lon1) * Math.PI) / 180;
-
-  const a =
-    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  return R * c; // Distance in meters
-}
-
 type CheckInData = {
   session_id: string;
   attendance_date: string;
@@ -360,48 +339,13 @@ export function StudentCheckIn() {
       // Capture GPS
       const gpsData = await captureGPSLocation();
 
-      // PROXIMITY VALIDATION: Check if student is within allowed radius
+      // PROXIMITY VALIDATION: Currently disabled as host coordinates are not stored
+      // The feature requires geocoding host addresses to lat/lon coordinates
+      // For future implementation: store coordinates in session_date_host or student.address_coordinates
       if (gpsData && checkInData.session?.proximity_radius) {
-        // Get host location (selected address or session location)
-        let hostLat: number | null = null;
-        let hostLon: number | null = null;
-
-        if (selectedAddress) {
-          // Parse host coordinates from selected address (format: "studentId|||address|||lat,lon")
-          const parts = selectedAddress.split('|||');
-          if (parts.length >= 3 && parts[2]) {
-            const [lat, lon] = parts[2].split(',').map(parseFloat);
-            if (!isNaN(lat) && !isNaN(lon)) {
-              hostLat = lat;
-              hostLon = lon;
-            }
-          }
-        }
-
-        // Validate proximity if host coordinates are available
-        if (hostLat !== null && hostLon !== null) {
-          const distance = calculateGPSDistance(
-            gpsData.latitude,
-            gpsData.longitude,
-            hostLat,
-            hostLon
-          );
-
-          const maxDistance = checkInData.session.proximity_radius;
-          
-          console.log(`📍 Proximity check: ${Math.round(distance)}m from host (max: ${maxDistance}m)`);
-
-          if (distance > maxDistance) {
-            setError(
-              `You are too far from the session location (${Math.round(distance)}m away, maximum: ${maxDistance}m). ` +
-              `Please move closer to check in.`
-            );
-            setSubmitting(false);
-            return;
-          }
-          
-          console.log('✅ Proximity validated: within allowed radius');
-        }
+        // Proximity validation is configured but coordinates not available
+        // Log for debugging purposes
+        console.log('📍 Proximity radius configured:', checkInData.session.proximity_radius, 'm (validation skipped - no host coordinates)');
       }
 
       // Get enrollment
@@ -428,35 +372,34 @@ export function StudentCheckIn() {
       
       // Parse session time if available (e.g., "09:00-12:00" or "09:00 AM - 12:00 PM")
       if (checkInData.session?.time) {
-        // Extract start and end times
-        const timeMatches = checkInData.session.time.match(/(\d{1,2}):(\d{2})/g);
-        if (timeMatches && timeMatches.length >= 2) {
-          // Parse start time
-          const startMatch = timeMatches[0].match(/(\d{1,2}):(\d{2})/);
-          let startHour = parseInt(startMatch![1], 10);
-          const startMinute = parseInt(startMatch![2], 10);
+        // Helper function to parse time with AM/PM support
+        const parseTime = (timeStr: string): { hours: number; minutes: number } | null => {
+          // Match time like "09:00", "9:00 AM", "12:30 PM"
+          const match = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+          if (!match) return null;
           
-          // Parse end time
-          const endMatch = timeMatches[1].match(/(\d{1,2}):(\d{2})/);
-          let endHour = parseInt(endMatch![1], 10);
-          const endMinute = parseInt(endMatch![2], 10);
+          let hours = parseInt(match[1], 10);
+          const minutes = parseInt(match[2], 10);
+          const period = match[3]?.toUpperCase();
           
-          // Handle AM/PM
-          const timeLower = checkInData.session.time.toLowerCase();
-          if (timeLower.includes('pm')) {
-            if (startHour !== 12) startHour += 12;
-            if (endHour !== 12) endHour += 12;
-          } else if (timeLower.includes('am')) {
-            if (startHour === 12) startHour = 0;
-            if (endHour === 12) endHour = 0;
-          }
+          if (period === 'PM' && hours !== 12) hours += 12;
+          if (period === 'AM' && hours === 12) hours = 0;
           
+          return { hours, minutes };
+        };
+        
+        // Split by common separators and parse each time
+        const timeParts = checkInData.session.time.split(/[-–—]/);
+        const startTime = timeParts[0] ? parseTime(timeParts[0].trim()) : null;
+        const endTime = timeParts[1] ? parseTime(timeParts[1].trim()) : null;
+        
+        if (startTime && endTime) {
           // Create session start and end times using the ATTENDANCE DATE (not current date)
           const sessionStart = new Date(checkInData.attendance_date);
-          sessionStart.setHours(startHour, startMinute, 0, 0);
+          sessionStart.setHours(startTime.hours, startTime.minutes, 0, 0);
           
           const sessionEnd = new Date(checkInData.attendance_date);
-          sessionEnd.setHours(endHour, endMinute, 0, 0);
+          sessionEnd.setHours(endTime.hours, endTime.minutes, 0, 0);
           
           // Add configurable grace period to start time
           const graceEnd = new Date(sessionStart.getTime() + gracePeriodMinutes * 60 * 1000);

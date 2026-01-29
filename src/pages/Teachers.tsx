@@ -21,10 +21,18 @@ export function Teachers() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | undefined>();
   const [isTeacher, setIsTeacher] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const loadTeachers = async () => {
     setLoading(true);
-    const { data } = await teacherService.getAll();
+    setError(null);
+    const { data, error: fetchError } = await teacherService.getAll();
+    if (fetchError) {
+      setError('Failed to load teachers. Please try again.');
+      console.error('Load teachers error:', fetchError);
+      setLoading(false);
+      return;
+    }
     if (data) {
       // Fetch enrolled student counts for each teacher
       const teachersWithCounts = await Promise.all(
@@ -119,6 +127,19 @@ export function Teachers() {
           <p className="text-yellow-800 text-sm">
             ⚠️ You are viewing as a student. Edit and add functions are disabled.
           </p>
+        </div>
+      )}
+
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-800 text-sm">❌ {error}</p>
+          <button 
+            onClick={loadTeachers} 
+            className="mt-2 text-sm text-red-600 underline hover:text-red-800"
+          >
+            Retry
+          </button>
         </div>
       )}
 

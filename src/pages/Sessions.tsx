@@ -43,9 +43,11 @@ export function Sessions() {
   const [selectedSessionForSchedule, setSelectedSessionForSchedule] = useState<SessionWithDetails | null>(null);
   const [enrollmentCounts, setEnrollmentCounts] = useState<Record<string, number>>({});
   const [isTeacher, setIsTeacher] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const loadSessions = async () => {
-    const { data } = await supabase
+    setError(null);
+    const { data, error: fetchError } = await supabase
       .from(Tables.SESSION)
       .select(`
         *,
@@ -53,6 +55,13 @@ export function Sessions() {
         teacher:teacher_id(name)
       `)
       .order('start_date', { ascending: false });
+
+    if (fetchError) {
+      setError('Failed to load sessions. Please try again.');
+      console.error('Load sessions error:', fetchError);
+      setLoading(false);
+      return;
+    }
 
     if (data) {
       setSessions(data as SessionWithDetails[]);
@@ -235,6 +244,19 @@ export function Sessions() {
           <p className="text-yellow-800 text-sm">
             ⚠️ You are viewing as a student. Edit and add functions are disabled.
           </p>
+        </div>
+      )}
+
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-800 text-sm">❌ {error}</p>
+          <button 
+            onClick={loadSessions} 
+            className="mt-2 text-sm text-red-600 underline hover:text-red-800"
+          >
+            Retry
+          </button>
         </div>
       )}
 
