@@ -37,8 +37,11 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ===== STEP 2: Drop ALL existing policies on ALL tables =====
+-- Including dangerous "Allow all for anon" and "Allow all for authenticated" policies
 
 -- Teacher table
+DROP POLICY IF EXISTS "Allow all for anon" ON teacher;
+DROP POLICY IF EXISTS "Allow all for authenticated" ON teacher;
 DROP POLICY IF EXISTS "Enable read access for authenticated users" ON teacher;
 DROP POLICY IF EXISTS "Enable insert for authenticated users" ON teacher;
 DROP POLICY IF EXISTS "Enable update for authenticated users" ON teacher;
@@ -52,6 +55,8 @@ DROP POLICY IF EXISTS "teacher_update_policy" ON teacher;
 DROP POLICY IF EXISTS "teacher_delete_policy" ON teacher;
 
 -- Student table
+DROP POLICY IF EXISTS "Allow all for anon" ON student;
+DROP POLICY IF EXISTS "Allow all for authenticated" ON student;
 DROP POLICY IF EXISTS "Enable read access for authenticated users" ON student;
 DROP POLICY IF EXISTS "Enable insert for authenticated users" ON student;
 DROP POLICY IF EXISTS "Enable update for authenticated users" ON student;
@@ -65,6 +70,9 @@ DROP POLICY IF EXISTS "student_update_policy" ON student;
 DROP POLICY IF EXISTS "student_delete_policy" ON student;
 
 -- Course table
+DROP POLICY IF EXISTS "Allow all for anon" ON course;
+DROP POLICY IF EXISTS "Allow all for authenticated" ON course;
+DROP POLICY IF EXISTS "Everyone can view courses" ON course;
 DROP POLICY IF EXISTS "Enable read access for authenticated users" ON course;
 DROP POLICY IF EXISTS "Enable insert for authenticated users" ON course;
 DROP POLICY IF EXISTS "Enable update for authenticated users" ON course;
@@ -74,6 +82,9 @@ DROP POLICY IF EXISTS "Students can read courses" ON course;
 DROP POLICY IF EXISTS "Authenticated users can read" ON course;
 
 -- Session table
+DROP POLICY IF EXISTS "Allow all for anon" ON session;
+DROP POLICY IF EXISTS "Allow all for authenticated" ON session;
+DROP POLICY IF EXISTS "Everyone can view sessions" ON session;
 DROP POLICY IF EXISTS "Enable read access for authenticated users" ON session;
 DROP POLICY IF EXISTS "Enable insert for authenticated users" ON session;
 DROP POLICY IF EXISTS "Enable update for authenticated users" ON session;
@@ -83,6 +94,8 @@ DROP POLICY IF EXISTS "Students can read sessions" ON session;
 DROP POLICY IF EXISTS "Authenticated users can read" ON session;
 
 -- Enrollment table
+DROP POLICY IF EXISTS "Allow all for anon" ON enrollment;
+DROP POLICY IF EXISTS "Allow all for authenticated" ON enrollment;
 DROP POLICY IF EXISTS "Enable read access for authenticated users" ON enrollment;
 DROP POLICY IF EXISTS "Enable insert for authenticated users" ON enrollment;
 DROP POLICY IF EXISTS "Enable update for authenticated users" ON enrollment;
@@ -92,6 +105,8 @@ DROP POLICY IF EXISTS "Students can read enrollments" ON enrollment;
 DROP POLICY IF EXISTS "Authenticated users can read" ON enrollment;
 
 -- Attendance table
+DROP POLICY IF EXISTS "Allow all for anon" ON attendance;
+DROP POLICY IF EXISTS "Allow all for authenticated" ON attendance;
 DROP POLICY IF EXISTS "Enable read access for authenticated users" ON attendance;
 DROP POLICY IF EXISTS "Enable insert for authenticated users" ON attendance;
 DROP POLICY IF EXISTS "Enable update for authenticated users" ON attendance;
@@ -103,6 +118,7 @@ DROP POLICY IF EXISTS "Students can update own attendance" ON attendance;
 DROP POLICY IF EXISTS "Authenticated users can read" ON attendance;
 
 -- Session Date Host table
+DROP POLICY IF EXISTS "Enable all access for authenticated users" ON session_date_host;
 DROP POLICY IF EXISTS "Enable read access for authenticated users" ON session_date_host;
 DROP POLICY IF EXISTS "Enable insert for authenticated users" ON session_date_host;
 DROP POLICY IF EXISTS "Enable update for authenticated users" ON session_date_host;
@@ -213,6 +229,8 @@ BEGIN
     DROP POLICY IF EXISTS "Anyone can read QR sessions" ON qr_sessions;
     DROP POLICY IF EXISTS "Students can read QR sessions" ON qr_sessions;
     DROP POLICY IF EXISTS "Authenticated users can read QR sessions" ON qr_sessions;
+    DROP POLICY IF EXISTS "Teachers can create QR sessions" ON qr_sessions;
+    DROP POLICY IF EXISTS "System can update QR sessions" ON qr_sessions;
     
     -- Teachers: full access (create/read/update/delete QR codes)
     EXECUTE 'CREATE POLICY "Teachers have full access" ON qr_sessions FOR ALL TO authenticated USING (is_teacher()) WITH CHECK (is_teacher())';
@@ -286,6 +304,8 @@ BEGIN
     ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
     
     DROP POLICY IF EXISTS "Teachers have full access" ON audit_log;
+    DROP POLICY IF EXISTS "Allow authenticated users to insert audit logs" ON audit_log;
+    DROP POLICY IF EXISTS "Allow authenticated users to read audit logs" ON audit_log;
     
     EXECUTE 'CREATE POLICY "Teachers have full access" ON audit_log FOR ALL TO authenticated USING (is_teacher()) WITH CHECK (is_teacher())';
   END IF;
