@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useParams, useLocation } from 'react-router-dom';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -52,8 +52,44 @@ const EXCUSE_REASONS = [
 export function Attendance() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const location = useLocation();
+  const navigate = useNavigate();
   const passedDate = (location.state as { selectedDate?: string })?.selectedDate;
   const [session, setSession] = useState<Session | null>(null);
+  const [isTeacher, setIsTeacher] = useState<boolean | null>(null);
+
+  // Check if user is a teacher (TEACHERS ONLY can access this page)
+  useEffect(() => {
+    const checkTeacherAccess = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user?.email) {
+          navigate('/');
+          return;
+        }
+
+        // Check if user's email exists in teacher table
+        const { data: teacher, error } = await supabase
+          .from('teacher')
+          .select('teacher_id')
+          .ilike('email', user.email)
+          .single();
+
+        if (error || !teacher) {
+          // Not a teacher - redirect to dashboard
+          console.log('Access denied: User is not a teacher');
+          navigate('/');
+          return;
+        }
+
+        setIsTeacher(true);
+      } catch (err) {
+        console.error('Teacher check failed:', err);
+        navigate('/');
+      }
+    };
+
+    checkTeacherAccess();
+  }, [navigate]);
 
   // Get authenticated user email
   const getCurrentUserEmail = async (): Promise<string> => {
@@ -1107,7 +1143,7 @@ export function Attendance() {
     }
   };
 
-  if (loading) {
+  if (loading || isTeacher === null) {
     return (
       <div className="space-y-6 p-4 md:p-6">
         <Skeleton className="h-10 w-64" />
@@ -1116,6 +1152,30 @@ export function Attendance() {
           <Skeleton className="h-32 w-full" />
           <TableSkeleton rows={5} columns={5} />
         </div>
+      </div>
+    );
+  }
+
+  // Block non-teachers from accessing this page
+  if (isTeacher === false) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="text-red-600 flex items-center gap-2">
+              <span className="text-3xl">🔒</span>
+              <span>Access Denied</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-gray-700 mb-4">
+              This page is only accessible to teachers. Students can check in using QR codes or face recognition.
+            </p>
+            <Button onClick={() => navigate('/')} className="w-full">
+              Return to Dashboard
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
