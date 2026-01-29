@@ -518,11 +518,14 @@ export function PhotoCheckIn() {
         .maybeSingle();
 
       if (gpsData && checkInData.session?.proximity_radius && hostData?.host_latitude && hostData?.host_longitude) {
+        const hostLat = Number(hostData.host_latitude);
+        const hostLon = Number(hostData.host_longitude);
+        
         const proximityResult = isWithinProximity(
           gpsData.latitude,
           gpsData.longitude,
-          hostData.host_latitude,
-          hostData.host_longitude,
+          hostLat,
+          hostLon,
           checkInData.session.proximity_radius
         );
 

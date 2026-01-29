@@ -349,19 +349,22 @@ export function StudentCheckIn() {
         .maybeSingle();
 
       if (gpsData && checkInData.session?.proximity_radius && hostData?.host_latitude && hostData?.host_longitude) {
+        const hostLat = Number(hostData.host_latitude);
+        const hostLon = Number(hostData.host_longitude);
+        
         const proximityResult = isWithinProximity(
           gpsData.latitude,
           gpsData.longitude,
-          hostData.host_latitude,
-          hostData.host_longitude,
+          hostLat,
+          hostLon,
           checkInData.session.proximity_radius
         );
 
         console.log('📍 Proximity check:', {
           userLat: gpsData.latitude,
           userLon: gpsData.longitude,
-          hostLat: hostData.host_latitude,
-          hostLon: hostData.host_longitude,
+          hostLat: hostLat,
+          hostLon: hostLon,
           distance: proximityResult.distance,
           allowed: checkInData.session.proximity_radius,
           isWithin: proximityResult.isWithinRadius

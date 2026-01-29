@@ -106,6 +106,7 @@ export function Attendance() {
   const [excuseDropdownOpen, setExcuseDropdownOpen] = useState<string | null>(null);
   const [hostAddresses, setHostAddresses] = useState<HostInfo[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<string>('');
+  const [hostCoordinates, setHostCoordinates] = useState<{ lat: number; lon: number } | null>(null);
   const [sessionNotHeld, setSessionNotHeld] = useState<boolean>(false);
   const [showQRModal, setShowQRModal] = useState<boolean>(false);
   const [showPhotoModal, setShowPhotoModal] = useState<boolean>(false);
@@ -300,10 +301,20 @@ export function Attendance() {
       // Load host address from session_date_host table (single source of truth)
       const { data: hostData } = await supabase
         .from(Tables.SESSION_DATE_HOST)
-        .select('host_id, host_type, host_address')
+        .select('host_id, host_type, host_address, host_latitude, host_longitude')
         .eq('session_id', sessionId)
         .eq('attendance_date', selectedDate)
         .maybeSingle();
+      
+      // Update host coordinates state
+      if (hostData?.host_latitude && hostData?.host_longitude) {
+        setHostCoordinates({
+          lat: Number(hostData.host_latitude),
+          lon: Number(hostData.host_longitude)
+        });
+      } else {
+        setHostCoordinates(null);
+      }
 
       // Check existing attendance records
       const { data: existingAttendance, error: attendanceError } = await supabase
@@ -1340,18 +1351,34 @@ export function Attendance() {
                 {/* GPS Coordinates Section */}
                 <div className="mt-4 border-t border-blue-200 pt-4">
                   <p className="text-sm font-medium text-blue-900 mb-2">🌐 GPS Coordinates (for proximity validation)</p>
-                  <p className="text-xs text-blue-700 mb-3">
-                    Enter coordinates to enable location-based check-in validation. Students will only be able to check in if they're within the proximity radius of this location.
-                  </p>
+                  
+                  {/* Show current coordinates if set */}
+                  {hostCoordinates ? (
+                    <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded">
+                      <p className="text-sm text-green-800">
+                        ✅ <span className="font-medium">Coordinates set:</span> {hostCoordinates.lat.toFixed(6)}, {hostCoordinates.lon.toFixed(6)}
+                      </p>
+                      <p className="text-xs text-green-600 mt-1">
+                        Proximity validation is active. Students must be within {session?.proximity_radius || '?'}m to check in.
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-amber-700 mb-3 p-2 bg-amber-50 border border-amber-200 rounded">
+                      ⚠️ No coordinates set. Proximity validation is disabled. Students can check in from anywhere.
+                    </p>
+                  )}
+                  
                   <button
                     onClick={async () => {
+                      const currentCoords = hostCoordinates ? `${hostCoordinates.lat},${hostCoordinates.lon}` : '';
                       const coords = prompt(
-                        'Enter GPS coordinates in format: latitude,longitude\\n\\n' +
-                        'Example: 33.5138,36.2765\\n\\n' +
-                        'You can find coordinates by:\\n' +
-                        '• Right-clicking a location on Google Maps\\n' +
-                        '• Using your phone GPS app\\n' +
-                        '• Or leave blank to disable proximity validation'
+                        'Enter GPS coordinates in format: latitude,longitude\n\n' +
+                        'Example: 33.5138,36.2765\n\n' +
+                        'How to find coordinates:\n' +
+                        '• Right-click a location on Google Maps\n' +
+                        '• Use your phone GPS app\n' +
+                        '• Leave blank to disable proximity validation',
+                        currentCoords
                       );
                       
                       if (coords === null) return; // Cancelled
@@ -1361,13 +1388,16 @@ export function Attendance() {
                         const confirmClear = window.confirm('Remove GPS coordinates? This will disable proximity validation.');
                         if (!confirmClear) return;
                         
-                        await supabase
+                        const { error: clearError } = await supabase
                           .from(Tables.SESSION_DATE_HOST)
                           .update({ host_latitude: null, host_longitude: null })
                           .eq('session_id', sessionId!)
                           .eq('attendance_date', selectedDate!);
                         
-                        alert('✅ Coordinates cleared. Proximity validation disabled.');
+                        if (!clearError) {
+                          setHostCoordinates(null);
+                        }
+                        alert(clearError ? '❌ Failed to clear coordinates.' : '✅ Coordinates cleared. Proximity validation disabled.');
                         return;
                       }
                       
@@ -1403,7 +1433,8 @@ export function Attendance() {
                         console.error('Failed to save coordinates:', error);
                         alert('❌ Failed to save coordinates. Please try again.');
                       } else {
-                        alert('✅ Coordinates saved!\\n\\nLat: ' + lat + '\\nLon: ' + lon + '\\n\\nProximity validation is now enabled.');
+                        setHostCoordinates({ lat, lon });
+                        alert('✅ Coordinates saved!\n\nLat: ' + lat + '\nLon: ' + lon + '\n\nProximity validation is now enabled.');
                       }
                     }}
                     className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
