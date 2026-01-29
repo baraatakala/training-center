@@ -247,12 +247,13 @@ export function Attendance() {
         console.error('Error loading session teacher:', sessionError);
       }
 
-      // Load ONLY ENROLLED students who can_host = true (with coordinates)
+      // Load ONLY ENROLLED students who can_host = true (with coordinates and host_date)
       const { data: enrollments, error: enrollmentsError } = await supabase
         .from(Tables.ENROLLMENT)
         .select(`
           student_id,
           can_host,
+          host_date,
           student:student_id (
             student_id,
             name,
@@ -283,7 +284,7 @@ export function Attendance() {
             student_id: student.student_id,
             student_name: student.name,
             address: student.address,
-            host_date: null,
+            host_date: e.host_date || null,
             is_active: true,
             is_teacher: false,
             address_latitude: student.address_latitude ? Number(student.address_latitude) : null,
@@ -294,11 +295,19 @@ export function Attendance() {
     // Add teacher as first option if they have address
     const teacher = Array.isArray(sessionData?.teacher) ? sessionData?.teacher[0] : sessionData?.teacher;
     if (teacher?.address && teacher.address.trim() !== '') {
+      // Load teacher's host_date from teacher_host_schedule
+      const { data: teacherHostData } = await supabase
+        .from('teacher_host_schedule')
+        .select('host_date')
+        .eq('teacher_id', teacher.teacher_id)
+        .eq('session_id', sessionId)
+        .maybeSingle();
+
       hostsWithAddresses.unshift({
         student_id: teacher.teacher_id,
         student_name: `🎓 ${teacher.name} (Teacher)`,
         address: teacher.address,
-        host_date: null,
+        host_date: teacherHostData?.host_date || null,
         is_active: true,
         is_teacher: true,
         address_latitude: teacher.address_latitude ? Number(teacher.address_latitude) : null,
@@ -643,6 +652,59 @@ export function Attendance() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);
+
+  // Auto-suggest planned host based on host_date from Host Schedule
+  useEffect(() => {
+    // Only suggest if:
+    // 1. We have a selected date
+    // 2. We have host addresses loaded
+    // 3. No address is currently selected (or was just reset)
+    // 4. Not in "session not held" mode
+    if (!selectedDate || hostAddresses.length === 0 || selectedAddress || sessionNotHeld) {
+      return;
+    }
+
+    // Check if any host has this date as their planned host_date
+    const plannedHost = hostAddresses.find(h => h.host_date === selectedDate);
+    if (plannedHost) {
+      // Auto-select the planned host
+      const value = `${plannedHost.student_id}|||${plannedHost.address}`;
+      
+      // Save to session_date_host table immediately
+      const hostType = plannedHost.is_teacher ? 'teacher' : 'student';
+      supabase
+        .from(Tables.SESSION_DATE_HOST)
+        .upsert({
+          session_id: sessionId,
+          attendance_date: selectedDate,
+          host_id: plannedHost.student_id,
+          host_type: hostType,
+          host_address: plannedHost.address,
+        }, {
+          onConflict: 'session_id,attendance_date'
+        })
+        .then(({ error }) => {
+          if (error) {
+            console.error('Error auto-saving suggested host:', error);
+          } else {
+            console.log(`📅 Auto-saved planned host: ${plannedHost.student_name} (scheduled for ${selectedDate})`);
+          }
+        });
+      
+      setSelectedAddress(value);
+      
+      // Update coordinates from the suggested host
+      if (plannedHost.address_latitude && plannedHost.address_longitude) {
+        setHostCoordinates({
+          lat: plannedHost.address_latitude,
+          lon: plannedHost.address_longitude
+        });
+      } else {
+        setHostCoordinates(null);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, hostAddresses, selectedAddress, sessionNotHeld, sessionId]);
 
   const loadSelectedBookReference = async () => {
     if (!sessionId || !selectedDate) return;
@@ -1410,7 +1472,9 @@ export function Attendance() {
               onChange={handleHostAddressChange}
               options={hostAddresses.map(host => ({
                 value: `${host.student_id}|||${host.address}`,
-                label: `${host.student_name} - ${host.address}`
+                label: host.host_date === selectedDate 
+                  ? `📅 ${host.student_name} - ${host.address} (Scheduled Today)`
+                  : `${host.student_name} - ${host.address}`
               }))}
               placeholder="Select host address"
             />
