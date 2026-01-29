@@ -40,6 +40,9 @@ type HostInfo = {
   address: string | null;
   host_date: string | null;
   is_active?: boolean;
+  is_teacher?: boolean;
+  address_latitude?: number | null;
+  address_longitude?: number | null;
 };
 
 const EXCUSE_REASONS = [
@@ -224,7 +227,7 @@ export function Attendance() {
     if (!sessionId) return;
 
     try {
-      // First, load the session to get teacher info
+      // First, load the session to get teacher info (including coordinates)
       const { data: sessionData, error: sessionError } = await supabase
         .from(Tables.SESSION)
         .select(`
@@ -232,7 +235,9 @@ export function Attendance() {
           teacher:teacher_id (
             teacher_id,
             name,
-            address
+            address,
+            address_latitude,
+            address_longitude
           )
         `)
         .eq('session_id', sessionId)
@@ -242,49 +247,68 @@ export function Attendance() {
         console.error('Error loading session teacher:', sessionError);
       }
 
-      // Load ALL students with non-null addresses from student table
-      const { data: students, error: studentsError } = await supabase
-        .from(Tables.STUDENT)
-        .select('student_id, name, address')
-        .not('address', 'is', null)
-        .neq('address', '');
+      // Load ONLY ENROLLED students who can_host = true (with coordinates)
+      const { data: enrollments, error: enrollmentsError } = await supabase
+        .from(Tables.ENROLLMENT)
+        .select(`
+          student_id,
+          can_host,
+          student:student_id (
+            student_id,
+            name,
+            address,
+            address_latitude,
+            address_longitude
+          )
+        `)
+        .eq('session_id', sessionId)
+        .eq('status', 'active')
+        .eq('can_host', true);
 
-      if (studentsError) {
-        console.error('Error loading host addresses:', studentsError);
+      if (enrollmentsError) {
+        console.error('Error loading enrolled hosts:', enrollmentsError);
         setHostAddresses([]);
         return;
       }
 
-      if (!students || students.length === 0) {
-        setHostAddresses([]);
-        return;
-      }
-
-    // Map to HostInfo format
-    const allHosts: HostInfo[] = students
-      .map((s: { student_id: string; name: string; address: string }) => ({
-        student_id: s.student_id,
-        student_name: s.name,
-        address: s.address,
-        host_date: null,
-        is_active: true
-      }));
+      // Filter students with addresses
+      const hostsWithAddresses = (enrollments || [])
+        .filter(e => {
+          const student = Array.isArray(e.student) ? e.student[0] : e.student;
+          return student?.address && student.address.trim() !== '';
+        })
+        .map(e => {
+          const student = Array.isArray(e.student) ? e.student[0] : e.student;
+          return {
+            student_id: student.student_id,
+            student_name: student.name,
+            address: student.address,
+            host_date: null,
+            is_active: true,
+            is_teacher: false,
+            address_latitude: student.address_latitude ? Number(student.address_latitude) : null,
+            address_longitude: student.address_longitude ? Number(student.address_longitude) : null
+          };
+        });
     
     // Add teacher as first option if they have address
     const teacher = Array.isArray(sessionData?.teacher) ? sessionData?.teacher[0] : sessionData?.teacher;
     if (teacher?.address && teacher.address.trim() !== '') {
-      allHosts.unshift({
+      hostsWithAddresses.unshift({
         student_id: teacher.teacher_id,
         student_name: `🎓 ${teacher.name} (Teacher)`,
         address: teacher.address,
         host_date: null,
-        is_active: true
+        is_active: true,
+        is_teacher: true,
+        address_latitude: teacher.address_latitude ? Number(teacher.address_latitude) : null,
+        address_longitude: teacher.address_longitude ? Number(teacher.address_longitude) : null
       });
     }
     
     // Sort student hosts alphabetically (teacher already at top)
-    const teacherHost = allHosts.filter(h => h.student_name.includes('Teacher'));
-    const studentHosts = allHosts.filter(h => !h.student_name.includes('Teacher'));
+    const teacherHost = hostsWithAddresses.filter(h => h.student_name.includes('Teacher'));
+    const studentHosts = hostsWithAddresses.filter(h => !h.student_name.includes('Teacher'));
     studentHosts.sort((a, b) => a.student_name.localeCompare(b.student_name));
     
     setHostAddresses([...teacherHost, ...studentHosts]);
@@ -301,20 +325,13 @@ export function Attendance() {
       // Load host address from session_date_host table (single source of truth)
       const { data: hostData } = await supabase
         .from(Tables.SESSION_DATE_HOST)
-        .select('host_id, host_type, host_address, host_latitude, host_longitude')
+        .select('host_id, host_type, host_address')
         .eq('session_id', sessionId)
         .eq('attendance_date', selectedDate)
         .maybeSingle();
       
-      // Update host coordinates state
-      if (hostData?.host_latitude && hostData?.host_longitude) {
-        setHostCoordinates({
-          lat: Number(hostData.host_latitude),
-          lon: Number(hostData.host_longitude)
-        });
-      } else {
-        setHostCoordinates(null);
-      }
+      // Coordinates will be loaded later from the host's profile (student/teacher table)
+      // after we know who the host is - see the block after savedHostId is set
 
       // Check existing attendance records
       const { data: existingAttendance, error: attendanceError } = await supabase
@@ -362,10 +379,43 @@ export function Attendance() {
       if (savedHostAddress === 'SESSION_NOT_HELD') {
         setSessionNotHeld(true);
         setSelectedAddress('SESSION_NOT_HELD');
+        setHostCoordinates(null);
       } else if (savedHostId) {
         // We have host_id from new table - use it directly
         setSelectedAddress(`${savedHostId}|||${savedHostAddress}`);
         setSessionNotHeld(false);
+        
+        // Load coordinates from the host's profile (student or teacher table)
+        const isTeacher = hostData?.host_type === 'teacher';
+        if (isTeacher) {
+          const { data: teacherData } = await supabase
+            .from(Tables.TEACHER)
+            .select('address_latitude, address_longitude')
+            .eq('teacher_id', savedHostId)
+            .single();
+          if (teacherData?.address_latitude && teacherData?.address_longitude) {
+            setHostCoordinates({
+              lat: Number(teacherData.address_latitude),
+              lon: Number(teacherData.address_longitude)
+            });
+          } else {
+            setHostCoordinates(null);
+          }
+        } else {
+          const { data: studentData } = await supabase
+            .from(Tables.STUDENT)
+            .select('address_latitude, address_longitude')
+            .eq('student_id', savedHostId)
+            .single();
+          if (studentData?.address_latitude && studentData?.address_longitude) {
+            setHostCoordinates({
+              lat: Number(studentData.address_latitude),
+              lon: Number(studentData.address_longitude)
+            });
+          } else {
+            setHostCoordinates(null);
+          }
+        }
       } else {
         // Address is saved but no host_id - need to find matching student
         const { data: students, error: studentError } = await supabase
@@ -656,6 +706,16 @@ export function Attendance() {
     // Determine if host is teacher (check if name contains "Teacher")
     const hostInfo = hostAddresses.find(h => h.student_id === hostId);
     const hostType = hostInfo?.student_name?.includes('Teacher') ? 'teacher' : 'student';
+    
+    // Load coordinates from the selected host (student/teacher table)
+    if (hostInfo?.address_latitude && hostInfo?.address_longitude) {
+      setHostCoordinates({
+        lat: hostInfo.address_latitude,
+        lon: hostInfo.address_longitude
+      });
+    } else {
+      setHostCoordinates(null);
+    }
 
     if (value && value !== '') {
       // Upsert the host address to session_date_host table
@@ -1223,14 +1283,26 @@ export function Attendance() {
         {selectedDate && !sessionNotHeld && (
           <div className="flex gap-2">
             <Button
-              onClick={() => setShowQRModal(true)}
+              onClick={() => {
+                if (!selectedAddress || selectedAddress === '') {
+                  alert('⚠️ Please select a host address first before generating QR code.');
+                  return;
+                }
+                setShowQRModal(true);
+              }}
               className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 flex items-center gap-2"
             >
               <span className="text-xl">📱</span>
               <span className="hidden sm:inline">QR Code</span>
             </Button>
             <Button
-              onClick={() => setShowPhotoModal(true)}
+              onClick={() => {
+                if (!selectedAddress || selectedAddress === '') {
+                  alert('⚠️ Please select a host address first before generating Face Check-In link.');
+                  return;
+                }
+                setShowPhotoModal(true);
+              }}
               className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 flex items-center gap-2"
             >
               <span className="text-xl">📸</span>
@@ -1383,19 +1455,38 @@ export function Attendance() {
                       
                       if (coords === null) return; // Cancelled
                       
+                      // Get selected host info
+                      const addressParts = selectedAddress.split('|||');
+                      const hostId = addressParts[0];
+                      const hostInfo = hostAddresses.find(h => h.student_id === hostId);
+                      const isTeacher = hostInfo?.is_teacher || hostInfo?.student_name?.includes('Teacher');
+                      
+                      if (!hostId || !hostInfo) {
+                        alert('❌ No host selected. Please select a host address first.');
+                        return;
+                      }
+                      
                       if (coords.trim() === '') {
                         // Clear coordinates
                         const confirmClear = window.confirm('Remove GPS coordinates? This will disable proximity validation.');
                         if (!confirmClear) return;
                         
+                        const table = isTeacher ? Tables.TEACHER : Tables.STUDENT;
+                        const idField = isTeacher ? 'teacher_id' : 'student_id';
+                        
                         const { error: clearError } = await supabase
-                          .from(Tables.SESSION_DATE_HOST)
-                          .update({ host_latitude: null, host_longitude: null })
-                          .eq('session_id', sessionId!)
-                          .eq('attendance_date', selectedDate!);
+                          .from(table)
+                          .update({ address_latitude: null, address_longitude: null })
+                          .eq(idField, hostId);
                         
                         if (!clearError) {
                           setHostCoordinates(null);
+                          // Update local hostAddresses state
+                          setHostAddresses(prev => prev.map(h => 
+                            h.student_id === hostId 
+                              ? { ...h, address_latitude: null, address_longitude: null }
+                              : h
+                          ));
                         }
                         alert(clearError ? '❌ Failed to clear coordinates.' : '✅ Coordinates cleared. Proximity validation disabled.');
                         return;
@@ -1419,22 +1510,30 @@ export function Attendance() {
                         return;
                       }
                       
-                      // Save coordinates
+                      // Save coordinates to student/teacher table (persistent)
+                      const table = isTeacher ? Tables.TEACHER : Tables.STUDENT;
+                      const idField = isTeacher ? 'teacher_id' : 'student_id';
+                      
                       const { error } = await supabase
-                        .from(Tables.SESSION_DATE_HOST)
+                        .from(table)
                         .update({ 
-                          host_latitude: lat,
-                          host_longitude: lon 
+                          address_latitude: lat,
+                          address_longitude: lon 
                         })
-                        .eq('session_id', sessionId!)
-                        .eq('attendance_date', selectedDate!);
+                        .eq(idField, hostId);
                       
                       if (error) {
                         console.error('Failed to save coordinates:', error);
                         alert('❌ Failed to save coordinates. Please try again.');
                       } else {
                         setHostCoordinates({ lat, lon });
-                        alert('✅ Coordinates saved!\n\nLat: ' + lat + '\nLon: ' + lon + '\n\nProximity validation is now enabled.');
+                        // Update local hostAddresses state
+                        setHostAddresses(prev => prev.map(h => 
+                          h.student_id === hostId 
+                            ? { ...h, address_latitude: lat, address_longitude: lon }
+                            : h
+                        ));
+                        alert('✅ Coordinates saved!\n\nLat: ' + lat + '\nLon: ' + lon + '\n\nProximity validation is now enabled.\nThese coordinates are saved to the host profile and will persist across sessions.');
                       }
                     }}
                     className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"

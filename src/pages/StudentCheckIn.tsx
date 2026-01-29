@@ -253,17 +253,18 @@ export function StudentCheckIn() {
         .eq('attendance_date', date)
         .maybeSingle();
 
-      if (hostData?.host_address && hostData.host_address !== 'SESSION_NOT_HELD') {
-        // Auto-select the pre-saved host address
-        if (hostData.host_id) {
-          setSelectedAddress(`${hostData.host_id}|||${hostData.host_address}`);
-        } else {
-          // Find matching student by address
-          const matchingHost = hostList.find(h => h.address === hostData.host_address);
-          if (matchingHost) {
-            setSelectedAddress(`${matchingHost.student_id}|||${matchingHost.address}`);
-          }
-        }
+      // VALIDATION: Host address MUST be set by teacher
+      if (!hostData?.host_address || hostData.host_address === 'SESSION_NOT_HELD') {
+        setError('❌ Host address not set. Please ask your teacher to select a host address before check-in.');
+        setLoading(false);
+        return;
+      }
+
+      // Set the pre-saved host address (read-only for students)
+      if (hostData.host_id) {
+        setSelectedAddress(`${hostData.host_id}|||${hostData.host_address}`);
+      } else {
+        setSelectedAddress(`unknown|||${hostData.host_address}`);
       }
 
       // Handle both single object and array from Supabase for course relation
@@ -341,16 +342,36 @@ export function StudentCheckIn() {
       const gpsData = await captureGPSLocation();
 
       // PROXIMITY VALIDATION: Check if student is within allowed radius
+      // Get host info from session_date_host
       const { data: hostData } = await supabase
         .from(Tables.SESSION_DATE_HOST)
-        .select('host_latitude, host_longitude, host_address')
+        .select('host_id, host_type, host_address')
         .eq('session_id', checkInData.session_id)
         .eq('attendance_date', checkInData.attendance_date)
         .maybeSingle();
 
-      if (gpsData && checkInData.session?.proximity_radius && hostData?.host_latitude && hostData?.host_longitude) {
-        const hostLat = Number(hostData.host_latitude);
-        const hostLon = Number(hostData.host_longitude);
+      // Load coordinates from student/teacher table (persistent storage)
+      let hostLat: number | null = null;
+      let hostLon: number | null = null;
+      
+      if (hostData?.host_id) {
+        const isTeacher = hostData.host_type === 'teacher';
+        const table = isTeacher ? Tables.TEACHER : Tables.STUDENT;
+        const idField = isTeacher ? 'teacher_id' : 'student_id';
+        
+        const { data: coordData } = await supabase
+          .from(table)
+          .select('address_latitude, address_longitude')
+          .eq(idField, hostData.host_id)
+          .single();
+        
+        if (coordData?.address_latitude && coordData?.address_longitude) {
+          hostLat = Number(coordData.address_latitude);
+          hostLon = Number(coordData.address_longitude);
+        }
+      }
+
+      if (gpsData && checkInData.session?.proximity_radius && hostLat && hostLon) {
         
         const proximityResult = isWithinProximity(
           gpsData.latitude,
@@ -375,7 +396,7 @@ export function StudentCheckIn() {
             `⚠️ You are too far from the session location!\n\n` +
             `Your distance: ${formatDistance(proximityResult.distance)}\n` +
             `Maximum allowed: ${formatDistance(checkInData.session.proximity_radius)}\n\n` +
-            `Please move closer to ${hostData.host_address} to check in.`
+            `Please move closer to ${hostData?.host_address || 'the host'} to check in.`
           );
           setSubmitting(false);
           return;
@@ -697,24 +718,17 @@ export function StudentCheckIn() {
           </div>
 
           {/* Host Address Selection */}
-          {hostAddresses.length > 0 && (
+          {hostAddresses.length > 0 && selectedAddress && (
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                🏠 Session Location (Required)
+                🏠 Session Location
               </label>
-              <select
-                value={selectedAddress}
-                onChange={(e) => setSelectedAddress(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                required
-              >
-                <option value="">Select location...</option>
-                {hostAddresses.map((host) => (
-                  <option key={host.student_id} value={`${host.student_id}|||${host.address}`}>
-                    {host.student_name === studentInfo?.name ? '🏠 My Address' : host.student_name} - {host.address}
-                  </option>
-                ))}
-              </select>
+              <div className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg bg-gray-50 text-gray-700">
+                📍 {selectedAddress.split('|||')[1] || selectedAddress}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Location set by teacher. Your GPS will be checked against this address.
+              </p>
             </div>
           )}
 
@@ -735,7 +749,7 @@ export function StudentCheckIn() {
           {/* Check-In Button */}
           <Button
             onClick={handleCheckIn}
-            disabled={submitting || (hostAddresses.length > 0 && !selectedAddress)}
+            disabled={submitting}
             className="w-full py-6 text-lg font-bold"
             size="lg"
           >
