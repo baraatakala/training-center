@@ -7,6 +7,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 import { CourseForm } from '../components/CourseForm';
 import { BookReferencesManager } from '../components/BookReferencesManager';
 import { courseService } from '../services/courseService';
+import { supabase } from '../lib/supabase';
 import type { CreateCourse } from '../types/database.types';
 
 interface CourseWithTeacher {
@@ -28,6 +29,7 @@ export function Courses() {
   const [editingCourse, setEditingCourse] = useState<CourseWithTeacher | undefined>();
   const [isBookReferencesOpen, setIsBookReferencesOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<CourseWithTeacher | null>(null);
+  const [isTeacher, setIsTeacher] = useState(false);
 
   const loadCourses = async () => {
     setLoading(true);
@@ -40,6 +42,18 @@ export function Courses() {
   };
 
   useEffect(() => {
+    const checkTeacherAccess = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email) {
+        const { data: teacher } = await supabase
+          .from('teacher')
+          .select('teacher_id')
+          .ilike('email', user.email)
+          .single();
+        setIsTeacher(!!teacher);
+      }
+    };
+    checkTeacherAccess();
     loadCourses();
   }, []);
 
@@ -100,10 +114,20 @@ export function Courses() {
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Courses Management</h1>
           <p className="text-sm md:text-base text-gray-600 mt-1">{courses.length} total courses</p>
         </div>
-        <Button onClick={openAddModal} variant="primary" className="w-full sm:w-auto">
-          <span className="mr-2">+</span> Add Course
-        </Button>
+        {isTeacher && (
+          <Button onClick={openAddModal} variant="primary" className="w-full sm:w-auto">
+            <span className="mr-2">+</span> Add Course
+          </Button>
+        )}
       </div>
+
+      {!isTeacher && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <p className="text-yellow-800 text-sm">
+            ⚠️ You are viewing as a student. Edit and add functions are disabled.
+          </p>
+        </div>
+      )}
 
       <div className="bg-white p-4 md:p-6 rounded-lg shadow">
         <SearchBar
@@ -149,22 +173,29 @@ export function Courses() {
                       <TableCell className="text-gray-600 hidden md:table-cell min-w-[150px]">{course.teacher?.name || 'No instructor'}</TableCell>
                       <TableCell>
                         <div className="flex gap-1 md:gap-2 justify-end flex-nowrap">
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            onClick={() => openBookReferences(course)}
-                            className="text-xs md:text-sm px-2 md:px-3"
-                          >
-                            📚
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="secondary" 
-                            onClick={() => openEditModal(course)} 
-                            className="text-xs md:text-sm px-2 md:px-3"
-                          >
-                            Edit
-                          </Button>
+                          {isTeacher && (
+                            <>
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                onClick={() => openBookReferences(course)}
+                                className="text-xs md:text-sm px-2 md:px-3"
+                              >
+                                📚
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="secondary" 
+                                onClick={() => openEditModal(course)} 
+                                className="text-xs md:text-sm px-2 md:px-3"
+                              >
+                                Edit
+                              </Button>
+                            </>
+                          )}
+                          {!isTeacher && (
+                            <span className="text-xs text-gray-400 px-2">View only</span>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

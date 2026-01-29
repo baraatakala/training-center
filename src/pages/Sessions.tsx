@@ -42,6 +42,7 @@ export function Sessions() {
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [selectedSessionForSchedule, setSelectedSessionForSchedule] = useState<SessionWithDetails | null>(null);
   const [enrollmentCounts, setEnrollmentCounts] = useState<Record<string, number>>({});
+  const [isTeacher, setIsTeacher] = useState(false);
 
   const loadSessions = async () => {
     const { data } = await supabase
@@ -76,6 +77,18 @@ export function Sessions() {
   };
 
   useEffect(() => {
+    const checkTeacherAccess = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email) {
+        const { data: teacher } = await supabase
+          .from('teacher')
+          .select('teacher_id')
+          .ilike('email', user.email)
+          .single();
+        setIsTeacher(!!teacher);
+      }
+    };
+    checkTeacherAccess();
     loadSessions();
   }, []);
 
@@ -212,8 +225,18 @@ export function Sessions() {
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Sessions</h1>
           <p className="text-sm sm:text-base text-gray-600 mt-1">Manage training sessions and schedules</p>
         </div>
-        <Button onClick={openAddModal} className="w-full sm:w-auto">+ Add Session</Button>
+        {isTeacher && (
+          <Button onClick={openAddModal} className="w-full sm:w-auto">+ Add Session</Button>
+        )}
       </div>
+
+      {!isTeacher && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <p className="text-yellow-800 text-sm">
+            ⚠️ You are viewing as a student. Edit and add functions are disabled.
+          </p>
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -372,23 +395,30 @@ export function Sessions() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-2 justify-end">
-                          <Button
-                            size="sm"
-                            variant="success"
-                            onClick={() => window.location.href = `/attendance/${session.session_id}`}
-                          >
-                            Attendance
-                          </Button>
-                            <Button size="sm" variant="outline" onClick={() => { setSelectedSessionForSchedule(session); setIsScheduleModalOpen(true); }}>
-                              Host Schedule
-                            </Button>
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            onClick={() => openEditModal(session)}
-                          >
-                            Edit
-                          </Button>
+                          {isTeacher && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="success"
+                                onClick={() => window.location.href = `/attendance/${session.session_id}`}
+                              >
+                                Attendance
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => { setSelectedSessionForSchedule(session); setIsScheduleModalOpen(true); }}>
+                                Host Schedule
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                onClick={() => openEditModal(session)}
+                              >
+                                Edit
+                              </Button>
+                            </>
+                          )}
+                          {!isTeacher && (
+                            <span className="text-xs text-gray-400 px-2">View only</span>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

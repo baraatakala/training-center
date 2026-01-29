@@ -6,6 +6,7 @@ import { SearchBar } from '../components/ui/SearchBar';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
 import { EnrollmentForm } from '../components/EnrollmentForm';
 import { enrollmentService } from '../services/enrollmentService';
+import { supabase } from '../lib/supabase';
 import type { CreateEnrollment, UpdateEnrollment } from '../types/database.types';
 
 interface EnrollmentWithDetails {
@@ -36,6 +37,7 @@ export function Enrollments() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'student' | 'course' | 'date' | 'status' | 'canHost'>('student');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [isTeacher, setIsTeacher] = useState(false);
 
   const loadEnrollments = async () => {
     setLoading(true);
@@ -48,6 +50,18 @@ export function Enrollments() {
   };
 
   useEffect(() => {
+    const checkTeacherAccess = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email) {
+        const { data: teacher } = await supabase
+          .from('teacher')
+          .select('teacher_id')
+          .ilike('email', user.email)
+          .single();
+        setIsTeacher(!!teacher);
+      }
+    };
+    checkTeacherAccess();
     loadEnrollments();
   }, []);
 
@@ -176,11 +190,21 @@ export function Enrollments() {
             />
             <span className="text-sm font-medium">Can Host Only</span>
           </label>
-          <Button onClick={() => setIsModalOpen(true)} variant="primary" className="w-full sm:w-auto">
-            <span className="mr-2">+</span> Enroll Student
-          </Button>
+          {isTeacher && (
+            <Button onClick={() => setIsModalOpen(true)} variant="primary" className="w-full sm:w-auto">
+              <span className="mr-2">+</span> Enroll Student
+            </Button>
+          )}
         </div>
       </div>
+
+      {!isTeacher && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <p className="text-yellow-800 text-sm">
+            ⚠️ You are viewing as a student. Edit and add functions are disabled.
+          </p>
+        </div>
+      )}
 
       <div className="bg-white p-6 rounded-lg shadow space-y-4">
         <SearchBar
@@ -316,47 +340,58 @@ export function Enrollments() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
-                      {enrollment.status === 'active' ? (
-                        <button
-                          onClick={async () => {
-                            const newValue = !enrollment.can_host;
-                            const { error } = await enrollmentService.update(enrollment.enrollment_id, { can_host: newValue });
-                            if (!error) loadEnrollments();
-                          }}
-                          className={`inline-flex items-center justify-center h-8 w-8 rounded-full cursor-pointer transition ${
-                            enrollment.can_host 
-                              ? 'bg-green-100 text-green-800 hover:bg-green-200' 
-                              : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
-                          }`}
-                          title={enrollment.can_host ? 'Click to mark as former host' : 'Click to mark as active host'}
-                        >
-                          {enrollment.can_host ? '✓' : '—'}
-                        </button>
+                      {isTeacher ? (
+                        enrollment.status === 'active' ? (
+                          <button
+                            onClick={async () => {
+                              const newValue = !enrollment.can_host;
+                              const { error } = await enrollmentService.update(enrollment.enrollment_id, { can_host: newValue });
+                              if (!error) loadEnrollments();
+                            }}
+                            className={`inline-flex items-center justify-center h-8 w-8 rounded-full cursor-pointer transition ${
+                              enrollment.can_host 
+                                ? 'bg-green-100 text-green-800 hover:bg-green-200' 
+                                : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                            }`}
+                            title={enrollment.can_host ? 'Click to mark as former host' : 'Click to mark as active host'}
+                          >
+                            {enrollment.can_host ? '✓' : '—'}
+                          </button>
+                        ) : (
+                          <span className="text-gray-300" title={`Cannot host (status: ${enrollment.status})`}>✕</span>
+                        )
                       ) : (
-                        <span className="text-gray-300" title={`Cannot host (status: ${enrollment.status})`}>✕</span>
+                        <span className="text-gray-400">{enrollment.can_host ? '✓' : '—'}</span>
                       )}
                     </TableCell>
                     <TableCell>
                                     <div className="flex gap-2 justify-end">
-                                      <button
-                                        className="text-sm border rounded px-2 py-1 bg-white hover:bg-gray-50"
-                                        onClick={() => {
-                                          setEditingEnrollment(enrollment);
-                                          setIsModalOpen(true);
-                                        }}
-                                      >
-                                        Edit
-                                      </button>
-                                      <select
-                                        className="text-sm border rounded px-2 py-1"
-                                        value={enrollment.status}
-                                        onChange={(e) => handleUpdateStatus(enrollment.enrollment_id, e.target.value)}
-                                      >
-                                        <option value="active">Active</option>
-                                        <option value="pending">Pending</option>
+                                      {isTeacher && (
+                                        <>
+                                          <button
+                                            className="text-sm border rounded px-2 py-1 bg-white hover:bg-gray-50"
+                                            onClick={() => {
+                                              setEditingEnrollment(enrollment);
+                                              setIsModalOpen(true);
+                                            }}
+                                          >
+                                            Edit
+                                          </button>
+                                          <select
+                                            className="text-sm border rounded px-2 py-1"
+                                            value={enrollment.status}
+                                            onChange={(e) => handleUpdateStatus(enrollment.enrollment_id, e.target.value)}
+                                          >
+                                            <option value="active">Active</option>
+                                            <option value="pending">Pending</option>
                                         <option value="completed">Completed</option>
                                         <option value="dropped">Dropped</option>
                                       </select>
+                                        </>
+                                      )}
+                                      {!isTeacher && (
+                                        <span className="text-xs text-gray-400 px-2">View only</span>
+                                      )}
                                     </div>
                     </TableCell>
                   </TableRow>

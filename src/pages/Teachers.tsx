@@ -6,6 +6,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 import { TeacherForm } from '../components/TeacherForm';
 import { Badge } from '../components/ui/Badge';
 import { teacherService } from '../services/teacherService';
+import { supabase } from '../lib/supabase';
 import type { Teacher, CreateTeacher } from '../types/database.types';
 
 interface TeacherWithCount extends Teacher {
@@ -19,6 +20,7 @@ export function Teachers() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | undefined>();
+  const [isTeacher, setIsTeacher] = useState(false);
 
   const loadTeachers = async () => {
     setLoading(true);
@@ -38,6 +40,18 @@ export function Teachers() {
   };
 
   useEffect(() => {
+    const checkTeacherAccess = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email) {
+        const { data: teacher } = await supabase
+          .from('teacher')
+          .select('teacher_id')
+          .ilike('email', user.email)
+          .single();
+        setIsTeacher(!!teacher);
+      }
+    };
+    checkTeacherAccess();
     loadTeachers();
   }, []);
 
@@ -93,10 +107,20 @@ export function Teachers() {
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Teachers Management</h1>
           <p className="text-sm md:text-base text-gray-600 mt-1">{teachers.length} total teachers</p>
         </div>
-        <Button onClick={openAddModal} variant="primary" className="w-full sm:w-auto">
-          <span className="mr-2">+</span> Add Teacher
-        </Button>
+        {isTeacher && (
+          <Button onClick={openAddModal} variant="primary" className="w-full sm:w-auto">
+            <span className="mr-2">+</span> Add Teacher
+          </Button>
+        )}
       </div>
+
+      {!isTeacher && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <p className="text-yellow-800 text-sm">
+            ⚠️ You are viewing as a student. Edit and add functions are disabled.
+          </p>
+        </div>
+      )}
 
       <div className="bg-white p-4 md:p-6 rounded-lg shadow">
         <SearchBar
@@ -146,14 +170,19 @@ export function Teachers() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1 md:gap-2 justify-end flex-nowrap">
-                          <Button 
-                            size="sm" 
-                            variant="secondary" 
-                            onClick={() => openEditModal(teacher)} 
-                            className="text-xs md:text-sm px-2 md:px-3"
-                          >
-                            Edit
-                          </Button>
+                          {isTeacher && (
+                            <Button 
+                              size="sm" 
+                              variant="secondary" 
+                              onClick={() => openEditModal(teacher)} 
+                              className="text-xs md:text-sm px-2 md:px-3"
+                            >
+                              Edit
+                            </Button>
+                          )}
+                          {!isTeacher && (
+                            <span className="text-xs text-gray-400 px-2">View only</span>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

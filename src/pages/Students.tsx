@@ -8,6 +8,7 @@ import { StudentForm } from '../components/StudentForm';
 import { PhotoUpload } from '../components/PhotoUpload';
 import { PhotoAvatar } from '../components/PhotoAvatar';
 import { studentService } from '../services/studentService';
+import { supabase } from '../lib/supabase';
 import type { Student, CreateStudent } from '../types/database.types';
 
 export function Students() {
@@ -21,6 +22,7 @@ export function Students() {
   const [photoStudent, setPhotoStudent] = useState<Student | undefined>();
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [isTeacher, setIsTeacher] = useState(false);
 
   const loadStudents = async () => {
     setLoading(true);
@@ -33,6 +35,18 @@ export function Students() {
   };
 
   useEffect(() => {
+    const checkTeacherAccess = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email) {
+        const { data: teacher } = await supabase
+          .from('teacher')
+          .select('teacher_id')
+          .ilike('email', user.email)
+          .single();
+        setIsTeacher(!!teacher);
+      }
+    };
+    checkTeacherAccess();
     loadStudents();
   }, []);
 
@@ -94,10 +108,20 @@ export function Students() {
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Students Management</h1>
           <p className="text-sm md:text-base text-gray-600 mt-1">{students.length} total students</p>
         </div>
-        <Button onClick={openAddModal} variant="primary" className="w-full sm:w-auto">
-          <span className="mr-2">+</span> Add Student
-        </Button>
+        {isTeacher && (
+          <Button onClick={openAddModal} variant="primary" className="w-full sm:w-auto">
+            <span className="mr-2">+</span> Add Student
+          </Button>
+        )}
       </div>
+
+      {!isTeacher && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <p className="text-yellow-800 text-sm">
+            ⚠️ You are viewing as a student. Edit and add functions are disabled.
+          </p>
+        </div>
+      )}
 
       {/* Search Bar */}
       <div className="bg-white p-4 md:p-6 rounded-lg shadow">
@@ -154,28 +178,35 @@ export function Students() {
                       <TableCell className="text-gray-600 hidden xl:table-cell">{student.age || '-'}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-1 md:gap-2 justify-end flex-nowrap">
-                          <button
-                            onClick={() => {
-                              setPhotoStudent(student);
-                              setIsPhotoModalOpen(true);
-                            }}
-                            className={`px-2 md:px-3 py-1 text-xs md:text-sm rounded border ${
-                              student.photo_url 
-                                ? 'text-green-600 border-green-300 bg-green-50 hover:bg-green-100' 
-                                : 'text-orange-600 border-orange-300 bg-orange-50 hover:bg-orange-100'
-                            }`}
-                            title={student.photo_url ? 'Update photo' : 'Add photo for face check-in'}
-                          >
-                            📸
-                          </button>
-                          <Button 
-                            size="sm" 
-                            variant="secondary" 
-                            onClick={() => openEditModal(student)} 
-                            className="text-xs md:text-sm px-2 md:px-3"
-                          >
-                            Edit
-                          </Button>
+                          {isTeacher && (
+                            <>
+                              <button
+                                onClick={() => {
+                                  setPhotoStudent(student);
+                                  setIsPhotoModalOpen(true);
+                                }}
+                                className={`px-2 md:px-3 py-1 text-xs md:text-sm rounded border ${
+                                  student.photo_url 
+                                    ? 'text-green-600 border-green-300 bg-green-50 hover:bg-green-100' 
+                                    : 'text-orange-600 border-orange-300 bg-orange-50 hover:bg-orange-100'
+                                }`}
+                                title={student.photo_url ? 'Update photo' : 'Add photo for face check-in'}
+                              >
+                                📸
+                              </button>
+                              <Button 
+                                size="sm" 
+                                variant="secondary" 
+                                onClick={() => openEditModal(student)} 
+                                className="text-xs md:text-sm px-2 md:px-3"
+                              >
+                                Edit
+                              </Button>
+                            </>
+                          )}
+                          {!isTeacher && (
+                            <span className="text-xs text-gray-400 px-2">View only</span>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
