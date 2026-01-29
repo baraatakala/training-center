@@ -297,11 +297,10 @@ export function StudentCheckIn() {
     accuracy: number;
     timestamp: string;
   } | null> => {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       if (!('geolocation' in navigator)) {
         console.warn('Geolocation not supported by browser');
-        alert('⚠️ GPS not supported by your browser. Continuing without location data.');
-        resolve(null);
+        reject(new Error('GPS_NOT_SUPPORTED'));
         return;
       }
 
@@ -317,16 +316,15 @@ export function StudentCheckIn() {
         },
         (error) => {
           console.error('GPS error:', error);
-          // Only show alert for permission denial (user action required)
-          // Timeouts and unavailable errors just log and continue silently
           if (error.code === error.PERMISSION_DENIED) {
-            alert('⚠️ Location permission denied. Check-in will continue without GPS data.\n\nTo enable: Allow location access in your browser settings.');
+            reject(new Error('GPS_PERMISSION_DENIED'));
+          } else if (error.code === error.TIMEOUT) {
+            reject(new Error('GPS_TIMEOUT'));
           } else {
-            console.warn('GPS unavailable:', error.code === error.TIMEOUT ? 'Timeout' : error.code === error.POSITION_UNAVAILABLE ? 'Unavailable' : 'Unknown error');
+            reject(new Error('GPS_UNAVAILABLE'));
           }
-          resolve(null);
         },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
       );
     });
   };
@@ -338,10 +336,7 @@ export function StudentCheckIn() {
     setError(null);
 
     try {
-      // Capture GPS
-      const gpsData = await captureGPSLocation();
-
-      // PROXIMITY VALIDATION: Check if student is within allowed radius
+      // PROXIMITY VALIDATION: First check if host has coordinates set
       // Get host info from session_date_host
       const { data: hostData } = await supabase
         .from(Tables.SESSION_DATE_HOST)
@@ -371,14 +366,43 @@ export function StudentCheckIn() {
         }
       }
 
-      if (gpsData && checkInData.session?.proximity_radius && hostLat && hostLon) {
+      // Determine if proximity validation is required
+      const proximityRequired = checkInData.session?.proximity_radius && hostLat && hostLon;
+      
+      // Capture GPS - required if proximity validation is enabled
+      let gpsData: { latitude: number; longitude: number; accuracy: number; timestamp: string } | null = null;
+      
+      try {
+        gpsData = await captureGPSLocation();
+      } catch (gpsError) {
+        const errorMessage = (gpsError as Error).message;
         
+        if (proximityRequired) {
+          // GPS is REQUIRED but failed - block check-in
+          if (errorMessage === 'GPS_PERMISSION_DENIED') {
+            setError('❌ Location permission denied!\n\nGPS is required for check-in at this session.\n\nPlease enable location access in your browser settings and try again.');
+          } else if (errorMessage === 'GPS_TIMEOUT') {
+            setError('❌ Could not get your location (timeout).\n\nGPS is required for check-in. Please ensure you have a clear view of the sky and try again.');
+          } else if (errorMessage === 'GPS_NOT_SUPPORTED') {
+            setError('❌ Your browser does not support GPS.\n\nPlease use a modern browser with location services enabled.');
+          } else {
+            setError('❌ Could not get your location.\n\nGPS is required for check-in at this session. Please try again.');
+          }
+          setSubmitting(false);
+          return;
+        }
+        // GPS failed but not required - continue without it
+        console.warn('GPS failed but proximity not required, continuing:', errorMessage);
+      }
+
+      // Perform proximity validation if required
+      if (proximityRequired && gpsData) {
         const proximityResult = isWithinProximity(
           gpsData.latitude,
           gpsData.longitude,
-          hostLat,
-          hostLon,
-          checkInData.session.proximity_radius
+          hostLat!,
+          hostLon!,
+          checkInData.session!.proximity_radius!
         );
 
         console.log('📍 Proximity check:', {
@@ -387,7 +411,7 @@ export function StudentCheckIn() {
           hostLat: hostLat,
           hostLon: hostLon,
           distance: proximityResult.distance,
-          allowed: checkInData.session.proximity_radius,
+          allowed: checkInData.session!.proximity_radius,
           isWithin: proximityResult.isWithinRadius
         });
 
@@ -395,7 +419,7 @@ export function StudentCheckIn() {
           setError(
             `⚠️ You are too far from the session location!\n\n` +
             `Your distance: ${formatDistance(proximityResult.distance)}\n` +
-            `Maximum allowed: ${formatDistance(checkInData.session.proximity_radius)}\n\n` +
+            `Maximum allowed: ${formatDistance(checkInData.session!.proximity_radius!)}\n\n` +
             `Please move closer to ${hostData?.host_address || 'the host'} to check in.`
           );
           setSubmitting(false);
@@ -403,9 +427,8 @@ export function StudentCheckIn() {
         }
 
         console.log('✅ Proximity validation passed:', formatDistance(proximityResult.distance), 'from host');
-      } else if (checkInData.session?.proximity_radius) {
-        console.warn('📍 Proximity radius configured but validation skipped:', 
-          !gpsData ? 'No GPS data' : 'No host coordinates');
+      } else if (checkInData.session?.proximity_radius && !hostLat) {
+        console.warn('📍 Proximity radius configured but no host coordinates set - validation skipped');
       }
 
       // Get enrollment

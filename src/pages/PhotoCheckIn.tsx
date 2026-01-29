@@ -479,9 +479,9 @@ export function PhotoCheckIn() {
     accuracy: number;
     timestamp: string;
   } | null> => {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       if (!('geolocation' in navigator)) {
-        resolve(null);
+        reject(new Error('GPS_NOT_SUPPORTED'));
         return;
       }
 
@@ -494,8 +494,16 @@ export function PhotoCheckIn() {
             timestamp: new Date().toISOString()
           });
         },
-        () => resolve(null),
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        (error) => {
+          if (error.code === error.PERMISSION_DENIED) {
+            reject(new Error('GPS_PERMISSION_DENIED'));
+          } else if (error.code === error.TIMEOUT) {
+            reject(new Error('GPS_TIMEOUT'));
+          } else {
+            reject(new Error('GPS_UNAVAILABLE'));
+          }
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
       );
     });
   };
@@ -508,9 +516,7 @@ export function PhotoCheckIn() {
     setError(null);
 
     try {
-      const gpsData = await captureGPSLocation();
-
-      // PROXIMITY VALIDATION: Check if student is within allowed radius
+      // PROXIMITY VALIDATION: First check if host has coordinates set
       // Get host info from session_date_host
       const { data: hostData } = await supabase
         .from(Tables.SESSION_DATE_HOST)
@@ -540,21 +546,60 @@ export function PhotoCheckIn() {
         }
       }
 
-      if (gpsData && checkInData.session?.proximity_radius && hostLat && hostLon) {
+      // Determine if proximity validation is required
+      const proximityRequired = checkInData.session?.proximity_radius && hostLat && hostLon;
+      
+      // Capture GPS - required if proximity validation is enabled
+      let gpsData: { latitude: number; longitude: number; accuracy: number; timestamp: string } | null = null;
+      
+      try {
+        gpsData = await captureGPSLocation();
+      } catch (gpsError) {
+        const errorMessage = (gpsError as Error).message;
         
+        if (proximityRequired) {
+          // GPS is REQUIRED but failed - block check-in
+          if (errorMessage === 'GPS_PERMISSION_DENIED') {
+            setError('❌ Location permission denied!\n\nGPS is required for check-in at this session.\n\nPlease enable location access in your browser settings and try again.');
+          } else if (errorMessage === 'GPS_TIMEOUT') {
+            setError('❌ Could not get your location (timeout).\n\nGPS is required for check-in. Please ensure you have a clear view of the sky and try again.');
+          } else if (errorMessage === 'GPS_NOT_SUPPORTED') {
+            setError('❌ Your browser does not support GPS.\n\nPlease use a modern browser with location services enabled.');
+          } else {
+            setError('❌ Could not get your location.\n\nGPS is required for check-in at this session. Please try again.');
+          }
+          setSubmitting(false);
+          return;
+        }
+        // GPS failed but not required - continue without it
+        console.warn('GPS failed but proximity not required, continuing:', errorMessage);
+      }
+
+      // Perform proximity validation if required
+      if (proximityRequired && gpsData) {
         const proximityResult = isWithinProximity(
           gpsData.latitude,
           gpsData.longitude,
-          hostLat,
-          hostLon,
-          checkInData.session.proximity_radius
+          hostLat!,
+          hostLon!,
+          checkInData.session!.proximity_radius!
         );
+
+        console.log('📍 Proximity check:', {
+          userLat: gpsData.latitude,
+          userLon: gpsData.longitude,
+          hostLat: hostLat,
+          hostLon: hostLon,
+          distance: proximityResult.distance,
+          allowed: checkInData.session!.proximity_radius,
+          isWithin: proximityResult.isWithinRadius
+        });
 
         if (!proximityResult.isWithinRadius) {
           setError(
             `⚠️ You are too far from the session location!\n\n` +
             `Your distance: ${formatDistance(proximityResult.distance)}\n` +
-            `Maximum allowed: ${formatDistance(checkInData.session.proximity_radius)}\n\n` +
+            `Maximum allowed: ${formatDistance(checkInData.session!.proximity_radius!)}\n\n` +
             `Please move closer to ${hostData?.host_address || 'the host'} to check in.`
           );
           setSubmitting(false);
@@ -562,9 +607,8 @@ export function PhotoCheckIn() {
         }
 
         console.log('✅ Proximity validation passed:', formatDistance(proximityResult.distance), 'from host');
-      } else if (checkInData.session?.proximity_radius) {
-        console.warn('📍 Proximity radius configured but validation skipped:', 
-          !gpsData ? 'No GPS data' : 'No host coordinates');
+      } else if (checkInData.session?.proximity_radius && !hostLat) {
+        console.warn('📍 Proximity radius configured but no host coordinates set - validation skipped');
       }
 
       const { data: enrollment } = await supabase
