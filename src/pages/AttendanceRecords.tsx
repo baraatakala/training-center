@@ -111,6 +111,9 @@ const AttendanceRecords = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
   
+  // Earliest attendance date state
+  const [earliestDate, setEarliestDate] = useState<string>('');
+
   // Filter state
   const [filters, setFilters] = useState<FilterOptions>({
     student_id: '',
@@ -140,15 +143,23 @@ const AttendanceRecords = () => {
 
         if (earliestError) {
           console.warn('Failed to fetch earliest attendance date, falling back to 1 year ago', earliestError);
-          setFilters((f) => ({ ...f, startDate: format(subDays(new Date(), 365), 'yyyy-MM-dd') }));
+          const fallback = format(subDays(new Date(), 365), 'yyyy-MM-dd');
+          setEarliestDate(fallback);
+          setFilters((f) => ({ ...f, startDate: fallback }));
         } else if (earliestData && earliestData.attendance_date) {
-          setFilters((f) => ({ ...f, startDate: format(new Date(earliestData.attendance_date), 'yyyy-MM-dd') }));
+          const earliest = format(new Date(earliestData.attendance_date), 'yyyy-MM-dd');
+          setEarliestDate(earliest);
+          setFilters((f) => ({ ...f, startDate: earliest }));
         } else {
-          setFilters((f) => ({ ...f, startDate: format(subDays(new Date(), 365), 'yyyy-MM-dd') }));
+          const fallback = format(subDays(new Date(), 365), 'yyyy-MM-dd');
+          setEarliestDate(fallback);
+          setFilters((f) => ({ ...f, startDate: fallback }));
         }
       } catch (err) {
         console.warn('Error initializing filters, using fallback dates', err);
-        setFilters((f) => ({ ...f, startDate: format(subDays(new Date(), 365), 'yyyy-MM-dd') }));
+        const fallback = format(subDays(new Date(), 365), 'yyyy-MM-dd');
+        setEarliestDate(fallback);
+        setFilters((f) => ({ ...f, startDate: fallback }));
       }
 
       // load dropdown options and records after filters initialized
@@ -201,6 +212,11 @@ const AttendanceRecords = () => {
   const applyFilters = useCallback(() => {
     let filtered = [...records];
 
+    // Filter by student
+    if (filters.student_id) {
+      filtered = filtered.filter(r => r.student_id === filters.student_id);
+    }
+
     // Filter by course (only if not already filtered at DB level)
     if (filters.course_id) {
       filtered = filtered.filter(r => r.course_id === filters.course_id);
@@ -214,6 +230,20 @@ const AttendanceRecords = () => {
     // Filter by status (only if not already filtered at DB level)
     if (filters.status) {
       filtered = filtered.filter(r => r.status === filters.status);
+    }
+
+    // Filter by startDate and endDate (inclusive)
+    if (filters.startDate) {
+      filtered = filtered.filter(r => {
+        if (!r.attendance_date) return false;
+        return new Date(r.attendance_date) >= new Date(filters.startDate);
+      });
+    }
+    if (filters.endDate) {
+      filtered = filtered.filter(r => {
+        if (!r.attendance_date) return false;
+        return new Date(r.attendance_date) <= new Date(filters.endDate);
+      });
     }
 
     setFilteredRecords(filtered);
@@ -1150,7 +1180,7 @@ const AttendanceRecords = () => {
       course_id: '',
       teacher_id: '',
       status: '',
-      startDate: format(subDays(new Date(), 365), 'yyyy-MM-dd'),
+      startDate: earliestDate || format(subDays(new Date(), 365), 'yyyy-MM-dd'),
       endDate: format(new Date(), 'yyyy-MM-dd'),
     });
   };
