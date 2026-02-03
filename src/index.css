@@ -52,6 +52,22 @@ body {
   background: var(--color-bg-main);
   color: var(--color-text-primary);
 }
+
+/* Hide scrollbar for navigation */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Better touch targets for mobile */
+@media (max-width: 768px) {
+  button, a {
+    min-height: 44px;
+  }
+}
 /* Custom Animations */
 @keyframes slide-in-right {
   from {
