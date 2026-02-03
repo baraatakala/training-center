@@ -279,6 +279,7 @@ export function StudentCheckIn() {
           time: session.time,
           location: session.location,
           grace_period_minutes: session.grace_period_minutes,
+          proximity_radius: session.proximity_radius,
         },
       });
 
