@@ -1647,6 +1647,7 @@ const AttendanceRecords = () => {
           icon: '👤',
           fields: [
             { key: 'rank', label: 'Rank', labelAr: 'الرتبة', category: 'basic', defaultSelected: true },
+            { key: 'student_id', label: 'Student ID', labelAr: 'رقم الطالب', category: 'basic', defaultSelected: false },
             { key: 'student_name', label: 'Student Name', labelAr: 'اسم الطالب', category: 'basic', defaultSelected: true },
           ]
         },
@@ -1659,8 +1660,10 @@ const AttendanceRecords = () => {
             { key: 'presentCount', label: 'On Time', labelAr: 'في الوقت', category: 'attendance', defaultSelected: true },
             { key: 'lateCount', label: 'Late', labelAr: 'متأخر', category: 'attendance', defaultSelected: true },
             { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحضور', category: 'attendance', defaultSelected: true },
+            { key: 'absentCount', label: 'Total Absent', labelAr: 'إجمالي الغياب', category: 'attendance', defaultSelected: false },
             { key: 'unexcusedAbsent', label: 'Unexcused Absent', labelAr: 'غياب بدون عذر', category: 'attendance', defaultSelected: true },
             { key: 'excusedCount', label: 'Excused', labelAr: 'معذور', category: 'attendance', defaultSelected: true },
+            { key: 'totalRecords', label: 'Total Records', labelAr: 'إجمالي السجلات', category: 'attendance', defaultSelected: false },
           ]
         },
         {
@@ -1674,6 +1677,30 @@ const AttendanceRecords = () => {
             { key: 'attendanceRate', label: 'Attendance Rate %', labelAr: 'نسبة الحضور', category: 'metrics', defaultSelected: true },
             { key: 'punctualityRate', label: 'Punctuality Rate %', labelAr: 'نسبة الالتزام', category: 'metrics', defaultSelected: true },
             { key: 'weightedScore', label: 'Weighted Score', labelAr: 'الدرجة الموزونة', category: 'metrics', defaultSelected: true },
+            { key: 'consistencyIndex', label: 'Consistency Index', labelAr: 'مؤشر الانتظام', category: 'metrics', defaultSelected: false },
+          ]
+        },
+        {
+          id: 'trend',
+          label: 'Trend Analysis',
+          labelAr: 'تحليل الاتجاه',
+          icon: '📉',
+          fields: [
+            { key: 'trendSlope', label: 'Trend Slope', labelAr: 'ميل الاتجاه', category: 'trend', defaultSelected: false },
+            { key: 'trendClassification', label: 'Trend Classification', labelAr: 'تصنيف الاتجاه', category: 'trend', defaultSelected: false },
+            { key: 'trendRSquared', label: 'Trend R² Value', labelAr: 'قيمة R²', category: 'trend', defaultSelected: false },
+            { key: 'weeklyChange', label: 'Weekly Change %', labelAr: 'التغير الأسبوعي', category: 'trend', defaultSelected: false },
+          ]
+        },
+        {
+          id: 'rates',
+          label: 'Rate Statistics',
+          labelAr: 'إحصائيات المعدلات',
+          icon: '📏',
+          fields: [
+            { key: 'avgRate', label: 'Average Rate', labelAr: 'المعدل المتوسط', category: 'rates', defaultSelected: false },
+            { key: 'minRate', label: 'Minimum Rate', labelAr: 'أدنى معدل', category: 'rates', defaultSelected: false },
+            { key: 'maxRate', label: 'Maximum Rate', labelAr: 'أعلى معدل', category: 'rates', defaultSelected: false },
           ]
         }
       ];
@@ -1686,9 +1713,21 @@ const AttendanceRecords = () => {
           icon: '📅',
           fields: [
             { key: 'date', label: 'Date', labelAr: 'التاريخ', category: 'session', defaultSelected: true },
-            { key: 'bookTopic', label: 'Book Topic', labelAr: 'موضوع الكتاب', category: 'session', defaultSelected: true },
-            { key: 'bookPages', label: 'Pages', labelAr: 'الصفحات', category: 'session', defaultSelected: true },
+            { key: 'dayOfWeek', label: 'Day of Week', labelAr: 'يوم الأسبوع', category: 'session', defaultSelected: false },
             { key: 'hostAddress', label: 'Host Address', labelAr: 'عنوان المضيف', category: 'session', defaultSelected: true },
+          ]
+        },
+        {
+          id: 'book',
+          label: 'Book Coverage',
+          labelAr: 'تغطية الكتاب',
+          icon: '📚',
+          fields: [
+            { key: 'bookTopic', label: 'Book Topic', labelAr: 'موضوع الكتاب', category: 'book', defaultSelected: true },
+            { key: 'bookPages', label: 'Pages', labelAr: 'الصفحات', category: 'book', defaultSelected: true },
+            { key: 'bookStartPage', label: 'Start Page', labelAr: 'صفحة البداية', category: 'book', defaultSelected: false },
+            { key: 'bookEndPage', label: 'End Page', labelAr: 'صفحة النهاية', category: 'book', defaultSelected: false },
+            { key: 'pagesCount', label: 'Pages Count', labelAr: 'عدد الصفحات', category: 'book', defaultSelected: false },
           ]
         },
         {
@@ -1699,9 +1738,22 @@ const AttendanceRecords = () => {
           fields: [
             { key: 'presentCount', label: 'On Time', labelAr: 'في الوقت', category: 'counts', defaultSelected: true },
             { key: 'lateCount', label: 'Late', labelAr: 'متأخر', category: 'counts', defaultSelected: true },
+            { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحضور', category: 'counts', defaultSelected: false },
             { key: 'excusedAbsentCount', label: 'Excused', labelAr: 'معذور', category: 'counts', defaultSelected: true },
             { key: 'unexcusedAbsentCount', label: 'Absent', labelAr: 'غائب', category: 'counts', defaultSelected: true },
-            { key: 'attendanceRate', label: 'Rate %', labelAr: 'النسبة', category: 'counts', defaultSelected: true },
+            { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب', category: 'counts', defaultSelected: false },
+            { key: 'totalStudents', label: 'Total Students', labelAr: 'إجمالي الطلاب', category: 'counts', defaultSelected: false },
+          ]
+        },
+        {
+          id: 'rates',
+          label: 'Rates & Percentages',
+          labelAr: 'النسب والمعدلات',
+          icon: '📊',
+          fields: [
+            { key: 'attendanceRate', label: 'Attendance Rate %', labelAr: 'نسبة الحضور', category: 'rates', defaultSelected: true },
+            { key: 'punctualityRate', label: 'Punctuality Rate %', labelAr: 'نسبة الالتزام', category: 'rates', defaultSelected: false },
+            { key: 'absentRate', label: 'Absence Rate %', labelAr: 'نسبة الغياب', category: 'rates', defaultSelected: false },
           ]
         },
         {
@@ -1727,8 +1779,28 @@ const AttendanceRecords = () => {
           fields: [
             { key: 'rank', label: 'Rank', labelAr: 'الرتبة', category: 'host', defaultSelected: true },
             { key: 'address', label: 'Host Address', labelAr: 'عنوان المضيف', category: 'host', defaultSelected: true },
-            { key: 'count', label: 'Times Hosted', labelAr: 'عدد مرات الاستضافة', category: 'host', defaultSelected: true },
-            { key: 'dates', label: 'Dates', labelAr: 'التواريخ', category: 'host', defaultSelected: true },
+          ]
+        },
+        {
+          id: 'stats',
+          label: 'Hosting Statistics',
+          labelAr: 'إحصائيات الاستضافة',
+          icon: '📊',
+          fields: [
+            { key: 'count', label: 'Times Hosted', labelAr: 'عدد مرات الاستضافة', category: 'stats', defaultSelected: true },
+            { key: 'percentage', label: 'Hosting Percentage %', labelAr: 'نسبة الاستضافة', category: 'stats', defaultSelected: false },
+            { key: 'firstHostDate', label: 'First Host Date', labelAr: 'أول تاريخ استضافة', category: 'stats', defaultSelected: false },
+            { key: 'lastHostDate', label: 'Last Host Date', labelAr: 'آخر تاريخ استضافة', category: 'stats', defaultSelected: false },
+          ]
+        },
+        {
+          id: 'dates',
+          label: 'Hosting Dates',
+          labelAr: 'تواريخ الاستضافة',
+          icon: '📅',
+          fields: [
+            { key: 'dates', label: 'All Dates', labelAr: 'جميع التواريخ', category: 'dates', defaultSelected: true },
+            { key: 'datesList', label: 'Dates List (separate rows)', labelAr: 'قائمة التواريخ', category: 'dates', defaultSelected: false },
           ]
         }
       ];
@@ -1742,9 +1814,42 @@ const AttendanceRecords = () => {
         icon: '📋',
         fields: [
           { key: 'date', label: 'Date', labelAr: 'التاريخ', category: 'basic', defaultSelected: true },
-          { key: 'student_name', label: 'Student Name', labelAr: 'اسم الطالب', category: 'basic', defaultSelected: true },
-          { key: 'course_name', label: 'Course', labelAr: 'الدورة', category: 'basic', defaultSelected: true },
-          { key: 'instructor_name', label: 'Instructor', labelAr: 'المدرب', category: 'basic', defaultSelected: true },
+          { key: 'dayOfWeek', label: 'Day of Week', labelAr: 'يوم الأسبوع', category: 'basic', defaultSelected: false },
+          { key: 'attendance_id', label: 'Record ID', labelAr: 'رقم السجل', category: 'basic', defaultSelected: false },
+        ]
+      },
+      {
+        id: 'student',
+        label: 'Student Info',
+        labelAr: 'معلومات الطالب',
+        icon: '👤',
+        fields: [
+          { key: 'student_name', label: 'Student Name', labelAr: 'اسم الطالب', category: 'student', defaultSelected: true },
+          { key: 'student_id', label: 'Student ID', labelAr: 'رقم الطالب', category: 'student', defaultSelected: false },
+        ]
+      },
+      {
+        id: 'course',
+        label: 'Course Info',
+        labelAr: 'معلومات الدورة',
+        icon: '📚',
+        fields: [
+          { key: 'course_name', label: 'Course Name', labelAr: 'اسم الدورة', category: 'course', defaultSelected: true },
+          { key: 'course_id', label: 'Course ID', labelAr: 'رقم الدورة', category: 'course', defaultSelected: false },
+          { key: 'instructor_name', label: 'Instructor', labelAr: 'المدرب', category: 'course', defaultSelected: true },
+          { key: 'session_location', label: 'Session Location', labelAr: 'موقع الجلسة', category: 'course', defaultSelected: false },
+        ]
+      },
+      {
+        id: 'book',
+        label: 'Book Coverage',
+        labelAr: 'تغطية الكتاب',
+        icon: '📖',
+        fields: [
+          { key: 'book_topic', label: 'Book Topic', labelAr: 'موضوع الكتاب', category: 'book', defaultSelected: false },
+          { key: 'book_pages', label: 'Book Pages', labelAr: 'صفحات الكتاب', category: 'book', defaultSelected: false },
+          { key: 'book_start_page', label: 'Start Page', labelAr: 'صفحة البداية', category: 'book', defaultSelected: false },
+          { key: 'book_end_page', label: 'End Page', labelAr: 'صفحة النهاية', category: 'book', defaultSelected: false },
         ]
       },
       {
@@ -1754,11 +1859,34 @@ const AttendanceRecords = () => {
         icon: '✅',
         fields: [
           { key: 'status', label: 'Status', labelAr: 'الحالة', category: 'attendance', defaultSelected: true },
-          { key: 'late_minutes', label: 'Late Duration (min)', labelAr: 'مدة التأخر', category: 'attendance', defaultSelected: true },
-          { key: 'late_bracket', label: 'Late Bracket', labelAr: 'فئة التأخر', category: 'attendance', defaultSelected: false },
-          { key: 'early_minutes', label: 'Early (min)', labelAr: 'مبكر', category: 'attendance', defaultSelected: false },
-          { key: 'check_in_method', label: 'Check-in Method', labelAr: 'طريقة التسجيل', category: 'attendance', defaultSelected: false },
-          { key: 'excuse_reason', label: 'Excuse Reason', labelAr: 'سبب العذر', category: 'attendance', defaultSelected: true },
+          { key: 'status_display', label: 'Status (Display)', labelAr: 'الحالة (عرض)', category: 'attendance', defaultSelected: false },
+          { key: 'is_present', label: 'Is Present', labelAr: 'حاضر', category: 'attendance', defaultSelected: false },
+          { key: 'is_late', label: 'Is Late', labelAr: 'متأخر', category: 'attendance', defaultSelected: false },
+          { key: 'is_excused', label: 'Is Excused', labelAr: 'معذور', category: 'attendance', defaultSelected: false },
+          { key: 'is_absent', label: 'Is Absent', labelAr: 'غائب', category: 'attendance', defaultSelected: false },
+        ]
+      },
+      {
+        id: 'timing',
+        label: 'Timing Details',
+        labelAr: 'تفاصيل التوقيت',
+        icon: '⏰',
+        fields: [
+          { key: 'late_minutes', label: 'Late Duration (min)', labelAr: 'مدة التأخر', category: 'timing', defaultSelected: true },
+          { key: 'late_bracket', label: 'Late Bracket', labelAr: 'فئة التأخر', category: 'timing', defaultSelected: false },
+          { key: 'early_minutes', label: 'Early (min)', labelAr: 'مبكر', category: 'timing', defaultSelected: false },
+          { key: 'check_in_time', label: 'Check-in Time', labelAr: 'وقت الدخول', category: 'timing', defaultSelected: false },
+          { key: 'gps_timestamp', label: 'GPS Timestamp', labelAr: 'وقت GPS', category: 'timing', defaultSelected: false },
+        ]
+      },
+      {
+        id: 'excuse',
+        label: 'Excuse Info',
+        labelAr: 'معلومات العذر',
+        icon: '📝',
+        fields: [
+          { key: 'excuse_reason', label: 'Excuse Reason', labelAr: 'سبب العذر', category: 'excuse', defaultSelected: true },
+          { key: 'check_in_method', label: 'Check-in Method', labelAr: 'طريقة التسجيل', category: 'excuse', defaultSelected: false },
         ]
       },
       {
@@ -1768,9 +1896,11 @@ const AttendanceRecords = () => {
         icon: '📍',
         fields: [
           { key: 'host_address', label: 'Host Address', labelAr: 'عنوان المضيف', category: 'location', defaultSelected: true },
+          { key: 'gps_latitude', label: 'GPS Latitude', labelAr: 'خط العرض', category: 'location', defaultSelected: false },
+          { key: 'gps_longitude', label: 'GPS Longitude', labelAr: 'خط الطول', category: 'location', defaultSelected: false },
           { key: 'gps_coordinates', label: 'GPS Coordinates', labelAr: 'إحداثيات GPS', category: 'location', defaultSelected: false },
           { key: 'gps_accuracy', label: 'GPS Accuracy (m)', labelAr: 'دقة GPS', category: 'location', defaultSelected: false },
-          { key: 'distance_from_host', label: 'Distance (m)', labelAr: 'المسافة', category: 'location', defaultSelected: false },
+          { key: 'distance_from_host', label: 'Distance from Host (m)', labelAr: 'المسافة من المضيف', category: 'location', defaultSelected: false },
         ]
       },
       {
@@ -1781,6 +1911,8 @@ const AttendanceRecords = () => {
         fields: [
           { key: 'marked_by', label: 'Marked By', labelAr: 'سجل بواسطة', category: 'metadata', defaultSelected: false },
           { key: 'marked_at', label: 'Marked At', labelAr: 'وقت التسجيل', category: 'metadata', defaultSelected: true },
+          { key: 'session_id', label: 'Session ID', labelAr: 'رقم الجلسة', category: 'metadata', defaultSelected: false },
+          { key: 'teacher_id', label: 'Teacher ID', labelAr: 'رقم المدرب', category: 'metadata', defaultSelected: false },
         ]
       }
     ];
@@ -1795,18 +1927,34 @@ const AttendanceRecords = () => {
           ? Math.round(student.presentCount / totalPresent * 100)
           : 0;
         return {
+          // Basic Info
           rank: index + 1,
+          student_id: student.student_id,
           student_name: student.student_name,
+          // Attendance Stats
           presentCount: student.presentCount,
           lateCount: student.lateCount,
           totalPresent,
+          absentCount: student.absentCount,
           unexcusedAbsent: student.unexcusedAbsent,
           excusedCount: student.excusedCount,
+          totalRecords: student.totalRecords,
+          // Performance Metrics
           effectiveDays: student.effectiveDays,
           daysCovered: student.daysCovered,
           attendanceRate: student.attendanceRate,
           punctualityRate,
           weightedScore: student.weightedScore,
+          consistencyIndex: Math.round(student.consistencyIndex * 100) / 100,
+          // Trend Analysis
+          trendSlope: student.trend?.slope || 0,
+          trendClassification: student.trend?.classification || '-',
+          trendRSquared: student.trend?.rSquared || 0,
+          weeklyChange: student.weeklyChange || 0,
+          // Rate Statistics
+          avgRate: student.avgRate || student.attendanceRate,
+          minRate: student.minRate || student.attendanceRate,
+          maxRate: student.maxRate || student.attendanceRate,
         };
       });
     } else if (exportDataType === 'dateAnalytics') {
@@ -1814,16 +1962,43 @@ const AttendanceRecords = () => {
         const bookPages = dateData.bookStartPage && dateData.bookEndPage 
           ? `${dateData.bookStartPage}-${dateData.bookEndPage}` 
           : '-';
+        const pagesCount = dateData.bookStartPage && dateData.bookEndPage
+          ? dateData.bookEndPage - dateData.bookStartPage + 1
+          : 0;
+        const totalPresent = dateData.presentCount + dateData.lateCount;
+        const totalAbsent = dateData.excusedAbsentCount + dateData.unexcusedAbsentCount;
+        const totalStudents = totalPresent + totalAbsent;
+        const punctualityRate = totalPresent > 0 
+          ? Math.round(dateData.presentCount / totalPresent * 100)
+          : 0;
+        const absentRate = totalStudents > 0
+          ? Math.round(totalAbsent / totalStudents * 100)
+          : 0;
+        const dateObj = new Date(dateData.date);
         return {
-          date: format(new Date(dateData.date), 'MMM dd, yyyy'),
+          // Session Info
+          date: format(dateObj, 'MMM dd, yyyy'),
+          dayOfWeek: format(dateObj, 'EEEE'),
+          hostAddress: dateData.hostAddress || '-',
+          // Book Coverage
           bookTopic: dateData.bookTopic || '-',
           bookPages,
-          hostAddress: dateData.hostAddress || '-',
+          bookStartPage: dateData.bookStartPage || '-',
+          bookEndPage: dateData.bookEndPage || '-',
+          pagesCount: pagesCount > 0 ? pagesCount : '-',
+          // Attendance Counts
           presentCount: dateData.presentCount,
           lateCount: dateData.lateCount,
+          totalPresent,
           excusedAbsentCount: dateData.excusedAbsentCount,
           unexcusedAbsentCount: dateData.unexcusedAbsentCount,
+          totalAbsent,
+          totalStudents,
+          // Rates & Percentages
           attendanceRate: dateData.attendanceRate,
+          punctualityRate,
+          absentRate,
+          // Student Names
           presentNames: dateData.presentNames.join(', ') || '-',
           lateNames: dateData.lateNames.join(', ') || '-',
           excusedNames: dateData.excusedNames.join(', ') || '-',
@@ -1831,45 +2006,84 @@ const AttendanceRecords = () => {
         };
       });
     } else if (exportDataType === 'hostAnalytics') {
-      const hostMap = new Map<string, { count: number; dates: string[] }>();
+      const hostMap = new Map<string, { count: number; dates: string[]; rawDates: Date[] }>();
       dateAnalytics.forEach((dateData) => {
         if (dateData.hostAddress && dateData.hostAddress !== 'SESSION_NOT_HELD') {
-          const existing = hostMap.get(dateData.hostAddress) || { count: 0, dates: [] };
+          const existing = hostMap.get(dateData.hostAddress) || { count: 0, dates: [], rawDates: [] };
           existing.count++;
           existing.dates.push(format(new Date(dateData.date), 'MMM dd'));
+          existing.rawDates.push(new Date(dateData.date));
           hostMap.set(dateData.hostAddress, existing);
         }
       });
+      const totalHostings = Array.from(hostMap.values()).reduce((sum, h) => sum + h.count, 0);
       return Array.from(hostMap.entries())
         .map(([address, data]) => ({ address, ...data }))
         .sort((a, b) => b.count - a.count)
         .map((host, index) => ({
+          // Host Info
           rank: index + 1,
           address: host.address,
+          // Hosting Statistics
           count: host.count,
+          percentage: totalHostings > 0 ? Math.round(host.count / totalHostings * 100) : 0,
+          firstHostDate: host.rawDates.length > 0 ? format(new Date(Math.min(...host.rawDates.map(d => d.getTime()))), 'MMM dd, yyyy') : '-',
+          lastHostDate: host.rawDates.length > 0 ? format(new Date(Math.max(...host.rawDates.map(d => d.getTime()))), 'MMM dd, yyyy') : '-',
+          // Hosting Dates
           dates: host.dates.join(', '),
+          datesList: host.dates.join('\n'),
         }));
     }
     // Default: filtered records with all available fields
     return filteredRecords.map(r => {
       // Get late bracket name
       const lateBracketInfo = getLateBracketInfo(r.late_minutes);
+      const dateObj = new Date(r.attendance_date);
+      const bookPages = r.book_start_page && r.book_end_page 
+        ? `${r.book_start_page}-${r.book_end_page}` 
+        : '-';
       
       return {
         // Basic Info
-        date: format(new Date(r.attendance_date), 'MMM dd, yyyy'),
+        date: format(dateObj, 'MMM dd, yyyy'),
+        dayOfWeek: format(dateObj, 'EEEE'),
+        attendance_id: r.attendance_id,
+        // Student Info
         student_name: r.student_name,
+        student_id: r.student_id,
+        // Course Info
         course_name: r.course_name,
+        course_id: r.course_id,
         instructor_name: r.instructor_name,
+        session_location: r.session_location || '-',
+        // Book Coverage
+        book_topic: r.book_topic || '-',
+        book_pages: bookPages,
+        book_start_page: r.book_start_page || '-',
+        book_end_page: r.book_end_page || '-',
         // Attendance Details
         status: r.status,
+        status_display: r.status === 'on time' ? 'On Time' : 
+          r.status === 'late' ? 'Late' : 
+          r.status === 'excused' ? 'Excused' :
+          r.status === 'absent' ? 'Absent' : r.status,
+        is_present: r.status === 'on time' ? 'Yes' : 'No',
+        is_late: r.status === 'late' ? 'Yes' : 'No',
+        is_excused: r.status === 'excused' ? 'Yes' : 'No',
+        is_absent: r.status === 'absent' ? 'Yes' : 'No',
+        // Timing Details
         late_minutes: r.status === 'late' && r.late_minutes ? r.late_minutes : '-',
         late_bracket: r.status === 'late' && r.late_minutes ? lateBracketInfo.name : '-',
         early_minutes: r.early_minutes || '-',
-        check_in_method: r.check_in_method || '-',
+        check_in_time: r.gps_timestamp ? format(new Date(r.gps_timestamp), 'HH:mm:ss') : '-',
+        gps_timestamp: r.gps_timestamp ? format(new Date(r.gps_timestamp), 'MMM dd, yyyy HH:mm:ss') : '-',
+        // Excuse Info
         excuse_reason: r.excuse_reason || '-',
+        check_in_method: r.check_in_method || '-',
         // Location Info
         host_address: r.host_address || '-',
+        gps_latitude: r.gps_latitude ? r.gps_latitude.toFixed(6) : '-',
+        gps_longitude: r.gps_longitude ? r.gps_longitude.toFixed(6) : '-',
         gps_coordinates: r.gps_latitude && r.gps_longitude 
           ? `${r.gps_latitude.toFixed(4)}°, ${r.gps_longitude.toFixed(4)}°` 
           : '-',
@@ -1878,6 +2092,8 @@ const AttendanceRecords = () => {
         // Metadata
         marked_by: r.marked_by || '-',
         marked_at: r.marked_at ? format(new Date(r.marked_at), 'MMM dd, HH:mm') : '-',
+        session_id: r.session_id,
+        teacher_id: r.teacher_id,
       };
     });
   };
