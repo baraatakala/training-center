@@ -182,13 +182,19 @@ export function Announcements() {
   };
 
   const handleDelete = async (announcementId: string) => {
-    if (!confirm('Are you sure you want to delete this announcement?')) return;
+    if (!window.confirm('Are you sure you want to delete this announcement?')) return;
 
-    const { error: err } = await announcementService.delete(announcementId);
-    if (err) {
-      alert('Failed to delete announcement');
-    } else {
-      await loadAnnouncementsForTeacher();
+    try {
+      const { error: err } = await announcementService.delete(announcementId);
+      if (err) {
+        console.error('Delete error:', err);
+        alert(`Failed to delete announcement: ${err.message || 'Permission denied.'}`);
+      } else {
+        await loadAnnouncementsForTeacher();
+      }
+    } catch (err) {
+      console.error('Delete error:', err);
+      alert('Failed to delete announcement. Please try again.');
     }
   };
 

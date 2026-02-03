@@ -224,6 +224,34 @@ CREATE POLICY "Recipients can update message read status"
         ))
     );
 
+-- Users can delete their messages (sent or received)
+CREATE POLICY "Users can delete their messages"
+    ON message
+    FOR DELETE
+    USING (
+        -- Sender can delete their sent messages
+        (sender_type = 'teacher' AND EXISTS (
+            SELECT 1 FROM teacher WHERE teacher.teacher_id = message.sender_id
+            AND LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email')
+        ))
+        OR
+        (sender_type = 'student' AND EXISTS (
+            SELECT 1 FROM student WHERE student.student_id = message.sender_id
+            AND LOWER(student.email) = LOWER(auth.jwt() ->> 'email')
+        ))
+        OR
+        -- Recipient can delete messages sent to them
+        (recipient_type = 'teacher' AND EXISTS (
+            SELECT 1 FROM teacher WHERE teacher.teacher_id = message.recipient_id
+            AND LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email')
+        ))
+        OR
+        (recipient_type = 'student' AND EXISTS (
+            SELECT 1 FROM student WHERE student.student_id = message.recipient_id
+            AND LOWER(student.email) = LOWER(auth.jwt() ->> 'email')
+        ))
+    );
+
 -- NOTIFICATION PREFERENCE POLICIES
 CREATE POLICY "Users can manage their notification preferences"
     ON notification_preference

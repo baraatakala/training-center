@@ -176,14 +176,20 @@ export function Messages() {
   };
 
   const handleDelete = async (messageId: string) => {
-    if (!confirm('Are you sure you want to delete this message?')) return;
+    if (!window.confirm('Are you sure you want to delete this message?')) return;
 
-    const { error: err } = await messageService.delete(messageId);
-    if (err) {
-      alert('Failed to delete message');
-    } else {
-      await loadMessages();
-      setViewingMessage(null);
+    try {
+      const { error: err } = await messageService.delete(messageId);
+      if (err) {
+        console.error('Delete error:', err);
+        alert(`Failed to delete message: ${err.message || 'Permission denied. The database may not allow deletion.'}`);
+      } else {
+        await loadMessages();
+        setViewingMessage(null);
+      }
+    } catch (err) {
+      console.error('Delete error:', err);
+      alert('Failed to delete message. Please try again.');
     }
   };
 
