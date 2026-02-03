@@ -1530,6 +1530,306 @@ export class WordExportService {
       : `student-summary-${format(new Date(), 'yyyy-MM-dd')}.docx`);
     saveAs(blob, fileName);
   }
+
+  /**
+   * Export a generic table to Word document
+   * Used by AdvancedExportBuilder for custom exports
+   */
+  async exportTableToWord(
+    headers: string[],
+    rows: string[][],
+    title: string,
+    subtitle: string = '',
+    isArabic: boolean = false,
+    filename?: string
+  ): Promise<void> {
+    const dateText = isArabic
+      ? `تاريخ التقرير: ${format(new Date(), 'yyyy-MM-dd HH:mm')}`
+      : `Generated: ${format(new Date(), 'yyyy-MM-dd HH:mm')}`;
+
+    const children: Paragraph[] = [
+      this.createHeading(title, HeadingLevel.HEADING_1, isArabic),
+    ];
+
+    if (subtitle) {
+      children.push(this.createParagraph(subtitle, isArabic));
+    }
+    
+    children.push(this.createParagraph(dateText, isArabic));
+    children.push(new Paragraph({ text: '', spacing: { after: 200 } }));
+
+    const doc = new Document({
+      sections: [
+        {
+          properties: {
+            page: {
+              margin: {
+                top: convertInchesToTwip(0.75),
+                right: convertInchesToTwip(0.5),
+                bottom: convertInchesToTwip(0.75),
+                left: convertInchesToTwip(0.5),
+              },
+            },
+          },
+          children: [
+            ...children,
+            this.createTable(headers, rows, isArabic),
+          ],
+        },
+      ],
+    });
+
+    const blob = await Packer.toBlob(doc);
+    const sanitizedTitle = title.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '-');
+    const fileName = filename || (isArabic
+      ? `${sanitizedTitle}_${format(new Date(), 'yyyy-MM-dd')}.docx`
+      : `${sanitizedTitle}-${format(new Date(), 'yyyy-MM-dd')}.docx`);
+    saveAs(blob, fileName);
+  }
+
+  /**
+   * Export analytics to Word with dynamic columns based on user selection
+   * This method accepts pre-formatted data with headers for flexible field selection
+   */
+  async exportAnalyticsToWordDynamic(
+    studentData: Record<string, unknown>[],
+    studentHeaders: string[],
+    dateData: Record<string, unknown>[],
+    dateHeaders: string[],
+    hostData: Record<string, unknown>[],
+    hostHeaders: string[],
+    summaryStats: {
+      totalStudents: number;
+      totalSessions: number;
+      classAvgRate: number;
+      avgWeightedScore: number;
+      avgAttendanceByDate: number;
+      avgAttendanceByAccruedDate: number;
+      totalPresent: number;
+      totalAbsent: number;
+      totalExcused: number;
+      totalLate: number;
+    },
+    isArabic: boolean = false,
+    startDate?: string,
+    endDate?: string,
+    filename?: string,
+    options?: ExportOptions
+  ): Promise<void> {
+    const theme = options?.theme || this.defaultTheme;
+    const sections: (Paragraph | Table)[] = [];
+
+    // Title and Date Info
+    const titleText = isArabic
+      ? 'تقرير تحليل الحضور الشامل'
+      : 'Comprehensive Attendance Analytics Report';
+    const dateText = isArabic
+      ? `تاريخ التقرير: ${format(new Date(), 'yyyy-MM-dd HH:mm')}`
+      : `Report Generated: ${format(new Date(), 'yyyy-MM-dd HH:mm')}`;
+    const dateRangeText = startDate && endDate
+      ? (isArabic 
+        ? `الفترة: ${format(new Date(startDate), 'yyyy-MM-dd')} - ${format(new Date(endDate), 'yyyy-MM-dd')}`
+        : `Date Range: ${format(new Date(startDate), 'MMM dd, yyyy')} - ${format(new Date(endDate), 'MMM dd, yyyy')}`)
+      : '';
+
+    sections.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: titleText,
+            bold: true,
+            size: 40,
+            color: theme.primary,
+          }),
+        ],
+        heading: HeadingLevel.HEADING_1,
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 200 },
+        bidirectional: isArabic,
+        keepNext: true,
+        keepLines: true,
+      })
+    );
+    sections.push(this.createParagraph(dateText, isArabic));
+    if (dateRangeText) {
+      sections.push(this.createParagraph(dateRangeText, isArabic));
+    }
+    sections.push(new Paragraph({ text: '', spacing: { after: 400 } }));
+
+    // Summary Statistics Section
+    const summaryTitle = isArabic ? '📊 الإحصائيات العامة' : '📊 Summary Statistics';
+    sections.push(
+      this.createHeading(summaryTitle, HeadingLevel.HEADING_2, isArabic, theme)
+    );
+
+    const summaryTableHeaders = isArabic
+      ? ['العنصر', 'القيمة']
+      : ['Metric', 'Value'];
+    const summaryRows = isArabic ? [
+      ['عدد الطلاب', summaryStats.totalStudents.toString()],
+      ['إجمالي الجلسات', summaryStats.totalSessions.toString()],
+      ['معدل الصف', `${summaryStats.classAvgRate.toFixed(1)}%`],
+      ['متوسط النقاط المرجحة', summaryStats.avgWeightedScore.toFixed(1)],
+      ['متوسط الحضور حسب التاريخ', `${summaryStats.avgAttendanceByDate.toFixed(1)}%`],
+      ['متوسط الحضور للتواريخ النشطة', `${summaryStats.avgAttendanceByAccruedDate.toFixed(1)}%`],
+    ] : [
+      ['Total Students', summaryStats.totalStudents.toString()],
+      ['Total Sessions', summaryStats.totalSessions.toString()],
+      ['Class Avg Rate', `${summaryStats.classAvgRate.toFixed(1)}%`],
+      ['Avg Weighted Score', summaryStats.avgWeightedScore.toFixed(1)],
+      ['Avg Attendance by Date', `${summaryStats.avgAttendanceByDate.toFixed(1)}%`],
+      ['Avg Attendance by Accrued Date', `${summaryStats.avgAttendanceByAccruedDate.toFixed(1)}%`],
+    ];
+
+    sections.push(this.createTable(summaryTableHeaders, summaryRows, isArabic, theme));
+    sections.push(new Paragraph({ text: '', spacing: { after: 400 } }));
+
+    // Student Performance Section (dynamic headers)
+    if (studentHeaders.length > 0 && studentData.length > 0) {
+      const studentTitle = isArabic ? '👨‍🎓 أداء الطلاب' : '👨‍🎓 Student Performance';
+      sections.push(
+        this.createHeading(studentTitle, HeadingLevel.HEADING_2, isArabic, theme)
+      );
+
+      // Build rows from the data using headers as keys
+      const studentRows = studentData.map((row) => 
+        studentHeaders.map((header) => {
+          const value = row[header];
+          if (value === undefined || value === null) return '-';
+          if (typeof value === 'number') {
+            return header.includes('%') || header.includes('Rate') || header.includes('معدل')
+              ? `${value.toFixed(1)}%`
+              : value.toString();
+          }
+          return String(value);
+        })
+      );
+
+      sections.push(this.createTable(studentHeaders, studentRows, isArabic, theme));
+      sections.push(new Paragraph({ text: '', spacing: { after: 400 } }));
+    }
+
+    // Date Analytics Section (dynamic headers)
+    if (dateHeaders.length > 0 && dateData.length > 0) {
+      const dateTitle = isArabic
+        ? '📅 الحضور حسب التاريخ'
+        : '📅 Attendance by Date';
+      sections.push(
+        this.createHeading(dateTitle, HeadingLevel.HEADING_2, isArabic, theme)
+      );
+
+      // Build rows from the data using headers as keys
+      const dateRows = dateData.map((row) =>
+        dateHeaders.map((header) => {
+          const value = row[header];
+          if (value === undefined || value === null) return '-';
+          if (typeof value === 'number') {
+            return header.includes('%') || header.includes('Rate') || header.includes('معدل')
+              ? `${value.toFixed(1)}%`
+              : value.toString();
+          }
+          return String(value);
+        })
+      );
+
+      sections.push(this.createTable(dateHeaders, dateRows, isArabic, theme));
+      sections.push(new Paragraph({ text: '', spacing: { after: 400 } }));
+    }
+
+    // Host Rankings Section (dynamic headers)
+    if (hostHeaders.length > 0 && hostData.length > 0) {
+      const hostTitle = isArabic
+        ? '🏠 تصنيف المضيفين'
+        : '🏠 Host Rankings';
+      sections.push(
+        this.createHeading(hostTitle, HeadingLevel.HEADING_2, isArabic, theme)
+      );
+
+      // Build rows from the data using headers as keys
+      const hostRows = hostData.map((row) =>
+        hostHeaders.map((header) => {
+          const value = row[header];
+          if (value === undefined || value === null) return '-';
+          if (typeof value === 'number') {
+            return header.includes('%') || header.includes('Rate') || header.includes('معدل')
+              ? `${value.toFixed(1)}%`
+              : value.toString();
+          }
+          return String(value);
+        })
+      );
+
+      sections.push(this.createTable(hostHeaders, hostRows, isArabic, theme));
+    }
+
+    // Create document with header and footer
+    const doc = new Document({
+      sections: [
+        {
+          properties: {
+            page: {
+              margin: {
+                top: convertInchesToTwip(1.25),
+                right: convertInchesToTwip(0.5),
+                bottom: convertInchesToTwip(1),
+                left: convertInchesToTwip(0.5),
+              },
+            },
+          },
+          headers: {
+            default: new Header({
+              children: [
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: isArabic 
+                        ? '📊 تقرير تحليل الحضور' 
+                        : '📊 Attendance Analytics Report',
+                      bold: true,
+                      size: 24,
+                      color: theme.primary,
+                    }),
+                  ],
+                  alignment: isArabic ? AlignmentType.RIGHT : AlignmentType.LEFT,
+                  border: {
+                    bottom: { 
+                      style: BorderStyle.SINGLE, 
+                      size: 6, 
+                      color: theme.secondary 
+                    },
+                  },
+                  spacing: { after: 100 },
+                  bidirectional: isArabic,
+                }),
+              ],
+            }),
+          },
+          footers: {
+            default: new Footer({
+              children: [
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      children: [isArabic ? 'صفحة ' : 'Page ', PageNumber.CURRENT, isArabic ? ' من ' : ' of ', PageNumber.TOTAL_PAGES],
+                      size: 20,
+                    }),
+                  ],
+                  alignment: AlignmentType.CENTER,
+                }),
+              ],
+            }),
+          },
+          children: sections,
+        },
+      ],
+    });
+
+    const blob = await Packer.toBlob(doc);
+    const fileName = filename || (isArabic
+      ? `تقرير_التحليلات_${format(new Date(), 'yyyy-MM-dd')}.docx`
+      : `analytics-report-${format(new Date(), 'yyyy-MM-dd')}.docx`);
+    saveAs(blob, fileName);
+  }
 }
 
 export const wordExportService = new WordExportService();

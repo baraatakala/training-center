@@ -92,7 +92,10 @@ const AttendanceRecords = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toasts, success, error: showError, warning, removeToast } = useToast();
-  
+
+  // Modal state for customize export
+  const [showCustomizeExport, setShowCustomizeExport] = useState(false);
+
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -102,15 +105,15 @@ const AttendanceRecords = () => {
   const [studentAnalytics, setStudentAnalytics] = useState<StudentAnalytics[]>([]);
   const [dateAnalytics, setDateAnalytics] = useState<DateAnalytics[]>([]);
   const [reportLanguage, setReportLanguage] = useState<'en' | 'ar'>('en');
-  
+
   // Sorting state
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
-  
+
   // Earliest attendance date state
   const [earliestDate, setEarliestDate] = useState<string>('');
 
@@ -2083,7 +2086,16 @@ const AttendanceRecords = () => {
                 <p className="text-xs text-gray-600">Download comprehensive reports in your preferred format</p>
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 items-center">
+              <button
+                onClick={() => setShowCustomizeExport(true)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Customize Export
+              </button>
               <button
                 onClick={exportAnalyticsToExcel}
                 className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md"
@@ -2123,6 +2135,173 @@ const AttendanceRecords = () => {
               </button>
             </div>
           </div>
+
+          {/* Customize Export Modal */}
+          {showCustomizeExport && (
+            <CustomizeExportModal
+              onClose={() => setShowCustomizeExport(false)}
+              onApply={(config) => {
+                setCustomizeExportConfig(config);
+                setShowCustomizeExport(false);
+              }}
+              studentAnalyticsColumns={[
+                { key: 'student_name', label: 'Student' },
+                { key: 'presentCount', label: 'Present' },
+                { key: 'onTimeCount', label: 'On Time' },
+                { key: 'lateCount', label: 'Late' },
+                { key: 'absentCount', label: 'Absent' },
+                { key: 'excusedCount', label: 'Excused' },
+                { key: 'effectiveDays', label: 'Effective Days' },
+                { key: 'attendanceRate', label: 'Rate' },
+                { key: 'punctuality', label: 'Punctuality' },
+                { key: 'weightedScore', label: 'Weighted Score' },
+              ]}
+              dateAnalyticsColumns={[
+                { key: 'date', label: 'Date' },
+                { key: 'bookTopic', label: 'Book Progress' },
+                { key: 'hostAddress', label: 'Host Address' },
+                { key: 'presentCount', label: 'On Time' },
+                { key: 'lateCount', label: 'Late' },
+                { key: 'excusedAbsentCount', label: 'Excused' },
+                { key: 'unexcusedAbsentCount', label: 'Absent' },
+                { key: 'attendanceRate', label: 'Rate' },
+                { key: 'presentNames', label: 'On Time Names' },
+                { key: 'lateNames', label: 'Late Names' },
+                { key: 'excusedNames', label: 'Excused Names' },
+                { key: 'absentNames', label: 'Absent Names' },
+              ]}
+              initialConfig={customizeExportConfig}
+            />
+          )}
+
+        // --- End of AttendanceRecords component ---
+
+
+        // --- End of AttendanceRecords component ---
+
+        // --- CustomizeExportModal component ---
+        function CustomizeExportModal({
+          onClose,
+          onApply,
+          studentAnalyticsColumns,
+          dateAnalyticsColumns,
+          initialConfig = {
+            tables: {
+              studentAnalytics: true,
+              dateAnalytics: true,
+            },
+            fields: {
+              studentAnalytics: studentAnalyticsColumns.map(col => col.key),
+              dateAnalytics: dateAnalyticsColumns.map(col => col.key),
+            },
+          },
+        }) {
+          const [selectedTables, setSelectedTables] = useState(initialConfig.tables);
+          const [selectedFields, setSelectedFields] = useState(initialConfig.fields);
+
+          const handleTableToggle = (table) => {
+            setSelectedTables({ ...selectedTables, [table]: !selectedTables[table] });
+          };
+
+          const handleFieldToggle = (table, key) => {
+            setSelectedFields((prev) => {
+              const current = prev[table] || [];
+              return {
+                ...prev,
+                [table]: current.includes(key)
+                  ? current.filter((k) => k !== key)
+                  : [...current, key],
+              };
+            });
+          };
+
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+              <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-lg w-full relative">
+                <button
+                  className="absolute top-3 right-3 text-gray-400 hover:text-gray-700"
+                  onClick={onClose}
+                  aria-label="Close"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+                <h2 className="text-lg font-semibold mb-4">Customize Export</h2>
+                <div className="space-y-6">
+                  <div>
+                    <label className="font-semibold text-gray-800 mb-2 block">Select Tables to Export</label>
+                    <div className="flex gap-4 mb-2">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedTables.studentAnalytics}
+                          onChange={() => handleTableToggle('studentAnalytics')}
+                        />
+                        Student Performance Analytics
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedTables.dateAnalytics}
+                          onChange={() => handleTableToggle('dateAnalytics')}
+                        />
+                        Attendance by Date
+                      </label>
+                    </div>
+                  </div>
+                  {selectedTables.studentAnalytics && (
+                    <div>
+                      <label className="font-medium text-gray-700 mb-1 block">Student Performance Fields</label>
+                      <div className="flex flex-wrap gap-3">
+                        {studentAnalyticsColumns.map(col => (
+                          <label key={col.key} className="flex items-center gap-1">
+                            <input
+                              type="checkbox"
+                              checked={selectedFields.studentAnalytics.includes(col.key)}
+                              onChange={() => handleFieldToggle('studentAnalytics', col.key)}
+                            />
+                            {col.label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {selectedTables.dateAnalytics && (
+                    <div>
+                      <label className="font-medium text-gray-700 mb-1 block">Attendance by Date Fields</label>
+                      <div className="flex flex-wrap gap-3">
+                        {dateAnalyticsColumns.map(col => (
+                          <label key={col.key} className="flex items-center gap-1">
+                            <input
+                              type="checkbox"
+                              checked={selectedFields.dateAnalytics.includes(col.key)}
+                              onChange={() => handleFieldToggle('dateAnalytics', col.key)}
+                            />
+                            {col.label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="mt-6 flex justify-end gap-2">
+                  <button
+                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300"
+                    onClick={onClose}
+                  >Cancel</button>
+                  <button
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+                    onClick={() => onApply({ tables: selectedTables, fields: selectedFields })}
+                  >Apply</button>
+                </div>
+              </div>
+            </div>
+          );
+        }
+        // --- End CustomizeExportModal ---
+        // Add state for customize export config
+        const [customizeExportConfig, setCustomizeExportConfig] = useState({});
         </div>
       )}
 

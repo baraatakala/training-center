@@ -703,7 +703,6 @@ export function Attendance() {
         setHostCoordinates(null);
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, hostAddresses, selectedAddress, sessionNotHeld, sessionId]);
 
   const loadSelectedBookReference = async () => {
