@@ -1345,7 +1345,7 @@ export function Attendance() {
       case 'excused':
         return <Badge variant="info">Excused</Badge>;
       case 'not enrolled':
-        return <Badge variant="default" className="bg-gray-300 text-gray-600">Not Enrolled</Badge>;
+        return <Badge variant="default" className="bg-gray-300 dark:bg-gray-600 text-gray-600 dark:text-gray-200">Not Enrolled</Badge>;
       case 'pending':
         return <Badge variant="default">Not Marked</Badge>;
       default:
@@ -1369,16 +1369,16 @@ export function Attendance() {
   // Block non-teachers from accessing this page
   if (isTeacher === false) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-4">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle className="text-red-600 flex items-center gap-2">
+            <CardTitle className="text-red-600 dark:text-red-400 flex items-center gap-2">
               <span className="text-3xl">🔒</span>
               <span>Access Denied</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-gray-700 mb-4">
+            <p className="text-gray-700 dark:text-gray-300 mb-4">
               This page is only accessible to teachers. Students can check in using QR codes or face recognition.
             </p>
             <Button onClick={() => navigate('/')} className="w-full">
@@ -1407,7 +1407,7 @@ export function Attendance() {
   if (!session) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500">Session not found</p>
+        <p className="text-gray-500 dark:text-gray-400">Session not found</p>
       </div>
     );
   }
@@ -1473,7 +1473,7 @@ export function Attendance() {
             
             <div className="flex-1 text-center">
               {selectedDate && (
-                <div className="text-sm font-medium text-gray-700">
+                <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   {format(new Date(selectedDate), 'EEEE, MMM dd, yyyy')}
                 </div>
               )}
@@ -1509,7 +1509,7 @@ export function Attendance() {
           </details>
           
           {availableDates.length === 0 && (
-            <p className="text-sm text-gray-500 mt-2">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
               No attendance dates available. Please check the session schedule.
             </p>
           )}
@@ -1522,16 +1522,16 @@ export function Attendance() {
             <CardTitle>Session Status</CardTitle>
           </CardHeader>
           <CardContent>
-            <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+            <label className="flex items-center gap-3 p-3 border dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700">
               <input
                 type="checkbox"
                 checked={sessionNotHeld}
                 onChange={handleSessionNotHeld}
-                className="h-5 w-5 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                className="h-5 w-5 text-red-600 focus:ring-red-500 border-gray-300 dark:border-gray-500 rounded"
               />
               <div>
-                <span className="font-medium text-gray-900">Session Not Held</span>
-                <p className="text-sm text-gray-500">Mark this date if the session was cancelled or did not take place</p>
+                <span className="font-medium text-gray-900 dark:text-white">Session Not Held</span>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Mark this date if the session was cancelled or did not take place</p>
               </div>
             </label>
           </CardContent>
@@ -1790,54 +1790,54 @@ export function Attendance() {
             </CardHeader>
             <CardContent>
               {attendance.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">
+                <p className="text-center text-gray-500 dark:text-gray-400 py-8">
                   No students enrolled in this session
                 </p>
               ) : (
                 <div className="space-y-4">
                   {/* Summary Stats */}
-                  <div className="grid grid-cols-3 sm:grid-cols-7 gap-2 sm:gap-3 p-3 sm:p-4 bg-gray-50 rounded-lg">
+                  <div className="grid grid-cols-3 sm:grid-cols-7 gap-2 sm:gap-3 p-3 sm:p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
                     <div className="text-center">
-                      <div className="text-xl sm:text-2xl font-bold text-gray-900">
+                      <div className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
                         {attendance.filter(a => a.status !== 'not enrolled').length}
                       </div>
-                      <div className="text-xs text-gray-600">Total</div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400">Total</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-xl sm:text-2xl font-bold text-green-600">
+                      <div className="text-xl sm:text-2xl font-bold text-green-600 dark:text-green-400">
                         {attendance.filter(a => a.status === 'on time').length}
                       </div>
-                      <div className="text-xs text-gray-600">On Time</div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400">On Time</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-xl sm:text-2xl font-bold text-red-600">
+                      <div className="text-xl sm:text-2xl font-bold text-red-600 dark:text-red-400">
                         {attendance.filter(a => a.status === 'absent').length}
                       </div>
-                      <div className="text-xs text-gray-600">Absent</div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400">Absent</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-xl sm:text-2xl font-bold text-yellow-600">
+                      <div className="text-xl sm:text-2xl font-bold text-yellow-600 dark:text-yellow-400">
                         {attendance.filter(a => a.status === 'late').length}
                       </div>
-                      <div className="text-xs text-gray-600">Late</div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400">Late</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-xl sm:text-2xl font-bold text-blue-600">
+                      <div className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">
                         {attendance.filter(a => a.status === 'excused').length}
                       </div>
-                      <div className="text-xs text-gray-600">Excused</div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400">Excused</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-xl sm:text-2xl font-bold text-gray-400">
+                      <div className="text-xl sm:text-2xl font-bold text-gray-400 dark:text-gray-500">
                         {attendance.filter(a => a.status === 'pending').length}
                       </div>
-                      <div className="text-xs text-gray-600">Not Marked</div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400">Not Marked</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-xl sm:text-2xl font-bold text-gray-500">
+                      <div className="text-xl sm:text-2xl font-bold text-gray-500 dark:text-gray-400">
                         {attendance.filter(a => a.status === 'not enrolled').length}
                       </div>
-                      <div className="text-xs text-gray-600">Not Enrolled</div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400">Not Enrolled</div>
                     </div>
                   </div>
 
@@ -1861,7 +1861,7 @@ export function Attendance() {
                       placeholder="Search student by name or email..."
                       value={searchTerm}
                       onChange={e => setSearchTerm(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-200"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-800 bg-white dark:bg-gray-700 dark:text-white dark:placeholder-gray-400"
                     />
                   </div>
                   {attendance
@@ -1878,8 +1878,8 @@ export function Attendance() {
                       return (
                     <div
                       key={record.attendance_id}
-                      className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg gap-3 ${
-                        isNotEnrolled ? 'bg-gray-50 opacity-60' : 'hover:bg-gray-50'
+                      className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border dark:border-gray-600 rounded-lg gap-3 ${
+                        isNotEnrolled ? 'bg-gray-50 dark:bg-gray-700/50 opacity-60' : 'hover:bg-gray-50 dark:hover:bg-gray-700'
                       }`}
                     >
                       <div className="flex items-center gap-4 flex-1">
@@ -1888,18 +1888,18 @@ export function Attendance() {
                           checked={selectedStudents.has(record.attendance_id)}
                           onChange={() => handleSelectStudent(record.attendance_id)}
                           disabled={isNotEnrolled}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-500 rounded disabled:opacity-30 disabled:cursor-not-allowed"
                         />
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-medium truncate">{record.student.name}</h3>
-                          <p className="text-sm text-gray-500 truncate">{record.student.email}</p>
+                          <h3 className="font-medium truncate dark:text-white">{record.student.name}</h3>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{record.student.email}</p>
                           {record.check_in_time && (
-                            <p className="text-xs text-gray-400 mt-1">
+                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                               Checked in: {format(new Date(record.check_in_time), 'HH:mm:ss')}
                             </p>
                           )}
                           {isNotEnrolled && record.enrollment_date && (
-                            <p className="text-xs text-gray-500 mt-1 italic">
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">
                               Enrolled on: {format(new Date(record.enrollment_date), 'MMM dd, yyyy')}
                             </p>
                           )}
@@ -1934,7 +1934,7 @@ export function Attendance() {
                                 autoFocus
                                 value={excuseReason[record.attendance_id] || ''}
                                 onChange={(e) => setExcuseReason(prev => ({ ...prev, [record.attendance_id]: e.target.value }))}
-                                className="px-2 py-1 border border-gray-300 rounded text-xs sm:text-sm font-medium"
+                                className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs sm:text-sm font-medium bg-white dark:bg-gray-700 dark:text-white"
                               >
                                 <option value="">Select reason...</option>
                                 {EXCUSE_REASONS.map(reason => (
@@ -1982,7 +1982,7 @@ export function Attendance() {
                         </div>
                         <Button
                           onClick={() => clearAttendance(record.attendance_id)}
-                          className="bg-gray-200 hover:bg-gray-300 text-xs sm:text-sm px-2 sm:px-4 text-gray-700"
+                          className="bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-xs sm:text-sm px-2 sm:px-4 text-gray-700 dark:text-gray-200"
                           size="sm"
                         >
                           Clear

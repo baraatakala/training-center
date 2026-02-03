@@ -182,8 +182,8 @@ export function Enrollments() {
     <div className="space-y-6 p-4 md:p-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Enrollments Management</h1>
-          <p className="text-sm sm:text-base text-gray-600 mt-1">{enrollments.length} total enrollments</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Enrollments Management</h1>
+          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1">{enrollments.length} total enrollments</p>
         </div>
         <div className="flex gap-2 items-center">
           <label className="flex items-center gap-2 cursor-pointer">
@@ -191,9 +191,9 @@ export function Enrollments() {
               type="checkbox"
               checked={showOnlyHosting}
               onChange={(e) => setShowOnlyHosting(e.target.checked)}
-              className="h-4 w-4"
+              className="h-4 w-4 dark:bg-gray-700"
             />
-            <span className="text-sm font-medium">Can Host Only</span>
+            <span className="text-sm font-medium dark:text-gray-300">Can Host Only</span>
           </label>
           {isTeacher && (
             <Button onClick={() => setIsModalOpen(true)} variant="primary" className="w-full sm:w-auto">
@@ -204,8 +204,8 @@ export function Enrollments() {
       </div>
 
       {!isTeacher && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <p className="text-yellow-800 text-sm">
+        <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4">
+          <p className="text-yellow-800 dark:text-yellow-200 text-sm">
             ⚠️ You are viewing as a student. Edit and add functions are disabled.
           </p>
         </div>
@@ -213,18 +213,18 @@ export function Enrollments() {
 
       {/* Error Display */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800 text-sm">❌ {error}</p>
+        <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg p-4">
+          <p className="text-red-800 dark:text-red-200 text-sm">❌ {error}</p>
           <button 
             onClick={loadEnrollments} 
-            className="mt-2 text-sm text-red-600 underline hover:text-red-800"
+            className="mt-2 text-sm text-red-600 dark:text-red-400 underline hover:text-red-800 dark:hover:text-red-300"
           >
             Retry
           </button>
         </div>
       )}
 
-      <div className="bg-white p-6 rounded-lg shadow space-y-4">
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:shadow-gray-900/30 space-y-4">
         <SearchBar
           value={searchQuery}
           onChange={setSearchQuery}
@@ -234,11 +234,11 @@ export function Enrollments() {
         {/* Filters */}
         <div className="flex flex-wrap gap-4 items-center">
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">Status:</label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Status:</label>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="all">All Statuses</option>
               <option value="active">Active</option>
@@ -249,11 +249,11 @@ export function Enrollments() {
           </div>
           
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">Sort by:</label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Sort by:</label>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as 'student' | 'course' | 'date' | 'status' | 'canHost')}
-              className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="student">Student Name</option>
               <option value="course">Course</option>
@@ -265,24 +265,24 @@ export function Enrollments() {
           
           <button
             onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-            className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 rounded text-sm font-medium hover:bg-gray-50 transition"
+            className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300 transition"
             title={`Sort ${sortOrder === 'asc' ? 'ascending' : 'descending'}`}
           >
             {sortOrder === 'asc' ? '↑ A-Z' : '↓ Z-A'}
           </button>
           
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-gray-600 dark:text-gray-400">
             Showing {filteredEnrollments.length} of {enrollments.length} enrollments
           </div>
         </div>
       </div>
 
       {loading ? (
-        <div className="text-center py-12">Loading enrollments...</div>
+        <div className="text-center py-12 dark:text-gray-300">Loading enrollments...</div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
           {filteredEnrollments.length === 0 ? (
-            <div className="py-12 text-center text-gray-500">
+            <div className="py-12 text-center text-gray-500 dark:text-gray-400">
               {searchQuery
                 ? 'No enrollments found matching your search.'
                 : 'No enrollments found. Click "Enroll Student" to get started.'}
@@ -292,7 +292,7 @@ export function Enrollments() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="cursor-pointer hover:bg-gray-100 select-none">
+                  <TableHead className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none">
                     <div className="flex items-center gap-1" onClick={() => toggleSort('student')}>
                       Student
                       {sortBy === 'student' && (
@@ -300,7 +300,7 @@ export function Enrollments() {
                       )}
                     </div>
                   </TableHead>
-                  <TableHead className="cursor-pointer hover:bg-gray-100 select-none">
+                  <TableHead className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none">
                     <div className="flex items-center gap-1" onClick={() => toggleSort('course')}>
                       Course
                       {sortBy === 'course' && (
@@ -309,7 +309,7 @@ export function Enrollments() {
                     </div>
                   </TableHead>
                   <TableHead>Start Date</TableHead>
-                  <TableHead className="cursor-pointer hover:bg-gray-100 select-none">
+                  <TableHead className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none">
                     <div className="flex items-center gap-1" onClick={() => toggleSort('date')}>
                       Enrollment Date
                       {sortBy === 'date' && (
@@ -317,7 +317,7 @@ export function Enrollments() {
                       )}
                     </div>
                   </TableHead>
-                  <TableHead className="cursor-pointer hover:bg-gray-100 select-none">
+                  <TableHead className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none">
                     <div className="flex items-center gap-1" onClick={() => toggleSort('status')}>
                       Status
                       {sortBy === 'status' && (
@@ -325,7 +325,7 @@ export function Enrollments() {
                       )}
                     </div>
                   </TableHead>
-                  <TableHead className="cursor-pointer hover:bg-gray-100 select-none text-center">
+                  <TableHead className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none text-center">
                     <div className="flex items-center justify-center gap-1" onClick={() => toggleSort('canHost')}>
                       Can Host
                       {sortBy === 'canHost' && (
@@ -339,17 +339,17 @@ export function Enrollments() {
               <TableBody>
                 {filteredEnrollments.map((enrollment) => (
                   <TableRow key={enrollment.enrollment_id}>
-                    <TableCell className="font-medium text-gray-900">
+                    <TableCell className="font-medium text-gray-900 dark:text-white">
                       {enrollment.student.name}
-                      <div className="text-sm text-gray-500">{enrollment.student.email}</div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">{enrollment.student.email}</div>
                     </TableCell>
-                    <TableCell className="text-gray-600">
+                    <TableCell className="text-gray-600 dark:text-gray-300">
                       {enrollment.session.course.course_name}
                     </TableCell>
-                    <TableCell className="text-gray-600">
+                    <TableCell className="text-gray-600 dark:text-gray-300">
                       {new Date(enrollment.session.start_date).toLocaleDateString()}
                     </TableCell>
-                    <TableCell className="text-gray-600">
+                    <TableCell className="text-gray-600 dark:text-gray-300">
                       {new Date(enrollment.enrollment_date).toLocaleDateString()}
                     </TableCell>
                     <TableCell>
@@ -368,18 +368,18 @@ export function Enrollments() {
                             }}
                             className={`inline-flex items-center justify-center h-8 w-8 rounded-full cursor-pointer transition ${
                               enrollment.can_host 
-                                ? 'bg-green-100 text-green-800 hover:bg-green-200' 
-                                : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                                ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/60' 
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600'
                             }`}
                             title={enrollment.can_host ? 'Click to mark as former host' : 'Click to mark as active host'}
                           >
                             {enrollment.can_host ? '✓' : '—'}
                           </button>
                         ) : (
-                          <span className="text-gray-300" title={`Cannot host (status: ${enrollment.status})`}>✕</span>
+                          <span className="text-gray-300 dark:text-gray-600" title={`Cannot host (status: ${enrollment.status})`}>✕</span>
                         )
                       ) : (
-                        <span className="text-gray-400">{enrollment.can_host ? '✓' : '—'}</span>
+                        <span className="text-gray-400 dark:text-gray-500">{enrollment.can_host ? '✓' : '—'}</span>
                       )}
                     </TableCell>
                     <TableCell>
@@ -387,7 +387,7 @@ export function Enrollments() {
                                       {isTeacher && (
                                         <>
                                           <button
-                                            className="text-sm border rounded px-2 py-1 bg-white hover:bg-gray-50"
+                                            className="text-sm border dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
                                             onClick={() => {
                                               setEditingEnrollment(enrollment);
                                               setIsModalOpen(true);
@@ -396,7 +396,7 @@ export function Enrollments() {
                                             Edit
                                           </button>
                                           <select
-                                            className="text-sm border rounded px-2 py-1"
+                                            className="text-sm border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded px-2 py-1"
                                             value={enrollment.status}
                                             onChange={(e) => handleUpdateStatus(enrollment.enrollment_id, e.target.value)}
                                           >

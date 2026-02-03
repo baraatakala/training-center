@@ -25,6 +25,24 @@
   --color-btn-disabled: #E0E0E6;
 }
 
+/* Dark mode CSS variables */
+.dark {
+  --color-primary: #A99CFF;
+  --color-secondary: #FFDCA3;
+  --color-accent: #FF5C8A;
+  --color-bg-main: #0f0f17;
+  --color-bg-section: #1a1a2e;
+  --color-bg-card: #232336;
+  --color-text-primary: #F8F8FB;
+  --color-text-secondary: #B3B3C6;
+  --color-text-muted: #7A7A8C;
+  --color-btn-primary: #6B5BFF;
+  --color-btn-hover: #7C6FFF;
+  --color-btn-active: #8D82FF;
+  --color-btn-secondary: #FFD180;
+  --color-btn-disabled: #3A3A4A;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
@@ -123,6 +141,10 @@ button:active:not(:disabled) {
   border-radius: 5px;
 }
 
+.dark ::-webkit-scrollbar-track {
+  background: #1a1a2e;
+}
+
 ::-webkit-scrollbar-thumb {
   background: #888;
   border-radius: 5px;
@@ -130,4 +152,33 @@ button:active:not(:disabled) {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #555;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #4a4a5a;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #5a5a6a;
+}
+
+/* Dark mode global input and select styling */
+.dark input:not([type="checkbox"]):not([type="radio"]),
+.dark select,
+.dark textarea {
+  background-color: #1a1a2e;
+  border-color: #3a3a4a;
+  color: #f8f8fb;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #7a7a8c;
+}
+
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus {
+  border-color: #6B5BFF;
+  box-shadow: 0 0 0 3px rgba(107, 91, 255, 0.2);
 }

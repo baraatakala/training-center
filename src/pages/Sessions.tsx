@@ -231,8 +231,8 @@ export function Sessions() {
     <div className="space-y-6 p-4 md:p-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Sessions</h1>
-          <p className="text-sm sm:text-base text-gray-600 mt-1">Manage training sessions and schedules</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Sessions</h1>
+          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1">Manage training sessions and schedules</p>
         </div>
         {isTeacher && (
           <Button onClick={openAddModal} className="w-full sm:w-auto">+ Add Session</Button>
@@ -240,8 +240,8 @@ export function Sessions() {
       </div>
 
       {!isTeacher && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <p className="text-yellow-800 text-sm">
+        <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4">
+          <p className="text-yellow-800 dark:text-yellow-200 text-sm">
             ⚠️ You are viewing as a student. Edit and add functions are disabled.
           </p>
         </div>
@@ -249,11 +249,11 @@ export function Sessions() {
 
       {/* Error Display */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800 text-sm">❌ {error}</p>
+        <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg p-4">
+          <p className="text-red-800 dark:text-red-200 text-sm">❌ {error}</p>
           <button 
             onClick={loadSessions} 
-            className="mt-2 text-sm text-red-600 underline hover:text-red-800"
+            className="mt-2 text-sm text-red-600 dark:text-red-400 underline hover:text-red-800 dark:hover:text-red-300"
           >
             Retry
           </button>
@@ -262,25 +262,25 @@ export function Sessions() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="text-3xl font-bold text-gray-900">{sessions.length}</div>
-          <div className="text-sm text-gray-600 mt-1">Total Sessions</div>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:shadow-gray-900/30">
+          <div className="text-3xl font-bold text-gray-900 dark:text-white">{sessions.length}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">Total Sessions</div>
         </div>
-        <div className="bg-green-50 p-6 rounded-lg shadow border border-green-200">
-          <div className="text-3xl font-bold text-green-700">{activeSessions}</div>
-          <div className="text-sm text-green-600 mt-1">Active Now</div>
+        <div className="bg-green-50 dark:bg-green-900/30 p-6 rounded-lg shadow dark:shadow-gray-900/30 border border-green-200 dark:border-green-700">
+          <div className="text-3xl font-bold text-green-700 dark:text-green-400">{activeSessions}</div>
+          <div className="text-sm text-green-600 dark:text-green-400 mt-1">Active Now</div>
         </div>
-        <div className="bg-yellow-50 p-6 rounded-lg shadow border border-yellow-200">
-          <div className="text-3xl font-bold text-yellow-700">{upcomingSessions}</div>
-          <div className="text-sm text-yellow-600 mt-1">Upcoming</div>
+        <div className="bg-yellow-50 dark:bg-yellow-900/30 p-6 rounded-lg shadow dark:shadow-gray-900/30 border border-yellow-200 dark:border-yellow-700">
+          <div className="text-3xl font-bold text-yellow-700 dark:text-yellow-400">{upcomingSessions}</div>
+          <div className="text-sm text-yellow-600 dark:text-yellow-400 mt-1">Upcoming</div>
         </div>
-        <div className="bg-gray-50 p-6 rounded-lg shadow border border-gray-200">
-          <div className="text-3xl font-bold text-gray-700">{completedSessions}</div>
-          <div className="text-sm text-gray-600 mt-1">Completed</div>
+        <div className="bg-gray-50 dark:bg-gray-700 p-6 rounded-lg shadow dark:shadow-gray-900/30 border border-gray-200 dark:border-gray-600">
+          <div className="text-3xl font-bold text-gray-700 dark:text-gray-300">{completedSessions}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">Completed</div>
         </div>
       </div>
 
-      <div className="bg-white p-4 rounded-lg shadow space-y-4">
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow dark:shadow-gray-900/30 space-y-4">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1">
             <SearchBar
@@ -305,11 +305,11 @@ export function Sessions() {
         
         {/* Sort Controls */}
         <div className="flex flex-wrap gap-3 items-center text-sm">
-          <span className="font-medium text-gray-700">Sort by:</span>
+          <span className="font-medium text-gray-700 dark:text-gray-300">Sort by:</span>
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as 'course' | 'teacher' | 'startDate' | 'endDate')}
-            className="border border-gray-300 rounded px-3 py-1.5 focus:ring-2 focus:ring-blue-500"
+            className="border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded px-3 py-1.5 focus:ring-2 focus:ring-blue-500"
           >
             <option value="startDate">Start Date</option>
             <option value="endDate">End Date</option>
@@ -318,11 +318,11 @@ export function Sessions() {
           </select>
           <button
             onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-            className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50"
+            className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300"
           >
             {sortOrder === 'asc' ? '↑ Ascending' : '↓ Descending'}
           </button>
-          <span className="text-gray-600 ml-auto">
+          <span className="text-gray-600 dark:text-gray-400 ml-auto">
             Showing {filteredSessions.length} of {sessions.length} sessions
           </span>
         </div>
@@ -330,10 +330,10 @@ export function Sessions() {
 
       {loading ? (
         <div className="text-center py-12">
-          <div className="text-gray-400">Loading sessions...</div>
+          <div className="text-gray-400 dark:text-gray-500">Loading sessions...</div>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
           <div className="overflow-x-auto">
           <Table>
             <TableHeader>

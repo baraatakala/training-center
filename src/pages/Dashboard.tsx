@@ -646,78 +646,78 @@ Please contact the training center urgently.`;
   return (
     <div className="space-y-4 md:space-y-6 p-4 md:p-0">
       <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-sm md:text-base text-gray-600 mt-1">Overview of your training center</p>
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+        <p className="text-sm md:text-base text-gray-600 dark:text-gray-400 mt-1">Overview of your training center</p>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/40 dark:to-blue-800/30 border-blue-200 dark:border-blue-700">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-blue-600">Total Students</p>
+                <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Total Students</p>
                 {stats.loading ? (
-                  <p className="text-2xl font-bold text-blue-700 mt-2">...</p>
+                  <p className="text-2xl font-bold text-blue-700 dark:text-blue-300 mt-2">...</p>
                 ) : (
-                  <p className="text-3xl font-bold text-blue-700 mt-2">{stats.totalStudents}</p>
+                  <p className="text-3xl font-bold text-blue-700 dark:text-blue-300 mt-2">{stats.totalStudents}</p>
                 )}
               </div>
-              <div className="h-12 w-12 bg-blue-200 rounded-full flex items-center justify-center">
+              <div className="h-12 w-12 bg-blue-200 dark:bg-blue-800 rounded-full flex items-center justify-center">
                 <span className="text-2xl">👨‍🎓</span>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+        <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/40 dark:to-green-800/30 border-green-200 dark:border-green-700">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-green-600">Active Enrollments</p>
+                <p className="text-sm font-medium text-green-600 dark:text-green-400">Active Enrollments</p>
                 {stats.loading ? (
-                  <p className="text-2xl font-bold text-green-700 mt-2">...</p>
+                  <p className="text-2xl font-bold text-green-700 dark:text-green-300 mt-2">...</p>
                 ) : (
-                  <p className="text-3xl font-bold text-green-700 mt-2">{stats.activeEnrollments}</p>
+                  <p className="text-3xl font-bold text-green-700 dark:text-green-300 mt-2">{stats.activeEnrollments}</p>
                 )}
               </div>
-              <div className="h-12 w-12 bg-green-200 rounded-full flex items-center justify-center">
+              <div className="h-12 w-12 bg-green-200 dark:bg-green-800 rounded-full flex items-center justify-center">
                 <span className="text-2xl">📚</span>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/40 dark:to-purple-800/30 border-purple-200 dark:border-purple-700">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-purple-600">Total Teachers</p>
+                <p className="text-sm font-medium text-purple-600 dark:text-purple-400">Total Teachers</p>
                 {stats.loading ? (
-                  <p className="text-2xl font-bold text-purple-700 mt-2">...</p>
+                  <p className="text-2xl font-bold text-purple-700 dark:text-purple-300 mt-2">...</p>
                 ) : (
-                  <p className="text-3xl font-bold text-purple-700 mt-2">{stats.totalTeachers}</p>
+                  <p className="text-3xl font-bold text-purple-700 dark:text-purple-300 mt-2">{stats.totalTeachers}</p>
                 )}
               </div>
-              <div className="h-12 w-12 bg-purple-200 rounded-full flex items-center justify-center">
+              <div className="h-12 w-12 bg-purple-200 dark:bg-purple-800 rounded-full flex items-center justify-center">
                 <span className="text-2xl">👩‍🏫</span>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
+        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/40 dark:to-orange-800/30 border-orange-200 dark:border-orange-700">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-orange-600">Total Sessions</p>
+                <p className="text-sm font-medium text-orange-600 dark:text-orange-400">Total Sessions</p>
                 {stats.loading ? (
-                  <p className="text-2xl font-bold text-orange-700 mt-2">...</p>
+                  <p className="text-2xl font-bold text-orange-700 dark:text-orange-300 mt-2">...</p>
                 ) : (
-                  <p className="text-3xl font-bold text-orange-700 mt-2">{stats.totalSessions}</p>
+                  <p className="text-3xl font-bold text-orange-700 dark:text-orange-300 mt-2">{stats.totalSessions}</p>
                 )}
               </div>
-              <div className="h-12 w-12 bg-orange-200 rounded-full flex items-center justify-center">
+              <div className="h-12 w-12 bg-orange-200 dark:bg-orange-800 rounded-full flex items-center justify-center">
                 <span className="text-2xl">📅</span>
               </div>
             </div>
@@ -757,7 +757,7 @@ Please contact the training center urgently.`;
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
               <CardTitle>🎯 Smart Attendance Analytics</CardTitle>
-              <p className="text-sm text-gray-500 mt-1">AI-powered risk assessment with trend analysis</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">AI-powered risk assessment with trend analysis</p>
             </div>
             <Button 
               size="sm" 
@@ -772,7 +772,7 @@ Please contact the training center urgently.`;
             <select
               value={selectedCourse}
               onChange={(e) => setSelectedCourse(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm w-full md:w-auto"
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm w-full md:w-auto dark:bg-gray-700 dark:text-white"
             >
               <option value="all">All Courses</option>
               {courses.map(course => (
@@ -780,19 +780,19 @@ Please contact the training center urgently.`;
               ))}
             </select>
             <div className="flex gap-2 items-center flex-wrap">
-              <label className="text-sm text-gray-600">From:</label>
+              <label className="text-sm text-gray-600 dark:text-gray-400">From:</label>
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm dark:bg-gray-700 dark:text-white"
               />
-              <label className="text-sm text-gray-600">To:</label>
+              <label className="text-sm text-gray-600 dark:text-gray-400">To:</label>
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm dark:bg-gray-700 dark:text-white"
               />
               {(startDate || endDate) && (
                 <Button
@@ -814,7 +814,7 @@ Please contact the training center urgently.`;
           {loadingAlerts ? (
             <div className="text-center py-8">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-3"></div>
-              <p className="text-gray-500">Analyzing attendance patterns...</p>
+              <p className="text-gray-500 dark:text-gray-400">Analyzing attendance patterns...</p>
             </div>
           ) : (() => {
             const filtered = selectedCourse === 'all' 
@@ -830,28 +830,28 @@ Please contact the training center urgently.`;
             return filtered.length === 0 ? (
               <div className="text-center py-8">
                 <div className="text-5xl mb-3">✓</div>
-                <p className="text-green-600 font-medium text-lg">Excellent! No attendance concerns</p>
-                <p className="text-sm text-gray-500 mt-1">All students are maintaining healthy attendance patterns</p>
+                <p className="text-green-600 dark:text-green-400 font-medium text-lg">Excellent! No attendance concerns</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">All students are maintaining healthy attendance patterns</p>
               </div>
             ) : (
               <>
                 {/* Summary Stats */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 p-3 bg-gray-50 rounded-lg">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-red-600">{criticalCount}</div>
-                    <div className="text-xs text-gray-600">Critical</div>
+                    <div className="text-2xl font-bold text-red-600 dark:text-red-400">{criticalCount}</div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400">Critical</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-orange-600">{highCount}</div>
-                    <div className="text-xs text-gray-600">High Risk</div>
+                    <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">{highCount}</div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400">High Risk</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-yellow-600">{mediumCount}</div>
-                    <div className="text-xs text-gray-600">Medium</div>
+                    <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{mediumCount}</div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400">Medium</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-600">{watchCount}</div>
-                    <div className="text-xs text-gray-600">Watch</div>
+                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{watchCount}</div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400">Watch</div>
                   </div>
                 </div>
 
@@ -861,30 +861,30 @@ Please contact the training center urgently.`;
                     // Risk level styling
                     const riskStyles = {
                       critical: {
-                        bg: 'bg-red-50',
-                        border: 'border-red-300',
-                        hover: 'hover:bg-red-100 hover:border-red-400',
+                        bg: 'bg-red-50 dark:bg-red-900/30',
+                        border: 'border-red-300 dark:border-red-700',
+                        hover: 'hover:bg-red-100 hover:border-red-400 dark:hover:bg-red-900/50',
                         badge: 'bg-red-600 text-white',
                         icon: '🚨'
                       },
                       high: {
-                        bg: 'bg-orange-50',
-                        border: 'border-orange-300',
-                        hover: 'hover:bg-orange-100 hover:border-orange-400',
+                        bg: 'bg-orange-50 dark:bg-orange-900/30',
+                        border: 'border-orange-300 dark:border-orange-700',
+                        hover: 'hover:bg-orange-100 hover:border-orange-400 dark:hover:bg-orange-900/50',
                         badge: 'bg-orange-600 text-white',
                         icon: '⚠️'
                       },
                       medium: {
-                        bg: 'bg-yellow-50',
-                        border: 'border-yellow-300',
-                        hover: 'hover:bg-yellow-100 hover:border-yellow-400',
+                        bg: 'bg-yellow-50 dark:bg-yellow-900/30',
+                        border: 'border-yellow-300 dark:border-yellow-700',
+                        hover: 'hover:bg-yellow-100 hover:border-yellow-400 dark:hover:bg-yellow-900/50',
                         badge: 'bg-yellow-600 text-white',
                         icon: '⚡'
                       },
                       watch: {
-                        bg: 'bg-blue-50',
-                        border: 'border-blue-300',
-                        hover: 'hover:bg-blue-100 hover:border-blue-400',
+                        bg: 'bg-blue-50 dark:bg-blue-900/30',
+                        border: 'border-blue-300 dark:border-blue-700',
+                        hover: 'hover:bg-blue-100 hover:border-blue-400 dark:hover:bg-blue-900/50',
                         badge: 'bg-blue-600 text-white',
                         icon: '👁️'
                       }
@@ -894,9 +894,9 @@ Please contact the training center urgently.`;
 
                     // Trend icon
                     const trendIcons = {
-                      improving: { icon: '📈', text: 'Improving', color: 'text-green-600' },
-                      declining: { icon: '📉', text: 'Declining', color: 'text-red-600' },
-                      stable: { icon: '→', text: 'Stable', color: 'text-gray-600' }
+                      improving: { icon: '📈', text: 'Improving', color: 'text-green-600 dark:text-green-400' },
+                      declining: { icon: '📉', text: 'Declining', color: 'text-red-600 dark:text-red-400' },
+                      stable: { icon: '→', text: 'Stable', color: 'text-gray-600 dark:text-gray-400' }
                     };
                     const trendInfo = trendIcons[student.trend];
 
@@ -935,7 +935,7 @@ Please contact the training center urgently.`;
                             {/* Header */}
                             <div className="flex items-center gap-2 flex-wrap mb-2">
                               <span className="text-xl">{style.icon}</span>
-                              <p className="font-semibold text-gray-900">{student.student_name}</p>
+                              <p className="font-semibold text-gray-900 dark:text-white">{student.student_name}</p>
                               <span className={`px-2 py-0.5 rounded text-xs font-semibold ${style.badge}`}>
                                 {student.riskLevel.toUpperCase()}
                               </span>
@@ -946,36 +946,36 @@ Please contact the training center urgently.`;
 
                             {/* Key Metrics */}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-                              <div className="bg-white bg-opacity-70 rounded px-2 py-1">
-                                <div className="text-xs text-gray-600">Attendance</div>
-                                <div className={`font-bold ${student.attendanceRate < 50 ? 'text-red-600' : student.attendanceRate < 75 ? 'text-orange-600' : 'text-green-600'}`}>
+                              <div className="bg-white dark:bg-gray-800 bg-opacity-70 dark:bg-opacity-50 rounded px-2 py-1">
+                                <div className="text-xs text-gray-600 dark:text-gray-400">Attendance</div>
+                                <div className={`font-bold ${student.attendanceRate < 50 ? 'text-red-600 dark:text-red-400' : student.attendanceRate < 75 ? 'text-orange-600 dark:text-orange-400' : 'text-green-600 dark:text-green-400'}`}>
                                   {student.attendanceRate}%
                                 </div>
                               </div>
-                              <div className="bg-white bg-opacity-70 rounded px-2 py-1">
-                                <div className="text-xs text-gray-600">Consecutive</div>
-                                <div className="font-bold text-gray-900">{student.consecutiveAbsences} days</div>
+                              <div className="bg-white dark:bg-gray-800 bg-opacity-70 dark:bg-opacity-50 rounded px-2 py-1">
+                                <div className="text-xs text-gray-600 dark:text-gray-400">Consecutive</div>
+                                <div className="font-bold text-gray-900 dark:text-white">{student.consecutiveAbsences} days</div>
                               </div>
-                              <div className="bg-white bg-opacity-70 rounded px-2 py-1">
-                                <div className="text-xs text-gray-600">Trend</div>
+                              <div className="bg-white dark:bg-gray-800 bg-opacity-70 dark:bg-opacity-50 rounded px-2 py-1">
+                                <div className="text-xs text-gray-600 dark:text-gray-400">Trend</div>
                                 <div className={`font-bold ${trendInfo.color} text-xs flex items-center gap-1`}>
                                   <span>{trendInfo.icon}</span>
                                   <span>{trendInfo.text}</span>
                                 </div>
                               </div>
-                              <div className="bg-white bg-opacity-70 rounded px-2 py-1">
-                                <div className="text-xs text-gray-600">Engagement</div>
-                                <div className="font-bold text-gray-900">{student.engagementScore}/100</div>
+                              <div className="bg-white dark:bg-gray-800 bg-opacity-70 dark:bg-opacity-50 rounded px-2 py-1">
+                                <div className="text-xs text-gray-600 dark:text-gray-400">Engagement</div>
+                                <div className="font-bold text-gray-900 dark:text-white">{student.engagementScore}/100</div>
                               </div>
                             </div>
 
                             {/* Patterns */}
                             {student.patterns.length > 0 && (
                               <div className="mb-2">
-                                <div className="text-xs font-semibold text-gray-700 mb-1">🔍 Detected Patterns:</div>
+                                <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">🔍 Detected Patterns:</div>
                                 <div className="flex flex-wrap gap-1">
                                   {student.patterns.map((pattern, idx) => (
-                                    <span key={idx} className="text-xs bg-white bg-opacity-70 px-2 py-0.5 rounded border border-gray-300">
+                                    <span key={idx} className="text-xs bg-white dark:bg-gray-800 bg-opacity-70 dark:bg-opacity-50 px-2 py-0.5 rounded border border-gray-300 dark:border-gray-600 dark:text-gray-300">
                                       {pattern}
                                     </span>
                                   ))}
@@ -984,7 +984,7 @@ Please contact the training center urgently.`;
                             )}
 
                             {/* Details */}
-                            <div className="text-xs text-gray-600 space-y-1">
+                            <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
                               {student.absentDates.length > 0 && (
                                 <div>
                                   <span className="font-semibold">Recent Absences:</span> {student.absentDates.slice(0, 5).map(d => format(new Date(d), 'MMM dd')).join(', ')}

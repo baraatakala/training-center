@@ -613,12 +613,12 @@ export function StudentCheckIn() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800">
         <Card className="w-full max-w-md">
           <CardContent className="pt-6">
             <div className="text-center py-8">
-              <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-              <p className="text-gray-600">Validating...</p>
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400 mb-4"></div>
+              <p className="text-gray-600 dark:text-gray-300">Validating...</p>
             </div>
           </CardContent>
         </Card>
@@ -628,16 +628,16 @@ export function StudentCheckIn() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-orange-50 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-orange-50 dark:from-gray-900 dark:to-gray-800 p-4">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle className="text-red-600 flex items-center gap-2">
+            <CardTitle className="text-red-600 dark:text-red-400 flex items-center gap-2">
               <span className="text-3xl">⚠️</span>
               <span>Check-In Error</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-gray-700 mb-4">{error}</p>
+            <p className="text-gray-700 dark:text-gray-300 mb-4">{error}</p>
             <Button onClick={() => navigate('/')} className="w-full">
               Return to Home
             </Button>
@@ -649,22 +649,22 @@ export function StudentCheckIn() {
 
   if (success) {
     return (
-      <div className={`min-h-screen flex items-center justify-center p-4 ${wasLate ? 'bg-gradient-to-br from-yellow-50 to-orange-50' : 'bg-gradient-to-br from-green-50 to-blue-50'}`}>
+      <div className={`min-h-screen flex items-center justify-center p-4 ${wasLate ? 'bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-gray-900 dark:to-gray-800' : 'bg-gradient-to-br from-green-50 to-blue-50 dark:from-gray-900 dark:to-gray-800'}`}>
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle className={`flex items-center gap-2 ${wasLate ? 'text-orange-600' : 'text-green-600'}`}>
+            <CardTitle className={`flex items-center gap-2 ${wasLate ? 'text-orange-600 dark:text-orange-400' : 'text-green-600 dark:text-green-400'}`}>
               <span className="text-5xl">{wasLate ? '⏰' : '✅'}</span>
               <span>Check-In Successful!</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-center py-4">
-              <p className="text-xl font-semibold text-gray-900 mb-2">
+              <p className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
                 Welcome, {studentInfo?.name}!
               </p>
               {wasLate && (
-                <div className={`${checkedInAfterSession ? 'bg-red-100 border-red-300' : 'bg-yellow-100 border-yellow-300'} border rounded-lg p-3 mb-3`}>
-                  <p className={`text-sm font-semibold ${checkedInAfterSession ? 'text-red-800' : 'text-yellow-800'} flex items-center justify-center gap-2`}>
+                <div className={`${checkedInAfterSession ? 'bg-red-100 dark:bg-red-900/40 border-red-300 dark:border-red-700' : 'bg-yellow-100 dark:bg-yellow-900/40 border-yellow-300 dark:border-yellow-700'} border rounded-lg p-3 mb-3`}>
+                  <p className={`text-sm font-semibold ${checkedInAfterSession ? 'text-red-800 dark:text-red-300' : 'text-yellow-800 dark:text-yellow-300'} flex items-center justify-center gap-2`}>
                     <span>{checkedInAfterSession ? '🚫' : '⚠️'}</span>
                     <span>
                       {checkedInAfterSession 
@@ -674,10 +674,10 @@ export function StudentCheckIn() {
                   </p>
                 </div>
               )}
-              <p className="text-gray-600 mb-4">
+              <p className="text-gray-600 dark:text-gray-300 mb-4">
                 Your attendance has been recorded for {checkInData?.session?.course?.course_name}
               </p>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
                 Redirecting to home page...
               </p>
             </div>
@@ -688,7 +688,7 @@ export function StudentCheckIn() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -698,12 +698,12 @@ export function StudentCheckIn() {
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Session Info */}
-          <div className="bg-blue-50 rounded-lg p-4 space-y-2">
+          <div className="bg-blue-50 dark:bg-blue-900/40 rounded-lg p-4 space-y-2">
             <div className="flex items-center gap-2">
               <span className="text-2xl">📚</span>
               <div>
-                <p className="text-sm text-gray-600">Course</p>
-                <p className="font-semibold text-gray-900">
+                <p className="text-sm text-gray-600 dark:text-gray-400">Course</p>
+                <p className="font-semibold text-gray-900 dark:text-white">
                   {checkInData?.session?.course?.course_name}
                 </p>
               </div>
@@ -711,8 +711,8 @@ export function StudentCheckIn() {
             <div className="flex items-center gap-2">
               <span className="text-2xl">📅</span>
               <div>
-                <p className="text-sm text-gray-600">Date</p>
-                <p className="font-semibold text-gray-900">
+                <p className="text-sm text-gray-600 dark:text-gray-400">Date</p>
+                <p className="font-semibold text-gray-900 dark:text-white">
                   {checkInData?.attendance_date && format(new Date(checkInData.attendance_date), 'EEEE, MMMM dd, yyyy')}
                 </p>
               </div>
@@ -721,8 +721,8 @@ export function StudentCheckIn() {
               <div className="flex items-center gap-2">
                 <span className="text-2xl">⏰</span>
                 <div>
-                  <p className="text-sm text-gray-600">Time</p>
-                  <p className="font-semibold text-gray-900">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Time</p>
+                  <p className="font-semibold text-gray-900 dark:text-white">
                     {checkInData.session.time}
                   </p>
                 </div>
@@ -732,8 +732,8 @@ export function StudentCheckIn() {
               <div className="flex items-center gap-2">
                 <span className="text-2xl">📍</span>
                 <div>
-                  <p className="text-sm text-gray-600">Location</p>
-                  <p className="font-semibold text-gray-900">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Location</p>
+                  <p className="font-semibold text-gray-900 dark:text-white">
                     {checkInData.session.location}
                   </p>
                 </div>
@@ -742,13 +742,13 @@ export function StudentCheckIn() {
           </div>
 
           {/* Student Info */}
-          <div className="bg-green-50 rounded-lg p-4">
+          <div className="bg-green-50 dark:bg-green-900/40 rounded-lg p-4">
             <div className="flex items-center gap-2">
               <span className="text-2xl">👤</span>
               <div>
-                <p className="text-sm text-gray-600">Student</p>
-                <p className="font-semibold text-gray-900">{studentInfo?.name}</p>
-                <p className="text-sm text-gray-600">{studentInfo?.email}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Student</p>
+                <p className="font-semibold text-gray-900 dark:text-white">{studentInfo?.name}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{studentInfo?.email}</p>
               </div>
             </div>
           </div>
@@ -756,28 +756,28 @@ export function StudentCheckIn() {
           {/* Host Address Selection */}
           {hostAddresses.length > 0 && selectedAddress && (
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                 🏠 Session Location
               </label>
-              <div className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg bg-gray-50 text-gray-700">
+              <div className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
                 📍 {selectedAddress.split('|||')[1] || selectedAddress}
               </div>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Location set by teacher. Your GPS will be checked against this address.
               </p>
             </div>
           )}
 
           {/* GPS Info */}
-          <div className="text-xs text-gray-500 bg-blue-50 border border-blue-200 rounded p-3">
-            <p className="flex items-center gap-1 font-medium text-blue-700">
+          <div className="text-xs text-gray-500 dark:text-gray-400 bg-blue-50 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-700 rounded p-3">
+            <p className="flex items-center gap-1 font-medium text-blue-700 dark:text-blue-300">
               <span>📍</span>
               <span>GPS Location Required</span>
             </p>
-            <p className="mt-1 text-gray-600">
+            <p className="mt-1 text-gray-600 dark:text-gray-400">
               Your browser will ask for location permission. Please allow it to verify your attendance location.
             </p>
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               💡 If GPS fails, check-in will continue but location won't be recorded.
             </p>
           </div>

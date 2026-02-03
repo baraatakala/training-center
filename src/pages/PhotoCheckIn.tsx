@@ -772,12 +772,12 @@ export function PhotoCheckIn() {
   // Loading state
   if (loading || modelsLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50 dark:from-gray-900 dark:to-gray-800">
         <Card className="w-full max-w-md">
           <CardContent className="pt-6">
             <div className="text-center py-8">
-              <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mb-4"></div>
-              <p className="text-gray-600">
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 dark:border-purple-400 mb-4"></div>
+              <p className="text-gray-600 dark:text-gray-300">
                 {modelsLoading ? 'Loading face recognition...' : 'Validating...'}
               </p>
             </div>
@@ -790,16 +790,16 @@ export function PhotoCheckIn() {
   // Error state
   if (error && !capturedPhoto) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-orange-50 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-orange-50 dark:from-gray-900 dark:to-gray-800 p-4">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle className="text-red-600 flex items-center gap-2">
+            <CardTitle className="text-red-600 dark:text-red-400 flex items-center gap-2">
               <span className="text-3xl">⚠️</span>
               <span>Check-In Error</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-gray-700 mb-4">{error}</p>
+            <p className="text-gray-700 dark:text-gray-300 mb-4">{error}</p>
             <Button onClick={() => navigate('/')} className="w-full">
               Return to Home
             </Button>
@@ -812,35 +812,35 @@ export function PhotoCheckIn() {
   // Success state
   if (success) {
     return (
-      <div className={`min-h-screen flex items-center justify-center p-4 ${wasLate ? 'bg-gradient-to-br from-yellow-50 to-orange-50' : 'bg-gradient-to-br from-green-50 to-blue-50'}`}>
+      <div className={`min-h-screen flex items-center justify-center p-4 ${wasLate ? 'bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-gray-900 dark:to-gray-800' : 'bg-gradient-to-br from-green-50 to-blue-50 dark:from-gray-900 dark:to-gray-800'}`}>
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle className={`flex items-center gap-2 ${wasLate ? 'text-orange-600' : 'text-green-600'}`}>
+            <CardTitle className={`flex items-center gap-2 ${wasLate ? 'text-orange-600 dark:text-orange-400' : 'text-green-600 dark:text-green-400'}`}>
               <span className="text-5xl">{wasLate ? '⏰' : '✅'}</span>
               <span>Face Check-In Successful!</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-center py-4">
-              <p className="text-xl font-semibold text-gray-900 mb-2">
+              <p className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
                 Welcome, {studentInfo?.name}!
               </p>
-              <p className="text-sm text-green-600 mb-2">
+              <p className="text-sm text-green-600 dark:text-green-400 mb-2">
                 Face verified with {faceMatchResult?.confidence}% confidence
               </p>
               {wasLate && (
-                <div className={`${checkedInAfterSession ? 'bg-red-100 border-red-300' : 'bg-yellow-100 border-yellow-300'} border rounded-lg p-3 mb-3`}>
-                  <p className={`text-sm font-semibold ${checkedInAfterSession ? 'text-red-800' : 'text-yellow-800'}`}>
+                <div className={`${checkedInAfterSession ? 'bg-red-100 dark:bg-red-900/40 border-red-300 dark:border-red-700' : 'bg-yellow-100 dark:bg-yellow-900/40 border-yellow-300 dark:border-yellow-700'} border rounded-lg p-3 mb-3`}>
+                  <p className={`text-sm font-semibold ${checkedInAfterSession ? 'text-red-800 dark:text-red-300' : 'text-yellow-800 dark:text-yellow-300'}`}>
                     {checkedInAfterSession 
                       ? '🚫 You checked in AFTER the session ended' 
                       : `⚠️ You were marked as LATE`}
                   </p>
                 </div>
               )}
-              <p className="text-gray-600 mb-4">
+              <p className="text-gray-600 dark:text-gray-300 mb-4">
                 Your attendance has been recorded for {checkInData?.session?.course?.course_name}
               </p>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
                 Redirecting to home page...
               </p>
             </div>
@@ -851,7 +851,7 @@ export function PhotoCheckIn() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -861,12 +861,12 @@ export function PhotoCheckIn() {
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Session Info */}
-          <div className="bg-purple-50 rounded-lg p-4 space-y-2">
+          <div className="bg-purple-50 dark:bg-purple-900/40 rounded-lg p-4 space-y-2">
             <div className="flex items-center gap-2">
               <span className="text-xl">📚</span>
               <div>
-                <p className="text-sm text-gray-600">Course</p>
-                <p className="font-semibold text-gray-900 text-sm">
+                <p className="text-sm text-gray-600 dark:text-gray-400">Course</p>
+                <p className="font-semibold text-gray-900 dark:text-white text-sm">
                   {checkInData?.session?.course?.course_name}
                 </p>
               </div>
@@ -874,8 +874,8 @@ export function PhotoCheckIn() {
             <div className="flex items-center gap-2">
               <span className="text-xl">📅</span>
               <div>
-                <p className="text-sm text-gray-600">Date</p>
-                <p className="font-semibold text-gray-900 text-sm">
+                <p className="text-sm text-gray-600 dark:text-gray-400">Date</p>
+                <p className="font-semibold text-gray-900 dark:text-white text-sm">
                   {checkInData?.attendance_date && format(new Date(checkInData.attendance_date), 'EEE, MMM dd, yyyy')}
                 </p>
               </div>
@@ -883,28 +883,28 @@ export function PhotoCheckIn() {
           </div>
 
           {/* Student Info with Reference Photo */}
-          <div className="bg-blue-50 rounded-lg p-4">
+          <div className="bg-blue-50 dark:bg-blue-900/40 rounded-lg p-4">
             <div className="flex items-center gap-3">
               {signedPhotoUrl ? (
                 <img 
                   src={signedPhotoUrl} 
                   alt="Reference" 
-                  className="w-16 h-16 rounded-full object-cover border-2 border-blue-300"
+                  className="w-16 h-16 rounded-full object-cover border-2 border-blue-300 dark:border-blue-600"
                 />
               ) : (
-                <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center">
+                <div className="w-16 h-16 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
                   <span className="text-2xl">👤</span>
                 </div>
               )}
               <div>
-                <p className="font-semibold text-gray-900">{studentInfo?.name}</p>
-                <p className="text-sm text-gray-600">{studentInfo?.email}</p>
+                <p className="font-semibold text-gray-900 dark:text-white">{studentInfo?.name}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{studentInfo?.email}</p>
               </div>
             </div>
           </div>
 
           {/* Camera / Captured Photo */}
-          <div className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden">
+          <div className="relative aspect-video bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
             {showCamera ? (
               <>
                 <video
@@ -928,7 +928,7 @@ export function PhotoCheckIn() {
                 className="w-full h-full object-cover"
               />
             ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
+              <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-500">
                 <span className="text-5xl mb-2">📷</span>
                 <p className="text-sm">Click "Open Camera" to start</p>
               </div>
@@ -937,28 +937,28 @@ export function PhotoCheckIn() {
 
           {/* Face Match Result */}
           {verifying && (
-            <div className="flex items-center justify-center gap-2 text-purple-600 py-2">
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-600"></div>
+            <div className="flex items-center justify-center gap-2 text-purple-600 dark:text-purple-400 py-2">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-600 dark:border-purple-400"></div>
               <span>Verifying your face...</span>
             </div>
           )}
 
           {faceMatchResult && (
             <div className={`p-4 rounded-lg border ${faceMatchResult.matched 
-              ? 'bg-green-50 border-green-300' 
-              : 'bg-red-50 border-red-300'}`}
+              ? 'bg-green-50 dark:bg-green-900/40 border-green-300 dark:border-green-700' 
+              : 'bg-red-50 dark:bg-red-900/40 border-red-300 dark:border-red-700'}`}
             >
               {faceMatchResult.error ? (
-                <p className="text-red-600 text-sm">❌ {faceMatchResult.error}</p>
+                <p className="text-red-600 dark:text-red-400 text-sm">❌ {faceMatchResult.error}</p>
               ) : faceMatchResult.matched ? (
                 <div className="text-center">
-                  <p className="text-green-700 font-semibold text-lg">✅ Face Verified!</p>
-                  <p className="text-green-600 text-sm">{faceMatchResult.confidence}% confidence match</p>
+                  <p className="text-green-700 dark:text-green-300 font-semibold text-lg">✅ Face Verified!</p>
+                  <p className="text-green-600 dark:text-green-400 text-sm">{faceMatchResult.confidence}% confidence match</p>
                 </div>
               ) : (
                 <div className="text-center">
-                  <p className="text-red-700 font-semibold">❌ Face Not Matched</p>
-                  <p className="text-red-600 text-sm">Only {faceMatchResult.confidence}% match (need 40%+)</p>
+                  <p className="text-red-700 dark:text-red-300 font-semibold">❌ Face Not Matched</p>
+                  <p className="text-red-600 dark:text-red-400 text-sm">Only {faceMatchResult.confidence}% match (need 40%+)</p>
                 </div>
               )}
             </div>
@@ -967,13 +967,13 @@ export function PhotoCheckIn() {
           {/* Host Address Display (Read-only - set by teacher) */}
           {selectedAddress && faceMatchResult?.matched && (
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                 🏠 Session Location
               </label>
-              <div className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg bg-gray-50 text-gray-700">
+              <div className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
                 📍 {selectedAddress.split('|||')[1] || selectedAddress}
               </div>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Location set by teacher. Your GPS will be checked against this address.
               </p>
             </div>
@@ -981,7 +981,7 @@ export function PhotoCheckIn() {
 
           {/* Error message */}
           {error && capturedPhoto && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+            <div className="p-3 bg-red-50 dark:bg-red-900/40 border border-red-200 dark:border-red-700 rounded-lg text-red-600 dark:text-red-400 text-sm">
               ⚠️ {error}
             </div>
           )}
@@ -1039,7 +1039,7 @@ export function PhotoCheckIn() {
           </div>
 
           {/* Info */}
-          <p className="text-xs text-gray-500 text-center">
+          <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
             Ensure good lighting and face the camera directly.
             <br />
             Your GPS location will be captured for verification.

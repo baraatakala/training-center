@@ -11,6 +11,8 @@ import AttendanceRecords from './pages/AttendanceRecords';
 import { AuditLogs } from './pages/AuditLogs';
 import { StudentCheckIn } from './pages/StudentCheckIn';
 import { PhotoCheckIn } from './pages/PhotoCheckIn';
+import { Announcements } from './pages/Announcements';
+import { Messages } from './pages/Messages';
 import Login from './pages/Login';
 import PrivateRoute from './components/PrivateRoute';
 import { AuthProvider } from './context/AuthContext';
@@ -41,6 +43,8 @@ function App() {
                     <Route path="/attendance/:sessionId" element={<Attendance />} />
                     <Route path="/attendance-records" element={<AttendanceRecords />} />
                     <Route path="/audit-logs" element={<AuditLogs />} />
+                    <Route path="/announcements" element={<Announcements />} />
+                    <Route path="/messages" element={<Messages />} />
                   </Routes>
                 </Layout>
               </PrivateRoute>

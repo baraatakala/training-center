@@ -1,7 +1,7 @@
-// Reusable Card component
+// Reusable Card component with dark mode support
 export function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`bg-white rounded-lg shadow-md p-6 ${className}`}>
+    <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-md dark:shadow-gray-900/30 p-6 transition-colors ${className}`}>
       {children}
     </div>
   );
@@ -12,9 +12,9 @@ export function CardHeader({ children, className = '' }: { children: React.React
 }
 
 export function CardTitle({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <h2 className={`text-2xl font-bold text-gray-800 ${className}`}>{children}</h2>;
+  return <h2 className={`text-2xl font-bold text-gray-800 dark:text-white ${className}`}>{children}</h2>;
 }
 
 export function CardContent({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <div className={className}>{children}</div>;
+  return <div className={`text-gray-600 dark:text-gray-300 ${className}`}>{children}</div>;
 }

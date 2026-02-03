@@ -112,8 +112,8 @@ export function Teachers() {
     <div className="space-y-4 md:space-y-6 p-4 md:p-0">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Teachers Management</h1>
-          <p className="text-sm md:text-base text-gray-600 mt-1">{teachers.length} total teachers</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Teachers Management</h1>
+          <p className="text-sm md:text-base text-gray-600 dark:text-gray-400 mt-1">{teachers.length} total teachers</p>
         </div>
         {isTeacher && (
           <Button onClick={openAddModal} variant="primary" className="w-full sm:w-auto">
@@ -123,8 +123,8 @@ export function Teachers() {
       </div>
 
       {!isTeacher && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <p className="text-yellow-800 text-sm">
+        <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4">
+          <p className="text-yellow-800 dark:text-yellow-200 text-sm">
             ⚠️ You are viewing as a student. Edit and add functions are disabled.
           </p>
         </div>
@@ -132,18 +132,18 @@ export function Teachers() {
 
       {/* Error Display */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800 text-sm">❌ {error}</p>
+        <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg p-4">
+          <p className="text-red-800 dark:text-red-200 text-sm">❌ {error}</p>
           <button 
             onClick={loadTeachers} 
-            className="mt-2 text-sm text-red-600 underline hover:text-red-800"
+            className="mt-2 text-sm text-red-600 dark:text-red-400 underline hover:text-red-800 dark:hover:text-red-300"
           >
             Retry
           </button>
         </div>
       )}
 
-      <div className="bg-white p-4 md:p-6 rounded-lg shadow">
+      <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-lg shadow dark:shadow-gray-900/30">
         <SearchBar
           value={searchQuery}
           onChange={setSearchQuery}
@@ -152,11 +152,11 @@ export function Teachers() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12">Loading teachers...</div>
+        <div className="text-center py-12 dark:text-gray-300">Loading teachers...</div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
           {filteredTeachers.length === 0 ? (
-            <div className="py-12 text-center text-gray-500">
+            <div className="py-12 text-center text-gray-500 dark:text-gray-400">
               {searchQuery
                 ? 'No teachers found matching your search.'
                 : 'No teachers found. Click "Add Teacher" to get started.'}
@@ -176,14 +176,14 @@ export function Teachers() {
                 <TableBody>
                   {filteredTeachers.map((teacher) => (
                     <TableRow key={teacher.teacher_id}>
-                      <TableCell className="font-medium text-gray-900 min-w-[150px]">
+                      <TableCell className="font-medium text-gray-900 dark:text-white min-w-[150px]">
                         <div className="flex flex-col">
                           <span>{teacher.name}</span>
-                          <span className="text-xs text-gray-500 md:hidden">{teacher.email}</span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400 md:hidden">{teacher.email}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-gray-600 hidden md:table-cell min-w-[200px]">{teacher.email}</TableCell>
-                      <TableCell className="text-gray-600 hidden lg:table-cell whitespace-nowrap">{teacher.phone || '-'}</TableCell>
+                      <TableCell className="text-gray-600 dark:text-gray-300 hidden md:table-cell min-w-[200px]">{teacher.email}</TableCell>
+                      <TableCell className="text-gray-600 dark:text-gray-300 hidden lg:table-cell whitespace-nowrap">{teacher.phone || '-'}</TableCell>
                       <TableCell className="hidden sm:table-cell">
                         <Badge variant="info">
                           {teacher.enrolledCount || 0} students
@@ -202,7 +202,7 @@ export function Teachers() {
                             </Button>
                           )}
                           {!isTeacher && (
-                            <span className="text-xs text-gray-400 px-2">View only</span>
+                            <span className="text-xs text-gray-400 dark:text-gray-500 px-2">View only</span>
                           )}
                         </div>
                       </TableCell>

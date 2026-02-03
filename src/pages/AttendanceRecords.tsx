@@ -2005,16 +2005,16 @@ const AttendanceRecords = () => {
       {showAnalytics && (
         <div className="space-y-4 sm:space-y-6">
           {/* Summary Statistics */}
-          <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
-            <h2 className="text-base sm:text-lg font-semibold mb-4">📊 Summary Statistics</h2>
+          <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-lg shadow dark:shadow-gray-900/30">
+            <h2 className="text-base sm:text-lg font-semibold mb-4 dark:text-white">📊 Summary Statistics</h2>
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
               <div className="border-l-4 border-blue-500 pl-3 sm:pl-4">
-                <div className="text-xs sm:text-sm text-gray-600">Total Students</div>
-                <div className="text-xl sm:text-2xl font-bold">{studentAnalytics.length}</div>
+                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Total Students</div>
+                <div className="text-xl sm:text-2xl font-bold dark:text-white">{studentAnalytics.length}</div>
               </div>
               <div className="border-l-4 border-green-500 pl-3 sm:pl-4">
-                <div className="text-xs sm:text-sm text-gray-600">Class Avg Rate</div>
-                <div className="text-xl sm:text-2xl font-bold">
+                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Class Avg Rate</div>
+                <div className="text-xl sm:text-2xl font-bold dark:text-white">
                   {studentAnalytics.length > 0
                     ? Math.round(
                         studentAnalytics.reduce((sum, s) => sum + s.attendanceRate, 0) /
@@ -2025,8 +2025,8 @@ const AttendanceRecords = () => {
                 </div>
               </div>
               <div className="border-l-4 border-purple-500 pl-3 sm:pl-4">
-                <div className="text-xs sm:text-sm text-gray-600">Avg Weighted Score</div>
-                <div className="text-xl sm:text-2xl font-bold">
+                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Avg Weighted Score</div>
+                <div className="text-xl sm:text-2xl font-bold dark:text-white">
                   {studentAnalytics.length > 0
                     ? Math.round(
                         studentAnalytics.reduce((sum, s) => sum + s.weightedScore, 0) /
@@ -2036,8 +2036,8 @@ const AttendanceRecords = () => {
                 </div>
               </div>
               <div className="border-l-4 border-blue-500 pl-3 sm:pl-4">
-                <div className="text-xs sm:text-sm text-gray-600">Avg Attendance by Date</div>
-                <div className="text-xl sm:text-2xl font-bold">
+                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Avg Attendance by Date</div>
+                <div className="text-xl sm:text-2xl font-bold dark:text-white">
                   {dateAnalytics.length > 0
                     ? Math.round(
                         dateAnalytics.reduce((sum, d) => sum + d.attendanceRate, 0) /
@@ -2048,8 +2048,8 @@ const AttendanceRecords = () => {
                 </div>
               </div>
               <div className="border-l-4 border-indigo-500 pl-3 sm:pl-4">
-                <div className="text-xs sm:text-sm text-gray-600">Avg Attendance by Accrued Date</div>
-                <div className="text-xl sm:text-2xl font-bold">
+                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Avg Attendance by Accrued Date</div>
+                <div className="text-xl sm:text-2xl font-bold dark:text-white">
                   {(() => {
                     // Only consider dates where at least one present or late
                     const accruedDates = dateAnalytics.filter(d => (d.presentCount + d.lateCount) > 0);
@@ -2065,38 +2065,38 @@ const AttendanceRecords = () => {
           </div>
 
           {/* Student Performance Table */}
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 border-b">
-              <h2 className="text-base sm:text-lg font-semibold">🎓 Student Performance Analytics</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
+            <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600">
+              <h2 className="text-base sm:text-lg font-semibold dark:text-white">🎓 Student Performance Analytics</h2>
             </div>
             <div className="overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-700">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Present</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">On Time</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Late</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Absent</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Excused</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Effective Days</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Rate</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Punctuality</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Weighted Score</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">#</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Student</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Present</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">On Time</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Late</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Absent</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Excused</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Effective Days</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Rate</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Punctuality</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Weighted Score</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {studentAnalytics.map((student, index) => (
-                    <tr key={student.student_id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-900">{index + 1}</td>
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{student.student_name}</td>
+                    <tr key={student.student_id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{index + 1}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{student.student_name}</td>
                       <td className="px-4 py-3 text-sm text-center text-green-600 font-medium">{student.presentCount + student.lateCount}</td>
                       <td className="px-4 py-3 text-sm text-center text-green-700 font-medium">{student.presentCount}</td>
                       <td className="px-4 py-3 text-sm text-center text-yellow-600 font-medium">{student.lateCount}</td>
                       <td className="px-4 py-3 text-sm text-center text-red-600 font-medium">{student.unexcusedAbsent}</td>
                       <td className="px-4 py-3 text-sm text-center text-blue-600 font-medium">{student.excusedCount}</td>
-                      <td className="px-4 py-3 text-sm text-center text-gray-900">{student.effectiveDays}</td>
+                      <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-gray-300">{student.effectiveDays}</td>
                       <td className="px-4 py-3 text-sm text-center">
                         <span className={`font-semibold ${
                           student.attendanceRate >= 90 ? 'text-green-600' :
@@ -2128,61 +2128,61 @@ const AttendanceRecords = () => {
           </div>
 
           {/* Date Analytics Table */}
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 border-b">
-              <h2 className="text-base sm:text-lg font-semibold">📅 Attendance by Date</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
+            <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600">
+              <h2 className="text-base sm:text-lg font-semibold dark:text-white">📅 Attendance by Date</h2>
             </div>
             <div className="overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-700">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Book Progress</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Host Address</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">On Time</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Late</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Excused</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Absent</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Rate</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">On Time Names</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Late Names</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Excused Names</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Absent Names</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Book Progress</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Host Address</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">On Time</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Late</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Excused</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Absent</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Rate</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">On Time Names</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Late Names</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Excused Names</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Absent Names</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {dateAnalytics.map((dateData) => (
-                    <tr key={dateData.date} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900 whitespace-nowrap">
+                    <tr key={dateData.date} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">
                         {format(new Date(dateData.date), 'MMM dd, yyyy')}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-700 max-w-xs">
+                      <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 max-w-xs">
                         {dateData.bookTopic ? (
                           <div className="space-y-1">
                             <div className="flex items-start gap-1">
                               <span className="text-base">📚</span>
-                              <span className="font-medium text-blue-900">{dateData.bookTopic}</span>
+                              <span className="font-medium text-blue-900 dark:text-blue-300">{dateData.bookTopic}</span>
                             </div>
                             {dateData.bookStartPage && dateData.bookEndPage && (
-                              <div className="text-xs text-blue-700 pl-5">
+                              <div className="text-xs text-blue-700 dark:text-blue-400 pl-5">
                                 Pages {dateData.bookStartPage}-{dateData.bookEndPage}
-                                <span className="text-blue-600 ml-1">
+                                <span className="text-blue-600 dark:text-blue-500 ml-1">
                                   ({dateData.bookEndPage - dateData.bookStartPage + 1} pages)
                                 </span>
                               </div>
                             )}
                           </div>
                         ) : (
-                          <span className="text-gray-400">-</span>
+                          <span className="text-gray-400 dark:text-gray-500">-</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-700 max-w-xs">
+                      <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 max-w-xs">
                         {dateData.hostAddress ? (
-                          <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-medium">
+                          <span className="bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-1 rounded text-xs font-medium">
                             📍 {dateData.hostAddress}
                           </span>
                         ) : (
-                          <span className="text-gray-400">-</span>
+                          <span className="text-gray-400 dark:text-gray-500">-</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm text-center text-green-600 font-medium">
@@ -2330,20 +2330,20 @@ const AttendanceRecords = () => {
       </div>
 
       {/* Filters - Modern Card Design */}
-      <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg dark:shadow-gray-900/30 p-6 border border-gray-100 dark:border-gray-700">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div className="flex items-center gap-3">
-            <div className="bg-blue-100 p-2 rounded-lg">
-              <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="bg-blue-100 dark:bg-blue-900/40 p-2 rounded-lg">
+              <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
               </svg>
             </div>
-            <h2 className="text-lg font-semibold text-gray-900">Advanced Filters</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Advanced Filters</h2>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
               onClick={quickFilterLastWeek}
-              className="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-100 transition-all duration-200 flex items-center gap-2 border border-blue-100"
+              className="px-4 py-2 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-lg text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-all duration-200 flex items-center gap-2 border border-blue-100 dark:border-blue-700"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -2352,7 +2352,7 @@ const AttendanceRecords = () => {
             </button>
             <button
               onClick={quickFilterLastMonth}
-              className="px-4 py-2 bg-purple-50 text-purple-700 rounded-lg text-sm font-medium hover:bg-purple-100 transition-all duration-200 flex items-center gap-2 border border-purple-100"
+              className="px-4 py-2 bg-purple-50 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded-lg text-sm font-medium hover:bg-purple-100 dark:hover:bg-purple-900/60 transition-all duration-200 flex items-center gap-2 border border-purple-100 dark:border-purple-700"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -2361,7 +2361,7 @@ const AttendanceRecords = () => {
             </button>
             <button
               onClick={quickFilterAbsentOnly}
-              className="px-4 py-2 bg-red-50 text-red-700 rounded-lg text-sm font-medium hover:bg-red-100 transition-all duration-200 flex items-center gap-2 border border-red-100"
+              className="px-4 py-2 bg-red-50 dark:bg-red-900/40 text-red-700 dark:text-red-300 rounded-lg text-sm font-medium hover:bg-red-100 dark:hover:bg-red-900/60 transition-all duration-200 flex items-center gap-2 border border-red-100 dark:border-red-700"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -2370,7 +2370,7 @@ const AttendanceRecords = () => {
             </button>
             <button
               onClick={resetFilters}
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-all duration-200 flex items-center gap-2"
+              className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 flex items-center gap-2"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -2381,8 +2381,8 @@ const AttendanceRecords = () => {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+              <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
               Student
@@ -2395,8 +2395,8 @@ const AttendanceRecords = () => {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+              <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
               </svg>
               Course
@@ -2409,8 +2409,8 @@ const AttendanceRecords = () => {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+              <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
               Instructor
@@ -2423,8 +2423,8 @@ const AttendanceRecords = () => {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+              <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               Status
@@ -2443,8 +2443,8 @@ const AttendanceRecords = () => {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+              <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
               Start Date
@@ -2533,9 +2533,9 @@ const AttendanceRecords = () => {
           {/* Field Selection Status */}
           <div className="mt-4 pt-4 border-t border-indigo-200">
             <div className="flex flex-wrap gap-4 text-sm">
-              <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 shadow-sm">
-                <span className="text-blue-600 font-semibold">📊 Student Fields:</span>
-                <span className={savedFieldSelections.studentAnalytics.length > 0 ? 'text-green-600' : 'text-gray-500'}>
+              <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg px-3 py-2 shadow-sm dark:shadow-gray-900/30">
+                <span className="text-blue-600 dark:text-blue-400 font-semibold">📊 Student Fields:</span>
+                <span className={savedFieldSelections.studentAnalytics.length > 0 ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}>
                   {savedFieldSelections.studentAnalytics.length > 0 
                     ? `${savedFieldSelections.studentAnalytics.length} selected` 
                     : 'All (default)'}
@@ -2545,14 +2545,14 @@ const AttendanceRecords = () => {
                     setExportDataType('studentAnalytics');
                     setShowAdvancedExport(true);
                   }}
-                  className="text-blue-600 hover:text-blue-800 underline ml-1"
+                  className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline ml-1"
                 >
                   Edit
                 </button>
               </div>
-              <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 shadow-sm">
-                <span className="text-green-600 font-semibold">📅 Date Fields:</span>
-                <span className={savedFieldSelections.dateAnalytics.length > 0 ? 'text-green-600' : 'text-gray-500'}>
+              <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg px-3 py-2 shadow-sm dark:shadow-gray-900/30">
+                <span className="text-green-600 dark:text-green-400 font-semibold">📅 Date Fields:</span>
+                <span className={savedFieldSelections.dateAnalytics.length > 0 ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}>
                   {savedFieldSelections.dateAnalytics.length > 0 
                     ? `${savedFieldSelections.dateAnalytics.length} selected` 
                     : 'All (default)'}
@@ -2562,14 +2562,14 @@ const AttendanceRecords = () => {
                     setExportDataType('dateAnalytics');
                     setShowAdvancedExport(true);
                   }}
-                  className="text-green-600 hover:text-green-800 underline ml-1"
+                  className="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 underline ml-1"
                 >
                   Edit
                 </button>
               </div>
-              <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 shadow-sm">
-                <span className="text-orange-600 font-semibold">🏠 Host Fields:</span>
-                <span className={savedFieldSelections.hostAnalytics.length > 0 ? 'text-green-600' : 'text-gray-500'}>
+              <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg px-3 py-2 shadow-sm dark:shadow-gray-900/30">
+                <span className="text-orange-600 dark:text-orange-400 font-semibold">🏠 Host Fields:</span>
+                <span className={savedFieldSelections.hostAnalytics.length > 0 ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}>
                   {savedFieldSelections.hostAnalytics.length > 0 
                     ? `${savedFieldSelections.hostAnalytics.length} selected` 
                     : 'All (default)'}
@@ -2579,7 +2579,7 @@ const AttendanceRecords = () => {
                     setExportDataType('hostAnalytics');
                     setShowAdvancedExport(true);
                   }}
-                  className="text-orange-600 hover:text-orange-800 underline ml-1"
+                  className="text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-300 underline ml-1"
                 >
                   Edit
                 </button>
@@ -2590,22 +2590,22 @@ const AttendanceRecords = () => {
       )}
 
       {/* Records Table - Enhanced Design */}
-      <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl dark:shadow-gray-900/30 overflow-hidden border border-gray-100 dark:border-gray-700">
         {/* Table Header with Info */}
-        <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-gray-50 to-white dark:from-gray-700 dark:to-gray-800">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div className="flex items-center gap-3">
-              <div className="bg-blue-100 p-2 rounded-lg">
-                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="bg-blue-100 dark:bg-blue-900/40 p-2 rounded-lg">
+                <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">Attendance Records</h3>
-                <p className="text-sm text-gray-600">
-                  Showing <span className="font-semibold text-blue-600">{filteredRecords.length}</span> records
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Attendance Records</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Showing <span className="font-semibold text-blue-600 dark:text-blue-400">{filteredRecords.length}</span> records
                   {filteredRecords.length !== records.length && (
-                    <span className="text-gray-500"> (filtered from {records.length} total)</span>
+                    <span className="text-gray-500 dark:text-gray-500"> (filtered from {records.length} total)</span>
                   )}
                 </p>
               </div>
@@ -2623,14 +2623,14 @@ const AttendanceRecords = () => {
                 <span>Advanced Export</span>
               </button>
               <div className="flex items-center gap-2 text-sm">
-                <span className="text-gray-600">Items per page:</span>
+                <span className="text-gray-600 dark:text-gray-400">Items per page:</span>
                 <select
                   value={itemsPerPage}
                   onChange={(e) => {
                     setItemsPerPage(Number(e.target.value));
                     setCurrentPage(1);
                   }}
-                  className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value={10}>10</option>
                   <option value={25}>25</option>
@@ -2645,25 +2645,25 @@ const AttendanceRecords = () => {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 space-y-4">
             <div className="relative">
-              <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+              <div className="w-16 h-16 border-4 border-blue-200 dark:border-blue-800 border-t-blue-600 dark:border-t-blue-400 rounded-full animate-spin"></div>
               <div className="absolute inset-0 flex items-center justify-center">
-                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
             </div>
-            <p className="text-gray-600 font-medium">Loading attendance records...</p>
-            <p className="text-sm text-gray-500">Please wait while we fetch the data</p>
+            <p className="text-gray-600 dark:text-gray-300 font-medium">Loading attendance records...</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Please wait while we fetch the data</p>
           </div>
         ) : filteredRecords.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 space-y-4">
-            <div className="bg-gray-100 p-6 rounded-full">
-              <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="bg-gray-100 dark:bg-gray-700 p-6 rounded-full">
+              <svg className="w-16 h-16 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold text-gray-900">No Records Found</h3>
-            <p className="text-gray-600 text-center max-w-md">
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">No Records Found</h3>
+            <p className="text-gray-600 dark:text-gray-400 text-center max-w-md">
               Try adjusting your filters or date range to see attendance records
             </p>
             <button
@@ -2678,11 +2678,11 @@ const AttendanceRecords = () => {
           </div>
         ) : (
         <div className="overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gradient-to-r from-gray-50 to-gray-100 sticky top-0 z-10 shadow-sm">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-600 sticky top-0 z-10 shadow-sm">
               <tr>
                 <th 
-                  className="px-3 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-200 transition-colors group"
+                  className="px-3 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors group"
                   onClick={() => handleSort('attendance_date')}
                 >
                   <div className="flex items-center gap-2">
@@ -2696,7 +2696,7 @@ const AttendanceRecords = () => {
                   </div>
                 </th>
                 <th 
-                  className="px-3 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-200 transition-colors group"
+                  className="px-3 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors group"
                   onClick={() => handleSort('student_name')}
                 >
                   <div className="flex items-center gap-2">
@@ -2710,7 +2710,7 @@ const AttendanceRecords = () => {
                   </div>
                 </th>
                 <th 
-                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 transition-colors group"
+                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group"
                   onClick={() => handleSort('course_name')}
                 >
                   <div className="flex items-center gap-1">
@@ -2721,7 +2721,7 @@ const AttendanceRecords = () => {
                   </div>
                 </th>
                 <th 
-                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 transition-colors group"
+                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group"
                   onClick={() => handleSort('teacher_name')}
                 >
                   <div className="flex items-center gap-1">
@@ -2732,7 +2732,7 @@ const AttendanceRecords = () => {
                   </div>
                 </th>
                 <th 
-                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 transition-colors group"
+                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group"
                   onClick={() => handleSort('status')}
                 >
                   <div className="flex items-center gap-1">
@@ -2742,17 +2742,17 @@ const AttendanceRecords = () => {
                     </span>
                   </div>
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">
                   Late Duration
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">
                   Method
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">
                   Excuse Reason
                 </th>
                 <th 
-                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 transition-colors group"
+                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group"
                   onClick={() => handleSort('location')}
                 >
                   <div className="flex items-center gap-1">
@@ -2762,11 +2762,11 @@ const AttendanceRecords = () => {
                     </span>
                   </div>
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">
                   GPS
                 </th>
                 <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group"
                   onClick={() => handleSort('marked_at')}
                 >
                   <div className="flex items-center gap-1">
@@ -2776,21 +2776,21 @@ const AttendanceRecords = () => {
                     </span>
                   </div>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {loading ? (
                 <tr>
-                  <td colSpan={11} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={11} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
                     Loading records...
                   </td>
                 </tr>
               ) : filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={11} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
                     No attendance records found
                   </td>
                 </tr>
@@ -2800,20 +2800,20 @@ const AttendanceRecords = () => {
                   .map((record) => (
                   <tr 
                     key={record.attendance_id} 
-                    className="hover:bg-gray-50 cursor-pointer transition-colors"
+                    className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
                     onClick={() => navigate(`/attendance/${record.session_id}`, { state: { selectedDate: record.attendance_date } })}
                     title="Click to view/edit attendance for this date"
                   >
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">
                       {format(new Date(record.attendance_date), 'MMM dd, yyyy')}
                     </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">
                       {record.student_name}
                     </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">
                       {record.course_name}
                     </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">
                       {record.instructor_name}
                     </td>
                     <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
@@ -2827,22 +2827,22 @@ const AttendanceRecords = () => {
                           {record.late_minutes} min ({getLateBracketInfo(record.late_minutes).name})
                         </span>
                       ) : record.status === 'late' ? (
-                        <span className="text-gray-400 text-xs">Not recorded</span>
+                        <span className="text-gray-400 dark:text-gray-500 text-xs">Not recorded</span>
                       ) : record.early_minutes ? (
-                        <span className="px-2 py-1 text-xs font-medium rounded bg-green-100 text-green-800">
+                        <span className="px-2 py-1 text-xs font-medium rounded bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300">
                           {record.early_minutes} min early
                         </span>
                       ) : (
-                        <span className="text-gray-400">-</span>
+                        <span className="text-gray-400 dark:text-gray-500">-</span>
                       )}
                     </td>
                     <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm">
                       {record.check_in_method ? (
                         <span className={`px-2 py-1 text-xs font-medium rounded ${
-                          record.check_in_method === 'qr_code' ? 'bg-purple-100 text-purple-800' :
-                          record.check_in_method === 'photo' ? 'bg-blue-100 text-blue-800' :
-                          record.check_in_method === 'bulk' ? 'bg-orange-100 text-orange-800' :
-                          'bg-gray-100 text-gray-800'
+                          record.check_in_method === 'qr_code' ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-300' :
+                          record.check_in_method === 'photo' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300' :
+                          record.check_in_method === 'bulk' ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-300' :
+                          'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
                         }`}>
                           {record.check_in_method === 'qr_code' ? 'QR Code' :
                            record.check_in_method === 'photo' ? 'Photo' :
@@ -2851,41 +2851,41 @@ const AttendanceRecords = () => {
                            record.check_in_method}
                         </span>
                       ) : (
-                        <span className="text-gray-400">-</span>
+                        <span className="text-gray-400 dark:text-gray-500">-</span>
                       )}
                     </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">
                       {record.status === 'excused' && record.excuse_reason ? (
-                        <span className="capitalize px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium">
+                        <span className="capitalize px-2 py-1 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded text-xs font-medium">
                           {record.excuse_reason}
                         </span>
                       ) : (
-                        <span className="text-gray-400">-</span>
+                        <span className="text-gray-400 dark:text-gray-500">-</span>
                       )}
                     </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">
                       {record.session_location || '-'}
                     </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 dark:text-gray-300">
                       {record.gps_latitude && record.gps_longitude ? (
                         <div className="space-y-1">
                           <div className="text-xs">{record.gps_latitude.toFixed(4)}°, {record.gps_longitude.toFixed(4)}°</div>
                           {record.gps_accuracy && (
-                            <div className="text-xs text-gray-500">
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
                               ±{record.gps_accuracy.toFixed(0)}m
                             </div>
                           )}
                         </div>
                       ) : (
-                        <span className="text-gray-400 text-xs">No GPS</span>
+                        <span className="text-gray-400 dark:text-gray-500 text-xs">No GPS</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
                       {record.marked_at ? (
                         <div className="space-y-1">
                           <div>{format(new Date(record.marked_at), 'MMM dd, HH:mm')}</div>
                           {record.marked_by && (
-                            <div className="text-xs text-gray-500">by {record.marked_by}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">by {record.marked_by}</div>
                           )}
                         </div>
                       ) : (
@@ -2900,7 +2900,7 @@ const AttendanceRecords = () => {
                             e.stopPropagation();
                             openMapLocation(record);
                           }}
-                          className="px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-all duration-200 flex items-center gap-2 text-xs font-medium border border-blue-200"
+                          className="px-3 py-2 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-all duration-200 flex items-center gap-2 text-xs font-medium border border-blue-200 dark:border-blue-700"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
@@ -2920,7 +2920,7 @@ const AttendanceRecords = () => {
         
         {/* Modern Pagination */}
         {filteredRecords.length > 0 && !loading && (
-          <div className="px-6 py-4 border-t border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+          <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
             <Pagination
               currentPage={currentPage}
               totalPages={Math.ceil(filteredRecords.length / itemsPerPage)}

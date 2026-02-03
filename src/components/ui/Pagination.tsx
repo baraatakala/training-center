@@ -55,23 +55,23 @@ export function Pagination({
   };
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200">
-      <div className="flex items-center gap-4">
-        <div className="text-sm text-gray-700">
+    <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 gap-4">
+      <div className="flex items-center gap-4 flex-wrap">
+        <div className="text-sm text-gray-700 dark:text-gray-300">
           Showing <span className="font-medium">{startItem}</span> to{' '}
           <span className="font-medium">{endItem}</span> of{' '}
           <span className="font-medium">{totalItems}</span> results
         </div>
         
         <div className="flex items-center gap-2">
-          <label htmlFor="itemsPerPage" className="text-sm text-gray-700">
+          <label htmlFor="itemsPerPage" className="text-sm text-gray-700 dark:text-gray-300">
             Rows per page:
           </label>
           <select
             id="itemsPerPage"
             value={itemsPerPage}
             onChange={(e) => onItemsPerPageChange(Number(e.target.value))}
-            className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value={10}>10</option>
             <option value={25}>25</option>
@@ -85,7 +85,7 @@ export function Pagination({
         <button
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage === 1}
-          className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-3 py-1 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           Previous
         </button>
@@ -96,12 +96,12 @@ export function Pagination({
               key={index}
               onClick={() => typeof page === 'number' && onPageChange(page)}
               disabled={page === '...'}
-              className={`px-3 py-1 text-sm font-medium rounded-md ${
+              className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
                 page === currentPage
                   ? 'bg-blue-600 text-white'
                   : page === '...'
-                  ? 'bg-white text-gray-400 cursor-default'
-                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  ? 'bg-white dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-default'
+                  : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
               }`}
             >
               {page}
@@ -112,7 +112,7 @@ export function Pagination({
         <button
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages}
-          className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-3 py-1 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           Next
         </button>
