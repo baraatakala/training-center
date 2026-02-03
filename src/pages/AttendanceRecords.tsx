@@ -703,19 +703,26 @@ const AttendanceRecords = () => {
 
     const isArabic = reportLanguage === 'ar';
 
-
-    // Summary Statistics Sheet
+    // Summary Statistics Sheet (always included)
     const summaryHeaders = isArabic
       ? ['العنصر', 'القيمة']
       : ['Metric', 'Value'];
 
     // Calculate summary values
     const totalStudents = studentAnalytics.length;
+    const totalSessions = dateAnalytics.length;
+    const totalPresent = studentAnalytics.reduce((sum, s) => sum + s.presentCount, 0);
+    const totalLate = studentAnalytics.reduce((sum, s) => sum + s.lateCount, 0);
+    const totalAbsent = studentAnalytics.reduce((sum, s) => sum + s.unexcusedAbsent, 0);
+    const totalExcused = studentAnalytics.reduce((sum, s) => sum + s.excusedCount, 0);
     const classAvgRate = studentAnalytics.length > 0
       ? Math.round(studentAnalytics.reduce((sum, s) => sum + s.attendanceRate, 0) / studentAnalytics.length)
       : 0;
     const avgWeightedScore = studentAnalytics.length > 0
       ? Math.round(studentAnalytics.reduce((sum, s) => sum + s.weightedScore, 0) / studentAnalytics.length)
+      : 0;
+    const avgConsistency = studentAnalytics.length > 0
+      ? Math.round(studentAnalytics.reduce((sum, s) => sum + s.consistencyIndex, 0) / studentAnalytics.length * 100) / 100
       : 0;
     const avgAttendanceByDate = dateAnalytics.length > 0
       ? Math.round(dateAnalytics.reduce((sum, d) => sum + d.attendanceRate, 0) / dateAnalytics.length)
@@ -731,102 +738,77 @@ const AttendanceRecords = () => {
     const summaryRows = isArabic
       ? [
           ['عدد الطلاب', totalStudents],
+          ['عدد الجلسات', totalSessions],
+          ['إجمالي الحضور في الوقت', totalPresent],
+          ['إجمالي المتأخرين', totalLate],
+          ['إجمالي الغياب بدون عذر', totalAbsent],
+          ['إجمالي الغياب بعذر', totalExcused],
           ['معدل الحضور للصف (%)', `${classAvgRate}%`],
           ['متوسط النقاط المرجحة', avgWeightedScore],
+          ['متوسط مؤشر الانتظام', avgConsistency],
           ['متوسط الحضور حسب التاريخ (%)', `${avgAttendanceByDate}%`],
           ['متوسط الحضور حسب التاريخ للحصص النشطة (%)', `${avgAttendanceByAccruedDate}%`],
         ]
       : [
           ['Total Students', totalStudents],
+          ['Total Sessions', totalSessions],
+          ['Total On Time', totalPresent],
+          ['Total Late', totalLate],
+          ['Total Unexcused Absent', totalAbsent],
+          ['Total Excused', totalExcused],
           ['Class Avg Rate (%)', `${classAvgRate}%`],
           ['Avg Weighted Score', avgWeightedScore],
+          ['Avg Consistency Index', avgConsistency],
           ['Avg Attendance by Date (%)', `${avgAttendanceByDate}%`],
           ['Avg Attendance by Accrued Date (%)', `${avgAttendanceByAccruedDate}%`],
         ];
 
-    // Student Performance Sheet
-    const studentHeaders = isArabic ? [
-      'الترتيب',
-      'اسم الطالب',
-      'في الوقت',
-      'متأخر',
-      'حاضر',
-      'غائب بدون عذر',
-      'غائب بعذر',
-      'الأيام الفعلية',
-      'الأيام المغطاة',
-      'معدل الحضور (%)',
-      'معدل الالتزام بالوقت (%)',
-      'النقاط المرجحة',
-    ] : [
-      'Rank',
-      'Student Name',
-      'On Time',
-      'Late',
-      'Present',
-      'Unexcused Absent',
-      'Excused',
-      'Effective Days',
-      'Days Covered',
-      'Attendance Rate (%)',
-      'Punctuality Rate (%)',
-      'Weighted Score',
-    ];
-
-    const studentRows = studentAnalytics.map((student, index) => {
-      const totalPresent = student.presentCount + student.lateCount;
-      const punctualityRate = totalPresent > 0 
-        ? Math.round(student.presentCount / totalPresent * 100)
+    // ========== STUDENT PERFORMANCE SHEET - Uses saved field selections ==========
+    const studentConfig = filterDataByFields('studentAnalytics', isArabic);
+    
+    // Prepare student data objects with all possible fields
+    const studentDataObjects = studentAnalytics.map((student, index) => {
+      const totalPres = student.presentCount + student.lateCount;
+      const punctRate = totalPres > 0 
+        ? Math.round(student.presentCount / totalPres * 100)
         : 0;
 
-      return [
-        index + 1,
-        student.student_name,
-        student.presentCount,
-        student.lateCount,
-        totalPresent,
-        student.unexcusedAbsent,
-        student.excusedCount,
-        student.effectiveDays,
-        student.daysCovered,
-        student.attendanceRate,
-        punctualityRate,
-        student.weightedScore,
-      ];
+      return {
+        rank: index + 1,
+        student_id: student.student_id,
+        student_name: student.student_name,
+        presentCount: student.presentCount,
+        lateCount: student.lateCount,
+        totalPresent: totalPres,
+        absentCount: student.absentCount,
+        unexcusedAbsent: student.unexcusedAbsent,
+        excusedCount: student.excusedCount,
+        totalRecords: student.totalRecords,
+        effectiveDays: student.effectiveDays,
+        daysCovered: student.daysCovered,
+        attendanceRate: student.attendanceRate,
+        punctualityRate: punctRate,
+        weightedScore: student.weightedScore,
+        consistencyIndex: Math.round(student.consistencyIndex * 100) / 100,
+        trendSlope: student.trend?.slope || 0,
+        trendClassification: student.trend?.classification || '-',
+        trendRSquared: student.trend?.rSquared || 0,
+        weeklyChange: student.weeklyChange || 0,
+        avgRate: student.avgRate || student.attendanceRate,
+        minRate: student.minRate || student.attendanceRate,
+        maxRate: student.maxRate || student.attendanceRate,
+      };
     });
 
-    // Attendance by Date Sheet
-    const dateHeaders = isArabic ? [
-      'التاريخ',
-      'الموضوع',
-      'الصفحات',
-      'عنوان المضيف',
-      'في الوقت',
-      'متأخر',
-      'معذور',
-      'غائب',
-      'النسبة %',
-      'أسماء في الوقت',
-      'أسماء المتأخرين',
-      'أسماء المعذورين',
-      'أسماء الغائبين'
-    ] : [
-      'Date',
-      'Book Topic',
-      'Pages',
-      'Host Address',
-      'On Time',
-      'Late',
-      'Excused',
-      'Absent',
-      'Rate %',
-      'On Time Names',
-      'Late Names',
-      'Excused Names',
-      'Absent Names'
-    ];
+    const studentRows = studentDataObjects.map((data, index) => 
+      studentConfig.getData(data as Record<string, unknown>, index)
+    );
 
-    const dateRows = dateAnalytics.map((dateData) => {
+    // ========== ATTENDANCE BY DATE SHEET - Uses saved field selections ==========
+    const dateConfig = filterDataByFields('dateAnalytics', isArabic);
+    
+    // Prepare date data objects with all possible fields
+    const dateDataObjects = dateAnalytics.map((dateData) => {
       let excusedLabel = dateData.excusedNames.join(', ') || '-';
       if (
         dateData.hostAddress === 'SESSION_NOT_HELD' ||
@@ -838,74 +820,110 @@ const AttendanceRecords = () => {
       const bookPages = dateData.bookStartPage && dateData.bookEndPage 
         ? `${dateData.bookStartPage}-${dateData.bookEndPage}` 
         : '-';
+      const pagesCount = dateData.bookStartPage && dateData.bookEndPage
+        ? dateData.bookEndPage - dateData.bookStartPage + 1
+        : 0;
+      const totalPres = dateData.presentCount + dateData.lateCount;
+      const totalAbs = dateData.excusedAbsentCount + dateData.unexcusedAbsentCount;
+      const totalStud = totalPres + totalAbs;
+      const punctRate = totalPres > 0 
+        ? Math.round(dateData.presentCount / totalPres * 100)
+        : 0;
+      const absRate = totalStud > 0
+        ? Math.round(totalAbs / totalStud * 100)
+        : 0;
+      const dateObj = new Date(dateData.date);
       
-      return [
-        format(new Date(dateData.date), 'MMM dd, yyyy'),
-        dateData.bookTopic || '-',
+      return {
+        date: format(dateObj, 'MMM dd, yyyy'),
+        dayOfWeek: format(dateObj, 'EEEE'),
+        hostAddress: dateData.hostAddress || '-',
+        bookTopic: dateData.bookTopic || '-',
         bookPages,
-        dateData.hostAddress || '-',
-        dateData.presentCount,
-        dateData.lateCount,
-        dateData.excusedAbsentCount,
-        dateData.unexcusedAbsentCount,
-        dateData.attendanceRate,
-        dateData.presentNames.join(', ') || '-',
-        dateData.lateNames.join(', ') || '-',
-        excusedLabel,
-        dateData.absentNames.join(', ') || '-'
-      ];
+        bookStartPage: dateData.bookStartPage || '-',
+        bookEndPage: dateData.bookEndPage || '-',
+        pagesCount: pagesCount > 0 ? pagesCount : '-',
+        presentCount: dateData.presentCount,
+        lateCount: dateData.lateCount,
+        totalPresent: totalPres,
+        excusedAbsentCount: dateData.excusedAbsentCount,
+        unexcusedAbsentCount: dateData.unexcusedAbsentCount,
+        totalAbsent: totalAbs,
+        totalStudents: totalStud,
+        attendanceRate: dateData.attendanceRate,
+        punctualityRate: punctRate,
+        absentRate: absRate,
+        presentNames: dateData.presentNames.join(', ') || '-',
+        lateNames: dateData.lateNames.join(', ') || '-',
+        excusedNames: excusedLabel,
+        absentNames: dateData.absentNames.join(', ') || '-',
+      };
     });
 
-    // Create workbook with three sheets
+    const dateRows = dateDataObjects.map((data, index) => 
+      dateConfig.getData(data as Record<string, unknown>, index)
+    );
+
+    // ========== HOST RANKINGS SHEET - Uses saved field selections ==========
+    const hostConfig = filterDataByFields('hostAnalytics', isArabic);
+    
+    // Build host data
+    const hostMap = new Map<string, { count: number; dates: string[]; rawDates: Date[]; present: number; late: number; absent: number; excused: number }>();
+    dateAnalytics.forEach((dateData) => {
+      if (dateData.hostAddress && dateData.hostAddress !== 'SESSION_NOT_HELD') {
+        const existing = hostMap.get(dateData.hostAddress) || { count: 0, dates: [], rawDates: [], present: 0, late: 0, absent: 0, excused: 0 };
+        existing.count++;
+        existing.dates.push(format(new Date(dateData.date), 'MMM dd'));
+        existing.rawDates.push(new Date(dateData.date));
+        existing.present += dateData.presentCount;
+        existing.late += dateData.lateCount;
+        existing.absent += dateData.unexcusedAbsentCount;
+        existing.excused += dateData.excusedAbsentCount;
+        hostMap.set(dateData.hostAddress, existing);
+      }
+    });
+
+    const totalHostings = Array.from(hostMap.values()).reduce((sum, h) => sum + h.count, 0);
+    const hostRankings = Array.from(hostMap.entries())
+      .map(([address, data]) => ({ address, ...data }))
+      .sort((a, b) => b.count - a.count);
+
+    // Prepare host data objects with all possible fields
+    const hostDataObjects = hostRankings.map((host, index) => ({
+      rank: index + 1,
+      address: host.address,
+      count: host.count,
+      percentage: totalHostings > 0 ? Math.round(host.count / totalHostings * 100) : 0,
+      firstHostDate: host.rawDates.length > 0 ? format(new Date(Math.min(...host.rawDates.map(d => d.getTime()))), 'MMM dd, yyyy') : '-',
+      lastHostDate: host.rawDates.length > 0 ? format(new Date(Math.max(...host.rawDates.map(d => d.getTime()))), 'MMM dd, yyyy') : '-',
+      totalOnTime: host.present,
+      totalLate: host.late,
+      totalAbsent: host.absent,
+      totalExcused: host.excused,
+      dates: host.dates.join(', '),
+    }));
+
+    const hostRows = hostDataObjects.map((data, index) => 
+      hostConfig.getData(data as Record<string, unknown>, index)
+    );
+
+    // Create workbook with sheets
     const wb = XLSX.utils.book_new();
 
     // Sheet 1: Summary Statistics
     const wsSummary = XLSX.utils.aoa_to_sheet([summaryHeaders, ...summaryRows]);
     XLSX.utils.book_append_sheet(wb, wsSummary, isArabic ? 'إحصائيات عامة' : 'Summary Statistics');
 
-    // Sheet 2: Student Performance
-    const ws1 = XLSX.utils.aoa_to_sheet([studentHeaders, ...studentRows]);
+    // Sheet 2: Student Performance (filtered by saved selection)
+    const ws1 = XLSX.utils.aoa_to_sheet([studentConfig.headers, ...studentRows]);
     XLSX.utils.book_append_sheet(wb, ws1, isArabic ? 'أداء الطلاب' : 'Student Performance');
 
-    // Sheet 3: Attendance by Date
-    const ws2 = XLSX.utils.aoa_to_sheet([dateHeaders, ...dateRows]);
+    // Sheet 3: Attendance by Date (filtered by saved selection)
+    const ws2 = XLSX.utils.aoa_to_sheet([dateConfig.headers, ...dateRows]);
     XLSX.utils.book_append_sheet(wb, ws2, isArabic ? 'الحضور بالتاريخ' : 'Attendance by Date');
 
-    // Sheet 4: Host Rankings
-    const hostMap = new Map<string, { count: number; dates: string[] }>();
-    dateAnalytics.forEach((dateData) => {
-      if (dateData.hostAddress) {
-        const existing = hostMap.get(dateData.hostAddress) || { count: 0, dates: [] };
-        existing.count++;
-        existing.dates.push(format(new Date(dateData.date), 'MMM dd'));
-        hostMap.set(dateData.hostAddress, existing);
-      }
-    });
-
-    const hostRankings = Array.from(hostMap.entries())
-      .map(([address, data]) => ({ address, ...data }))
-      .sort((a, b) => b.count - a.count);
-
-    const hostHeaders = isArabic ? [
-      'الرتبة',
-      'عنوان المضيف',
-      'عدد مرات الاستضافة',
-      'التواريخ'
-    ] : [
-      'Rank',
-      'Host Address',
-      'Times Hosted',
-      'Dates'
-    ];
-
-    const hostRows = hostRankings.map((host, index) => [
-      index + 1,
-      host.address,
-      host.count,
-      host.dates.join(', ')
-    ]);
-
-    const ws3 = XLSX.utils.aoa_to_sheet([hostHeaders, ...hostRows]);
+    // Sheet 4: Host Rankings (filtered by saved selection)
+    const ws3 = XLSX.utils.aoa_to_sheet([hostConfig.headers, ...hostRows]);
     XLSX.utils.book_append_sheet(wb, ws3, isArabic ? 'تصنيف المضيفين' : 'Host Rankings');
 
     // Export to file
@@ -972,136 +990,190 @@ const AttendanceRecords = () => {
     doc.text(statsText, 8, 35);
     doc.setFontSize(10); // Restore font size for following content
 
-    // Student Performance Table
+    // ========== Use saved field selections for PDF ==========
+    const studentConfig = filterDataByFields('studentAnalytics', false); // Always English for PDF
+    const dateConfig = filterDataByFields('dateAnalytics', false);
+    const hostConfig = filterDataByFields('hostAnalytics', false);
+    
+    // Prepare student data objects
+    const studentDataObjects = studentAnalytics.map((student, index) => {
+      const totalPres = student.presentCount + student.lateCount;
+      const punctRate = totalPres > 0 ? Math.round(student.presentCount / totalPres * 100) : 0;
+      return {
+        rank: index + 1,
+        student_id: student.student_id,
+        student_name: student.student_name,
+        presentCount: student.presentCount,
+        lateCount: student.lateCount,
+        totalPresent: totalPres,
+        absentCount: student.absentCount,
+        unexcusedAbsent: student.unexcusedAbsent,
+        excusedCount: student.excusedCount,
+        totalRecords: student.totalRecords,
+        effectiveDays: student.effectiveDays,
+        daysCovered: student.daysCovered,
+        attendanceRate: `${student.attendanceRate}%`,
+        punctualityRate: `${punctRate}%`,
+        weightedScore: student.weightedScore.toFixed(1),
+        consistencyIndex: (student.consistencyIndex * 100).toFixed(0),
+        trendSlope: student.trend?.slope || 0,
+        trendClassification: student.trend?.classification || '-',
+        trendRSquared: student.trend?.rSquared || 0,
+        weeklyChange: `${student.weeklyChange || 0}%`,
+        avgRate: `${student.avgRate || student.attendanceRate}%`,
+        minRate: `${student.minRate || student.attendanceRate}%`,
+        maxRate: `${student.maxRate || student.attendanceRate}%`,
+      };
+    });
+
+    // Student Performance Table using saved fields
     doc.setFontSize(12);
     doc.text('Student Performance Summary', 14, 42);
     
     autoTable(doc, {
       startY: 46,
-      head: [['Rank', 'Student', 'Present', 'On Time', 'Late', 'Absent', 'Excused', 'Attendance %', 'Punctuality %', 'Score']],
-      body: studentAnalytics.slice(0, 20).map((student, index) => {
-        const totalPresent = student.presentCount + student.lateCount;
-        const punctualityRate = totalPresent > 0 
-          ? Math.round(student.presentCount / totalPresent * 100)
-          : 0;
-        return [
-          index + 1,
-          student.student_name,
-          totalPresent,
-          student.presentCount,
-          student.lateCount,
-          student.unexcusedAbsent,
-          student.excusedCount,
-          `${student.attendanceRate}%`,
-          `${punctualityRate}%`,
-          student.weightedScore.toFixed(1)
-        ];
-      }),
-      styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [59, 130, 246], fontSize: 8 },
+      head: [studentConfig.headers],
+      body: studentDataObjects.slice(0, 20).map((data, index) => studentConfig.getData(data as Record<string, unknown>, index)) as (string | number)[][],
+      styles: { fontSize: 7, cellPadding: 2 },
+      headStyles: { fillColor: [59, 130, 246], fontSize: 7 },
       alternateRowStyles: { fillColor: [245, 245, 245] },
       rowPageBreak: 'avoid',
     });
 
-    // Date Analytics Table
+    // Date Analytics Table using saved fields
     const performanceTableY = (doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || 46;
     doc.setFontSize(12);
     doc.text('Attendance by Date', 14, performanceTableY + 10);
+    
+    // Prepare date data objects
+    const dateDataObjects = dateAnalytics.map((dateData) => {
+      let excusedLabel = dateData.excusedNames.join(', ') || '-';
+      const totalStudents = dateData.presentCount + dateData.lateCount + dateData.excusedAbsentCount + dateData.unexcusedAbsentCount;
+      const totalPresent = dateData.presentCount + dateData.lateCount;
+      const totalAbsent = dateData.excusedAbsentCount + dateData.unexcusedAbsentCount;
+      
+      if (
+        dateData.hostAddress === 'SESSION_NOT_HELD' ||
+        (dateData.hostAddress && dateData.hostAddress.toUpperCase() === 'SESSION_NOT_HELD')
+      ) {
+        excusedLabel = 'All Students';
+      }
+      
+      const bookPages = dateData.bookStartPage && dateData.bookEndPage 
+        ? `${dateData.bookStartPage}-${dateData.bookEndPage}` 
+        : '-';
+      const pagesCount = dateData.bookStartPage && dateData.bookEndPage
+        ? dateData.bookEndPage - dateData.bookStartPage + 1
+        : 0;
+      const punctualityRate = totalPresent > 0 
+        ? Math.round(dateData.presentCount / totalPresent * 100)
+        : 0;
+      const absentRate = totalStudents > 0
+        ? Math.round(totalAbsent / totalStudents * 100)
+        : 0;
+      const dateObj = new Date(dateData.date);
+      
+      return {
+        date: format(dateObj, 'MMM dd, yyyy'),
+        dayOfWeek: format(dateObj, 'EEEE'),
+        hostAddress: dateData.hostAddress || '-',
+        bookTopic: dateData.bookTopic || '-',
+        bookPages,
+        bookStartPage: dateData.bookStartPage || '-',
+        bookEndPage: dateData.bookEndPage || '-',
+        pagesCount: pagesCount > 0 ? pagesCount : '-',
+        presentCount: dateData.presentCount,
+        lateCount: dateData.lateCount,
+        totalPresent,
+        excusedAbsentCount: dateData.excusedAbsentCount,
+        unexcusedAbsentCount: dateData.unexcusedAbsentCount,
+        totalAbsent,
+        totalStudents,
+        attendanceRate: `${dateData.attendanceRate}%`,
+        punctualityRate: `${punctualityRate}%`,
+        absentRate: `${absentRate}%`,
+        presentNames: dateData.presentNames.join(', ') || '-',
+        lateNames: dateData.lateNames.join(', ') || '-',
+        excusedNames: excusedLabel,
+        absentNames: dateData.absentNames.join(', ') || '-',
+      };
+    });
 
     autoTable(doc, {
       startY: performanceTableY + 14,
-      head: [['Date', 'Book Progress', 'Host', 'On Time', 'Late', 'Excused', 'Absent', 'Rate %', 'On Time Names', 'Late Names', 'Excused Names', 'Absent Names']],
-      body: dateAnalytics.map((dateData) => {
-        let excusedLabel = dateData.excusedAbsentCount.toString();
-        let excusedNamesLabel = dateData.excusedNames.join(', ') || '-';
-        if (
-          dateData.hostAddress === 'SESSION_NOT_HELD' ||
-          (dateData.hostAddress && dateData.hostAddress.toUpperCase() === 'SESSION_NOT_HELD')
-        ) {
-          excusedLabel = reportLanguage === 'ar' ? 'جميع الطلاب' : 'All Students';
-          excusedNamesLabel = reportLanguage === 'ar' ? 'جميع الطلاب' : 'All Students';
-        }
-        
-        const bookProgress = dateData.bookTopic && dateData.bookStartPage && dateData.bookEndPage
-          ? `${dateData.bookTopic} (p.${dateData.bookStartPage}-${dateData.bookEndPage})`
-          : dateData.bookTopic || '-';
-        
-        return [
-          format(new Date(dateData.date), 'MMM dd, yyyy'),
-          bookProgress,
-          dateData.hostAddress || '-',
-          dateData.presentCount,
-          dateData.lateCount,
-          excusedLabel,
-          dateData.unexcusedAbsentCount,
-          `${dateData.attendanceRate}%`,
-          dateData.presentNames.join(', ') || '-',
-          dateData.lateNames.join(', ') || '-',
-          excusedNamesLabel,
-          dateData.absentNames.join(', ') || '-',
-        ];
-      }),
+      head: [dateConfig.headers],
+      body: dateDataObjects.map((data, index) => dateConfig.getData(data as Record<string, unknown>, index)) as (string | number)[][],
       styles: { fontSize: 6, cellPadding: 1.5 },
       headStyles: { fillColor: [59, 130, 246], fontSize: 6 },
       alternateRowStyles: { fillColor: [245, 245, 245] },
       rowPageBreak: 'avoid',
-      columnStyles: {
-        0: { cellWidth: 20 },
-        1: { cellWidth: 40 },
-        2: { cellWidth: 22 },
-        3: { cellWidth: 10 },
-        4: { cellWidth: 10 },
-        5: { cellWidth: 12 },
-        6: { cellWidth: 10 },
-        7: { cellWidth: 12 },
-        8: { cellWidth: 'auto' },
-        9: { cellWidth: 'auto' },
-        10: { cellWidth: 'auto' },
-        11: { cellWidth: 'auto' },
-      },
     });
 
-    // Host Rankings Table
+    // Host Rankings Table using saved fields
     const dateTableY = (doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || performanceTableY + 14;
     
     // Calculate host rankings
-    const hostMap = new Map<string, { count: number; dates: string[] }>();
+    const hostMap = new Map<string, { 
+      count: number; 
+      dates: string[]; 
+      rawDates: Date[];
+      present: number;
+      late: number;
+      absent: number;
+      excused: number;
+    }>();
     dateAnalytics.forEach((dateData) => {
-      if (dateData.hostAddress) {
-        const existing = hostMap.get(dateData.hostAddress) || { count: 0, dates: [] };
+      if (dateData.hostAddress && dateData.hostAddress !== 'SESSION_NOT_HELD') {
+        const existing = hostMap.get(dateData.hostAddress) || { 
+          count: 0, 
+          dates: [], 
+          rawDates: [],
+          present: 0,
+          late: 0,
+          absent: 0,
+          excused: 0,
+        };
         existing.count++;
         existing.dates.push(format(new Date(dateData.date), 'MMM dd'));
+        existing.rawDates.push(new Date(dateData.date));
+        existing.present += dateData.presentCount;
+        existing.late += dateData.lateCount;
+        existing.absent += dateData.unexcusedAbsentCount;
+        existing.excused += dateData.excusedAbsentCount;
         hostMap.set(dateData.hostAddress, existing);
       }
     });
 
-    const hostRankings = Array.from(hostMap.entries())
+    const totalHostings = Array.from(hostMap.values()).reduce((sum, h) => sum + h.count, 0);
+    
+    const hostDataObjects = Array.from(hostMap.entries())
       .map(([address, data]) => ({ address, ...data }))
-      .sort((a, b) => b.count - a.count);
+      .sort((a, b) => b.count - a.count)
+      .map((host, index) => ({
+        rank: index + 1,
+        address: host.address,
+        count: host.count,
+        percentage: totalHostings > 0 ? Math.round(host.count / totalHostings * 100) : 0,
+        firstHostDate: host.rawDates.length > 0 ? format(new Date(Math.min(...host.rawDates.map(d => d.getTime()))), 'MMM dd, yyyy') : '-',
+        lastHostDate: host.rawDates.length > 0 ? format(new Date(Math.max(...host.rawDates.map(d => d.getTime()))), 'MMM dd, yyyy') : '-',
+        totalOnTime: host.present,
+        totalLate: host.late,
+        totalAbsent: host.absent,
+        totalExcused: host.excused,
+        dates: host.dates.join(', '),
+      }));
 
-    if (hostRankings.length > 0) {
+    if (hostDataObjects.length > 0) {
       doc.setFontSize(12);
-      doc.text('Host Rankings (All Hosts by Session Count)', 14, dateTableY + 10);
+      doc.text('Host Rankings', 14, dateTableY + 10);
 
       autoTable(doc, {
         startY: dateTableY + 14,
-        head: [['Rank', 'Host Address', 'Times Hosted', 'Dates']],
-        body: hostRankings.map((host, index) => [
-          index + 1,
-          host.address,
-          host.count,
-          host.dates.join(', ')
-        ]),
-        styles: { fontSize: 8, cellPadding: 2 },
-        headStyles: { fillColor: [59, 130, 246], fontSize: 8 },
+        head: [hostConfig.headers],
+        body: hostDataObjects.map((data, index) => hostConfig.getData(data as Record<string, unknown>, index)) as (string | number)[][],
+        styles: { fontSize: 7, cellPadding: 2 },
+        headStyles: { fillColor: [59, 130, 246], fontSize: 7 },
         alternateRowStyles: { fillColor: [245, 245, 245] },
-        rowPageBreak: 'avoid',
-        columnStyles: {
-          0: { cellWidth: 15 },
-          1: { cellWidth: 60 },
-          2: { cellWidth: 25 },
-          3: { cellWidth: 'auto' }
-        },
       });
     }
 
@@ -1121,6 +1193,11 @@ const AttendanceRecords = () => {
 
     setExportingWord(true);
     const isArabic = reportLanguage === 'ar';
+
+    // ========== Use saved field selections for Word export ==========
+    const studentConfig = filterDataByFields('studentAnalytics', isArabic);
+    const dateConfig = filterDataByFields('dateAnalytics', isArabic);
+    const hostConfig = filterDataByFields('hostAnalytics', isArabic);
 
     // Prepare comprehensive summary statistics matching Excel/PDF
     const totalStudents = studentAnalytics.length;
@@ -1158,68 +1235,86 @@ const AttendanceRecords = () => {
       totalLate,
     };
 
-    // Prepare comprehensive student data with ALL fields matching Excel
-    const studentData = studentAnalytics.map((s, index) => {
-      const totalPresent = s.presentCount + s.lateCount;
-      const punctualityRate = totalPresent > 0 
-        ? (s.presentCount / totalPresent * 100)
-        : 0;
+    // Prepare student data with all possible fields
+    const studentDataObjects = studentAnalytics.map((s, index) => {
+      const totalPres = s.presentCount + s.lateCount;
+      const punctualityRate = totalPres > 0 ? (s.presentCount / totalPres * 100) : 0;
 
       return {
         rank: index + 1,
+        student_id: s.student_id,
         student_name: s.student_name,
-        on_time: s.presentCount,
-        late: s.lateCount,
-        present_total: totalPresent,
-        unexcused_absent: s.unexcusedAbsent,
-        excused: s.excusedCount,
-        effective_days: s.effectiveDays,
-        days_covered: s.daysCovered,
-        attendance_rate: s.attendanceRate,
-        punctuality_rate: punctualityRate,
-        weighted_score: s.weightedScore,
+        presentCount: s.presentCount,
+        lateCount: s.lateCount,
+        totalPresent: totalPres,
+        absentCount: s.absentCount,
+        unexcusedAbsent: s.unexcusedAbsent,
+        excusedCount: s.excusedCount,
+        totalRecords: s.totalRecords,
+        effectiveDays: s.effectiveDays,
+        daysCovered: s.daysCovered,
+        attendanceRate: `${s.attendanceRate}%`,
+        punctualityRate: `${Math.round(punctualityRate)}%`,
+        weightedScore: s.weightedScore.toFixed(1),
+        consistencyIndex: Math.round(s.consistencyIndex * 100) / 100,
+        trendSlope: s.trend?.slope || 0,
+        trendClassification: s.trend?.classification || '-',
+        trendRSquared: s.trend?.rSquared || 0,
+        weeklyChange: `${s.weeklyChange || 0}%`,
+        avgRate: `${s.avgRate || s.attendanceRate}%`,
+        minRate: `${s.minRate || s.attendanceRate}%`,
+        maxRate: `${s.maxRate || s.attendanceRate}%`,
       };
     });
 
-    // Prepare comprehensive date data with ALL fields including book info and names
-    const dateData = dateAnalytics.map(d => {
-      let excusedCount = d.excusedAbsentCount;
+    // Prepare date data with all possible fields
+    const dateDataObjects = dateAnalytics.map(d => {
       let excusedNames = d.excusedNames.join(', ') || '-';
-      const totalStudents = d.presentCount + d.lateCount + d.excusedAbsentCount + d.unexcusedAbsentCount;
+      const totalStud = d.presentCount + d.lateCount + d.excusedAbsentCount + d.unexcusedAbsentCount;
+      const totalPres = d.presentCount + d.lateCount;
+      const totalAbs = d.excusedAbsentCount + d.unexcusedAbsentCount;
       
-      if (
-        d.hostAddress === 'SESSION_NOT_HELD' ||
-        (d.hostAddress && d.hostAddress.toUpperCase() === 'SESSION_NOT_HELD')
-      ) {
-        excusedCount = totalStudents;
+      if (d.hostAddress === 'SESSION_NOT_HELD' || (d.hostAddress && d.hostAddress.toUpperCase() === 'SESSION_NOT_HELD')) {
         excusedNames = isArabic ? 'جميع الطلاب' : 'All Students';
       }
       
-      const bookPages = d.bookStartPage && d.bookEndPage 
-        ? `${d.bookStartPage}-${d.bookEndPage}` 
-        : '-';
+      const bookPages = d.bookStartPage && d.bookEndPage ? `${d.bookStartPage}-${d.bookEndPage}` : '-';
+      const pagesCount = d.bookStartPage && d.bookEndPage ? d.bookEndPage - d.bookStartPage + 1 : 0;
+      const punctualityRate = totalPres > 0 ? Math.round(d.presentCount / totalPres * 100) : 0;
+      const absentRate = totalStud > 0 ? Math.round(totalAbs / totalStud * 100) : 0;
+      const dateObj = new Date(d.date);
       
       return {
-        date: format(new Date(d.date), 'MMM dd, yyyy'),
-        book_topic: d.bookTopic || '-',
-        book_pages: bookPages,
-        host_address: d.hostAddress || '-',
-        on_time: d.presentCount,
-        late: d.lateCount,
-        excused: excusedCount,
-        absent: d.unexcusedAbsentCount,
-        attendance_rate: d.attendanceRate,
-        on_time_names: d.presentNames.join(', ') || '-',
-        late_names: d.lateNames.join(', ') || '-',
-        excused_names: excusedNames,
-        absent_names: d.absentNames.join(', ') || '-',
+        date: format(dateObj, 'MMM dd, yyyy'),
+        dayOfWeek: format(dateObj, 'EEEE'),
+        hostAddress: d.hostAddress || '-',
+        bookTopic: d.bookTopic || '-',
+        bookPages,
+        bookStartPage: d.bookStartPage || '-',
+        bookEndPage: d.bookEndPage || '-',
+        pagesCount: pagesCount > 0 ? pagesCount : '-',
+        presentCount: d.presentCount,
+        lateCount: d.lateCount,
+        totalPresent: totalPres,
+        excusedAbsentCount: d.excusedAbsentCount,
+        unexcusedAbsentCount: d.unexcusedAbsentCount,
+        totalAbsent: totalAbs,
+        totalStudents: totalStud,
+        attendanceRate: `${d.attendanceRate}%`,
+        punctualityRate: `${punctualityRate}%`,
+        absentRate: `${absentRate}%`,
+        presentNames: d.presentNames.join(', ') || '-',
+        lateNames: d.lateNames.join(', ') || '-',
+        excusedNames,
+        absentNames: d.absentNames.join(', ') || '-',
       };
     });
 
-    // Prepare host rankings data with all details and dates
+    // Prepare host data with all possible fields
     const hostMap = new Map<string, {
       count: number;
       dates: string[];
+      rawDates: Date[];
       present: number;
       late: number;
       absent: number;
@@ -1229,15 +1324,11 @@ const AttendanceRecords = () => {
     dateAnalytics.forEach((dateData) => {
       if (dateData.hostAddress && dateData.hostAddress !== 'SESSION_NOT_HELD') {
         const existing = hostMap.get(dateData.hostAddress) || {
-          count: 0,
-          dates: [],
-          present: 0,
-          late: 0,
-          absent: 0,
-          excused: 0,
+          count: 0, dates: [], rawDates: [], present: 0, late: 0, absent: 0, excused: 0,
         };
         existing.count++;
         existing.dates.push(format(new Date(dateData.date), 'MMM dd'));
+        existing.rawDates.push(new Date(dateData.date));
         existing.present += dateData.presentCount;
         existing.late += dateData.lateCount;
         existing.absent += dateData.unexcusedAbsentCount;
@@ -1246,34 +1337,61 @@ const AttendanceRecords = () => {
       }
     });
 
-    const hostData = Array.from(hostMap.entries())
-      .map(([name, data]) => {
-        const totalAttendance = data.present + data.late;
-        const totalPossible = data.present + data.late + data.absent;
-        const attendanceRate = totalPossible > 0 ? (totalAttendance / totalPossible) * 100 : 0;
-        
-        return {
-          host_name: name,
-          total_hosted: data.count,
-          dates: data.dates.join(', '),
-          present: data.present,
-          absent: data.absent,
-          excused: data.excused,
-          late: data.late,
-          attendance_rate: attendanceRate,
-        };
-      })
-      .sort((a, b) => b.total_hosted - a.total_hosted)
+    const totalHostings = Array.from(hostMap.values()).reduce((sum, h) => sum + h.count, 0);
+
+    const hostDataObjects = Array.from(hostMap.entries())
+      .map(([address, data]) => ({ address, ...data }))
+      .sort((a, b) => b.count - a.count)
       .map((host, index) => ({
         rank: index + 1,
-        ...host,
+        address: host.address,
+        count: host.count,
+        percentage: totalHostings > 0 ? Math.round(host.count / totalHostings * 100) : 0,
+        firstHostDate: host.rawDates.length > 0 ? format(new Date(Math.min(...host.rawDates.map(d => d.getTime()))), 'MMM dd, yyyy') : '-',
+        lastHostDate: host.rawDates.length > 0 ? format(new Date(Math.max(...host.rawDates.map(d => d.getTime()))), 'MMM dd, yyyy') : '-',
+        totalOnTime: host.present,
+        totalLate: host.late,
+        totalAbsent: host.absent,
+        totalExcused: host.excused,
+        dates: host.dates.join(', '),
       }));
 
+    // Convert data objects to the format expected by wordExportService using saved field selections
+    const studentDataForExport = studentDataObjects.map((data, index) => {
+      const row: Record<string, unknown> = {};
+      studentConfig.headers.forEach((header, i) => {
+        const values = studentConfig.getData(data as Record<string, unknown>, index);
+        row[header] = values[i];
+      });
+      return row;
+    });
+
+    const dateDataForExport = dateDataObjects.map((data, index) => {
+      const row: Record<string, unknown> = {};
+      dateConfig.headers.forEach((header, i) => {
+        const values = dateConfig.getData(data as Record<string, unknown>, index);
+        row[header] = values[i];
+      });
+      return row;
+    });
+
+    const hostDataForExport = hostDataObjects.map((data, index) => {
+      const row: Record<string, unknown> = {};
+      hostConfig.headers.forEach((header, i) => {
+        const values = hostConfig.getData(data as Record<string, unknown>, index);
+        row[header] = values[i];
+      });
+      return row;
+    });
+
     try {
-      await wordExportService.exportAnalyticsToWord(
-        studentData,
-        dateData,
-        hostData,
+      await wordExportService.exportAnalyticsToWordDynamic(
+        studentDataForExport,
+        studentConfig.headers,
+        dateDataForExport,
+        dateConfig.headers,
+        hostDataForExport,
+        hostConfig.headers,
         summaryStats,
         isArabic,
         filters.startDate,
@@ -1916,6 +2034,120 @@ const AttendanceRecords = () => {
         ]
       }
     ];
+  };
+
+  // Helper: Get all field definitions for a data type (flattened from categories)
+  const getAllFieldsForType = (dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics') => {
+    // Build map of all available fields for each data type
+    const allFields: { key: string; label: string; labelAr: string }[] = [];
+    
+    // Get categories for specific type by parsing the function logic
+    if (dataType === 'studentAnalytics') {
+      // Student fields
+      allFields.push(
+        { key: 'rank', label: 'Rank', labelAr: 'الترتيب' },
+        { key: 'student_id', label: 'Student ID', labelAr: 'رقم الطالب' },
+        { key: 'student_name', label: 'Student Name', labelAr: 'اسم الطالب' },
+        { key: 'presentCount', label: 'On Time', labelAr: 'في الوقت' },
+        { key: 'lateCount', label: 'Late', labelAr: 'متأخر' },
+        { key: 'totalPresent', label: 'Total Present', labelAr: 'حاضر' },
+        { key: 'absentCount', label: 'Total Absent', labelAr: 'إجمالي الغياب' },
+        { key: 'unexcusedAbsent', label: 'Unexcused Absent', labelAr: 'غائب بدون عذر' },
+        { key: 'excusedCount', label: 'Excused', labelAr: 'غائب بعذر' },
+        { key: 'totalRecords', label: 'Total Records', labelAr: 'إجمالي السجلات' },
+        { key: 'effectiveDays', label: 'Effective Days', labelAr: 'الأيام الفعلية' },
+        { key: 'daysCovered', label: 'Days Covered', labelAr: 'الأيام المغطاة' },
+        { key: 'attendanceRate', label: 'Attendance Rate %', labelAr: 'معدل الحضور (%)' },
+        { key: 'punctualityRate', label: 'Punctuality Rate %', labelAr: 'معدل الالتزام بالوقت (%)' },
+        { key: 'weightedScore', label: 'Weighted Score', labelAr: 'النقاط المرجحة' },
+        { key: 'consistencyIndex', label: 'Consistency Index', labelAr: 'مؤشر الانتظام' },
+        { key: 'trendSlope', label: 'Trend Slope', labelAr: 'ميل الاتجاه' },
+        { key: 'trendClassification', label: 'Trend Classification', labelAr: 'تصنيف الاتجاه' },
+        { key: 'trendRSquared', label: 'Trend R² Value', labelAr: 'قيمة R²' },
+        { key: 'weeklyChange', label: 'Weekly Change %', labelAr: 'التغير الأسبوعي (%)' },
+        { key: 'avgRate', label: 'Average Rate', labelAr: 'المعدل المتوسط' },
+        { key: 'minRate', label: 'Minimum Rate', labelAr: 'أدنى معدل' },
+        { key: 'maxRate', label: 'Maximum Rate', labelAr: 'أعلى معدل' },
+      );
+    } else if (dataType === 'dateAnalytics') {
+      // Date fields
+      allFields.push(
+        { key: 'date', label: 'Date', labelAr: 'التاريخ' },
+        { key: 'dayOfWeek', label: 'Day of Week', labelAr: 'يوم الأسبوع' },
+        { key: 'hostAddress', label: 'Host Address', labelAr: 'عنوان المضيف' },
+        { key: 'bookTopic', label: 'Book Topic', labelAr: 'الموضوع' },
+        { key: 'bookPages', label: 'Pages', labelAr: 'الصفحات' },
+        { key: 'bookStartPage', label: 'Start Page', labelAr: 'صفحة البداية' },
+        { key: 'bookEndPage', label: 'End Page', labelAr: 'صفحة النهاية' },
+        { key: 'pagesCount', label: 'Pages Count', labelAr: 'عدد الصفحات' },
+        { key: 'presentCount', label: 'On Time', labelAr: 'في الوقت' },
+        { key: 'lateCount', label: 'Late', labelAr: 'متأخر' },
+        { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحضور' },
+        { key: 'excusedAbsentCount', label: 'Excused', labelAr: 'معذور' },
+        { key: 'unexcusedAbsentCount', label: 'Absent', labelAr: 'غائب' },
+        { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب' },
+        { key: 'totalStudents', label: 'Total Students', labelAr: 'إجمالي الطلاب' },
+        { key: 'attendanceRate', label: 'Attendance Rate %', labelAr: 'نسبة الحضور' },
+        { key: 'punctualityRate', label: 'Punctuality Rate %', labelAr: 'نسبة الالتزام' },
+        { key: 'absentRate', label: 'Absence Rate %', labelAr: 'نسبة الغياب' },
+        { key: 'presentNames', label: 'On Time Names', labelAr: 'أسماء في الوقت' },
+        { key: 'lateNames', label: 'Late Names', labelAr: 'أسماء المتأخرين' },
+        { key: 'excusedNames', label: 'Excused Names', labelAr: 'أسماء المعذورين' },
+        { key: 'absentNames', label: 'Absent Names', labelAr: 'أسماء الغائبين' },
+      );
+    } else if (dataType === 'hostAnalytics') {
+      // Host fields
+      allFields.push(
+        { key: 'rank', label: 'Rank', labelAr: 'الرتبة' },
+        { key: 'address', label: 'Host Address', labelAr: 'عنوان المضيف' },
+        { key: 'count', label: 'Times Hosted', labelAr: 'عدد مرات الاستضافة' },
+        { key: 'percentage', label: 'Hosting Percentage %', labelAr: 'نسبة الاستضافة' },
+        { key: 'firstHostDate', label: 'First Host Date', labelAr: 'أول تاريخ استضافة' },
+        { key: 'lastHostDate', label: 'Last Host Date', labelAr: 'آخر تاريخ استضافة' },
+        { key: 'totalOnTime', label: 'Total On Time', labelAr: 'إجمالي الحضور' },
+        { key: 'totalLate', label: 'Total Late', labelAr: 'إجمالي المتأخرين' },
+        { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب' },
+        { key: 'totalExcused', label: 'Total Excused', labelAr: 'إجمالي المعذورين' },
+        { key: 'dates', label: 'All Dates', labelAr: 'جميع التواريخ' },
+      );
+    }
+    
+    return allFields;
+  };
+
+  // Helper: Get selected fields or default fields for a data type
+  const getSelectedFieldsForType = (dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics'): string[] => {
+    const saved = savedFieldSelections[dataType];
+    if (saved && saved.length > 0) {
+      return saved;
+    }
+    // Return all field keys as default
+    return getAllFieldsForType(dataType).map(f => f.key);
+  };
+
+  // Helper: Filter headers and data based on selected fields
+  const filterDataByFields = (
+    dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics',
+    isArabic: boolean
+  ): { headers: string[]; getData: (item: Record<string, unknown>, index: number) => unknown[] } => {
+    const selectedKeys = getSelectedFieldsForType(dataType);
+    const allFields = getAllFieldsForType(dataType);
+    
+    // Filter to only selected fields, maintaining order
+    const selectedFields = selectedKeys
+      .map(key => allFields.find(f => f.key === key))
+      .filter((f): f is { key: string; label: string; labelAr: string } => f !== undefined);
+    
+    const headers = selectedFields.map(f => isArabic ? f.labelAr : f.label);
+    
+    const getData = (item: Record<string, unknown>, index: number): unknown[] => {
+      return selectedFields.map(field => {
+        if (field.key === 'rank') return index + 1;
+        return item[field.key] ?? '-';
+      });
+    };
+    
+    return { headers, getData };
   };
 
   // Get export data based on current data type
