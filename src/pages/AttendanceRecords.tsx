@@ -1030,6 +1030,31 @@ const AttendanceRecords = () => {
     doc.setFontSize(12);
     doc.text('Student Performance Summary', 14, 42);
     
+    // Helper function to detect percentage columns for conditional coloring
+    const detectPercentageColumns = (headers: string[]): number[] => {
+      const percentagePatterns = [
+        /rate/i, /percentage/i, /percent/i, /%/, /score/i, /weighted/i,
+        /attendance/i, /punctuality/i, /consistency/i, /avg/i, /average/i,
+      ];
+      return headers
+        .map((header, idx) => {
+          const matchesPattern = percentagePatterns.some(pattern => pattern.test(header));
+          return matchesPattern ? idx : -1;
+        })
+        .filter(idx => idx !== -1);
+    };
+
+    // Color function for PDF conditional coloring
+    const getColorForValue = (value: number): [number, number, number] => {
+      if (value >= 90) return [16, 185, 129]; // Green (success)
+      if (value >= 75) return [59, 130, 246]; // Blue (good)
+      if (value >= 60) return [245, 158, 11]; // Yellow (moderate)
+      return [239, 68, 68]; // Red (needs attention)
+    };
+
+    // Detect percentage columns for student table
+    const studentColorColumns = detectPercentageColumns(studentConfig.headers);
+    
     autoTable(doc, {
       startY: 46,
       head: [studentConfig.headers],
@@ -1038,6 +1063,20 @@ const AttendanceRecords = () => {
       headStyles: { fillColor: [59, 130, 246], fontSize: 7 },
       alternateRowStyles: { fillColor: [245, 245, 245] },
       rowPageBreak: 'avoid',
+      didParseCell: (hookData) => {
+        if (hookData.section === 'body' && studentColorColumns.includes(hookData.column.index)) {
+          const cellText = hookData.cell.text.join('');
+          const numMatch = cellText.match(/(\d+\.?\d*)/);
+          if (numMatch) {
+            const value = parseFloat(numMatch[1]);
+            if (!isNaN(value) && value >= 0 && value <= 100) {
+              hookData.cell.styles.fillColor = getColorForValue(value);
+              hookData.cell.styles.textColor = [255, 255, 255];
+              hookData.cell.styles.fontStyle = 'bold';
+            }
+          }
+        }
+      },
     });
 
     // Date Analytics Table using saved fields
@@ -1099,6 +1138,9 @@ const AttendanceRecords = () => {
       };
     });
 
+    // Detect percentage columns for date table
+    const dateColorColumns = detectPercentageColumns(dateConfig.headers);
+
     autoTable(doc, {
       startY: performanceTableY + 14,
       head: [dateConfig.headers],
@@ -1107,6 +1149,20 @@ const AttendanceRecords = () => {
       headStyles: { fillColor: [59, 130, 246], fontSize: 6 },
       alternateRowStyles: { fillColor: [245, 245, 245] },
       rowPageBreak: 'avoid',
+      didParseCell: (hookData) => {
+        if (hookData.section === 'body' && dateColorColumns.includes(hookData.column.index)) {
+          const cellText = hookData.cell.text.join('');
+          const numMatch = cellText.match(/(\d+\.?\d*)/);
+          if (numMatch) {
+            const value = parseFloat(numMatch[1]);
+            if (!isNaN(value) && value >= 0 && value <= 100) {
+              hookData.cell.styles.fillColor = getColorForValue(value);
+              hookData.cell.styles.textColor = [255, 255, 255];
+              hookData.cell.styles.fontStyle = 'bold';
+            }
+          }
+        }
+      },
     });
 
     // Host Rankings Table using saved fields
@@ -1167,6 +1223,9 @@ const AttendanceRecords = () => {
       doc.setFontSize(12);
       doc.text('Host Rankings', 14, dateTableY + 10);
 
+      // Detect percentage columns for host table
+      const hostColorColumns = detectPercentageColumns(hostConfig.headers);
+
       autoTable(doc, {
         startY: dateTableY + 14,
         head: [hostConfig.headers],
@@ -1174,8 +1233,47 @@ const AttendanceRecords = () => {
         styles: { fontSize: 7, cellPadding: 2 },
         headStyles: { fillColor: [59, 130, 246], fontSize: 7 },
         alternateRowStyles: { fillColor: [245, 245, 245] },
+        didParseCell: (hookData) => {
+          if (hookData.section === 'body' && hostColorColumns.includes(hookData.column.index)) {
+            const cellText = hookData.cell.text.join('');
+            const numMatch = cellText.match(/(\d+\.?\d*)/);
+            if (numMatch) {
+              const value = parseFloat(numMatch[1]);
+              if (!isNaN(value) && value >= 0 && value <= 100) {
+                hookData.cell.styles.fillColor = getColorForValue(value);
+                hookData.cell.styles.textColor = [255, 255, 255];
+                hookData.cell.styles.fontStyle = 'bold';
+              }
+            }
+          }
+        },
       });
     }
+
+    // Add color legend at the end of the PDF
+    const finalY = (doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || 200;
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.text('Color Legend:', 14, finalY + 8);
+    
+    // Draw legend boxes
+    const legendItems = [
+      { label: '90%+ Excellent', color: [16, 185, 129] as [number, number, number] },
+      { label: '75-89% Good', color: [59, 130, 246] as [number, number, number] },
+      { label: '60-74% Moderate', color: [245, 158, 11] as [number, number, number] },
+      { label: '<60% Needs Attention', color: [239, 68, 68] as [number, number, number] },
+    ];
+    
+    let legendX = 38;
+    legendItems.forEach(item => {
+      doc.setFillColor(item.color[0], item.color[1], item.color[2]);
+      doc.rect(legendX, finalY + 5, 6, 3, 'F');
+      doc.setTextColor(60, 60, 60);
+      doc.text(item.label, legendX + 8, finalY + 7.5);
+      legendX += 42;
+    });
+    
+    doc.setTextColor(0, 0, 0);
 
     const pdfFileName = isArabic 
       ? `تقرير_التحليلات_${format(new Date(), 'yyyy-MM-dd')}.pdf`

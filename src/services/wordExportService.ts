@@ -1776,12 +1776,34 @@ export class WordExportService {
     sections.push(this.createTable(summaryTableHeaders, summaryRows, isArabic, theme));
     sections.push(new Paragraph({ text: '', spacing: { after: 400 } }));
 
-    // Student Performance Section (dynamic headers)
+    // Helper function to detect percentage columns for conditional coloring
+    const detectPercentageColumns = (headers: string[]): number[] => {
+      const percentagePatterns = [
+        /rate/i, /percentage/i, /percent/i, /%/, /score/i, /weighted/i,
+        /attendance/i, /punctuality/i, /consistency/i, /avg/i, /average/i,
+        /معدل/, /نسبة/, /متوسط/ // Arabic patterns
+      ];
+      return headers
+        .map((header, idx) => {
+          const matchesPattern = percentagePatterns.some(pattern => pattern.test(header));
+          return matchesPattern ? idx : -1;
+        })
+        .filter(idx => idx !== -1);
+    };
+
+    // Add color legend at the beginning
+    sections.push(this.createColorLegend(isArabic, theme));
+    sections.push(new Paragraph({ text: '', spacing: { after: 300 } }));
+
+    // Student Performance Section (dynamic headers with conditional coloring)
     if (studentHeaders.length > 0 && studentData.length > 0) {
       const studentTitle = isArabic ? '👨‍🎓 أداء الطلاب' : '👨‍🎓 Student Performance';
       sections.push(
         this.createHeading(studentTitle, HeadingLevel.HEADING_2, isArabic, theme)
       );
+
+      // Detect percentage columns for coloring
+      const studentColorColumns = detectPercentageColumns(studentHeaders);
 
       // Build rows from the data using headers as keys
       const studentRows = studentData.map((row) => 
@@ -1797,11 +1819,11 @@ export class WordExportService {
         })
       );
 
-      sections.push(this.createTable(studentHeaders, studentRows, isArabic, theme));
+      sections.push(this.createTable(studentHeaders, studentRows, isArabic, theme, studentColorColumns));
       sections.push(new Paragraph({ text: '', spacing: { after: 400 } }));
     }
 
-    // Date Analytics Section (dynamic headers)
+    // Date Analytics Section (dynamic headers with conditional coloring)
     if (dateHeaders.length > 0 && dateData.length > 0) {
       const dateTitle = isArabic
         ? '📅 الحضور حسب التاريخ'
@@ -1809,6 +1831,9 @@ export class WordExportService {
       sections.push(
         this.createHeading(dateTitle, HeadingLevel.HEADING_2, isArabic, theme)
       );
+
+      // Detect percentage columns for coloring
+      const dateColorColumns = detectPercentageColumns(dateHeaders);
 
       // Build rows from the data using headers as keys
       const dateRows = dateData.map((row) =>
@@ -1824,11 +1849,11 @@ export class WordExportService {
         })
       );
 
-      sections.push(this.createTable(dateHeaders, dateRows, isArabic, theme));
+      sections.push(this.createTable(dateHeaders, dateRows, isArabic, theme, dateColorColumns));
       sections.push(new Paragraph({ text: '', spacing: { after: 400 } }));
     }
 
-    // Host Rankings Section (dynamic headers)
+    // Host Rankings Section (dynamic headers with conditional coloring)
     if (hostHeaders.length > 0 && hostData.length > 0) {
       const hostTitle = isArabic
         ? '🏠 تصنيف المضيفين'
@@ -1836,6 +1861,9 @@ export class WordExportService {
       sections.push(
         this.createHeading(hostTitle, HeadingLevel.HEADING_2, isArabic, theme)
       );
+
+      // Detect percentage columns for coloring
+      const hostColorColumns = detectPercentageColumns(hostHeaders);
 
       // Build rows from the data using headers as keys
       const hostRows = hostData.map((row) =>
@@ -1851,7 +1879,7 @@ export class WordExportService {
         })
       );
 
-      sections.push(this.createTable(hostHeaders, hostRows, isArabic, theme));
+      sections.push(this.createTable(hostHeaders, hostRows, isArabic, theme, hostColorColumns));
     }
 
     // Create document with header and footer
