@@ -24,6 +24,32 @@ export interface ExportCategory {
   fields: ExportField[];
 }
 
+export interface DataValidationOptions {
+  // Data cleaning options
+  removeEmptyRows: boolean;          // Remove rows with all empty values
+  removeDuplicates: boolean;         // Remove duplicate rows
+  trimWhitespace: boolean;           // Trim whitespace from text values
+  
+  // Data validation
+  validateRequired: boolean;         // Highlight missing required values
+  validateNumericRanges: boolean;    // Validate numeric values are in expected ranges
+  validateDates: boolean;            // Validate date formats
+  
+  // Data formatting
+  formatNumbers: boolean;            // Format numbers with thousand separators
+  formatPercentages: boolean;        // Add % symbol to percentage fields
+  formatDates: boolean;              // Standardize date formats
+  dateFormat: 'short' | 'medium' | 'long'; // Date format option
+  
+  // Excel-specific validation
+  addExcelValidation: boolean;       // Add Excel data validation rules
+  protectSheet: boolean;             // Protect sheet from accidental edits
+  
+  // Data quality indicators
+  showDataQualityReport: boolean;    // Include data quality summary
+  highlightIssues: boolean;          // Highlight cells with issues (Excel only)
+}
+
 export interface ExportConfig {
   format: 'csv' | 'excel' | 'pdf' | 'word';
   language: 'en' | 'ar';
@@ -34,6 +60,13 @@ export interface ExportConfig {
   includeSummary: boolean;
   orientation: 'portrait' | 'landscape';
   fontSize: 'small' | 'medium' | 'large';
+  // Data validation options
+  dataValidation: DataValidationOptions;
+  // Advanced options
+  groupByField?: string;             // Group data by a field (for reports)
+  sortByField?: string;              // Sort data by a field
+  sortDirection?: 'asc' | 'desc';    // Sort direction
+  filterEmptyValues?: boolean;       // Filter out rows with empty key values
 }
 
 interface AdvancedExportBuilderProps {
@@ -79,6 +112,24 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     return fields;
   }, [categories, savedFields]);
 
+  // Default data validation options
+  const defaultDataValidation: DataValidationOptions = {
+    removeEmptyRows: false,
+    removeDuplicates: false,
+    trimWhitespace: true,
+    validateRequired: false,
+    validateNumericRanges: false,
+    validateDates: false,
+    formatNumbers: true,
+    formatPercentages: true,
+    formatDates: true,
+    dateFormat: 'medium',
+    addExcelValidation: false,
+    protectSheet: false,
+    showDataQualityReport: false,
+    highlightIssues: false,
+  };
+
   const [config, setConfig] = useState<ExportConfig>({
     format: 'excel',
     language: 'en',
@@ -89,9 +140,12 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     includeSummary: true,
     orientation: 'landscape',
     fontSize: 'medium',
+    dataValidation: defaultDataValidation,
+    sortDirection: 'asc',
+    filterEmptyValues: false,
   });
 
-  const [activeTab, setActiveTab] = useState<'fields' | 'format' | 'preview'>('fields');
+  const [activeTab, setActiveTab] = useState<'fields' | 'format' | 'validation' | 'preview'>('fields');
   const [exporting, setExporting] = useState(false);
 
   // Reset config when modal opens or categories change
@@ -103,6 +157,22 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
         selectedFields: newSelectedFields,
         title: defaultTitle,
         subtitle: dateRange ? `${dateRange.start} to ${dateRange.end}` : '',
+        dataValidation: {
+          removeEmptyRows: false,
+          removeDuplicates: false,
+          trimWhitespace: true,
+          validateRequired: false,
+          validateNumericRanges: false,
+          validateDates: false,
+          formatNumbers: true,
+          formatPercentages: true,
+          formatDates: true,
+          dateFormat: 'medium',
+          addExcelValidation: false,
+          protectSheet: false,
+          showDataQualityReport: false,
+          highlightIssues: false,
+        },
       }));
       setActiveTab('fields');
     }
@@ -172,17 +242,153 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     if (Array.isArray(value)) return value.join(', ');
     if (value instanceof Date) return format(value, 'MMM dd, yyyy');
     
-    return String(value);
+    // Apply formatting options from config
+    let result = String(value);
+    
+    // Trim whitespace if enabled
+    if (config.dataValidation.trimWhitespace && typeof value === 'string') {
+      result = result.trim();
+    }
+    
+    // Format numbers if enabled
+    if (config.dataValidation.formatNumbers && !isNaN(Number(value)) && value !== '') {
+      const num = Number(value);
+      // Check if it's a percentage field
+      if (config.dataValidation.formatPercentages && 
+          (field.key.toLowerCase().includes('rate') || 
+           field.key.toLowerCase().includes('percentage') ||
+           field.label.toLowerCase().includes('%'))) {
+        result = `${num.toLocaleString()}%`;
+      } else if (Number.isInteger(num)) {
+        result = num.toLocaleString();
+      } else {
+        result = num.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+      }
+    }
+    
+    return result;
+  };
+
+  // ==================== DATA VALIDATION & PROCESSING ====================
+  
+  // Process and validate data before export
+  const processDataForExport = (inputData: Record<string, unknown>[]): {
+    processedData: Record<string, unknown>[];
+    validationIssues: { row: number; field: string; issue: string }[];
+    stats: { totalRows: number; cleanedRows: number; issuesFound: number };
+  } => {
+    let processedData = [...inputData];
+    const validationIssues: { row: number; field: string; issue: string }[] = [];
+    const selectedFields = getSelectedFieldsOrdered();
+    
+    // Remove duplicates if enabled
+    if (config.dataValidation.removeDuplicates) {
+      const seen = new Set<string>();
+      processedData = processedData.filter(record => {
+        const key = selectedFields.map(f => String(record[f.key] || '')).join('|');
+        if (seen.has(key)) {
+          return false;
+        }
+        seen.add(key);
+        return true;
+      });
+    }
+    
+    // Remove empty rows if enabled
+    if (config.dataValidation.removeEmptyRows) {
+      processedData = processedData.filter(record => {
+        return selectedFields.some(f => {
+          const val = record[f.key];
+          return val !== null && val !== undefined && val !== '' && val !== '-';
+        });
+      });
+    }
+    
+    // Validate and collect issues
+    processedData.forEach((record, rowIndex) => {
+      selectedFields.forEach(field => {
+        const value = record[field.key];
+        
+        // Check for missing required values
+        if (config.dataValidation.validateRequired) {
+          if (value === null || value === undefined || value === '' || value === '-') {
+            validationIssues.push({
+              row: rowIndex + 1,
+              field: field.label,
+              issue: 'Missing value'
+            });
+          }
+        }
+        
+        // Validate numeric ranges
+        if (config.dataValidation.validateNumericRanges) {
+          if (field.key.toLowerCase().includes('rate') || 
+              field.key.toLowerCase().includes('percentage')) {
+            const num = parseFloat(String(value).replace('%', ''));
+            if (!isNaN(num) && (num < 0 || num > 100)) {
+              validationIssues.push({
+                row: rowIndex + 1,
+                field: field.label,
+                issue: `Value ${num}% outside expected range (0-100)`
+              });
+            }
+          }
+        }
+        
+        // Validate dates
+        if (config.dataValidation.validateDates && 
+            (field.key.toLowerCase().includes('date') || 
+             field.label.toLowerCase().includes('date'))) {
+          if (value && value !== '-') {
+            const dateVal = new Date(String(value));
+            if (isNaN(dateVal.getTime())) {
+              validationIssues.push({
+                row: rowIndex + 1,
+                field: field.label,
+                issue: 'Invalid date format'
+              });
+            }
+          }
+        }
+      });
+    });
+    
+    // Sort data if specified
+    if (config.sortByField) {
+      const sortField = config.sortByField;
+      const sortDir = config.sortDirection === 'desc' ? -1 : 1;
+      processedData.sort((a, b) => {
+        const aVal = a[sortField];
+        const bVal = b[sortField];
+        if (aVal === null || aVal === undefined) return 1 * sortDir;
+        if (bVal === null || bVal === undefined) return -1 * sortDir;
+        if (typeof aVal === 'number' && typeof bVal === 'number') {
+          return (aVal - bVal) * sortDir;
+        }
+        return String(aVal).localeCompare(String(bVal)) * sortDir;
+      });
+    }
+    
+    return {
+      processedData,
+      validationIssues,
+      stats: {
+        totalRows: inputData.length,
+        cleanedRows: processedData.length,
+        issuesFound: validationIssues.length
+      }
+    };
   };
 
   // ==================== EXPORT FUNCTIONS ====================
 
   const exportToCSV = () => {
+    const { processedData, stats } = processDataForExport(data);
     const selectedFields = getSelectedFieldsOrdered();
     const isArabic = config.language === 'ar';
     
     const headers = selectedFields.map(f => isArabic && f.labelAr ? f.labelAr : f.label);
-    const rows = data.map(record => 
+    const rows = processedData.map(record => 
       selectedFields.map(field => formatValue(field, record))
     );
 
@@ -193,7 +399,17 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
       return field;
     };
 
-    const csvContent = [
+    // Add data quality report at the top if enabled
+    let csvContent = '';
+    if (config.dataValidation.showDataQualityReport) {
+      csvContent += `# Data Quality Report\n`;
+      csvContent += `# Original Records: ${stats.totalRows}\n`;
+      csvContent += `# Exported Records: ${stats.cleanedRows}\n`;
+      csvContent += `# Records Removed: ${stats.totalRows - stats.cleanedRows}\n`;
+      csvContent += `#\n`;
+    }
+
+    csvContent += [
       headers.map(escapeCSV).join(','),
       ...rows.map(row => row.map(escapeCSV).join(','))
     ].join('\n');
@@ -209,11 +425,12 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
   };
 
   const exportToExcel = () => {
+    const { processedData, validationIssues, stats } = processDataForExport(data);
     const selectedFields = getSelectedFieldsOrdered();
     const isArabic = config.language === 'ar';
     
     const headers = selectedFields.map(f => isArabic && f.labelAr ? f.labelAr : f.label);
-    const rows = data.map(record => 
+    const rows = processedData.map(record => 
       selectedFields.map(field => formatValue(field, record))
     );
 
@@ -221,28 +438,65 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     
     // Add summary sheet if enabled
     if (config.includeSummary) {
-      const summaryData = [
+      const summaryData: (string | number)[][] = [
         [isArabic ? 'التقرير' : 'Report', config.title],
         [isArabic ? 'التاريخ' : 'Generated', format(new Date(), 'MMM dd, yyyy HH:mm')],
-        [isArabic ? 'عدد السجلات' : 'Total Records', data.length],
+        [isArabic ? 'عدد السجلات الأصلية' : 'Original Records', stats.totalRows],
+        [isArabic ? 'عدد السجلات المصدرة' : 'Exported Records', stats.cleanedRows],
         [isArabic ? 'عدد الحقول' : 'Fields Exported', selectedFields.length],
       ];
       if (dateRange) {
         summaryData.push([isArabic ? 'من تاريخ' : 'From Date', dateRange.start]);
         summaryData.push([isArabic ? 'إلى تاريخ' : 'To Date', dateRange.end]);
       }
+      
+      // Add data processing info
+      summaryData.push(['', '']);
+      summaryData.push([isArabic ? 'معالجة البيانات' : 'Data Processing', '']);
+      if (config.dataValidation.removeDuplicates) {
+        summaryData.push([isArabic ? 'إزالة المكررات' : 'Duplicates Removed', 'Yes']);
+      }
+      if (config.dataValidation.removeEmptyRows) {
+        summaryData.push([isArabic ? 'إزالة الصفوف الفارغة' : 'Empty Rows Removed', 'Yes']);
+      }
+      if (config.dataValidation.trimWhitespace) {
+        summaryData.push([isArabic ? 'تنظيف المسافات' : 'Whitespace Trimmed', 'Yes']);
+      }
+      
       const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
       XLSX.utils.book_append_sheet(wb, wsSummary, isArabic ? 'ملخص' : 'Summary');
     }
     
     // Add main data sheet
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    
+    // Apply column widths for better readability
+    const colWidths = headers.map(h => ({ wch: Math.max(h.length + 2, 12) }));
+    ws['!cols'] = colWidths;
+    
     XLSX.utils.book_append_sheet(wb, ws, isArabic ? 'البيانات' : 'Data');
+    
+    // Add data quality report sheet if enabled
+    if (config.dataValidation.showDataQualityReport && validationIssues.length > 0) {
+      const qualityHeaders = [
+        isArabic ? 'الصف' : 'Row',
+        isArabic ? 'الحقل' : 'Field',
+        isArabic ? 'المشكلة' : 'Issue'
+      ];
+      const qualityRows = validationIssues.map(issue => [
+        issue.row,
+        issue.field,
+        issue.issue
+      ]);
+      const wsQuality = XLSX.utils.aoa_to_sheet([qualityHeaders, ...qualityRows]);
+      XLSX.utils.book_append_sheet(wb, wsQuality, isArabic ? 'جودة البيانات' : 'Data Quality');
+    }
     
     XLSX.writeFile(wb, `${config.title.replace(/\s+/g, '-')}-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
   };
 
   const exportToPDF = () => {
+    const { processedData, stats } = processDataForExport(data);
     const selectedFields = getSelectedFieldsOrdered();
     const isArabic = config.language === 'ar';
     
@@ -267,28 +521,38 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     doc.text(config.title, pageWidth / 2, 15, { align: 'center' });
 
     // Subtitle / Date Range
+    let currentY = 22;
     if (config.subtitle || config.includeTimestamp) {
       doc.setFontSize(sizes.subtitle);
-      let subtitleY = 22;
       
       if (config.subtitle) {
-        doc.text(config.subtitle, pageWidth / 2, subtitleY, { align: 'center' });
-        subtitleY += 6;
+        doc.text(config.subtitle, pageWidth / 2, currentY, { align: 'center' });
+        currentY += 6;
       }
       
       if (config.includeTimestamp) {
-        doc.text(`Generated: ${format(new Date(), 'MMM dd, yyyy HH:mm')}`, pageWidth / 2, subtitleY, { align: 'center' });
+        doc.text(`Generated: ${format(new Date(), 'MMM dd, yyyy HH:mm')}`, pageWidth / 2, currentY, { align: 'center' });
+        currentY += 5;
+      }
+      
+      // Add data processing summary if enabled
+      if (config.dataValidation.showDataQualityReport && stats.totalRows !== stats.cleanedRows) {
+        doc.setFontSize(sizes.subtitle - 1);
+        doc.setTextColor(100, 100, 100);
+        doc.text(`${stats.cleanedRows} of ${stats.totalRows} records (${stats.totalRows - stats.cleanedRows} filtered)`, pageWidth / 2, currentY, { align: 'center' });
+        doc.setTextColor(0, 0, 0);
+        currentY += 5;
       }
     }
 
     // Table
     const headers = selectedFields.map(f => isArabic && f.labelAr ? f.labelAr : f.label);
-    const rows = data.map(record => 
+    const rows = processedData.map(record => 
       selectedFields.map(field => formatValue(field, record))
     );
 
     autoTable(doc, {
-      startY: 35,
+      startY: currentY + 5,
       head: [headers],
       body: rows,
       styles: { fontSize: sizes.table, cellPadding: 2 },
@@ -301,11 +565,12 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
   };
 
   const exportToWord = async () => {
+    const { processedData } = processDataForExport(data);
     const selectedFields = getSelectedFieldsOrdered();
     const isArabic = config.language === 'ar';
     
     const headers = selectedFields.map(f => isArabic && f.labelAr ? f.labelAr : f.label);
-    const rows = data.map(record => 
+    const rows = processedData.map(record => 
       selectedFields.map(field => formatValue(field, record))
     );
 
@@ -399,7 +664,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
           
           {/* Tabs */}
           <div className="flex gap-2 mt-4">
-            {(['fields', 'format', 'preview'] as const).map(tab => (
+            {(['fields', 'format', 'validation', 'preview'] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -411,6 +676,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
               >
                 {tab === 'fields' && '📋 Select Fields'}
                 {tab === 'format' && '⚙️ Format Options'}
+                {tab === 'validation' && '✅ Data Validation'}
                 {tab === 'preview' && '👁️ Preview'}
               </button>
             ))}
@@ -662,6 +928,295 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
             </div>
           )}
 
+          {/* Data Validation Tab */}
+          {activeTab === 'validation' && (
+            <div className="space-y-6">
+              {/* Data Cleaning Section */}
+              <div className="border rounded-xl overflow-hidden">
+                <div className="bg-blue-50 p-4 border-b">
+                  <h3 className="font-semibold text-blue-900 flex items-center gap-2">
+                    🧹 Data Cleaning
+                  </h3>
+                  <p className="text-sm text-blue-700 mt-1">Clean and prepare your data before export</p>
+                </div>
+                <div className="p-4 space-y-4">
+                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition">
+                    <input
+                      type="checkbox"
+                      checked={config.dataValidation.removeDuplicates}
+                      onChange={e => setConfig(prev => ({
+                        ...prev,
+                        dataValidation: { ...prev.dataValidation, removeDuplicates: e.target.checked }
+                      }))}
+                      className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-0.5"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-900">Remove duplicate rows</span>
+                      <p className="text-xs text-gray-500 mt-1">Eliminates rows with identical values across all selected fields</p>
+                    </div>
+                  </label>
+                  
+                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition">
+                    <input
+                      type="checkbox"
+                      checked={config.dataValidation.removeEmptyRows}
+                      onChange={e => setConfig(prev => ({
+                        ...prev,
+                        dataValidation: { ...prev.dataValidation, removeEmptyRows: e.target.checked }
+                      }))}
+                      className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-0.5"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-900">Remove empty rows</span>
+                      <p className="text-xs text-gray-500 mt-1">Removes rows where all selected fields are empty or contain only "-"</p>
+                    </div>
+                  </label>
+                  
+                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition">
+                    <input
+                      type="checkbox"
+                      checked={config.dataValidation.trimWhitespace}
+                      onChange={e => setConfig(prev => ({
+                        ...prev,
+                        dataValidation: { ...prev.dataValidation, trimWhitespace: e.target.checked }
+                      }))}
+                      className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-0.5"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-900">Trim whitespace</span>
+                      <p className="text-xs text-gray-500 mt-1">Removes leading and trailing spaces from text values</p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Data Validation Section */}
+              <div className="border rounded-xl overflow-hidden">
+                <div className="bg-orange-50 p-4 border-b">
+                  <h3 className="font-semibold text-orange-900 flex items-center gap-2">
+                    ✅ Data Validation
+                  </h3>
+                  <p className="text-sm text-orange-700 mt-1">Validate data quality and identify issues</p>
+                </div>
+                <div className="p-4 space-y-4">
+                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition">
+                    <input
+                      type="checkbox"
+                      checked={config.dataValidation.validateRequired}
+                      onChange={e => setConfig(prev => ({
+                        ...prev,
+                        dataValidation: { ...prev.dataValidation, validateRequired: e.target.checked }
+                      }))}
+                      className="w-5 h-5 rounded border-gray-300 text-orange-600 focus:ring-orange-500 mt-0.5"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-900">Check for missing values</span>
+                      <p className="text-xs text-gray-500 mt-1">Identifies and reports cells with empty or missing data</p>
+                    </div>
+                  </label>
+                  
+                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition">
+                    <input
+                      type="checkbox"
+                      checked={config.dataValidation.validateNumericRanges}
+                      onChange={e => setConfig(prev => ({
+                        ...prev,
+                        dataValidation: { ...prev.dataValidation, validateNumericRanges: e.target.checked }
+                      }))}
+                      className="w-5 h-5 rounded border-gray-300 text-orange-600 focus:ring-orange-500 mt-0.5"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-900">Validate numeric ranges</span>
+                      <p className="text-xs text-gray-500 mt-1">Checks that percentage values are between 0-100%</p>
+                    </div>
+                  </label>
+                  
+                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition">
+                    <input
+                      type="checkbox"
+                      checked={config.dataValidation.validateDates}
+                      onChange={e => setConfig(prev => ({
+                        ...prev,
+                        dataValidation: { ...prev.dataValidation, validateDates: e.target.checked }
+                      }))}
+                      className="w-5 h-5 rounded border-gray-300 text-orange-600 focus:ring-orange-500 mt-0.5"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-900">Validate date formats</span>
+                      <p className="text-xs text-gray-500 mt-1">Ensures all date fields contain valid, parseable dates</p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Data Formatting Section */}
+              <div className="border rounded-xl overflow-hidden">
+                <div className="bg-green-50 p-4 border-b">
+                  <h3 className="font-semibold text-green-900 flex items-center gap-2">
+                    🎨 Data Formatting
+                  </h3>
+                  <p className="text-sm text-green-700 mt-1">Format values for better readability</p>
+                </div>
+                <div className="p-4 space-y-4">
+                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition">
+                    <input
+                      type="checkbox"
+                      checked={config.dataValidation.formatNumbers}
+                      onChange={e => setConfig(prev => ({
+                        ...prev,
+                        dataValidation: { ...prev.dataValidation, formatNumbers: e.target.checked }
+                      }))}
+                      className="w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500 mt-0.5"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-900">Format numbers</span>
+                      <p className="text-xs text-gray-500 mt-1">Adds thousand separators (e.g., 1,234 instead of 1234)</p>
+                    </div>
+                  </label>
+                  
+                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition">
+                    <input
+                      type="checkbox"
+                      checked={config.dataValidation.formatPercentages}
+                      onChange={e => setConfig(prev => ({
+                        ...prev,
+                        dataValidation: { ...prev.dataValidation, formatPercentages: e.target.checked }
+                      }))}
+                      className="w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500 mt-0.5"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-900">Format percentages</span>
+                      <p className="text-xs text-gray-500 mt-1">Ensures rate and percentage fields display with % symbol</p>
+                    </div>
+                  </label>
+                  
+                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition">
+                    <input
+                      type="checkbox"
+                      checked={config.dataValidation.formatDates}
+                      onChange={e => setConfig(prev => ({
+                        ...prev,
+                        dataValidation: { ...prev.dataValidation, formatDates: e.target.checked }
+                      }))}
+                      className="w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500 mt-0.5"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-900">Standardize date format</span>
+                      <p className="text-xs text-gray-500 mt-1">Ensures consistent date formatting across all date fields</p>
+                    </div>
+                  </label>
+                  
+                  {config.dataValidation.formatDates && (
+                    <div className="ml-8 p-3 bg-gray-50 rounded-lg">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Date Format Style</label>
+                      <div className="flex gap-2">
+                        {(['short', 'medium', 'long'] as const).map(fmt => (
+                          <button
+                            key={fmt}
+                            onClick={() => setConfig(prev => ({
+                              ...prev,
+                              dataValidation: { ...prev.dataValidation, dateFormat: fmt }
+                            }))}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                              config.dataValidation.dateFormat === fmt
+                                ? 'bg-green-500 text-white'
+                                : 'bg-white border border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            {fmt === 'short' && '01/15/26'}
+                            {fmt === 'medium' && 'Jan 15, 2026'}
+                            {fmt === 'long' && 'January 15, 2026'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Report Options Section */}
+              <div className="border rounded-xl overflow-hidden">
+                <div className="bg-purple-50 p-4 border-b">
+                  <h3 className="font-semibold text-purple-900 flex items-center gap-2">
+                    📊 Quality Report
+                  </h3>
+                  <p className="text-sm text-purple-700 mt-1">Include data quality information in export</p>
+                </div>
+                <div className="p-4 space-y-4">
+                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition">
+                    <input
+                      type="checkbox"
+                      checked={config.dataValidation.showDataQualityReport}
+                      onChange={e => setConfig(prev => ({
+                        ...prev,
+                        dataValidation: { ...prev.dataValidation, showDataQualityReport: e.target.checked }
+                      }))}
+                      className="w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 mt-0.5"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-900">Include data quality report</span>
+                      <p className="text-xs text-gray-500 mt-1">Adds a summary of data processing and any validation issues found</p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Sorting Options */}
+              <div className="border rounded-xl overflow-hidden">
+                <div className="bg-indigo-50 p-4 border-b">
+                  <h3 className="font-semibold text-indigo-900 flex items-center gap-2">
+                    📑 Sort Data
+                  </h3>
+                  <p className="text-sm text-indigo-700 mt-1">Sort exported data by a specific field</p>
+                </div>
+                <div className="p-4 space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Sort By Field</label>
+                      <select
+                        value={config.sortByField || ''}
+                        onChange={e => setConfig(prev => ({ ...prev, sortByField: e.target.value || undefined }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      >
+                        <option value="">No sorting</option>
+                        {allFields.filter(f => config.selectedFields.includes(f.key)).map(field => (
+                          <option key={field.key} value={field.key}>{field.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {config.sortByField && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Direction</label>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setConfig(prev => ({ ...prev, sortDirection: 'asc' }))}
+                            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${
+                              config.sortDirection === 'asc'
+                                ? 'bg-indigo-500 text-white'
+                                : 'bg-white border border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            ↑ Ascending
+                          </button>
+                          <button
+                            onClick={() => setConfig(prev => ({ ...prev, sortDirection: 'desc' }))}
+                            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${
+                              config.sortDirection === 'desc'
+                                ? 'bg-indigo-500 text-white'
+                                : 'bg-white border border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            ↓ Descending
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Preview Tab */}
           {activeTab === 'preview' && (
             <div className="space-y-4">
@@ -689,7 +1244,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
               
               <div className="bg-gray-50 rounded-xl p-4">
                 <h3 className="font-semibold text-gray-900 mb-3">Export Preview</h3>
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
                     <span className="text-gray-500">Format:</span>
                     <span className="ml-2 font-medium text-gray-900 uppercase">{config.format}</span>
@@ -707,6 +1262,60 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                     <span className="ml-2 font-medium text-gray-900">{data.length}</span>
                   </div>
                 </div>
+                
+                {/* Data Validation Summary */}
+                {(config.dataValidation.removeDuplicates || 
+                  config.dataValidation.removeEmptyRows || 
+                  config.dataValidation.validateRequired ||
+                  config.dataValidation.validateNumericRanges ||
+                  config.dataValidation.validateDates ||
+                  config.sortByField) && (
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <h4 className="font-medium text-gray-700 mb-2">Data Processing</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {config.dataValidation.removeDuplicates && (
+                        <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+                          🔄 Remove Duplicates
+                        </span>
+                      )}
+                      {config.dataValidation.removeEmptyRows && (
+                        <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+                          🗑️ Remove Empty Rows
+                        </span>
+                      )}
+                      {config.dataValidation.trimWhitespace && (
+                        <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">
+                          ✂️ Trim Whitespace
+                        </span>
+                      )}
+                      {config.dataValidation.validateRequired && (
+                        <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs font-medium">
+                          ✅ Check Missing Values
+                        </span>
+                      )}
+                      {config.dataValidation.validateNumericRanges && (
+                        <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs font-medium">
+                          📊 Validate Ranges
+                        </span>
+                      )}
+                      {config.dataValidation.validateDates && (
+                        <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs font-medium">
+                          📅 Validate Dates
+                        </span>
+                      )}
+                      {config.sortByField && (
+                        <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
+                          📑 Sort by {allFields.find(f => f.key === config.sortByField)?.label || config.sortByField} ({config.sortDirection})
+                        </span>
+                      )}
+                      {config.dataValidation.showDataQualityReport && (
+                        <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-medium">
+                          📋 Include Quality Report
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="border rounded-xl overflow-hidden">
