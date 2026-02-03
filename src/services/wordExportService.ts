@@ -814,6 +814,80 @@ export class WordExportService {
   }
 
   /**
+   * Create a color legend for conditional formatting
+   */
+  private createColorLegend(isArabic: boolean, theme: DocumentTheme): Table {
+    const legendItems = isArabic ? [
+      { label: '90%+ ممتاز', color: theme.success },
+      { label: '75-89% جيد', color: theme.secondary },
+      { label: '60-74% متوسط', color: theme.warning },
+      { label: '<60% يحتاج تحسين', color: theme.danger },
+    ] : [
+      { label: '90%+ Excellent', color: theme.success },
+      { label: '75-89% Good', color: theme.secondary },
+      { label: '60-74% Moderate', color: theme.warning },
+      { label: '<60% Needs Attention', color: theme.danger },
+    ];
+
+    return new Table({
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              children: [
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: isArabic ? '🎨 دليل الألوان:' : '🎨 Color Legend:',
+                      bold: true,
+                      size: 20,
+                    }),
+                  ],
+                  alignment: isArabic ? AlignmentType.RIGHT : AlignmentType.LEFT,
+                  bidirectional: isArabic,
+                }),
+              ],
+              borders: {
+                top: { style: BorderStyle.NONE, size: 0 },
+                bottom: { style: BorderStyle.NONE, size: 0 },
+                left: { style: BorderStyle.NONE, size: 0 },
+                right: { style: BorderStyle.NONE, size: 0 },
+              },
+            }),
+            ...legendItems.map(item => new TableCell({
+              children: [
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: item.label,
+                      size: 18,
+                      color: 'FFFFFF',
+                      bold: true,
+                    }),
+                  ],
+                  alignment: AlignmentType.CENTER,
+                }),
+              ],
+              shading: {
+                type: ShadingType.CLEAR,
+                fill: item.color,
+                color: item.color,
+              },
+              borders: {
+                top: { style: BorderStyle.SINGLE, size: 1, color: item.color },
+                bottom: { style: BorderStyle.SINGLE, size: 1, color: item.color },
+                left: { style: BorderStyle.SINGLE, size: 1, color: item.color },
+                right: { style: BorderStyle.SINGLE, size: 1, color: item.color },
+              },
+            })),
+          ],
+        }),
+      ],
+      width: { size: 100, type: WidthType.PERCENTAGE },
+    });
+  }
+
+  /**
    * Create a table with proper styling, RTL support, and conditional formatting
    */
   private createTable(
@@ -1541,22 +1615,43 @@ export class WordExportService {
     title: string,
     subtitle: string = '',
     isArabic: boolean = false,
-    filename?: string
+    filename?: string,
+    colorColumns?: number[],  // Column indices to apply conditional coloring
+    colorTheme?: 'default' | 'traffic' | 'heatmap' | 'status'  // Color theme for conditional formatting
   ): Promise<void> {
     const dateText = isArabic
       ? `تاريخ التقرير: ${format(new Date(), 'yyyy-MM-dd HH:mm')}`
       : `Generated: ${format(new Date(), 'yyyy-MM-dd HH:mm')}`;
 
-    const children: Paragraph[] = [
+    // Select theme based on colorTheme parameter
+    let theme = this.defaultTheme;
+    if (colorTheme === 'traffic') {
+      theme = { ...this.defaultTheme, success: '22c55e', warning: 'eab308', danger: 'ef4444' }; // Traffic light colors
+    } else if (colorTheme === 'heatmap') {
+      theme = { ...this.defaultTheme, success: '0ea5e9', secondary: '8b5cf6', warning: 'f97316', danger: 'dc2626' }; // Heatmap colors
+    } else if (colorTheme === 'status') {
+      theme = { ...this.defaultTheme, success: '16a34a', secondary: '2563eb', warning: 'd97706', danger: 'b91c1c' }; // Status colors
+    }
+
+    const sections: (Paragraph | Table)[] = [
       this.createHeading(title, HeadingLevel.HEADING_1, isArabic),
     ];
 
     if (subtitle) {
-      children.push(this.createParagraph(subtitle, isArabic));
+      sections.push(this.createParagraph(subtitle, isArabic));
     }
     
-    children.push(this.createParagraph(dateText, isArabic));
-    children.push(new Paragraph({ text: '', spacing: { after: 200 } }));
+    sections.push(this.createParagraph(dateText, isArabic));
+    sections.push(new Paragraph({ text: '', spacing: { after: 200 } }));
+
+    // Add legend if conditional coloring is enabled
+    if (colorColumns && colorColumns.length > 0) {
+      sections.push(this.createColorLegend(isArabic, theme));
+      sections.push(new Paragraph({ text: '', spacing: { after: 150 } }));
+    }
+
+    // Add the main data table
+    sections.push(this.createTable(headers, rows, isArabic, theme, colorColumns));
 
     const doc = new Document({
       sections: [
@@ -1571,10 +1666,7 @@ export class WordExportService {
               },
             },
           },
-          children: [
-            ...children,
-            this.createTable(headers, rows, isArabic),
-          ],
+          children: sections,
         },
       ],
     });

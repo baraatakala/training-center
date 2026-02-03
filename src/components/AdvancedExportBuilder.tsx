@@ -48,6 +48,11 @@ export interface DataValidationOptions {
   // Data quality indicators
   showDataQualityReport: boolean;    // Include data quality summary
   highlightIssues: boolean;          // Highlight cells with issues (Excel only)
+  
+  // Conditional coloring (Word/Excel/PDF)
+  enableConditionalColoring: boolean;  // Enable color-coding for percentage/score fields
+  coloringFields: string[];             // Specific fields to apply coloring to (empty = auto-detect)
+  coloringTheme: 'default' | 'traffic' | 'heatmap' | 'status'; // Color theme for conditional formatting
 }
 
 export interface ExportConfig {
@@ -128,6 +133,9 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     protectSheet: false,
     showDataQualityReport: false,
     highlightIssues: false,
+    enableConditionalColoring: true,
+    coloringFields: [],
+    coloringTheme: 'default',
   };
 
   const [config, setConfig] = useState<ExportConfig>({
@@ -172,6 +180,9 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
           protectSheet: false,
           showDataQualityReport: false,
           highlightIssues: false,
+          enableConditionalColoring: true,
+          coloringFields: [],
+          coloringTheme: 'default',
         },
       }));
       setActiveTab('fields');
@@ -463,6 +474,19 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
         summaryData.push([isArabic ? 'تنظيف المسافات' : 'Whitespace Trimmed', 'Yes']);
       }
       
+      // Add conditional coloring note
+      if (config.dataValidation.enableConditionalColoring) {
+        summaryData.push(['', '']);
+        summaryData.push([isArabic ? 'تلوين الخلايا' : 'Conditional Coloring', isArabic ? 'مفعّل' : 'Enabled']);
+        summaryData.push([isArabic ? 'ملاحظة' : 'Note', isArabic ? 'التلوين متاح في تصدير Word و PDF' : 'Cell coloring is available in Word and PDF exports']);
+        summaryData.push(['', '']);
+        summaryData.push([isArabic ? 'دليل الألوان' : 'Color Legend:', '']);
+        summaryData.push([isArabic ? 'أخضر (ممتاز)' : 'Green (Excellent)', '90%+']);
+        summaryData.push([isArabic ? 'أزرق (جيد)' : 'Blue (Good)', '75-89%']);
+        summaryData.push([isArabic ? 'برتقالي (متوسط)' : 'Orange (Moderate)', '60-74%']);
+        summaryData.push([isArabic ? 'أحمر (يحتاج تحسين)' : 'Red (Needs Attention)', '<60%']);
+      }
+      
       const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
       XLSX.utils.book_append_sheet(wb, wsSummary, isArabic ? 'ملخص' : 'Summary');
     }
@@ -545,6 +569,37 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
       }
     }
 
+    // Determine color columns for PDF conditional coloring
+    let colorColumns: number[] = [];
+    if (config.dataValidation.enableConditionalColoring) {
+      if (config.dataValidation.coloringFields.length > 0) {
+        colorColumns = config.dataValidation.coloringFields
+          .map(fieldKey => selectedFields.findIndex(f => f.key === fieldKey))
+          .filter(idx => idx !== -1);
+      } else {
+        const percentagePatterns = [
+          /rate/i, /percentage/i, /percent/i, /%/, /score/i, /weighted/i,
+          /attendance/i, /punctuality/i, /consistency/i, /avg/i, /average/i,
+        ];
+        colorColumns = selectedFields
+          .map((field, idx) => {
+            const matchesPattern = percentagePatterns.some(pattern => 
+              pattern.test(field.key) || pattern.test(field.label)
+            );
+            return matchesPattern ? idx : -1;
+          })
+          .filter(idx => idx !== -1);
+      }
+    }
+
+    // Color function for PDF
+    const getColorForValue = (value: number): [number, number, number] => {
+      if (value >= 90) return [16, 185, 129]; // Green (success)
+      if (value >= 75) return [59, 130, 246]; // Blue (good)
+      if (value >= 60) return [245, 158, 11]; // Yellow (moderate)
+      return [239, 68, 68]; // Red (needs attention)
+    };
+
     // Table
     const headers = selectedFields.map(f => isArabic && f.labelAr ? f.labelAr : f.label);
     const rows = processedData.map(record => 
@@ -559,7 +614,49 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
       headStyles: { fillColor: [59, 130, 246], fontSize: sizes.table },
       alternateRowStyles: { fillColor: [245, 245, 245] },
       margin: { top: 35 },
+      // Apply conditional coloring to cells
+      didParseCell: (hookData) => {
+        if (hookData.section === 'body' && colorColumns.includes(hookData.column.index)) {
+          const cellText = hookData.cell.text.join('');
+          const numMatch = cellText.match(/(\d+\.?\d*)/);
+          if (numMatch) {
+            const value = parseFloat(numMatch[1]);
+            if (!isNaN(value) && value >= 0 && value <= 100) {
+              hookData.cell.styles.fillColor = getColorForValue(value);
+              hookData.cell.styles.textColor = [255, 255, 255];
+              hookData.cell.styles.fontStyle = 'bold';
+            }
+          }
+        }
+      },
     });
+
+    // Add color legend if conditional coloring is enabled
+    if (colorColumns.length > 0) {
+      const finalY = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY || currentY + 50;
+      doc.setFontSize(sizes.subtitle - 1);
+      doc.setTextColor(100, 100, 100);
+      doc.text('Color Legend:', 14, finalY + 8);
+      
+      // Draw legend boxes
+      const legendItems = [
+        { label: '90%+ Excellent', color: [16, 185, 129] as [number, number, number] },
+        { label: '75-89% Good', color: [59, 130, 246] as [number, number, number] },
+        { label: '60-74% Moderate', color: [245, 158, 11] as [number, number, number] },
+        { label: '<60% Needs Attention', color: [239, 68, 68] as [number, number, number] },
+      ];
+      
+      let legendX = 40;
+      legendItems.forEach(item => {
+        doc.setFillColor(item.color[0], item.color[1], item.color[2]);
+        doc.rect(legendX, finalY + 5, 8, 4, 'F');
+        doc.setTextColor(60, 60, 60);
+        doc.text(item.label, legendX + 10, finalY + 8);
+        legendX += 45;
+      });
+      
+      doc.setTextColor(0, 0, 0);
+    }
 
     doc.save(`${config.title.replace(/\s+/g, '-')}-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   };
@@ -574,13 +671,43 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
       selectedFields.map(field => formatValue(field, record))
     );
 
+    // Determine which columns should have conditional coloring
+    let colorColumns: number[] = [];
+    if (config.dataValidation.enableConditionalColoring) {
+      if (config.dataValidation.coloringFields.length > 0) {
+        // Use explicitly specified fields
+        colorColumns = config.dataValidation.coloringFields
+          .map(fieldKey => selectedFields.findIndex(f => f.key === fieldKey))
+          .filter(idx => idx !== -1);
+      } else {
+        // Auto-detect percentage/score fields based on field keys and labels
+        const percentagePatterns = [
+          /rate/i, /percentage/i, /percent/i, /%/, /score/i, /weighted/i,
+          /attendance/i, /punctuality/i, /consistency/i, /avg/i, /average/i,
+          /معدل/, /نسبة/, /متوسط/ // Arabic patterns
+        ];
+        
+        colorColumns = selectedFields
+          .map((field, idx) => {
+            const matchesPattern = percentagePatterns.some(pattern => 
+              pattern.test(field.key) || pattern.test(field.label) || (field.labelAr && pattern.test(field.labelAr))
+            );
+            return matchesPattern ? idx : -1;
+          })
+          .filter(idx => idx !== -1);
+      }
+    }
+
     // Use the word export service for consistent Word document creation
     await wordExportService.exportTableToWord(
       headers,
       rows,
       config.title,
       config.subtitle || '',
-      isArabic
+      isArabic,
+      undefined, // filename
+      colorColumns.length > 0 ? colorColumns : undefined,
+      config.dataValidation.coloringTheme
     );
   };
 
@@ -1161,6 +1288,137 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                 </div>
               </div>
 
+              {/* Conditional Coloring Section */}
+              <div className="border rounded-xl overflow-hidden">
+                <div className="bg-rose-50 p-4 border-b">
+                  <h3 className="font-semibold text-rose-900 flex items-center gap-2">
+                    🌈 Conditional Coloring
+                  </h3>
+                  <p className="text-sm text-rose-700 mt-1">Apply color-coding to percentage and score fields (Word, Excel, PDF)</p>
+                </div>
+                <div className="p-4 space-y-4">
+                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition">
+                    <input
+                      type="checkbox"
+                      checked={config.dataValidation.enableConditionalColoring}
+                      onChange={e => setConfig(prev => ({
+                        ...prev,
+                        dataValidation: { ...prev.dataValidation, enableConditionalColoring: e.target.checked }
+                      }))}
+                      className="w-5 h-5 rounded border-gray-300 text-rose-600 focus:ring-rose-500 mt-0.5"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-900">Enable conditional coloring</span>
+                      <p className="text-xs text-gray-500 mt-1">Color-code cells based on values (green for high, red for low)</p>
+                    </div>
+                  </label>
+                  
+                  {config.dataValidation.enableConditionalColoring && (
+                    <>
+                      {/* Color Theme Selection */}
+                      <div className="ml-8 p-3 bg-gray-50 rounded-lg space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Color Theme</label>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            {([
+                              { id: 'default', label: 'Professional', colors: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444'] },
+                              { id: 'traffic', label: 'Traffic Light', colors: ['#22c55e', '#eab308', '#f97316', '#ef4444'] },
+                              { id: 'heatmap', label: 'Heatmap', colors: ['#0ea5e9', '#8b5cf6', '#f97316', '#dc2626'] },
+                              { id: 'status', label: 'Status', colors: ['#16a34a', '#2563eb', '#d97706', '#b91c1c'] },
+                            ] as const).map(theme => (
+                              <button
+                                key={theme.id}
+                                onClick={() => setConfig(prev => ({
+                                  ...prev,
+                                  dataValidation: { ...prev.dataValidation, coloringTheme: theme.id }
+                                }))}
+                                className={`p-3 rounded-lg text-sm font-medium transition text-center border-2 ${
+                                  config.dataValidation.coloringTheme === theme.id
+                                    ? 'border-rose-500 bg-rose-50'
+                                    : 'border-gray-200 bg-white hover:border-gray-300'
+                                }`}
+                              >
+                                <div className="text-xs mb-2">{theme.label}</div>
+                                <div className="flex justify-center gap-1">
+                                  {theme.colors.map((color, i) => (
+                                    <div
+                                      key={i}
+                                      className="w-4 h-4 rounded-sm"
+                                      style={{ backgroundColor: color }}
+                                    />
+                                  ))}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        {/* Field Selection for Coloring */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Fields to Color
+                            <span className="text-xs text-gray-500 ml-2">(leave empty for auto-detect)</span>
+                          </label>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-40 overflow-y-auto">
+                            {allFields.filter(f => config.selectedFields.includes(f.key)).map(field => {
+                              const isAutoDetected = /rate|percentage|percent|%|score|weighted|attendance|punctuality|consistency|avg|average|معدل|نسبة|متوسط/i.test(field.key + field.label);
+                              const isSelected = config.dataValidation.coloringFields.includes(field.key);
+                              return (
+                                <label
+                                  key={field.key}
+                                  className={`flex items-center gap-2 p-2 rounded-lg text-xs cursor-pointer transition ${
+                                    isSelected 
+                                      ? 'bg-rose-100 text-rose-800' 
+                                      : isAutoDetected && config.dataValidation.coloringFields.length === 0
+                                        ? 'bg-green-50 text-green-700 border border-green-200'
+                                        : 'bg-white hover:bg-gray-50 border border-gray-200'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={e => {
+                                      const newFields = e.target.checked
+                                        ? [...config.dataValidation.coloringFields, field.key]
+                                        : config.dataValidation.coloringFields.filter(f => f !== field.key);
+                                      setConfig(prev => ({
+                                        ...prev,
+                                        dataValidation: { ...prev.dataValidation, coloringFields: newFields }
+                                      }));
+                                    }}
+                                    className="w-3 h-3 rounded border-gray-300 text-rose-600 focus:ring-rose-500"
+                                  />
+                                  <span className="truncate">{field.label}</span>
+                                  {isAutoDetected && config.dataValidation.coloringFields.length === 0 && (
+                                    <span className="text-green-600 text-[10px]">auto</span>
+                                  )}
+                                </label>
+                              );
+                            })}
+                          </div>
+                          {config.dataValidation.coloringFields.length === 0 && (
+                            <p className="text-xs text-gray-500 mt-2 italic">
+                              ✨ Auto-detecting: Rate, Score, Percentage, Average, and similar fields
+                            </p>
+                          )}
+                        </div>
+                        
+                        {/* Color Legend Preview */}
+                        <div className="mt-3 p-3 bg-white rounded-lg border border-gray-200">
+                          <div className="text-xs font-medium text-gray-600 mb-2">Color Legend Preview:</div>
+                          <div className="flex flex-wrap gap-2">
+                            <span className="px-2 py-1 rounded text-xs text-white font-medium" style={{ backgroundColor: '#10b981' }}>90%+ Excellent</span>
+                            <span className="px-2 py-1 rounded text-xs text-white font-medium" style={{ backgroundColor: '#3b82f6' }}>75-89% Good</span>
+                            <span className="px-2 py-1 rounded text-xs text-white font-medium" style={{ backgroundColor: '#f59e0b' }}>60-74% Moderate</span>
+                            <span className="px-2 py-1 rounded text-xs text-white font-medium" style={{ backgroundColor: '#ef4444' }}>&lt;60% Needs Attention</span>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
               {/* Sorting Options */}
               <div className="border rounded-xl overflow-hidden">
                 <div className="bg-indigo-50 p-4 border-b">
@@ -1269,6 +1527,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                   config.dataValidation.validateRequired ||
                   config.dataValidation.validateNumericRanges ||
                   config.dataValidation.validateDates ||
+                  config.dataValidation.enableConditionalColoring ||
                   config.sortByField) && (
                   <div className="mt-4 pt-4 border-t border-gray-200">
                     <h4 className="font-medium text-gray-700 mb-2">Data Processing</h4>
@@ -1301,6 +1560,11 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                       {config.dataValidation.validateDates && (
                         <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs font-medium">
                           📅 Validate Dates
+                        </span>
+                      )}
+                      {config.dataValidation.enableConditionalColoring && (
+                        <span className="px-2 py-1 bg-rose-100 text-rose-700 rounded text-xs font-medium">
+                          🌈 Conditional Coloring ({config.dataValidation.coloringTheme})
                         </span>
                       )}
                       {config.sortByField && (
