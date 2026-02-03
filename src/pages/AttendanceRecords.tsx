@@ -96,23 +96,47 @@ interface FilterOptions {
 
 // ==================== TIERED LATE SCORING ====================
 // Default late brackets (matching database defaults)
-const DEFAULT_LATE_BRACKETS = [
-  { min: 1, max: 5, name: 'Minor', weight: 0.95 },       // 1-5 min: 95% credit
-  { min: 6, max: 15, name: 'Moderate', weight: 0.80 },   // 6-15 min: 80% credit
-  { min: 16, max: 30, name: 'Significant', weight: 0.60 }, // 16-30 min: 60% credit
-  { min: 31, max: 60, name: 'Severe', weight: 0.40 },    // 31-60 min: 40% credit
-  { min: 61, max: Infinity, name: 'Very Late', weight: 0.20 }, // 60+ min: 20% credit
+// ============================================================================
+// WEIGHTED SCORE SYSTEM - STABLE IMPLEMENTATION
+// ============================================================================
+// This uses smooth exponential decay for late scoring (no cliff edges)
+// and balanced component weights for fair evaluation.
+//
+// LATE SCORING: Exponential decay with half-life of ~30 minutes
+//   - 5 min late  = 90% credit
+//   - 15 min late = 72% credit  
+//   - 30 min late = 50% credit
+//   - 60 min late = 25% credit
+//   - 90 min late = 12% credit
+//
+// WEIGHTED SCORE COMPONENTS:
+//   50% Quality-Adjusted Rate (attendance with late penalties applied)
+//   25% Simple Attendance Rate (showed up regardless of lateness)
+//   15% Consistency Index (regular attendance patterns)
+//   10% Punctuality Bonus (on-time vs late ratio)
+// ============================================================================
+
+// Display brackets (for UI only - scoring uses smooth decay)
+const LATE_DISPLAY_BRACKETS = [
+  { min: 1, max: 5, name: 'Minor', color: 'bg-green-100 text-green-800' },
+  { min: 6, max: 15, name: 'Moderate', color: 'bg-yellow-100 text-yellow-800' },
+  { min: 16, max: 30, name: 'Significant', color: 'bg-orange-100 text-orange-800' },
+  { min: 31, max: 60, name: 'Severe', color: 'bg-red-100 text-red-800' },
+  { min: 61, max: Infinity, name: 'Very Late', color: 'bg-red-200 text-red-900' },
 ];
 
 /**
- * Get the score weight for a late attendance based on minutes late
- * @param lateMinutes - Number of minutes late (null = use default 0.5 for unknown)
- * @returns Score weight between 0 and 1
+ * Calculate late score using smooth exponential decay
+ * Formula: e^(-lateMinutes / 43.3) gives 50% credit at 30 minutes
+ * This avoids "cliff edges" between brackets and provides fair, continuous penalties
+ * 
+ * @param lateMinutes - Number of minutes late
+ * @returns Score between 0 and 1
  */
 const getLateScoreWeight = (lateMinutes: number | null | undefined): number => {
-  // If late_minutes not tracked (teacher-marked), use middle ground
+  // If late_minutes not tracked, use conservative middle estimate (~20 min late equivalent)
   if (lateMinutes === null || lateMinutes === undefined) {
-    return 0.50; // Default for unknown lateness
+    return 0.60; // ~20 min late equivalent
   }
   
   // If not actually late (edge case)
@@ -120,29 +144,28 @@ const getLateScoreWeight = (lateMinutes: number | null | undefined): number => {
     return 1.0;
   }
   
-  // Find matching bracket
-  const bracket = DEFAULT_LATE_BRACKETS.find(
-    b => lateMinutes >= b.min && lateMinutes <= b.max
-  );
-  
-  return bracket ? bracket.weight : 0.20; // Fallback to very late
+  // Exponential decay: score = e^(-t/τ) where τ = 43.3 gives 50% at 30 min
+  // Minimum score is 0.05 (5%) to give some credit for showing up
+  const decayConstant = 43.3;
+  const score = Math.exp(-lateMinutes / decayConstant);
+  return Math.max(0.05, score);
 };
 
 /**
- * Get bracket info for display
+ * Get bracket info for display (visual categorization only)
  */
 const getLateBracketInfo = (lateMinutes: number | null | undefined): { name: string; color: string } => {
   if (lateMinutes === null || lateMinutes === undefined) {
-    return { name: 'Unknown', color: '#6b7280' }; // Gray
+    return { name: 'Unknown', color: 'bg-gray-100 text-gray-600' };
   }
   if (lateMinutes <= 0) {
-    return { name: 'On Time', color: '#22c55e' }; // Green
+    return { name: 'On Time', color: 'bg-green-100 text-green-800' };
   }
-  if (lateMinutes <= 5) return { name: 'Minor', color: '#22c55e' };
-  if (lateMinutes <= 15) return { name: 'Moderate', color: '#eab308' };
-  if (lateMinutes <= 30) return { name: 'Significant', color: '#f97316' };
-  if (lateMinutes <= 60) return { name: 'Severe', color: '#ef4444' };
-  return { name: 'Very Late', color: '#991b1b' };
+  
+  const bracket = LATE_DISPLAY_BRACKETS.find(b => lateMinutes >= b.min && lateMinutes <= b.max);
+  return bracket 
+    ? { name: bracket.name, color: bracket.color }
+    : { name: 'Very Late', color: 'bg-red-200 text-red-900' };
 };
 
 const AttendanceRecords = () => {
@@ -1374,42 +1397,42 @@ const AttendanceRecords = () => {
       // (i.e. accountable days minus days the student was present/on-time or late)
       const unexcusedAbsent = effectiveBase > 0 ? Math.max(0, effectiveBase - totalPresent) : 0;
 
-      // ==================== TIERED LATE SCORING ====================
+      // ==================== QUALITY-ADJUSTED SCORING ====================
       // Calculate quality-adjusted attendance where late arrivals get partial credit
-      // On Time = 100% credit, Late = tiered credit based on how late (1-5 min = 95%, 6-15 = 80%, etc.)
+      // On Time = 100% credit, Late = exponential decay based on minutes late
       
-      // Calculate late score contributions (each late record gets weighted credit)
+      // Calculate late score contributions (each late record gets weighted credit via exponential decay)
       const lateScoreSum = lateRecords.reduce((sum, record) => {
         return sum + getLateScoreWeight(record.late_minutes);
       }, 0);
       
       // Quality-adjusted attendance: On Time (full credit) + Late (partial credit based on lateness)
-      // Max possible score = effectiveBase (if all on time)
-      const qualityScore = presentCount + lateScoreSum; // On time = 1.0 each, late = weighted
+      const qualityScore = presentCount + lateScoreSum;
       const qualityAdjustedRate = effectiveBase > 0 ? (qualityScore / effectiveBase) * 100 : 0;
 
-      // Calculate weighted score with FAIR late scoring
-      // 70% Quality-Adjusted Rate (main component - rewards punctuality AND penalizes severe lateness fairly)
-      // 15% Simple Attendance Rate (shows up regardless of lateness)
-      // 10% Effective Days Coverage
-      // 5% Punctuality Ratio (on-time vs late ratio for tiebreaker)
-      const effectiveDaysPercentage = studentDaysCovered > 0 ? (effectiveBase / studentDaysCovered) * 100 : 0;
+      // ==================== WEIGHTED SCORE CALCULATION ====================
+      // Balanced component weights for fair, stable evaluation:
+      //   50% Quality-Adjusted Rate - Main factor, includes late penalties
+      //   25% Simple Attendance Rate - Credit for showing up
+      //   15% Consistency Index - Rewards regular attendance patterns
+      //   10% Punctuality Bonus - On-time vs late ratio
       const punctualityPercentage = totalPresent > 0 ? (presentCount / totalPresent) * 100 : 0;
       
-      const weightedScore = 
-        (0.70 * qualityAdjustedRate) + 
-        (0.15 * attendanceRate) + 
-        (0.10 * effectiveDaysPercentage) + 
-        (0.05 * punctualityPercentage);
-
-      // Calculate consistency index (based on all present days: on time + late)
+      // Calculate consistency before using it in weighted score
       const dailyPattern = studentUniqueDates.map(date => {
         const record = studentRecords.find(r => r.attendance_date === date);
         if (!record || record.status === 'excused') return -1; // Exclude excused
         return (record.status === 'on time' || record.status === 'late') ? 1 : 0;
       }).filter(v => v !== -1);
-
+      
       const consistencyIndex = calculateConsistencyIndex(dailyPattern);
+      const consistencyPercentage = consistencyIndex * 100; // Convert 0-1 to 0-100
+      
+      const weightedScore = 
+        (0.50 * qualityAdjustedRate) +    // 50% Quality (with late penalties)
+        (0.25 * attendanceRate) +          // 25% Attendance (showed up)
+        (0.15 * consistencyPercentage) +   // 15% Consistency (regular patterns)
+        (0.10 * punctualityPercentage);    // 10% Punctuality (on-time ratio)
 
       // Calculate trend using student-specific dates (not all session dates)
       const cumulativeRates = calculateCumulativeRates(studentId, studentUniqueDates, analyticsRecords);

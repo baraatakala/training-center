@@ -26,7 +26,7 @@ SELECT
   a.attendance_date,
   a.marked_at
 FROM attendance a
-JOIN students s ON a.student_id = s.student_id
+JOIN student s ON a.student_id = s.student_id
 WHERE a.status = 'late'
 ORDER BY a.attendance_date DESC
 LIMIT 10;

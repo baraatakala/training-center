@@ -26,19 +26,19 @@ export interface AttendanceExportData {
   gps_accuracy: number | null;
 }
 
-// Late brackets for tiered scoring display
-const LATE_BRACKETS = [
-  { maxMinutes: 5, name: 'Minimal', scoreWeight: 0.95 },
-  { maxMinutes: 15, name: 'Slight', scoreWeight: 0.80 },
-  { maxMinutes: 30, name: 'Moderate', scoreWeight: 0.60 },
-  { maxMinutes: 60, name: 'Significant', scoreWeight: 0.40 },
-  { maxMinutes: Infinity, name: 'Severe', scoreWeight: 0.20 }
+// Late display brackets (for categorization only - scoring uses smooth decay)
+const LATE_DISPLAY_BRACKETS = [
+  { maxMinutes: 5, name: 'Minor' },
+  { maxMinutes: 15, name: 'Moderate' },
+  { maxMinutes: 30, name: 'Significant' },
+  { maxMinutes: 60, name: 'Severe' },
+  { maxMinutes: Infinity, name: 'Very Late' }
 ];
 
 const getLateBracketName = (lateMinutes: number | null | undefined): string => {
   if (!lateMinutes || lateMinutes <= 0) return '-';
-  const bracket = LATE_BRACKETS.find(b => lateMinutes <= b.maxMinutes);
-  return bracket?.name || 'Severe';
+  const bracket = LATE_DISPLAY_BRACKETS.find(b => lateMinutes <= b.maxMinutes);
+  return bracket?.name || 'Very Late';
 };
 
 export class ExcelExportService {
