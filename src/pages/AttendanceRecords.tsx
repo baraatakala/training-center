@@ -5,6 +5,8 @@ import { format, subDays } from 'date-fns';
 import { Select } from '../components/ui/Select';
 import { BulkImport } from '../components/BulkImport';
 import { Pagination } from '../components/ui/Pagination';
+import { AdvancedExportBuilder } from '../components/AdvancedExportBuilder';
+import type { ExportCategory } from '../components/AdvancedExportBuilder';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -92,6 +94,21 @@ const AttendanceRecords = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toasts, success, error: showError, warning, removeToast } = useToast();
+
+  // Advanced Export Builder state
+  const [showAdvancedExport, setShowAdvancedExport] = useState(false);
+  const [exportDataType, setExportDataType] = useState<'records' | 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics'>('records');
+  const [savedFieldSelections, setSavedFieldSelections] = useState<{
+    records: string[];
+    studentAnalytics: string[];
+    dateAnalytics: string[];
+    hostAnalytics: string[];
+  }>({
+    records: [],
+    studentAnalytics: [],
+    dateAnalytics: [],
+    hostAnalytics: [],
+  });
 
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<AttendanceRecord[]>([]);
@@ -1499,10 +1516,219 @@ const AttendanceRecords = () => {
     };
   };
 
+  // ==================== ADVANCED EXPORT BUILDER FUNCTIONS ====================
+  
+  // Get export categories based on current data type
+  const getExportCategories = (): ExportCategory[] => {
+    if (exportDataType === 'studentAnalytics') {
+      return [
+        {
+          id: 'basic',
+          label: 'Basic Info',
+          labelAr: 'المعلومات الأساسية',
+          icon: '👤',
+          fields: [
+            { key: 'rank', label: 'Rank', labelAr: 'الرتبة', category: 'basic', defaultSelected: true },
+            { key: 'student_name', label: 'Student Name', labelAr: 'اسم الطالب', category: 'basic', defaultSelected: true },
+          ]
+        },
+        {
+          id: 'attendance',
+          label: 'Attendance Stats',
+          labelAr: 'إحصائيات الحضور',
+          icon: '📊',
+          fields: [
+            { key: 'presentCount', label: 'On Time', labelAr: 'في الوقت', category: 'attendance', defaultSelected: true },
+            { key: 'lateCount', label: 'Late', labelAr: 'متأخر', category: 'attendance', defaultSelected: true },
+            { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحضور', category: 'attendance', defaultSelected: true },
+            { key: 'unexcusedAbsent', label: 'Unexcused Absent', labelAr: 'غياب بدون عذر', category: 'attendance', defaultSelected: true },
+            { key: 'excusedCount', label: 'Excused', labelAr: 'معذور', category: 'attendance', defaultSelected: true },
+          ]
+        },
+        {
+          id: 'metrics',
+          label: 'Performance Metrics',
+          labelAr: 'مقاييس الأداء',
+          icon: '📈',
+          fields: [
+            { key: 'effectiveDays', label: 'Effective Days', labelAr: 'الأيام الفعلية', category: 'metrics', defaultSelected: true },
+            { key: 'daysCovered', label: 'Days Covered', labelAr: 'الأيام المغطاة', category: 'metrics', defaultSelected: true },
+            { key: 'attendanceRate', label: 'Attendance Rate %', labelAr: 'نسبة الحضور', category: 'metrics', defaultSelected: true },
+            { key: 'punctualityRate', label: 'Punctuality Rate %', labelAr: 'نسبة الالتزام', category: 'metrics', defaultSelected: true },
+            { key: 'weightedScore', label: 'Weighted Score', labelAr: 'الدرجة الموزونة', category: 'metrics', defaultSelected: true },
+          ]
+        }
+      ];
+    } else if (exportDataType === 'dateAnalytics') {
+      return [
+        {
+          id: 'session',
+          label: 'Session Info',
+          labelAr: 'معلومات الجلسة',
+          icon: '📅',
+          fields: [
+            { key: 'date', label: 'Date', labelAr: 'التاريخ', category: 'session', defaultSelected: true },
+            { key: 'bookTopic', label: 'Book Topic', labelAr: 'موضوع الكتاب', category: 'session', defaultSelected: true },
+            { key: 'bookPages', label: 'Pages', labelAr: 'الصفحات', category: 'session', defaultSelected: true },
+            { key: 'hostAddress', label: 'Host Address', labelAr: 'عنوان المضيف', category: 'session', defaultSelected: true },
+          ]
+        },
+        {
+          id: 'counts',
+          label: 'Attendance Counts',
+          labelAr: 'أعداد الحضور',
+          icon: '🔢',
+          fields: [
+            { key: 'presentCount', label: 'On Time', labelAr: 'في الوقت', category: 'counts', defaultSelected: true },
+            { key: 'lateCount', label: 'Late', labelAr: 'متأخر', category: 'counts', defaultSelected: true },
+            { key: 'excusedAbsentCount', label: 'Excused', labelAr: 'معذور', category: 'counts', defaultSelected: true },
+            { key: 'unexcusedAbsentCount', label: 'Absent', labelAr: 'غائب', category: 'counts', defaultSelected: true },
+            { key: 'attendanceRate', label: 'Rate %', labelAr: 'النسبة', category: 'counts', defaultSelected: true },
+          ]
+        },
+        {
+          id: 'names',
+          label: 'Student Names',
+          labelAr: 'أسماء الطلاب',
+          icon: '👥',
+          fields: [
+            { key: 'presentNames', label: 'On Time Names', labelAr: 'أسماء الحاضرين', category: 'names', defaultSelected: false },
+            { key: 'lateNames', label: 'Late Names', labelAr: 'أسماء المتأخرين', category: 'names', defaultSelected: false },
+            { key: 'excusedNames', label: 'Excused Names', labelAr: 'أسماء المعذورين', category: 'names', defaultSelected: false },
+            { key: 'absentNames', label: 'Absent Names', labelAr: 'أسماء الغائبين', category: 'names', defaultSelected: false },
+          ]
+        }
+      ];
+    } else if (exportDataType === 'hostAnalytics') {
+      return [
+        {
+          id: 'host',
+          label: 'Host Info',
+          labelAr: 'معلومات المضيف',
+          icon: '🏠',
+          fields: [
+            { key: 'rank', label: 'Rank', labelAr: 'الرتبة', category: 'host', defaultSelected: true },
+            { key: 'address', label: 'Host Address', labelAr: 'عنوان المضيف', category: 'host', defaultSelected: true },
+            { key: 'count', label: 'Times Hosted', labelAr: 'عدد مرات الاستضافة', category: 'host', defaultSelected: true },
+            { key: 'dates', label: 'Dates', labelAr: 'التواريخ', category: 'host', defaultSelected: true },
+          ]
+        }
+      ];
+    }
+    // Default: records
+    return [
+      {
+        id: 'basic',
+        label: 'Basic Info',
+        labelAr: 'المعلومات الأساسية',
+        icon: '📋',
+        fields: [
+          { key: 'date', label: 'Date', labelAr: 'التاريخ', category: 'basic', defaultSelected: true },
+          { key: 'student_name', label: 'Student Name', labelAr: 'اسم الطالب', category: 'basic', defaultSelected: true },
+          { key: 'status', label: 'Status', labelAr: 'الحالة', category: 'basic', defaultSelected: true },
+        ]
+      }
+    ];
+  };
+
+  // Get export data based on current data type
+  const getExportData = (): Record<string, unknown>[] => {
+    if (exportDataType === 'studentAnalytics') {
+      return studentAnalytics.map((student, index) => {
+        const totalPresent = student.presentCount + student.lateCount;
+        const punctualityRate = totalPresent > 0 
+          ? Math.round(student.presentCount / totalPresent * 100)
+          : 0;
+        return {
+          rank: index + 1,
+          student_name: student.student_name,
+          presentCount: student.presentCount,
+          lateCount: student.lateCount,
+          totalPresent,
+          unexcusedAbsent: student.unexcusedAbsent,
+          excusedCount: student.excusedCount,
+          effectiveDays: student.effectiveDays,
+          daysCovered: student.daysCovered,
+          attendanceRate: student.attendanceRate,
+          punctualityRate,
+          weightedScore: student.weightedScore,
+        };
+      });
+    } else if (exportDataType === 'dateAnalytics') {
+      return dateAnalytics.map((dateData) => {
+        const bookPages = dateData.bookStartPage && dateData.bookEndPage 
+          ? `${dateData.bookStartPage}-${dateData.bookEndPage}` 
+          : '-';
+        return {
+          date: format(new Date(dateData.date), 'MMM dd, yyyy'),
+          bookTopic: dateData.bookTopic || '-',
+          bookPages,
+          hostAddress: dateData.hostAddress || '-',
+          presentCount: dateData.presentCount,
+          lateCount: dateData.lateCount,
+          excusedAbsentCount: dateData.excusedAbsentCount,
+          unexcusedAbsentCount: dateData.unexcusedAbsentCount,
+          attendanceRate: dateData.attendanceRate,
+          presentNames: dateData.presentNames.join(', ') || '-',
+          lateNames: dateData.lateNames.join(', ') || '-',
+          excusedNames: dateData.excusedNames.join(', ') || '-',
+          absentNames: dateData.absentNames.join(', ') || '-',
+        };
+      });
+    } else if (exportDataType === 'hostAnalytics') {
+      const hostMap = new Map<string, { count: number; dates: string[] }>();
+      dateAnalytics.forEach((dateData) => {
+        if (dateData.hostAddress && dateData.hostAddress !== 'SESSION_NOT_HELD') {
+          const existing = hostMap.get(dateData.hostAddress) || { count: 0, dates: [] };
+          existing.count++;
+          existing.dates.push(format(new Date(dateData.date), 'MMM dd'));
+          hostMap.set(dateData.hostAddress, existing);
+        }
+      });
+      return Array.from(hostMap.entries())
+        .map(([address, data]) => ({ address, ...data }))
+        .sort((a, b) => b.count - a.count)
+        .map((host, index) => ({
+          rank: index + 1,
+          address: host.address,
+          count: host.count,
+          dates: host.dates.join(', '),
+        }));
+    }
+    // Default: filtered records
+    return filteredRecords.map(r => ({
+      date: format(new Date(r.attendance_date), 'MMM dd, yyyy'),
+      student_name: r.student_name,
+      status: r.status,
+    }));
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-gray-50 pb-8">
       {/* Toast Container */}
       <ToastContainer toasts={toasts} onClose={removeToast} />
+      
+      {/* Advanced Export Builder Modal */}
+      <AdvancedExportBuilder
+        key={`export-${exportDataType}`}
+        isOpen={showAdvancedExport}
+        onClose={() => setShowAdvancedExport(false)}
+        categories={getExportCategories()}
+        data={getExportData()}
+        defaultTitle={
+          exportDataType === 'studentAnalytics' ? 'Student Performance Report' :
+          exportDataType === 'dateAnalytics' ? 'Attendance by Date Report' :
+          exportDataType === 'hostAnalytics' ? 'Host Rankings Report' :
+          'Attendance Records'
+        }
+        savedFields={savedFieldSelections[exportDataType]}
+        onFieldSelectionChange={(fields) => {
+          setSavedFieldSelections(prev => ({
+            ...prev,
+            [exportDataType]: fields
+          }));
+        }}
+      />
       
       {/* Modern Header with Gradient */}
       <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 text-white shadow-xl">
@@ -2125,6 +2351,62 @@ const AttendanceRecords = () => {
             </div>
           </div>
 
+          {/* Field Selection Status */}
+          <div className="mt-4 pt-4 border-t border-indigo-200">
+            <div className="flex flex-wrap gap-4 text-sm">
+              <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 shadow-sm">
+                <span className="text-blue-600 font-semibold">📊 Student Fields:</span>
+                <span className={savedFieldSelections.studentAnalytics.length > 0 ? 'text-green-600' : 'text-gray-500'}>
+                  {savedFieldSelections.studentAnalytics.length > 0 
+                    ? `${savedFieldSelections.studentAnalytics.length} selected` 
+                    : 'All (default)'}
+                </span>
+                <button
+                  onClick={() => {
+                    setExportDataType('studentAnalytics');
+                    setShowAdvancedExport(true);
+                  }}
+                  className="text-blue-600 hover:text-blue-800 underline ml-1"
+                >
+                  Edit
+                </button>
+              </div>
+              <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 shadow-sm">
+                <span className="text-green-600 font-semibold">📅 Date Fields:</span>
+                <span className={savedFieldSelections.dateAnalytics.length > 0 ? 'text-green-600' : 'text-gray-500'}>
+                  {savedFieldSelections.dateAnalytics.length > 0 
+                    ? `${savedFieldSelections.dateAnalytics.length} selected` 
+                    : 'All (default)'}
+                </span>
+                <button
+                  onClick={() => {
+                    setExportDataType('dateAnalytics');
+                    setShowAdvancedExport(true);
+                  }}
+                  className="text-green-600 hover:text-green-800 underline ml-1"
+                >
+                  Edit
+                </button>
+              </div>
+              <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 shadow-sm">
+                <span className="text-orange-600 font-semibold">🏠 Host Fields:</span>
+                <span className={savedFieldSelections.hostAnalytics.length > 0 ? 'text-green-600' : 'text-gray-500'}>
+                  {savedFieldSelections.hostAnalytics.length > 0 
+                    ? `${savedFieldSelections.hostAnalytics.length} selected` 
+                    : 'All (default)'}
+                </span>
+                <button
+                  onClick={() => {
+                    setExportDataType('hostAnalytics');
+                    setShowAdvancedExport(true);
+                  }}
+                  className="text-orange-600 hover:text-orange-800 underline ml-1"
+                >
+                  Edit
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -2149,21 +2431,34 @@ const AttendanceRecords = () => {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-gray-600">Items per page:</span>
-              <select
-                value={itemsPerPage}
-                onChange={(e) => {
-                  setItemsPerPage(Number(e.target.value));
-                  setCurrentPage(1);
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  setExportDataType('records');
+                  setShowAdvancedExport(true);
                 }}
-                className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg text-sm font-medium"
+                title="Export Attendance Records"
               >
-                <option value={10}>10</option>
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
+                <span>📤</span>
+                <span>Advanced Export</span>
+              </button>
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-gray-600">Items per page:</span>
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    setItemsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
