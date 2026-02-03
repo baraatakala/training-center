@@ -449,6 +449,7 @@ export function StudentCheckIn() {
       // Determine attendance status based on session time and grace period
       let attendanceStatus: 'on time' | 'late' | 'absent' = 'on time';
       let checkInAfterSession = false;
+      let lateMinutes: number | null = null; // Track how many minutes late
       const now = new Date();
       
       // Get grace period from session (default to 15 if not set)
@@ -516,6 +517,8 @@ export function StudentCheckIn() {
               checkInAfterSession = true;
             } else if (now > graceEnd) {
               attendanceStatus = 'late';
+              // Calculate how many minutes late (after grace period ended)
+              lateMinutes = Math.ceil((now.getTime() - graceEnd.getTime()) / (1000 * 60));
             } else {
               attendanceStatus = 'on time';
             }
@@ -556,6 +559,7 @@ export function StudentCheckIn() {
         status: attendanceStatus,
         check_in_time: checkInTime,
         host_address: addressOnly,
+        late_minutes: lateMinutes, // Track how late for tiered scoring
         gps_latitude: gpsData?.latitude || null,
         gps_longitude: gpsData?.longitude || null,
         gps_accuracy: gpsData?.accuracy || null,

@@ -21,6 +21,7 @@ interface AttendanceRecord {
   attendance_date: string;
   status: 'on time' | 'absent' | 'late' | 'excused' | 'not enrolled';
   excuse_reason?: string | null;
+  late_minutes?: number | null; // How many minutes late (for tiered scoring)
   gps_latitude: number | null;
   gps_longitude: number | null;
   gps_accuracy: number | null;
@@ -89,6 +90,57 @@ interface FilterOptions {
   startDate: string;
   endDate: string;
 }
+
+// ==================== TIERED LATE SCORING ====================
+// Default late brackets (matching database defaults)
+const DEFAULT_LATE_BRACKETS = [
+  { min: 1, max: 5, name: 'Minor', weight: 0.95 },       // 1-5 min: 95% credit
+  { min: 6, max: 15, name: 'Moderate', weight: 0.80 },   // 6-15 min: 80% credit
+  { min: 16, max: 30, name: 'Significant', weight: 0.60 }, // 16-30 min: 60% credit
+  { min: 31, max: 60, name: 'Severe', weight: 0.40 },    // 31-60 min: 40% credit
+  { min: 61, max: Infinity, name: 'Very Late', weight: 0.20 }, // 60+ min: 20% credit
+];
+
+/**
+ * Get the score weight for a late attendance based on minutes late
+ * @param lateMinutes - Number of minutes late (null = use default 0.5 for unknown)
+ * @returns Score weight between 0 and 1
+ */
+const getLateScoreWeight = (lateMinutes: number | null | undefined): number => {
+  // If late_minutes not tracked (teacher-marked), use middle ground
+  if (lateMinutes === null || lateMinutes === undefined) {
+    return 0.50; // Default for unknown lateness
+  }
+  
+  // If not actually late (edge case)
+  if (lateMinutes <= 0) {
+    return 1.0;
+  }
+  
+  // Find matching bracket
+  const bracket = DEFAULT_LATE_BRACKETS.find(
+    b => lateMinutes >= b.min && lateMinutes <= b.max
+  );
+  
+  return bracket ? bracket.weight : 0.20; // Fallback to very late
+};
+
+/**
+ * Get bracket info for display
+ */
+const getLateBracketInfo = (lateMinutes: number | null | undefined): { name: string; color: string } => {
+  if (lateMinutes === null || lateMinutes === undefined) {
+    return { name: 'Unknown', color: '#6b7280' }; // Gray
+  }
+  if (lateMinutes <= 0) {
+    return { name: 'On Time', color: '#22c55e' }; // Green
+  }
+  if (lateMinutes <= 5) return { name: 'Minor', color: '#22c55e' };
+  if (lateMinutes <= 15) return { name: 'Moderate', color: '#eab308' };
+  if (lateMinutes <= 30) return { name: 'Significant', color: '#f97316' };
+  if (lateMinutes <= 60) return { name: 'Severe', color: '#ef4444' };
+  return { name: 'Very Late', color: '#991b1b' };
+};
 
 const AttendanceRecords = () => {
   const navigate = useNavigate();
@@ -330,6 +382,7 @@ const AttendanceRecords = () => {
           attendance_date,
           status,
           excuse_reason,
+          late_minutes,
           gps_latitude,
           gps_longitude,
           gps_accuracy,
@@ -550,6 +603,8 @@ const AttendanceRecords = () => {
       'Course',
       'Instructor',
       'Status',
+      'Late Duration (min)',
+      'Late Bracket',
       'Excuse Reason',
       'Location',
       'GPS Latitude',
@@ -565,6 +620,8 @@ const AttendanceRecords = () => {
       record.course_name,
       record.instructor_name,
       record.status,
+      (record.status === 'late' && record.late_minutes) ? record.late_minutes.toString() : '-',
+      (record.status === 'late' && record.late_minutes) ? getLateBracketInfo(record.late_minutes).name : '-',
       (record.status === 'excused' && record.excuse_reason) ? record.excuse_reason : '-',
       record.session_location || '-',
       record.gps_latitude ? record.gps_latitude.toString() : '-',
@@ -1288,6 +1345,7 @@ const AttendanceRecords = () => {
       const absentCount = studentRecords.filter(r => r.status === 'absent').length;
       const excusedCount = studentRecords.filter(r => r.status === 'excused').length;
       const lateCount = studentRecords.filter(r => r.status === 'late').length;
+      const lateRecords = studentRecords.filter(r => r.status === 'late');
 
       // Calculate rates (no vacation status in AttendanceRecords)
       // Effective base: Student's covered dates minus excused days (only accountable for dates after enrollment)
@@ -1300,12 +1358,33 @@ const AttendanceRecords = () => {
       // (i.e. accountable days minus days the student was present/on-time or late)
       const unexcusedAbsent = effectiveBase > 0 ? Math.max(0, effectiveBase - totalPresent) : 0;
 
-      // Calculate weighted score (3-component formula)
-      // 80% Attendance Rate + 10% Effective Days Coverage + 10% Punctuality
-      // Effective days percentage: now always 100% since effectiveBase = studentDaysCovered - excusedCount
+      // ==================== TIERED LATE SCORING ====================
+      // Calculate quality-adjusted attendance where late arrivals get partial credit
+      // On Time = 100% credit, Late = tiered credit based on how late (1-5 min = 95%, 6-15 = 80%, etc.)
+      
+      // Calculate late score contributions (each late record gets weighted credit)
+      const lateScoreSum = lateRecords.reduce((sum, record) => {
+        return sum + getLateScoreWeight(record.late_minutes);
+      }, 0);
+      
+      // Quality-adjusted attendance: On Time (full credit) + Late (partial credit based on lateness)
+      // Max possible score = effectiveBase (if all on time)
+      const qualityScore = presentCount + lateScoreSum; // On time = 1.0 each, late = weighted
+      const qualityAdjustedRate = effectiveBase > 0 ? (qualityScore / effectiveBase) * 100 : 0;
+
+      // Calculate weighted score with FAIR late scoring
+      // 70% Quality-Adjusted Rate (main component - rewards punctuality AND penalizes severe lateness fairly)
+      // 15% Simple Attendance Rate (shows up regardless of lateness)
+      // 10% Effective Days Coverage
+      // 5% Punctuality Ratio (on-time vs late ratio for tiebreaker)
       const effectiveDaysPercentage = studentDaysCovered > 0 ? (effectiveBase / studentDaysCovered) * 100 : 0;
       const punctualityPercentage = totalPresent > 0 ? (presentCount / totalPresent) * 100 : 0;
-      const weightedScore = (0.8 * attendanceRate) + (0.1 * effectiveDaysPercentage) + (0.1 * punctualityPercentage);
+      
+      const weightedScore = 
+        (0.70 * qualityAdjustedRate) + 
+        (0.15 * attendanceRate) + 
+        (0.10 * effectiveDaysPercentage) + 
+        (0.05 * punctualityPercentage);
 
       // Calculate consistency index (based on all present days: on time + late)
       const dailyPattern = studentUniqueDates.map(date => {
@@ -2564,6 +2643,9 @@ const AttendanceRecords = () => {
                   </div>
                 </th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                  Late Duration
+                </th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                   Excuse Reason
                 </th>
                 <th 
@@ -2635,6 +2717,17 @@ const AttendanceRecords = () => {
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(record.status)}`}>
                         {getStatusLabel(record.status)}
                       </span>
+                    </td>
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm">
+                      {record.status === 'late' && record.late_minutes ? (
+                        <span className={`px-2 py-1 text-xs font-medium rounded ${getLateBracketInfo(record.late_minutes).color}`}>
+                          {record.late_minutes} min ({getLateBracketInfo(record.late_minutes).name})
+                        </span>
+                      ) : record.status === 'late' ? (
+                        <span className="text-gray-400 text-xs">Not recorded</span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
                     </td>
                     <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
                       {record.status === 'excused' && record.excuse_reason ? (

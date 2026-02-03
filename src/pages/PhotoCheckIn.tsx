@@ -627,6 +627,7 @@ export function PhotoCheckIn() {
       // Determine attendance status
       let attendanceStatus: 'on time' | 'late' | 'absent' = 'on time';
       let checkInAfterSession = false;
+      let lateMinutes: number | null = null; // Track how many minutes late
       const now = new Date();
       const gracePeriodMinutes = checkInData.session?.grace_period_minutes ?? 15;
       
@@ -682,6 +683,8 @@ export function PhotoCheckIn() {
               checkInAfterSession = true;
             } else if (now > graceEnd) {
               attendanceStatus = 'late';
+              // Calculate how many minutes late (after grace period ended)
+              lateMinutes = Math.ceil((now.getTime() - graceEnd.getTime()) / (1000 * 60));
             }
           } else if (isFutureDate) {
             setError('You cannot check in before the session date.');
@@ -716,6 +719,7 @@ export function PhotoCheckIn() {
         status: attendanceStatus,
         check_in_time: checkInTime,
         host_address: addressOnly,
+        late_minutes: lateMinutes, // Track how late for tiered scoring
         gps_latitude: gpsData?.latitude || null,
         gps_longitude: gpsData?.longitude || null,
         gps_accuracy: gpsData?.accuracy || null,
