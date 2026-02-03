@@ -1733,7 +1733,7 @@ const AttendanceRecords = () => {
         }
       ];
     }
-    // Default: records
+    // Default: records - Full field list for detailed record exports
     return [
       {
         id: 'basic',
@@ -1743,7 +1743,44 @@ const AttendanceRecords = () => {
         fields: [
           { key: 'date', label: 'Date', labelAr: 'التاريخ', category: 'basic', defaultSelected: true },
           { key: 'student_name', label: 'Student Name', labelAr: 'اسم الطالب', category: 'basic', defaultSelected: true },
-          { key: 'status', label: 'Status', labelAr: 'الحالة', category: 'basic', defaultSelected: true },
+          { key: 'course_name', label: 'Course', labelAr: 'الدورة', category: 'basic', defaultSelected: true },
+          { key: 'instructor_name', label: 'Instructor', labelAr: 'المدرب', category: 'basic', defaultSelected: true },
+        ]
+      },
+      {
+        id: 'attendance',
+        label: 'Attendance Details',
+        labelAr: 'تفاصيل الحضور',
+        icon: '✅',
+        fields: [
+          { key: 'status', label: 'Status', labelAr: 'الحالة', category: 'attendance', defaultSelected: true },
+          { key: 'late_minutes', label: 'Late Duration (min)', labelAr: 'مدة التأخر', category: 'attendance', defaultSelected: true },
+          { key: 'late_bracket', label: 'Late Bracket', labelAr: 'فئة التأخر', category: 'attendance', defaultSelected: false },
+          { key: 'early_minutes', label: 'Early (min)', labelAr: 'مبكر', category: 'attendance', defaultSelected: false },
+          { key: 'check_in_method', label: 'Check-in Method', labelAr: 'طريقة التسجيل', category: 'attendance', defaultSelected: false },
+          { key: 'excuse_reason', label: 'Excuse Reason', labelAr: 'سبب العذر', category: 'attendance', defaultSelected: true },
+        ]
+      },
+      {
+        id: 'location',
+        label: 'Location Info',
+        labelAr: 'معلومات الموقع',
+        icon: '📍',
+        fields: [
+          { key: 'host_address', label: 'Host Address', labelAr: 'عنوان المضيف', category: 'location', defaultSelected: true },
+          { key: 'gps_coordinates', label: 'GPS Coordinates', labelAr: 'إحداثيات GPS', category: 'location', defaultSelected: false },
+          { key: 'gps_accuracy', label: 'GPS Accuracy (m)', labelAr: 'دقة GPS', category: 'location', defaultSelected: false },
+          { key: 'distance_from_host', label: 'Distance (m)', labelAr: 'المسافة', category: 'location', defaultSelected: false },
+        ]
+      },
+      {
+        id: 'metadata',
+        label: 'Metadata',
+        labelAr: 'البيانات الوصفية',
+        icon: '🔖',
+        fields: [
+          { key: 'marked_by', label: 'Marked By', labelAr: 'سجل بواسطة', category: 'metadata', defaultSelected: false },
+          { key: 'marked_at', label: 'Marked At', labelAr: 'وقت التسجيل', category: 'metadata', defaultSelected: true },
         ]
       }
     ];
@@ -1813,12 +1850,36 @@ const AttendanceRecords = () => {
           dates: host.dates.join(', '),
         }));
     }
-    // Default: filtered records
-    return filteredRecords.map(r => ({
-      date: format(new Date(r.attendance_date), 'MMM dd, yyyy'),
-      student_name: r.student_name,
-      status: r.status,
-    }));
+    // Default: filtered records with all available fields
+    return filteredRecords.map(r => {
+      // Get late bracket name
+      const lateBracketInfo = getLateBracketInfo(r.late_minutes);
+      
+      return {
+        // Basic Info
+        date: format(new Date(r.attendance_date), 'MMM dd, yyyy'),
+        student_name: r.student_name,
+        course_name: r.course_name,
+        instructor_name: r.instructor_name,
+        // Attendance Details
+        status: r.status,
+        late_minutes: r.status === 'late' && r.late_minutes ? r.late_minutes : '-',
+        late_bracket: r.status === 'late' && r.late_minutes ? lateBracketInfo.name : '-',
+        early_minutes: r.early_minutes || '-',
+        check_in_method: r.check_in_method || '-',
+        excuse_reason: r.excuse_reason || '-',
+        // Location Info
+        host_address: r.host_address || '-',
+        gps_coordinates: r.gps_latitude && r.gps_longitude 
+          ? `${r.gps_latitude.toFixed(4)}°, ${r.gps_longitude.toFixed(4)}°` 
+          : '-',
+        gps_accuracy: r.gps_accuracy ? `±${Math.round(r.gps_accuracy)}m` : '-',
+        distance_from_host: r.distance_from_host ? `${Math.round(r.distance_from_host)}m` : '-',
+        // Metadata
+        marked_by: r.marked_by || '-',
+        marked_at: r.marked_at ? format(new Date(r.marked_at), 'MMM dd, HH:mm') : '-',
+      };
+    });
   };
 
   return (
