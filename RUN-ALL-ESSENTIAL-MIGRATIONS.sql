@@ -239,7 +239,60 @@ DO $$ BEGIN
 END $$;
 
 -- ============================================================================
--- SECTION 12: VERIFICATION QUERIES
+-- SECTION 12: QR_SESSIONS TABLE - For QR code check-ins
+-- ============================================================================
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+CREATE TABLE IF NOT EXISTS public.qr_sessions (
+  qr_session_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  token UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+  session_id UUID NOT NULL REFERENCES public.session(session_id) ON DELETE CASCADE,
+  attendance_date DATE NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  is_valid BOOLEAN NOT NULL DEFAULT true,
+  used_count INTEGER NOT NULL DEFAULT 0,
+  last_used_at TIMESTAMPTZ,
+  created_by TEXT,
+  CONSTRAINT qr_session_date_check CHECK (attendance_date IS NOT NULL)
+);
+
+CREATE INDEX IF NOT EXISTS idx_qr_sessions_token ON public.qr_sessions(token) WHERE is_valid = true;
+CREATE INDEX IF NOT EXISTS idx_qr_sessions_session_date ON public.qr_sessions(session_id, attendance_date);
+CREATE INDEX IF NOT EXISTS idx_qr_sessions_expires ON public.qr_sessions(expires_at) WHERE is_valid = true;
+
+-- Enable RLS
+ALTER TABLE public.qr_sessions ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'qr_sessions' AND policyname = 'Enable all access for authenticated users') THEN
+    CREATE POLICY "Enable all access for authenticated users" ON public.qr_sessions
+    FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
+END $$;
+
+-- ============================================================================
+-- SECTION 13: ATTENDANCE STATUS CONSTRAINT
+-- ============================================================================
+-- Clean up any invalid status values first
+UPDATE attendance 
+SET status = 'absent'
+WHERE status NOT IN ('on time', 'late', 'absent', 'excused', 'not enrolled');
+
+-- Add check constraint if not exists
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'attendance_status_check') THEN
+    ALTER TABLE attendance 
+    ADD CONSTRAINT attendance_status_check 
+    CHECK (status IN ('on time', 'late', 'absent', 'excused', 'not enrolled'));
+    RAISE NOTICE '✅ Added attendance_status_check constraint';
+  ELSE
+    RAISE NOTICE 'ℹ️ attendance_status_check constraint already exists';
+  END IF;
+END $$;
+
+-- ============================================================================
+-- SECTION 14: VERIFICATION QUERIES
 -- ============================================================================
 SELECT '=== VERIFICATION RESULTS ===' AS status;
 
@@ -277,6 +330,14 @@ SELECT 'photo_checkin_sessions table' AS table_check,
 
 SELECT 'audit_log table' AS table_check,
   CASE WHEN EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'audit_log')
+  THEN '✓ EXISTS' ELSE '✗ MISSING' END AS result;
+
+SELECT 'qr_sessions table' AS table_check,
+  CASE WHEN EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'qr_sessions')
+  THEN '✓ EXISTS' ELSE '✗ MISSING' END AS result;
+
+SELECT 'attendance_status_check constraint' AS constraint_check,
+  CASE WHEN EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'attendance_status_check')
   THEN '✓ EXISTS' ELSE '✗ MISSING' END AS result;
 
 SELECT '=== MIGRATION COMPLETE ===' AS status;

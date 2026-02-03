@@ -32,9 +32,10 @@ ORDER BY status;
 SELECT 
   s.name as student_name,
   COUNT(*) as total_attendance_records,
-  SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) as present_count,
+  SUM(CASE WHEN a.status = 'on time' THEN 1 ELSE 0 END) as on_time_count,
   SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) as absent_count,
-  SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END) as late_count
+  SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END) as late_count,
+  SUM(CASE WHEN a.status = 'excused' THEN 1 ELSE 0 END) as excused_count
 FROM student s
 LEFT JOIN attendance a ON s.student_id = a.student_id
 WHERE a.attendance_id IS NOT NULL
