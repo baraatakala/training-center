@@ -13,6 +13,7 @@ export interface AttendanceExportData {
   session_name: string;
   location: string;
   status: string;
+  late_minutes?: number | null;
   check_in_time: string | null;
   marked_at: string;
   marked_by: string | null;
@@ -21,6 +22,21 @@ export interface AttendanceExportData {
   gps_longitude: number | null;
   gps_accuracy: number | null;
 }
+
+// Late brackets for tiered scoring display
+const LATE_BRACKETS = [
+  { maxMinutes: 5, name: 'Minimal', scoreWeight: 0.95 },
+  { maxMinutes: 15, name: 'Slight', scoreWeight: 0.80 },
+  { maxMinutes: 30, name: 'Moderate', scoreWeight: 0.60 },
+  { maxMinutes: 60, name: 'Significant', scoreWeight: 0.40 },
+  { maxMinutes: Infinity, name: 'Severe', scoreWeight: 0.20 }
+];
+
+const getLateBracketName = (lateMinutes: number | null | undefined): string => {
+  if (!lateMinutes || lateMinutes <= 0) return '-';
+  const bracket = LATE_BRACKETS.find(b => lateMinutes <= b.maxMinutes);
+  return bracket?.name || 'Severe';
+};
 
 export class ExcelExportService {
   /**
@@ -38,6 +54,8 @@ export class ExcelExportService {
       'Session': record.session_name,
       'Location': record.location,
       'Status': record.status.toUpperCase(),
+      'Late Duration (min)': record.status === 'late' && record.late_minutes ? record.late_minutes : '-',
+      'Late Severity': record.status === 'late' ? getLateBracketName(record.late_minutes) : '-',
       'Check-In Time': record.check_in_time || 'N/A',
       'Marked At': record.marked_at,
       'Marked By': record.marked_by || 'N/A',
@@ -58,6 +76,8 @@ export class ExcelExportService {
       { wch: 25 }, // Session
       { wch: 20 }, // Location
       { wch: 10 }, // Status
+      { wch: 18 }, // Late Duration
+      { wch: 12 }, // Late Severity
       { wch: 18 }, // Check-In Time
       { wch: 18 }, // Marked At
       { wch: 20 }, // Marked By

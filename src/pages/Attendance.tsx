@@ -153,6 +153,44 @@ export function Attendance() {
     });
   };
 
+  // Calculate late_minutes for tiered late scoring
+  // Uses session.time (e.g., "14:00") + grace_period_minutes to determine how late the student is
+  const calculateLateMinutes = (): number | null => {
+    if (!session?.time || !selectedDate) return null;
+    
+    try {
+      // Parse session time (e.g., "14:00" or "2:00 PM")
+      const timeMatch = session.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+      if (!timeMatch) return null;
+      
+      let hours = parseInt(timeMatch[1], 10);
+      const minutes = parseInt(timeMatch[2], 10);
+      const meridiem = timeMatch[3]?.toUpperCase();
+      
+      // Convert to 24-hour format if needed
+      if (meridiem === 'PM' && hours !== 12) hours += 12;
+      if (meridiem === 'AM' && hours === 12) hours = 0;
+      
+      // Create session start datetime
+      const sessionStart = new Date(selectedDate);
+      sessionStart.setHours(hours, minutes, 0, 0);
+      
+      // Add grace period
+      const gracePeriod = session.grace_period_minutes || 0;
+      const graceEnd = new Date(sessionStart.getTime() + gracePeriod * 60 * 1000);
+      
+      // Calculate how many minutes late from grace end
+      const now = new Date();
+      if (now > graceEnd) {
+        return Math.ceil((now.getTime() - graceEnd.getTime()) / (1000 * 60));
+      }
+      return null; // Not late
+    } catch {
+      console.error('Error calculating late minutes');
+      return null;
+    }
+  };
+
   const loadSession = useCallback(async () => {
     if (!sessionId) return;
     
@@ -864,10 +902,14 @@ export function Attendance() {
         
         if (status === 'on time' || status === 'late') {
           updates.check_in_time = new Date().toISOString();
+          // Add late_minutes for tiered late scoring
+          updates.late_minutes = status === 'late' ? calculateLateMinutes() : null;
         } else if (status === 'excused') {
           updates.excuse_reason = excuseReason[attendanceId];
+          updates.late_minutes = null;
         } else {
           updates.check_in_time = null;
+          updates.late_minutes = null;
         }
 
         const { error } = await supabase
@@ -895,6 +937,7 @@ export function Attendance() {
           attendance_date: selectedDate,
           status: actualStatus,
           check_in_time: (status === 'on time' || status === 'late') ? new Date().toISOString() : null,
+          late_minutes: status === 'late' ? calculateLateMinutes() : null,
           host_address: addressOnly,
           gps_latitude: gpsData?.latitude || null,
           gps_longitude: gpsData?.longitude || null,
@@ -940,10 +983,14 @@ export function Attendance() {
       
       if (status === 'on time' || status === 'late') {
         updates.check_in_time = new Date().toISOString();
+        // Add late_minutes for tiered late scoring
+        updates.late_minutes = status === 'late' ? calculateLateMinutes() : null;
       } else if (status === 'excused') {
         updates.excuse_reason = excuseReason[attendanceId];
+        updates.late_minutes = null;
       } else {
         updates.check_in_time = null;
+        updates.late_minutes = null;
       }
 
       const { error } = await supabase
@@ -1037,6 +1084,7 @@ export function Attendance() {
 
     // Create new records for temp IDs
     if (tempIds.length > 0) {
+      const lateMinutes = status === 'late' ? calculateLateMinutes() : null;
       const newRecords = tempIds.map(tempId => {
         const record = attendance.find(a => a.attendance_id === tempId);
         if (!record) return null;
@@ -1048,6 +1096,7 @@ export function Attendance() {
           attendance_date: selectedDate,
           status: status,
           check_in_time: (status === 'on time' || status === 'late') ? new Date().toISOString() : null,
+          late_minutes: lateMinutes,
           host_address: addressOnly,
           gps_latitude: gpsData?.latitude || null,
           gps_longitude: gpsData?.longitude || null,
@@ -1072,9 +1121,11 @@ export function Attendance() {
     // Update existing records
     if (realIds.length > 0) {
       const addressOnly = selectedAddress ? selectedAddress.split('|||')[1] || selectedAddress : null;
+      const lateMinutes = status === 'late' ? calculateLateMinutes() : null;
       const updates: {
         status: string;
         check_in_time?: string | null;
+        late_minutes?: number | null;
         host_address?: string | null;
         gps_latitude?: number | null;
         gps_longitude?: number | null;
@@ -1084,6 +1135,7 @@ export function Attendance() {
         marked_at?: string;
       } = {
         status: status,
+        late_minutes: lateMinutes,
         host_address: addressOnly,
         gps_latitude: gpsData?.latitude || null,
         gps_longitude: gpsData?.longitude || null,
