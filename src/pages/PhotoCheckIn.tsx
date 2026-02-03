@@ -576,6 +576,8 @@ export function PhotoCheckIn() {
       }
 
       // Perform proximity validation if required
+      let distanceFromHost: number | null = null; // Track distance for analytics
+      
       if (proximityRequired && gpsData) {
         const proximityResult = isWithinProximity(
           gpsData.latitude,
@@ -584,6 +586,9 @@ export function PhotoCheckIn() {
           hostLon!,
           checkInData.session!.proximity_radius!
         );
+
+        // Store distance for database record
+        distanceFromHost = Math.round(proximityResult.distance * 100) / 100; // Round to 2 decimals
 
         console.log('📍 Proximity check:', {
           userLat: gpsData.latitude,
@@ -628,6 +633,7 @@ export function PhotoCheckIn() {
       let attendanceStatus: 'on time' | 'late' | 'absent' = 'on time';
       let checkInAfterSession = false;
       let lateMinutes: number | null = null; // Track how many minutes late
+      let earlyMinutes: number | null = null; // Track how many minutes early
       const now = new Date();
       const gracePeriodMinutes = checkInData.session?.grace_period_minutes ?? 15;
       
@@ -672,8 +678,11 @@ export function PhotoCheckIn() {
           const isFutureDate = attendanceDate.getTime() > todayDate.getTime();
           
           if (isToday) {
-            if (now < sessionStart) {
-              setError('Cannot check in before session starts.');
+            // Allow early check-in up to 30 minutes before session starts
+            const earliestCheckIn = new Date(sessionStart.getTime() - 30 * 60 * 1000);
+            
+            if (now < earliestCheckIn) {
+              setError('Cannot check in more than 30 minutes before session starts.');
               setSubmitting(false);
               return;
             }
@@ -685,6 +694,10 @@ export function PhotoCheckIn() {
               attendanceStatus = 'late';
               // Calculate how many minutes late (after grace period ended)
               lateMinutes = Math.ceil((now.getTime() - graceEnd.getTime()) / (1000 * 60));
+            } else if (now < sessionStart) {
+              // Student arrived early - track early minutes
+              attendanceStatus = 'on time';
+              earlyMinutes = Math.ceil((sessionStart.getTime() - now.getTime()) / (1000 * 60));
             }
           } else if (isFutureDate) {
             setError('You cannot check in before the session date.');
@@ -720,6 +733,9 @@ export function PhotoCheckIn() {
         check_in_time: checkInTime,
         host_address: addressOnly,
         late_minutes: lateMinutes, // Track how late for tiered scoring
+        early_minutes: earlyMinutes, // Track how early for analytics
+        check_in_method: 'photo' as const, // Track check-in method
+        distance_from_host: distanceFromHost, // Track distance from host location
         gps_latitude: gpsData?.latitude || null,
         gps_longitude: gpsData?.longitude || null,
         gps_accuracy: gpsData?.accuracy || null,

@@ -397,6 +397,8 @@ export function StudentCheckIn() {
       }
 
       // Perform proximity validation if required
+      let distanceFromHost: number | null = null; // Track distance for analytics
+      
       if (proximityRequired && gpsData) {
         const proximityResult = isWithinProximity(
           gpsData.latitude,
@@ -405,6 +407,9 @@ export function StudentCheckIn() {
           hostLon!,
           checkInData.session!.proximity_radius!
         );
+
+        // Store distance for database record
+        distanceFromHost = Math.round(proximityResult.distance * 100) / 100; // Round to 2 decimals
 
         console.log('📍 Proximity check:', {
           userLat: gpsData.latitude,
@@ -450,6 +455,7 @@ export function StudentCheckIn() {
       let attendanceStatus: 'on time' | 'late' | 'absent' = 'on time';
       let checkInAfterSession = false;
       let lateMinutes: number | null = null; // Track how many minutes late
+      let earlyMinutes: number | null = null; // Track how many minutes early
       const now = new Date();
       
       // Get grace period from session (default to 15 if not set)
@@ -501,17 +507,20 @@ export function StudentCheckIn() {
           
           // Only enforce time restrictions if checking in on the same day as the session
           if (isToday) {
-            // Check if check-in is before session starts
-            if (now < sessionStart) {
-              setError('Cannot check in before session starts. Session starts at ' + sessionStart.toLocaleTimeString());
+            // Allow early check-in up to 30 minutes before session starts
+            const earliestCheckIn = new Date(sessionStart.getTime() - 30 * 60 * 1000);
+            
+            if (now < earliestCheckIn) {
+              setError('Cannot check in more than 30 minutes before session starts. Session starts at ' + sessionStart.toLocaleTimeString());
               setSubmitting(false);
               return;
             }
             
-            // Determine status based on current time:
-            // 1. Before grace period end = on time
-            // 2. After grace period but before session end = late
-            // 3. After session end = absent
+            // Determine status and track timing:
+            // 1. Before session start = on time (track early_minutes)
+            // 2. Before grace period end = on time
+            // 3. After grace period but before session end = late
+            // 4. After session end = absent
             if (now > sessionEnd) {
               attendanceStatus = 'absent';
               checkInAfterSession = true;
@@ -519,6 +528,10 @@ export function StudentCheckIn() {
               attendanceStatus = 'late';
               // Calculate how many minutes late (after grace period ended)
               lateMinutes = Math.ceil((now.getTime() - graceEnd.getTime()) / (1000 * 60));
+            } else if (now < sessionStart) {
+              // Student arrived early - track early minutes
+              attendanceStatus = 'on time';
+              earlyMinutes = Math.ceil((sessionStart.getTime() - now.getTime()) / (1000 * 60));
             } else {
               attendanceStatus = 'on time';
             }
@@ -560,6 +573,9 @@ export function StudentCheckIn() {
         check_in_time: checkInTime,
         host_address: addressOnly,
         late_minutes: lateMinutes, // Track how late for tiered scoring
+        early_minutes: earlyMinutes, // Track how early for analytics
+        check_in_method: 'qr_code' as const, // Track check-in method
+        distance_from_host: distanceFromHost, // Track distance from host location
         gps_latitude: gpsData?.latitude || null,
         gps_longitude: gpsData?.longitude || null,
         gps_accuracy: gpsData?.accuracy || null,

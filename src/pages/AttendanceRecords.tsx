@@ -22,6 +22,9 @@ interface AttendanceRecord {
   status: 'on time' | 'absent' | 'late' | 'excused' | 'not enrolled';
   excuse_reason?: string | null;
   late_minutes?: number | null; // How many minutes late (for tiered scoring)
+  early_minutes?: number | null; // How many minutes early
+  check_in_method?: string | null; // qr_code, photo, manual, bulk
+  distance_from_host?: number | null; // Distance in meters from host location
   gps_latitude: number | null;
   gps_longitude: number | null;
   gps_accuracy: number | null;
@@ -383,6 +386,9 @@ const AttendanceRecords = () => {
           status,
           excuse_reason,
           late_minutes,
+          early_minutes,
+          check_in_method,
+          distance_from_host,
           gps_latitude,
           gps_longitude,
           gps_accuracy,
@@ -516,6 +522,10 @@ const AttendanceRecords = () => {
           attendance_date: record.attendance_date,
           status: finalStatus,
           excuse_reason: record.excuse_reason || null,
+          late_minutes: record.late_minutes || null,
+          early_minutes: record.early_minutes || null,
+          check_in_method: record.check_in_method || null,
+          distance_from_host: record.distance_from_host || null,
           gps_latitude: record.gps_latitude,
           gps_longitude: record.gps_longitude,
           gps_accuracy: record.gps_accuracy,
@@ -605,6 +615,9 @@ const AttendanceRecords = () => {
       'Status',
       'Late Duration (min)',
       'Late Bracket',
+      'Early (min)',
+      'Check-in Method',
+      'Distance (m)',
       'Excuse Reason',
       'Location',
       'GPS Latitude',
@@ -622,6 +635,9 @@ const AttendanceRecords = () => {
       record.status,
       (record.status === 'late' && record.late_minutes) ? record.late_minutes.toString() : '-',
       (record.status === 'late' && record.late_minutes) ? getLateBracketInfo(record.late_minutes).name : '-',
+      record.early_minutes ? record.early_minutes.toString() : '-',
+      record.check_in_method || '-',
+      record.distance_from_host ? record.distance_from_host.toFixed(1) : '-',
       (record.status === 'excused' && record.excuse_reason) ? record.excuse_reason : '-',
       record.session_location || '-',
       record.gps_latitude ? record.gps_latitude.toString() : '-',
@@ -2646,6 +2662,9 @@ const AttendanceRecords = () => {
                   Late Duration
                 </th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                  Method
+                </th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                   Excuse Reason
                 </th>
                 <th 
@@ -2681,13 +2700,13 @@ const AttendanceRecords = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={11} className="px-6 py-4 text-center text-gray-500">
                     Loading records...
                   </td>
                 </tr>
               ) : filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={11} className="px-6 py-4 text-center text-gray-500">
                     No attendance records found
                   </td>
                 </tr>
@@ -2725,6 +2744,28 @@ const AttendanceRecords = () => {
                         </span>
                       ) : record.status === 'late' ? (
                         <span className="text-gray-400 text-xs">Not recorded</span>
+                      ) : record.early_minutes ? (
+                        <span className="px-2 py-1 text-xs font-medium rounded bg-green-100 text-green-800">
+                          {record.early_minutes} min early
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm">
+                      {record.check_in_method ? (
+                        <span className={`px-2 py-1 text-xs font-medium rounded ${
+                          record.check_in_method === 'qr_code' ? 'bg-purple-100 text-purple-800' :
+                          record.check_in_method === 'photo' ? 'bg-blue-100 text-blue-800' :
+                          record.check_in_method === 'bulk' ? 'bg-orange-100 text-orange-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {record.check_in_method === 'qr_code' ? 'QR Code' :
+                           record.check_in_method === 'photo' ? 'Photo' :
+                           record.check_in_method === 'bulk' ? 'Bulk' :
+                           record.check_in_method === 'manual' ? 'Manual' :
+                           record.check_in_method}
+                        </span>
                       ) : (
                         <span className="text-gray-400">-</span>
                       )}

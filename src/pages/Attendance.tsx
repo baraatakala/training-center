@@ -891,6 +891,7 @@ export function Attendance() {
         // Record exists - UPDATE it instead of inserting
         const updates: Record<string, unknown> = {
           status: actualStatus,
+          check_in_method: 'manual', // Track check-in method
           host_address: addressOnly,
           gps_latitude: gpsData?.latitude || null,
           gps_longitude: gpsData?.longitude || null,
@@ -938,6 +939,7 @@ export function Attendance() {
           status: actualStatus,
           check_in_time: (status === 'on time' || status === 'late') ? new Date().toISOString() : null,
           late_minutes: status === 'late' ? calculateLateMinutes() : null,
+          check_in_method: 'manual', // Track check-in method
           host_address: addressOnly,
           gps_latitude: gpsData?.latitude || null,
           gps_longitude: gpsData?.longitude || null,
@@ -972,6 +974,7 @@ export function Attendance() {
       const addressOnly = selectedAddress ? selectedAddress.split('|||')[1] || selectedAddress : null;
       const updates: Record<string, unknown> = {
         status: actualStatus,
+        check_in_method: 'manual', // Track check-in method
         host_address: addressOnly,
         gps_latitude: gpsData?.latitude || null,
         gps_longitude: gpsData?.longitude || null,
@@ -1097,6 +1100,7 @@ export function Attendance() {
           status: status,
           check_in_time: (status === 'on time' || status === 'late') ? new Date().toISOString() : null,
           late_minutes: lateMinutes,
+          check_in_method: 'bulk', // Track bulk marking
           host_address: addressOnly,
           gps_latitude: gpsData?.latitude || null,
           gps_longitude: gpsData?.longitude || null,
@@ -1126,6 +1130,7 @@ export function Attendance() {
         status: string;
         check_in_time?: string | null;
         late_minutes?: number | null;
+        check_in_method?: string;
         host_address?: string | null;
         gps_latitude?: number | null;
         gps_longitude?: number | null;
@@ -1136,6 +1141,7 @@ export function Attendance() {
       } = {
         status: status,
         late_minutes: lateMinutes,
+        check_in_method: 'bulk', // Track bulk marking
         host_address: addressOnly,
         gps_latitude: gpsData?.latitude || null,
         gps_longitude: gpsData?.longitude || null,

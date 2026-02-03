@@ -14,6 +14,9 @@ export interface AttendanceExportData {
   location: string;
   status: string;
   late_minutes?: number | null;
+  early_minutes?: number | null;
+  check_in_method?: string | null;
+  distance_from_host?: number | null;
   check_in_time: string | null;
   marked_at: string;
   marked_by: string | null;
@@ -56,6 +59,15 @@ export class ExcelExportService {
       'Status': record.status.toUpperCase(),
       'Late Duration (min)': record.status === 'late' && record.late_minutes ? record.late_minutes : '-',
       'Late Severity': record.status === 'late' ? getLateBracketName(record.late_minutes) : '-',
+      'Early (min)': record.early_minutes ? record.early_minutes : '-',
+      'Check-in Method': record.check_in_method ? 
+        (record.check_in_method === 'qr_code' ? 'QR Code' :
+         record.check_in_method === 'photo' ? 'Photo' :
+         record.check_in_method === 'bulk' ? 'Bulk' :
+         record.check_in_method === 'manual' ? 'Manual' :
+         record.check_in_method) : '-',
+      'Distance (m)': record.distance_from_host !== null && record.distance_from_host !== undefined 
+        ? record.distance_from_host.toFixed(1) : '-',
       'Check-In Time': record.check_in_time || 'N/A',
       'Marked At': record.marked_at,
       'Marked By': record.marked_by || 'N/A',
@@ -78,6 +90,9 @@ export class ExcelExportService {
       { wch: 10 }, // Status
       { wch: 18 }, // Late Duration
       { wch: 12 }, // Late Severity
+      { wch: 10 }, // Early
+      { wch: 14 }, // Check-in Method
+      { wch: 12 }, // Distance
       { wch: 18 }, // Check-In Time
       { wch: 18 }, // Marked At
       { wch: 20 }, // Marked By

@@ -116,6 +116,14 @@ export interface Attendance {
   excuse_reason?: string | null;
   // Physical address where the session took place (from host student)
   host_address?: string | null;
+  // Tiered late scoring - number of minutes late after grace period
+  late_minutes?: number | null;
+  // Early arrival tracking - number of minutes early before session start
+  early_minutes?: number | null;
+  // How the attendance was recorded: qr_code, photo, manual, bulk
+  check_in_method?: 'qr_code' | 'photo' | 'manual' | 'bulk' | null;
+  // Distance in meters from host location when checked in
+  distance_from_host?: number | null;
   gps_latitude: number | null;
   gps_longitude: number | null;
   gps_accuracy: number | null;
