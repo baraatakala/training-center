@@ -584,22 +584,14 @@ export function StudentCheckIn() {
         marked_at: new Date().toISOString(),
       };
 
-      let attendanceError;
-      
-      if (existingRecord) {
-        // Update existing record (was absent, now checking in)
-        const { error } = await supabase
-          .from('attendance')
-          .update(attendanceData)
-          .eq('attendance_id', existingRecord.attendance_id);
-        attendanceError = error;
-      } else {
-        // Insert new record
-        const { error } = await supabase
-          .from('attendance')
-          .insert(attendanceData);
-        attendanceError = error;
-      }
+      // Use upsert to handle race conditions - if record exists, update it
+      // This prevents duplicate key errors when two requests happen simultaneously
+      const { error: attendanceError } = await supabase
+        .from('attendance')
+        .upsert(attendanceData, {
+          onConflict: 'enrollment_id,session_id,attendance_date',
+          ignoreDuplicates: false // Update existing record
+        });
 
       if (attendanceError) {
         throw attendanceError;

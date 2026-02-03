@@ -65,20 +65,26 @@ export const attendanceService = {
     return { data, error: null };
   },
 
-  // Create new attendance record
+  // Create or update attendance record (upsert to prevent duplicate key errors)
   async create(attendance: CreateAttendance) {
     return await supabase
       .from(Tables.ATTENDANCE)
-      .insert(attendance)
+      .upsert(attendance, {
+        onConflict: 'enrollment_id,session_id,attendance_date',
+        ignoreDuplicates: false
+      })
       .select()
       .single();
   },
 
-  // Bulk create attendance records for a session location
+  // Bulk create/update attendance records (upsert to prevent duplicate key errors)
   async createBulk(attendanceRecords: CreateAttendance[]) {
     return await supabase
       .from(Tables.ATTENDANCE)
-      .insert(attendanceRecords)
+      .upsert(attendanceRecords, {
+        onConflict: 'enrollment_id,session_id,attendance_date',
+        ignoreDuplicates: false
+      })
       .select();
   },
 
