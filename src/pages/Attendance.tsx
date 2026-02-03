@@ -155,13 +155,19 @@ export function Attendance() {
 
   // Calculate late_minutes for tiered late scoring
   // Uses session.time (e.g., "14:00") + grace_period_minutes to determine how late the student is
-  const calculateLateMinutes = (): number | null => {
-    if (!session?.time || !selectedDate) return null;
+  // If we can't calculate exact minutes, returns a default of 1 minute when forceLate=true
+  const calculateLateMinutes = (forceLate: boolean = true): number | null => {
+    if (!session?.time || !selectedDate) {
+      // If session has no time set but teacher is marking late, use default
+      return forceLate ? 1 : null;
+    }
     
     try {
       // Parse session time (e.g., "14:00" or "2:00 PM")
       const timeMatch = session.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
-      if (!timeMatch) return null;
+      if (!timeMatch) {
+        return forceLate ? 1 : null;
+      }
       
       let hours = parseInt(timeMatch[1], 10);
       const minutes = parseInt(timeMatch[2], 10);
@@ -182,12 +188,14 @@ export function Attendance() {
       // Calculate how many minutes late from grace end
       const now = new Date();
       if (now > graceEnd) {
-        return Math.ceil((now.getTime() - graceEnd.getTime()) / (1000 * 60));
+        const lateMinutes = Math.ceil((now.getTime() - graceEnd.getTime()) / (1000 * 60));
+        return Math.max(1, lateMinutes); // At least 1 minute
       }
-      return null; // Not late
+      // If marking as late but current time shows not late, use default
+      return forceLate ? 1 : null;
     } catch {
       console.error('Error calculating late minutes');
-      return null;
+      return forceLate ? 1 : null;
     }
   };
 
