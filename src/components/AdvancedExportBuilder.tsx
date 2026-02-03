@@ -40,7 +40,6 @@ interface AdvancedExportBuilderProps {
   isOpen: boolean;
   onClose: () => void;
   categories: ExportCategory[];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: Record<string, unknown>[];
   defaultTitle?: string;
   onExport?: (config: ExportConfig) => void;

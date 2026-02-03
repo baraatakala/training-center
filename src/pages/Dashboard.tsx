@@ -632,6 +632,7 @@ Please contact the training center urgently.`;
   useEffect(() => {
     loadStats();
     loadAttendanceAlerts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Reload alerts when date filters change
@@ -639,6 +640,7 @@ Please contact the training center urgently.`;
     if (startDate || endDate) {
       loadAttendanceAlerts();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startDate, endDate]);
 
   return (

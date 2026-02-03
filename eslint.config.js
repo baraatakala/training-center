@@ -25,6 +25,11 @@ export default defineConfig([
       'react-hooks/set-state-in-effect': 'off',
       // Allow exporting non-components from component files (e.g., contexts with hooks)
       'react-refresh/only-export-components': 'warn',
+      // Allow underscore-prefixed variables to be unused (for future implementation placeholders)
+      '@typescript-eslint/no-unused-vars': ['error', { 
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_'
+      }],
     },
   },
 ])

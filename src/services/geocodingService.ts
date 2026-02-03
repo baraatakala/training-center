@@ -111,7 +111,7 @@ export function formatDistance(meters: number): string {
  * NOTE: This requires an external service (Google Maps, OpenStreetMap, etc.)
  * For now, coordinates must be entered manually
  * 
- * @param _address Address string (unused, for future implementation)
+ * @param _address Address string (for future implementation)
  * @returns Promise with coordinates or null
  */
 export async function geocodeAddress(
