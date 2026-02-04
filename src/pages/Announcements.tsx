@@ -77,14 +77,44 @@ export function Announcements() {
   // Animation state for new announcements
   const [newAnnouncementId] = useState<string | null>(null);
 
-  const loadAnnouncementsForTeacher = useCallback(async () => {
+  // Load reactions for all announcements
+  const loadReactionsForAllAnnouncements = useCallback(async (announcementsList: Announcement[], userId: string | null) => {
+    if (!announcementsList.length) return;
+    
+    // Fetch reactions for ALL announcements in parallel
+    const reactionsPromises = announcementsList.map(async (ann) => {
+      const { data: reactions } = await announcementReactionService.getForAnnouncement(ann.announcement_id, userId || undefined);
+      const { data: commentsData } = await announcementCommentService.getForAnnouncement(ann.announcement_id);
+      return {
+        announcement_id: ann.announcement_id,
+        reactions: reactions || [],
+        commentCount: commentsData?.length || 0
+      };
+    });
+    
+    const reactionsResults = await Promise.all(reactionsPromises);
+    
+    // Update announcements with reactions
+    setAnnouncements(prev => prev.map(ann => {
+      const reactionData = reactionsResults.find(r => r.announcement_id === ann.announcement_id);
+      return reactionData ? {
+        ...ann,
+        reactions: reactionData.reactions,
+        commentCount: reactionData.commentCount
+      } : ann;
+    }));
+  }, []);
+
+  const loadAnnouncementsForTeacher = useCallback(async (teacherId: string) => {
     const { data, error: err } = await announcementService.getAll();
     if (err) {
       setError('Failed to load announcements');
     } else {
       setAnnouncements(data || []);
+      // Load reactions for all announcements (teacher can see but not react)
+      await loadReactionsForAllAnnouncements(data || [], teacherId);
     }
-  }, []);
+  }, [loadReactionsForAllAnnouncements]);
 
   const loadAnnouncementsForStudent = useCallback(async (studentId: string) => {
     const { data, error: err } = await announcementService.getForStudent(studentId);
@@ -92,8 +122,10 @@ export function Announcements() {
       setError('Failed to load announcements');
     } else {
       setAnnouncements(data || []);
+      // Load reactions for all announcements
+      await loadReactionsForAllAnnouncements(data || [], studentId);
     }
-  }, []);
+  }, [loadReactionsForAllAnnouncements]);
 
   const loadCourses = useCallback(async () => {
     const { data } = await supabase
@@ -124,7 +156,7 @@ export function Announcements() {
       if (teacher) {
         setIsTeacher(true);
         setCurrentUserId(teacher.teacher_id);
-        await loadAnnouncementsForTeacher();
+        await loadAnnouncementsForTeacher(teacher.teacher_id);
         await loadCourses();
       } else {
         // Check if student
@@ -208,7 +240,7 @@ export function Announcements() {
         if (err) throw err;
       }
 
-      await loadAnnouncementsForTeacher();
+      await loadAnnouncementsForTeacher(currentUserId!);
       closeModal();
     } catch (err) {
       console.error('Error saving announcement:', err);
@@ -227,7 +259,7 @@ export function Announcements() {
         console.error('Delete error:', err);
         alert(`Failed to delete announcement: ${err.message || 'Permission denied.'}`);
       } else {
-        await loadAnnouncementsForTeacher();
+        await loadAnnouncementsForTeacher(currentUserId!);
       }
     } catch (err) {
       console.error('Delete error:', err);
