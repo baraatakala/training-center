@@ -147,6 +147,8 @@ export interface ExportOptions {
   includeExecutiveSummary?: boolean;
   includeProgressBars?: boolean;
   includeTrendIndicators?: boolean;
+  enableConditionalColoring?: boolean;  // Whether to apply color-coding to percentage/score cells
+  coloringTheme?: 'default' | 'traffic' | 'heatmap' | 'status';  // Color theme for conditional formatting
 }
 
 export class WordExportService {
@@ -1709,6 +1711,7 @@ export class WordExportService {
     options?: ExportOptions
   ): Promise<void> {
     const theme = options?.theme || this.defaultTheme;
+    const enableConditionalColoring = options?.enableConditionalColoring ?? true;
     const sections: (Paragraph | Table)[] = [];
 
     // Title and Date Info
@@ -1791,9 +1794,11 @@ export class WordExportService {
         .filter(idx => idx !== -1);
     };
 
-    // Add color legend at the beginning
-    sections.push(this.createColorLegend(isArabic, theme));
-    sections.push(new Paragraph({ text: '', spacing: { after: 300 } }));
+    // Add color legend at the beginning - only if coloring is enabled
+    if (enableConditionalColoring) {
+      sections.push(this.createColorLegend(isArabic, theme));
+      sections.push(new Paragraph({ text: '', spacing: { after: 300 } }));
+    }
 
     // Student Performance Section (dynamic headers with conditional coloring)
     if (studentHeaders.length > 0 && studentData.length > 0) {
@@ -1802,8 +1807,8 @@ export class WordExportService {
         this.createHeading(studentTitle, HeadingLevel.HEADING_2, isArabic, theme)
       );
 
-      // Detect percentage columns for coloring
-      const studentColorColumns = detectPercentageColumns(studentHeaders);
+      // Detect percentage columns for coloring - only if coloring is enabled
+      const studentColorColumns = enableConditionalColoring ? detectPercentageColumns(studentHeaders) : [];
 
       // Build rows from the data using headers as keys
       const studentRows = studentData.map((row) => 
@@ -1832,8 +1837,8 @@ export class WordExportService {
         this.createHeading(dateTitle, HeadingLevel.HEADING_2, isArabic, theme)
       );
 
-      // Detect percentage columns for coloring
-      const dateColorColumns = detectPercentageColumns(dateHeaders);
+      // Detect percentage columns for coloring - only if coloring is enabled
+      const dateColorColumns = enableConditionalColoring ? detectPercentageColumns(dateHeaders) : [];
 
       // Build rows from the data using headers as keys
       const dateRows = dateData.map((row) =>
@@ -1862,8 +1867,8 @@ export class WordExportService {
         this.createHeading(hostTitle, HeadingLevel.HEADING_2, isArabic, theme)
       );
 
-      // Detect percentage columns for coloring
-      const hostColorColumns = detectPercentageColumns(hostHeaders);
+      // Detect percentage columns for coloring - only if coloring is enabled
+      const hostColorColumns = enableConditionalColoring ? detectPercentageColumns(hostHeaders) : [];
 
       // Build rows from the data using headers as keys
       const hostRows = hostData.map((row) =>

@@ -1205,16 +1205,19 @@ const AttendanceRecords = () => {
         .filter(idx => idx !== -1);
     };
 
-    // Color function for PDF conditional coloring
-    const getColorForValue = (value: number): [number, number, number] => {
-      if (value >= 90) return [16, 185, 129]; // Green (success)
-      if (value >= 75) return [59, 130, 246]; // Blue (good)
-      if (value >= 60) return [245, 158, 11]; // Yellow (moderate)
-      return [239, 68, 68]; // Red (needs attention)
+    // Get coloring settings from saved settings (use student settings as default)
+    const coloringSettings = getColoringSettingsForType('studentAnalytics');
+    
+    // Color function for PDF conditional coloring - uses theme from saved settings
+    const getColorForValuePDF = (value: number): [number, number, number] => {
+      return getColorForPercentage(value, coloringSettings.coloringTheme).rgb;
     };
 
+    // Only apply coloring if enabled in settings
+    const shouldApplyColoring = coloringSettings.enableConditionalColoring;
+
     // Detect percentage columns for student table
-    const studentColorColumns = detectPercentageColumns(studentConfig.headers);
+    const studentColorColumns = shouldApplyColoring ? detectPercentageColumns(studentConfig.headers) : [];
     
     autoTable(doc, {
       startY: 46,
@@ -1225,13 +1228,13 @@ const AttendanceRecords = () => {
       alternateRowStyles: { fillColor: [245, 245, 245] },
       rowPageBreak: 'avoid',
       didParseCell: (hookData) => {
-        if (hookData.section === 'body' && studentColorColumns.includes(hookData.column.index)) {
+        if (shouldApplyColoring && hookData.section === 'body' && studentColorColumns.includes(hookData.column.index)) {
           const cellText = hookData.cell.text.join('');
           const numMatch = cellText.match(/(\d+\.?\d*)/);
           if (numMatch) {
             const value = parseFloat(numMatch[1]);
             if (!isNaN(value) && value >= 0 && value <= 100) {
-              hookData.cell.styles.fillColor = getColorForValue(value);
+              hookData.cell.styles.fillColor = getColorForValuePDF(value);
               hookData.cell.styles.textColor = [255, 255, 255];
               hookData.cell.styles.fontStyle = 'bold';
             }
@@ -1302,8 +1305,8 @@ const AttendanceRecords = () => {
     // Apply sorting from saved settings
     const dateDataObjects = sortDataBySettings(dateDataObjectsUnsorted, 'dateAnalytics');
 
-    // Detect percentage columns for date table
-    const dateColorColumns = detectPercentageColumns(dateConfig.headers);
+    // Detect percentage columns for date table - only if coloring enabled
+    const dateColorColumns = shouldApplyColoring ? detectPercentageColumns(dateConfig.headers) : [];
 
     autoTable(doc, {
       startY: performanceTableY + 14,
@@ -1314,13 +1317,13 @@ const AttendanceRecords = () => {
       alternateRowStyles: { fillColor: [245, 245, 245] },
       rowPageBreak: 'avoid',
       didParseCell: (hookData) => {
-        if (hookData.section === 'body' && dateColorColumns.includes(hookData.column.index)) {
+        if (shouldApplyColoring && hookData.section === 'body' && dateColorColumns.includes(hookData.column.index)) {
           const cellText = hookData.cell.text.join('');
           const numMatch = cellText.match(/(\d+\.?\d*)/);
           if (numMatch) {
             const value = parseFloat(numMatch[1]);
             if (!isNaN(value) && value >= 0 && value <= 100) {
-              hookData.cell.styles.fillColor = getColorForValue(value);
+              hookData.cell.styles.fillColor = getColorForValuePDF(value);
               hookData.cell.styles.textColor = [255, 255, 255];
               hookData.cell.styles.fontStyle = 'bold';
             }
@@ -1391,8 +1394,8 @@ const AttendanceRecords = () => {
       doc.setFontSize(12);
       doc.text('Host Rankings', 14, dateTableY + 10);
 
-      // Detect percentage columns for host table
-      const hostColorColumns = detectPercentageColumns(hostConfig.headers);
+      // Detect percentage columns for host table - only if coloring enabled
+      const hostColorColumns = shouldApplyColoring ? detectPercentageColumns(hostConfig.headers) : [];
 
       autoTable(doc, {
         startY: dateTableY + 14,
@@ -1402,13 +1405,13 @@ const AttendanceRecords = () => {
         headStyles: { fillColor: [59, 130, 246], fontSize: 7 },
         alternateRowStyles: { fillColor: [245, 245, 245] },
         didParseCell: (hookData) => {
-          if (hookData.section === 'body' && hostColorColumns.includes(hookData.column.index)) {
+          if (shouldApplyColoring && hookData.section === 'body' && hostColorColumns.includes(hookData.column.index)) {
             const cellText = hookData.cell.text.join('');
             const numMatch = cellText.match(/(\d+\.?\d*)/);
             if (numMatch) {
               const value = parseFloat(numMatch[1]);
               if (!isNaN(value) && value >= 0 && value <= 100) {
-                hookData.cell.styles.fillColor = getColorForValue(value);
+                hookData.cell.styles.fillColor = getColorForValuePDF(value);
                 hookData.cell.styles.textColor = [255, 255, 255];
                 hookData.cell.styles.fontStyle = 'bold';
               }
@@ -1418,30 +1421,45 @@ const AttendanceRecords = () => {
       });
     }
 
-    // Add color legend at the end of the PDF
-    const finalY = (doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || 200;
-    doc.setFontSize(8);
-    doc.setTextColor(100, 100, 100);
-    doc.text('Color Legend:', 14, finalY + 8);
-    
-    // Draw legend boxes
-    const legendItems = [
-      { label: '90%+ Excellent', color: [16, 185, 129] as [number, number, number] },
-      { label: '75-89% Good', color: [59, 130, 246] as [number, number, number] },
-      { label: '60-74% Moderate', color: [245, 158, 11] as [number, number, number] },
-      { label: '<60% Needs Attention', color: [239, 68, 68] as [number, number, number] },
-    ];
-    
-    let legendX = 38;
-    legendItems.forEach(item => {
-      doc.setFillColor(item.color[0], item.color[1], item.color[2]);
-      doc.rect(legendX, finalY + 5, 6, 3, 'F');
-      doc.setTextColor(60, 60, 60);
-      doc.text(item.label, legendX + 8, finalY + 7.5);
-      legendX += 42;
-    });
-    
-    doc.setTextColor(0, 0, 0);
+    // Add color legend at the end of the PDF - only if coloring was applied
+    if (shouldApplyColoring) {
+      const finalY = (doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || 200;
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Color Legend (${coloringSettings.coloringTheme} theme):`, 14, finalY + 8);
+      
+      // Draw legend boxes based on theme
+      const legendItems = coloringSettings.coloringTheme === 'traffic' 
+        ? [
+            { label: '80%+ Good', color: [34, 197, 94] as [number, number, number] },
+            { label: '60-79% Warning', color: [234, 179, 8] as [number, number, number] },
+            { label: '<60% Needs Attention', color: [239, 68, 68] as [number, number, number] },
+          ]
+        : coloringSettings.coloringTheme === 'heatmap'
+        ? [
+            { label: '90%+ Excellent', color: [30, 64, 175] as [number, number, number] },
+            { label: '75-89% Good', color: [59, 130, 246] as [number, number, number] },
+            { label: '60-74% Moderate', color: [147, 197, 253] as [number, number, number] },
+            { label: '<60% Low', color: [219, 234, 254] as [number, number, number] },
+          ]
+        : [
+            { label: '90%+ Excellent', color: [16, 185, 129] as [number, number, number] },
+            { label: '75-89% Good', color: [59, 130, 246] as [number, number, number] },
+            { label: '60-74% Moderate', color: [245, 158, 11] as [number, number, number] },
+            { label: '<60% Needs Attention', color: [239, 68, 68] as [number, number, number] },
+          ];
+      
+      let legendX = 55;
+      legendItems.forEach(item => {
+        doc.setFillColor(item.color[0], item.color[1], item.color[2]);
+        doc.rect(legendX, finalY + 5, 6, 3, 'F');
+        doc.setTextColor(60, 60, 60);
+        doc.text(item.label, legendX + 8, finalY + 7.5);
+        legendX += 42;
+      });
+      
+      doc.setTextColor(0, 0, 0);
+    }
 
     const pdfFileName = isArabic 
       ? `تقرير_التحليلات_${format(new Date(), 'yyyy-MM-dd')}.pdf`
@@ -1661,6 +1679,9 @@ const AttendanceRecords = () => {
       return row;
     });
 
+    // Get coloring settings from saved settings
+    const wordColoringSettings = getColoringSettingsForType('studentAnalytics');
+
     try {
       await wordExportService.exportAnalyticsToWordDynamic(
         studentDataForExport,
@@ -1672,7 +1693,12 @@ const AttendanceRecords = () => {
         summaryStats,
         isArabic,
         filters.startDate,
-        filters.endDate
+        filters.endDate,
+        undefined, // filename
+        {
+          enableConditionalColoring: wordColoringSettings.enableConditionalColoring,
+          coloringTheme: wordColoringSettings.coloringTheme,
+        }
       );
       success('Word document exported successfully!');
     } catch (err) {
@@ -2430,6 +2456,48 @@ const AttendanceRecords = () => {
       }
       return String(aVal).localeCompare(String(bVal)) * sortDir;
     });
+  };
+
+  // Helper: Get conditional coloring settings for a data type
+  const getColoringSettingsForType = (dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics'): { 
+    enableConditionalColoring: boolean; 
+    coloringTheme: 'default' | 'traffic' | 'heatmap' | 'status';
+  } => {
+    const settings = savedExportSettings[dataType];
+    return {
+      enableConditionalColoring: settings?.enableConditionalColoring ?? true,
+      coloringTheme: settings?.coloringTheme || 'default',
+    };
+  };
+  
+  // Helper: Get color for a percentage value based on theme
+  const getColorForPercentage = (
+    value: number, 
+    theme: 'default' | 'traffic' | 'heatmap' | 'status'
+  ): { rgb: [number, number, number]; hex: string } => {
+    if (theme === 'traffic') {
+      // Traffic light: Red -> Yellow -> Green
+      if (value >= 80) return { rgb: [34, 197, 94], hex: '#22C55E' };   // Green
+      if (value >= 60) return { rgb: [234, 179, 8], hex: '#EAB308' };   // Yellow  
+      return { rgb: [239, 68, 68], hex: '#EF4444' };                     // Red
+    } else if (theme === 'heatmap') {
+      // Heatmap: Blue gradient
+      if (value >= 90) return { rgb: [30, 64, 175], hex: '#1E40AF' };   // Dark blue
+      if (value >= 75) return { rgb: [59, 130, 246], hex: '#3B82F6' };  // Medium blue
+      if (value >= 60) return { rgb: [147, 197, 253], hex: '#93C5FD' }; // Light blue
+      return { rgb: [219, 234, 254], hex: '#DBEAFE' };                   // Very light blue
+    } else if (theme === 'status') {
+      // Status: Success/Info/Warning/Error
+      if (value >= 90) return { rgb: [16, 185, 129], hex: '#10B981' };  // Emerald (excellent)
+      if (value >= 75) return { rgb: [59, 130, 246], hex: '#3B82F6' };  // Blue (good)
+      if (value >= 60) return { rgb: [245, 158, 11], hex: '#F59E0B' };  // Amber (warning)
+      return { rgb: [239, 68, 68], hex: '#EF4444' };                     // Red (needs attention)
+    }
+    // Default theme
+    if (value >= 90) return { rgb: [16, 185, 129], hex: '#10B981' };    // Green
+    if (value >= 75) return { rgb: [59, 130, 246], hex: '#3B82F6' };    // Blue
+    if (value >= 60) return { rgb: [245, 158, 11], hex: '#F59E0B' };    // Yellow
+    return { rgb: [239, 68, 68], hex: '#EF4444' };                       // Red
   };
 
   // Helper: Filter headers and data based on selected fields
@@ -3305,6 +3373,11 @@ const AttendanceRecords = () => {
                 {savedExportSettings.studentAnalytics?.sortByField && (
                   <span className="text-purple-600 dark:text-purple-400 text-xs">
                     (Sort: {savedExportSettings.studentAnalytics.sortByField} {savedExportSettings.studentAnalytics.sortDirection === 'desc' ? '↓' : '↑'})
+                  </span>
+                )}
+                {savedExportSettings.studentAnalytics?.enableConditionalColoring !== false && (
+                  <span className="text-rose-500 dark:text-rose-400 text-xs" title="Conditional coloring enabled">
+                    🌈
                   </span>
                 )}
                 <button
