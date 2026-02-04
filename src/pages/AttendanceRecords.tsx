@@ -2265,6 +2265,21 @@ const AttendanceRecords = () => {
           ]
         },
         {
+          id: 'attendance',
+          label: 'Attendance Stats',
+          labelAr: 'إحصائيات الحضور',
+          icon: '✅',
+          fields: [
+            { key: 'attendanceRate', label: 'Avg Attendance Rate %', labelAr: 'معدل الحضور', category: 'attendance', defaultSelected: true },
+            { key: 'totalOnTime', label: 'Total On Time', labelAr: 'إجمالي في الوقت', category: 'attendance', defaultSelected: true },
+            { key: 'totalLate', label: 'Total Late', labelAr: 'إجمالي المتأخرين', category: 'attendance', defaultSelected: true },
+            { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحضور', category: 'attendance', defaultSelected: true },
+            { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب', category: 'attendance', defaultSelected: true },
+            { key: 'totalExcused', label: 'Total Excused', labelAr: 'إجمالي المعذورين', category: 'attendance', defaultSelected: true },
+            { key: 'totalStudents', label: 'Total Students', labelAr: 'إجمالي الطلاب', category: 'attendance', defaultSelected: false },
+          ]
+        },
+        {
           id: 'dates',
           label: 'Hosting Dates',
           labelAr: 'تواريخ الاستضافة',
