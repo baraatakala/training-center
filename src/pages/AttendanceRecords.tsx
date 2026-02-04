@@ -409,16 +409,31 @@ const AttendanceRecords = () => {
       if (studentsRes.data) {
         setStudents(studentsRes.data.map(s => ({ value: s.student_id, label: s.name })));
       }
+      if (studentsRes.error) {
+        console.error('Error loading students:', studentsRes.error);
+      }
 
       if (coursesRes.data) {
         setCourses(coursesRes.data.map(c => ({ value: c.course_id, label: c.course_name })));
+      }
+      if (coursesRes.error) {
+        console.error('Error loading courses:', coursesRes.error);
       }
 
       if (teachersRes.data) {
         setInstructors(teachersRes.data.map(t => ({ value: t.teacher_id, label: t.name })));
       }
+      if (teachersRes.error) {
+        console.error('Error loading teachers:', teachersRes.error);
+      }
+
+      // Show warning if any filter options failed to load
+      if (studentsRes.error || coursesRes.error || teachersRes.error) {
+        showError('Some filter options failed to load. Please refresh the page.');
+      }
     } catch (error) {
       console.error('Error loading filter options:', error);
+      showError('Failed to load filter options. Please refresh the page.');
     }
   };
 
@@ -499,13 +514,21 @@ const AttendanceRecords = () => {
                   end_page
                 )
               `)
-          : Promise.resolve({ data: null }),
+          : Promise.resolve({ data: null, error: null }),
         sessionDatePairs.length > 0
           ? supabase
               .from('session_date_host')
               .select('session_id, attendance_date, host_address')
-          : Promise.resolve({ data: null })
+          : Promise.resolve({ data: null, error: null })
       ]);
+
+      // Log errors from parallel queries (non-blocking)
+      if (coverageRes.error) {
+        console.warn('Failed to load book coverage data:', coverageRes.error);
+      }
+      if (hostRes.error) {
+        console.warn('Failed to load host address data:', hostRes.error);
+      }
 
       // Create lookup maps for O(1) access
       const bookCoverageMap = new Map<string, { topic: string; start_page: number; end_page: number }>();
@@ -624,6 +647,8 @@ const AttendanceRecords = () => {
       setRecords(formattedRecords);
     } catch (error) {
       console.error('Error loading records:', error);
+      showError('Failed to load attendance records. Please try again.');
+      setRecords([]);
     }
     setLoading(false);
   };
@@ -3785,22 +3810,9 @@ const AttendanceRecords = () => {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {loading ? (
-                <tr>
-                  <td colSpan={11} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
-                    Loading records...
-                  </td>
-                </tr>
-              ) : filteredRecords.length === 0 ? (
-                <tr>
-                  <td colSpan={11} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
-                    No attendance records found
-                  </td>
-                </tr>
-              ) : (
-                getSortedRecords()
-                  .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-                  .map((record) => (
+              {getSortedRecords()
+                .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                .map((record) => (
                   <tr 
                     key={record.attendance_id} 
                     className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
@@ -3914,8 +3926,7 @@ const AttendanceRecords = () => {
                       )}
                     </td>
                   </tr>
-                ))
-              )}
+                ))}
             </tbody>
           </table>
         </div>
