@@ -652,33 +652,44 @@ export const announcementReactionService = {
   },
 
   /**
-   * Get all reactions for an announcement
+   * Get all reactions for an announcement with reactor names
    */
   async getForAnnouncement(announcementId: string, currentStudentId?: string): Promise<{ 
-    data: { emoji: string; count: number; hasReacted: boolean }[]; 
+    data: { emoji: string; count: number; hasReacted: boolean; reactors: { id: string; name: string }[] }[]; 
     error: Error | null 
   }> {
     try {
+      // Fetch reactions with student names
       const { data, error } = await supabase
         .from('announcement_reaction')
-        .select('emoji, student_id')
+        .select('emoji, student_id, student:student_id(name)')
         .eq('announcement_id', announcementId);
 
       if (error) throw error;
 
-      // Group by emoji
-      const emojiMap = new Map<string, { count: number; studentIds: string[] }>();
-      (data || []).forEach(r => {
-        if (!emojiMap.has(r.emoji)) emojiMap.set(r.emoji, { count: 0, studentIds: [] });
-        const entry = emojiMap.get(r.emoji)!;
+      // Group by emoji with reactor info
+      const emojiMap = new Map<string, { count: number; studentIds: string[]; reactors: { id: string; name: string }[] }>();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (data || []).forEach((r: any) => {
+        const emoji = r.emoji as string;
+        const studentId = r.student_id as string;
+        const studentName = r.student?.name || 'Unknown Student';
+        
+        if (!emojiMap.has(emoji)) emojiMap.set(emoji, { count: 0, studentIds: [], reactors: [] });
+        const entry = emojiMap.get(emoji)!;
         entry.count++;
-        entry.studentIds.push(r.student_id);
+        entry.studentIds.push(studentId);
+        entry.reactors.push({ 
+          id: studentId, 
+          name: studentName 
+        });
       });
 
-      const result = Array.from(emojiMap.entries()).map(([emoji, { count, studentIds }]) => ({
+      const result = Array.from(emojiMap.entries()).map(([emoji, { count, studentIds, reactors }]) => ({
         emoji,
         count,
-        hasReacted: currentStudentId ? studentIds.includes(currentStudentId) : false
+        hasReacted: currentStudentId ? studentIds.includes(currentStudentId) : false,
+        reactors
       }));
 
       return { data: result, error: null };

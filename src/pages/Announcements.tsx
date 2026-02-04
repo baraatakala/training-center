@@ -29,7 +29,7 @@ type CategoryType = keyof typeof CATEGORIES;
 
 // Extended Announcement type with reactions and comments
 interface ExtendedAnnouncement extends Announcement {
-  reactions?: { emoji: string; count: number; hasReacted: boolean }[];
+  reactions?: { emoji: string; count: number; hasReacted: boolean; reactors?: { id: string; name: string }[] }[];
   commentCount?: number;
   category?: CategoryType;
 }
@@ -552,19 +552,43 @@ export function Announcements() {
               <h3 className="font-semibold text-gray-900 dark:text-white line-clamp-1 mb-2">{announcement.title}</h3>
               <p className="text-gray-600 dark:text-gray-400 text-sm line-clamp-2 mb-3">{announcement.content}</p>
               
-              {/* Reactions display */}
+              {/* Reactions display with names on hover */}
               {announcement.reactions && announcement.reactions.length > 0 && (
                 <div className="flex flex-wrap gap-1 mb-3">
                   {announcement.reactions.map(r => (
                     <span 
                       key={r.emoji} 
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${
+                      className={`group relative inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs cursor-default ${
                         r.hasReacted 
                           ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' 
                           : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
                       }`}
                     >
                       {r.emoji} {r.count}
+                      {/* Tooltip showing who reacted */}
+                      {r.reactors && r.reactors.length > 0 && (
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-50">
+                          <div className="bg-gray-900 dark:bg-gray-700 text-white text-xs rounded-lg py-2 px-3 whitespace-nowrap shadow-lg">
+                            <div className="font-semibold mb-1 border-b border-gray-700 dark:border-gray-600 pb-1">
+                              {r.emoji} Reacted by:
+                            </div>
+                            <div className="max-h-32 overflow-y-auto">
+                              {r.reactors.slice(0, 10).map((reactor) => (
+                                <div key={reactor.id} className="py-0.5">
+                                  {reactor.name}
+                                </div>
+                              ))}
+                              {r.reactors.length > 10 && (
+                                <div className="text-gray-400 pt-1 border-t border-gray-700">
+                                  +{r.reactors.length - 10} more
+                                </div>
+                              )}
+                            </div>
+                            {/* Arrow */}
+                            <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900 dark:border-t-gray-700"></div>
+                          </div>
+                        </div>
+                      )}
                     </span>
                   ))}
                 </div>
@@ -779,19 +803,44 @@ export function Announcements() {
               {REACTION_EMOJIS.map(emoji => {
                 const reaction = viewingAnnouncement.reactions?.find(r => r.emoji === emoji);
                 return (
-                  <button
-                    key={emoji}
-                    onClick={() => !isTeacher && handleReaction(viewingAnnouncement.announcement_id, emoji)}
-                    disabled={isTeacher === true}
-                    className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-sm transition-all ${
-                      reaction?.hasReacted
-                        ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 ring-2 ring-blue-300 dark:ring-blue-600'
-                        : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    } ${isTeacher ? 'cursor-default' : 'cursor-pointer hover:scale-110'}`}
-                  >
-                    <span className="text-lg">{emoji}</span>
-                    {reaction && reaction.count > 0 && <span className="font-medium">{reaction.count}</span>}
-                  </button>
+                  <div key={emoji} className="group relative">
+                    <button
+                      onClick={() => !isTeacher && handleReaction(viewingAnnouncement.announcement_id, emoji)}
+                      disabled={isTeacher === true}
+                      className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-sm transition-all ${
+                        reaction?.hasReacted
+                          ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 ring-2 ring-blue-300 dark:ring-blue-600'
+                          : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      } ${isTeacher ? 'cursor-default' : 'cursor-pointer hover:scale-110'}`}
+                    >
+                      <span className="text-lg">{emoji}</span>
+                      {reaction && reaction.count > 0 && <span className="font-medium">{reaction.count}</span>}
+                    </button>
+                    {/* Tooltip showing who reacted */}
+                    {reaction && reaction.reactors && reaction.reactors.length > 0 && (
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-50">
+                        <div className="bg-gray-900 dark:bg-gray-700 text-white text-xs rounded-lg py-2 px-3 whitespace-nowrap shadow-lg">
+                          <div className="font-semibold mb-1 border-b border-gray-700 dark:border-gray-600 pb-1">
+                            {emoji} Reacted by:
+                          </div>
+                          <div className="max-h-32 overflow-y-auto">
+                            {reaction.reactors.slice(0, 10).map((reactor) => (
+                              <div key={reactor.id} className="py-0.5">
+                                {reactor.name}
+                              </div>
+                            ))}
+                            {reaction.reactors.length > 10 && (
+                              <div className="text-gray-400 pt-1 border-t border-gray-700">
+                                +{reaction.reactors.length - 10} more
+                              </div>
+                            )}
+                          </div>
+                          {/* Arrow */}
+                          <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900 dark:border-t-gray-700"></div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
