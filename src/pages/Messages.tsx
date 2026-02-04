@@ -39,6 +39,7 @@ export function Messages() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [userType, setUserType] = useState<'teacher' | 'student' | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('inbox');
+  const [starredCount, setStarredCount] = useState(0);
 
   // Compose modal states
   const [showComposeModal, setShowComposeModal] = useState(false);
@@ -88,6 +89,13 @@ export function Messages() {
     }
   };
 
+  // Load starred count separately
+  const loadStarredCount = useCallback(async () => {
+    if (!userType || !currentUserId) return;
+    const { data } = await messageService.getStarred(userType, currentUserId);
+    setStarredCount(data?.length || 0);
+  }, [userType, currentUserId]);
+
   const loadMessages = useCallback(async () => {
     if (!userType || !currentUserId) return;
 
@@ -97,11 +105,11 @@ export function Messages() {
       let err: Error | null = null;
 
       if (activeTab === 'starred') {
-        // For starred tab, get all messages and filter by starred
-        const inbox = await messageService.getInbox(userType, currentUserId);
-        const sent = await messageService.getSent(userType, currentUserId);
-        const allMessages = [...(inbox.data || []), ...(sent.data || [])];
-        data = allMessages.filter(m => (m as ExtendedMessage).isStarred);
+        // Use dedicated getStarred function
+        const result = await messageService.getStarred(userType, currentUserId);
+        data = result.data;
+        err = result.error;
+        setStarredCount(result.data?.length || 0);
       } else if (activeTab === 'inbox') {
         const result = await messageService.getInbox(userType, currentUserId);
         data = result.data;
@@ -193,8 +201,9 @@ export function Messages() {
   useEffect(() => {
     if (currentUserId && userType) {
       loadMessages();
+      loadStarredCount(); // Load starred count on initial load
     }
-  }, [currentUserId, userType, loadMessages]);
+  }, [currentUserId, userType, loadMessages, loadStarredCount]);
 
   const handleSendMessage = async () => {
     if (!formRecipientId || !formContent.trim()) {
@@ -284,11 +293,19 @@ export function Messages() {
     e?.stopPropagation();
     if (!userType || !currentUserId) return;
 
-    const { isStarred } = await messageService.toggleStarred(messageId, userType, currentUserId);
+    const { isStarred, error } = await messageService.toggleStarred(messageId, userType, currentUserId);
+    
+    if (error) {
+      console.error('Failed to toggle star:', error);
+      return;
+    }
     
     setMessages(prev => prev.map(m =>
       m.message_id === messageId ? { ...m, isStarred } : m
     ));
+
+    // Update starred count
+    setStarredCount(prev => isStarred ? prev + 1 : Math.max(0, prev - 1));
 
     if (viewingMessage?.message_id === messageId) {
       setViewingMessage(prev => prev ? { ...prev, isStarred } : null);
@@ -345,7 +362,7 @@ export function Messages() {
   }, {} as Record<string, ExtendedMessage[]>);
 
   const unreadCount = messages.filter(m => !m.is_read && activeTab === 'inbox').length;
-  const starredCount = messages.filter(m => m.isStarred).length;
+  // starredCount is now managed by state, loaded on page load
 
   if (loading && !currentUserId) {
     return (
@@ -500,7 +517,7 @@ export function Messages() {
                   {groupMessages.map((message) => (
               <div
                 key={message.message_id}
-                className={`relative bg-white dark:bg-gray-800 rounded-xl shadow-md dark:shadow-gray-900/30 p-4 cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 ${
+                className={`group relative bg-white dark:bg-gray-800 rounded-xl shadow-md dark:shadow-gray-900/30 p-4 cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 ${
                   !message.is_read && activeTab === 'inbox' ? 'bg-gradient-to-r from-blue-50 to-white dark:from-blue-900/30 dark:to-gray-800 border-l-4 border-l-blue-500' : ''
                 } ${message.isStarred ? 'ring-1 ring-yellow-300 dark:ring-yellow-600' : ''}`}
                 onClick={() => {

@@ -283,7 +283,12 @@ export function Announcements() {
     e?.stopPropagation();
     if (!currentUserId || isTeacher) return; // Only students can react
 
-    const { added } = await announcementReactionService.toggle(announcementId, currentUserId, emoji);
+    const { added, error } = await announcementReactionService.toggle(announcementId, currentUserId, emoji);
+    
+    if (error) {
+      console.error('Failed to toggle reaction:', error);
+      return;
+    }
     
     // Update local state
     setAnnouncements(prev => prev.map(a => {
@@ -323,8 +328,11 @@ export function Announcements() {
   // Load comments for an announcement
   const loadComments = async (announcementId: string) => {
     setLoadingComments(true);
-    const { data } = await announcementCommentService.getForAnnouncement(announcementId);
-    setComments(data);
+    const { data, error } = await announcementCommentService.getForAnnouncement(announcementId);
+    if (error) {
+      console.error('Failed to load comments:', error);
+    }
+    setComments(data || []);
     setLoadingComments(false);
   };
 
@@ -333,12 +341,18 @@ export function Announcements() {
     if (!newComment.trim() || !viewingAnnouncement || !currentUserId) return;
 
     const commenterType = isTeacher ? 'teacher' : 'student';
-    await announcementCommentService.add(
+    const { error } = await announcementCommentService.add(
       viewingAnnouncement.announcement_id,
       commenterType,
       currentUserId,
       newComment.trim()
     );
+
+    if (error) {
+      console.error('Failed to add comment:', error);
+      alert('Failed to add comment. Please try again.');
+      return;
+    }
 
     setNewComment('');
     await loadComments(viewingAnnouncement.announcement_id);
@@ -359,13 +373,19 @@ export function Announcements() {
     if (!replyContent.trim() || !viewingAnnouncement || !currentUserId) return;
 
     const commenterType = isTeacher ? 'teacher' : 'student';
-    await announcementCommentService.add(
+    const { error } = await announcementCommentService.add(
       viewingAnnouncement.announcement_id,
       commenterType,
       currentUserId,
       replyContent.trim(),
       parentCommentId
     );
+
+    if (error) {
+      console.error('Failed to add reply:', error);
+      alert('Failed to add reply. Please try again.');
+      return;
+    }
 
     setReplyContent('');
     setReplyingTo(null);
@@ -375,7 +395,15 @@ export function Announcements() {
   // Delete a comment
   const handleDeleteComment = async (commentId: string) => {
     if (!window.confirm('Delete this comment?')) return;
-    await announcementCommentService.delete(commentId);
+    
+    const { error } = await announcementCommentService.delete(commentId);
+    
+    if (error) {
+      console.error('Failed to delete comment:', error);
+      alert('Failed to delete comment. Please try again.');
+      return;
+    }
+    
     if (viewingAnnouncement) {
       await loadComments(viewingAnnouncement.announcement_id);
       setAnnouncements(prev => prev.map(a => 

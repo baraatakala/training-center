@@ -503,6 +503,86 @@ export const messageService = {
   },
 
   /**
+   * Get starred messages for a user
+   */
+  async getStarred(userType: 'teacher' | 'student', userId: string): Promise<{ data: Message[] | null; error: Error | null }> {
+    try {
+      // Get starred message IDs
+      const { data: starredData, error: starredError } = await supabase
+        .from('message_starred')
+        .select('message_id')
+        .eq('user_type', userType)
+        .eq('user_id', userId);
+
+      if (starredError) throw starredError;
+      
+      if (!starredData || starredData.length === 0) {
+        return { data: [], error: null };
+      }
+
+      const starredIds = starredData.map(s => s.message_id);
+
+      // Get full message details for starred messages
+      const { data: messages, error: msgError } = await supabase
+        .from('message')
+        .select('*')
+        .in('message_id', starredIds)
+        .order('created_at', { ascending: false });
+
+      if (msgError) throw msgError;
+
+      // Fetch sender/recipient details
+      const messagesWithDetails = await Promise.all(
+        (messages || []).map(async (msg) => {
+          let sender = null;
+          let recipient = null;
+          
+          // Get sender
+          if (msg.sender_type === 'teacher') {
+            const { data: t } = await supabase
+              .from('teacher')
+              .select('name, email')
+              .eq('teacher_id', msg.sender_id)
+              .single();
+            sender = t;
+          } else {
+            const { data: s } = await supabase
+              .from('student')
+              .select('name, email')
+              .eq('student_id', msg.sender_id)
+              .single();
+            sender = s;
+          }
+          
+          // Get recipient
+          if (msg.recipient_type === 'teacher') {
+            const { data: t } = await supabase
+              .from('teacher')
+              .select('name, email')
+              .eq('teacher_id', msg.recipient_id)
+              .single();
+            recipient = t;
+          } else {
+            const { data: s } = await supabase
+              .from('student')
+              .select('name, email')
+              .eq('student_id', msg.recipient_id)
+              .single();
+            recipient = s;
+          }
+          
+          return { ...msg, sender, recipient, isStarred: true };
+        })
+      );
+
+      return { data: messagesWithDetails, error: null };
+    } catch (error) {
+      console.error('Error fetching starred messages:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  /**
    * Toggle starred status for a message
    */
   async toggleStarred(messageId: string, userType: 'teacher' | 'student', userId: string): Promise<{ isStarred: boolean; error: Error | null }> {
