@@ -31,7 +31,6 @@ type CategoryType = keyof typeof CATEGORIES;
 interface ExtendedAnnouncement extends Announcement {
   reactions?: { emoji: string; count: number; hasReacted: boolean; reactors?: { id: string; name: string }[] }[];
   commentCount?: number;
-  category?: CategoryType;
 }
 
 export function Announcements() {
@@ -62,6 +61,7 @@ export function Announcements() {
   const [formContent, setFormContent] = useState('');
   const [formPriority, setFormPriority] = useState<AnnouncementPriority>('normal');
   const [formCourseId, setFormCourseId] = useState<string>('');
+  const [formCategory, setFormCategory] = useState<CategoryType>('general');
   const [formIsPinned, setFormIsPinned] = useState(false);
   const [formExpiresAt, setFormExpiresAt] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -192,6 +192,7 @@ export function Announcements() {
     setFormContent('');
     setFormPriority('normal');
     setFormCourseId('');
+    setFormCategory('general');
     setFormIsPinned(false);
     setFormExpiresAt('');
     setShowCreateModal(true);
@@ -203,6 +204,7 @@ export function Announcements() {
     setFormContent(announcement.content);
     setFormPriority(announcement.priority);
     setFormCourseId(announcement.course_id || '');
+    setFormCategory((announcement.category as CategoryType) || 'general');
     setFormIsPinned(announcement.is_pinned);
     setFormExpiresAt(announcement.expires_at ? announcement.expires_at.split('T')[0] : '');
     setShowCreateModal(true);
@@ -228,6 +230,7 @@ export function Announcements() {
         content: formContent,
         priority: formPriority,
         course_id: formCourseId || undefined,
+        category: formCategory,
         is_pinned: formIsPinned,
         expires_at: formExpiresAt || undefined
       };
@@ -435,8 +438,8 @@ export function Announcements() {
   };
 
   // Get category badge
-  const getCategoryBadge = (category: CategoryType = 'general') => {
-    const cat = CATEGORIES[category] || CATEGORIES.general;
+  const getCategoryBadge = (category: string = 'general') => {
+    const cat = CATEGORIES[category as CategoryType] || CATEGORIES.general;
     return (
       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cat.color}`}>
         {cat.icon} {cat.label}
@@ -772,6 +775,19 @@ export function Announcements() {
               />
             </div>
             <div>
+              <label className="block text-sm font-medium mb-1 dark:text-gray-300">Category</label>
+              <Select
+                value={formCategory}
+                onChange={(v) => setFormCategory(v as CategoryType)}
+                options={Object.entries(CATEGORIES).map(([key, cat]) => ({
+                  value: key,
+                  label: `${cat.icon} ${cat.label}`
+                }))}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
               <label className="block text-sm font-medium mb-1 dark:text-gray-300">Course</label>
               <Select
                 value={formCourseId}
@@ -782,8 +798,6 @@ export function Announcements() {
                 ]}
               />
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1 dark:text-gray-300">Expires At (Optional)</label>
               <Input
@@ -792,17 +806,17 @@ export function Announcements() {
                 onChange={(v) => setFormExpiresAt(v)}
               />
             </div>
-            <div className="flex items-center pt-6">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formIsPinned}
-                  onChange={(e) => setFormIsPinned(e.target.checked)}
-                  className="h-4 w-4 text-blue-600 rounded"
-                />
-                <span className="text-sm dark:text-gray-300">📌 Pin to top</span>
-              </label>
-            </div>
+          </div>
+          <div className="flex items-center">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formIsPinned}
+                onChange={(e) => setFormIsPinned(e.target.checked)}
+                className="h-4 w-4 text-blue-600 rounded"
+              />
+              <span className="text-sm dark:text-gray-300">📌 Pin to top</span>
+            </label>
           </div>
           <div className="flex justify-end gap-3 pt-4 border-t dark:border-gray-700">
             <Button variant="outline" onClick={closeModal}>Cancel</Button>

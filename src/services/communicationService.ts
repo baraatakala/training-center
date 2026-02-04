@@ -17,6 +17,7 @@ export interface Announcement {
   expires_at: string | null;
   created_at: string;
   updated_at: string;
+  category?: string;
   // Joined data
   teacher?: {
     name: string;
@@ -59,6 +60,7 @@ export interface CreateAnnouncementData {
   course_id?: string | null;
   is_pinned?: boolean;
   expires_at?: string | null;
+  category?: string;
 }
 
 export interface CreateMessageData {
