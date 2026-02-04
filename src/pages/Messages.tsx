@@ -312,19 +312,46 @@ export function Messages() {
     }
   };
 
-  // Add reaction to a message
-  const handleAddReaction = async (messageId: string, emoji: string, e?: React.MouseEvent) => {
+  // Toggle reaction on a message (add or remove)
+  const handleToggleReaction = async (messageId: string, emoji: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
     if (!userType || !currentUserId) return;
 
-    await messageService.addReaction(messageId, userType, currentUserId, emoji);
-    
-    setMessages(prev => prev.map(m =>
-      m.message_id === messageId ? { ...m, reaction: emoji } : m
-    ));
+    // Find current reaction for this message
+    const currentMessage = messages.find(m => m.message_id === messageId);
+    const currentReaction = currentMessage?.reaction;
 
-    if (viewingMessage?.message_id === messageId) {
-      setViewingMessage(prev => prev ? { ...prev, reaction: emoji } : null);
+    // If clicking the same emoji, remove it; otherwise add the new one
+    if (currentReaction === emoji) {
+      // Remove reaction
+      const { error } = await messageService.removeReaction(messageId, userType, currentUserId);
+      if (error) {
+        console.error('Failed to remove reaction:', error);
+        return;
+      }
+      
+      setMessages(prev => prev.map(m =>
+        m.message_id === messageId ? { ...m, reaction: undefined } : m
+      ));
+
+      if (viewingMessage?.message_id === messageId) {
+        setViewingMessage(prev => prev ? { ...prev, reaction: undefined } : null);
+      }
+    } else {
+      // Add or change reaction
+      const { error } = await messageService.addReaction(messageId, userType, currentUserId, emoji);
+      if (error) {
+        console.error('Failed to add reaction:', error);
+        return;
+      }
+      
+      setMessages(prev => prev.map(m =>
+        m.message_id === messageId ? { ...m, reaction: emoji } : m
+      ));
+
+      if (viewingMessage?.message_id === messageId) {
+        setViewingMessage(prev => prev ? { ...prev, reaction: emoji } : null);
+      }
     }
 
     setShowReactionPicker(null);
@@ -595,8 +622,10 @@ export function Messages() {
                             {MESSAGE_REACTIONS.map(emoji => (
                               <button
                                 key={emoji}
-                                onClick={(e) => handleAddReaction(message.message_id, emoji, e)}
-                                className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full text-lg transition-transform hover:scale-125"
+                                onClick={(e) => handleToggleReaction(message.message_id, emoji, e)}
+                                className={`w-8 h-8 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full text-lg transition-transform hover:scale-125 ${
+                                  message.reaction === emoji ? 'bg-blue-100 dark:bg-blue-900/40 ring-2 ring-blue-400' : ''
+                                }`}
                               >
                                 {emoji}
                               </button>
@@ -814,7 +843,7 @@ export function Messages() {
               {MESSAGE_REACTIONS.map(emoji => (
                 <button
                   key={emoji}
-                  onClick={() => handleAddReaction(viewingMessage.message_id, emoji)}
+                  onClick={() => handleToggleReaction(viewingMessage.message_id, emoji)}
                   className={`w-8 h-8 flex items-center justify-center rounded-full transition-all hover:scale-125 ${
                     viewingMessage.reaction === emoji ? 'bg-blue-100 dark:bg-blue-900/40 ring-2 ring-blue-400' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
                   }`}
