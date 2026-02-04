@@ -500,7 +500,357 @@ export const messageService = {
       console.error('Error deleting message:', error);
       return { error: error as Error };
     }
+  },
+
+  /**
+   * Toggle starred status for a message
+   */
+  async toggleStarred(messageId: string, userType: 'teacher' | 'student', userId: string): Promise<{ isStarred: boolean; error: Error | null }> {
+    try {
+      // Check if already starred
+      const { data: existing } = await supabase
+        .from('message_starred')
+        .select('id')
+        .eq('message_id', messageId)
+        .eq('user_type', userType)
+        .eq('user_id', userId)
+        .single();
+
+      if (existing) {
+        // Unstar
+        await supabase
+          .from('message_starred')
+          .delete()
+          .eq('id', existing.id);
+        return { isStarred: false, error: null };
+      } else {
+        // Star
+        await supabase
+          .from('message_starred')
+          .insert({ message_id: messageId, user_type: userType, user_id: userId });
+        return { isStarred: true, error: null };
+      }
+    } catch (error) {
+      console.error('Error toggling star:', error);
+      return { isStarred: false, error: error as Error };
+    }
+  },
+
+  /**
+   * Add reaction to a message
+   */
+  async addReaction(messageId: string, reactorType: 'teacher' | 'student', reactorId: string, emoji: string): Promise<{ error: Error | null }> {
+    try {
+      const { error } = await supabase
+        .from('message_reaction')
+        .upsert({
+          message_id: messageId,
+          reactor_type: reactorType,
+          reactor_id: reactorId,
+          emoji
+        }, { onConflict: 'message_id,reactor_type,reactor_id' });
+
+      if (error) throw error;
+      return { error: null };
+    } catch (error) {
+      console.error('Error adding reaction:', error);
+      return { error: error as Error };
+    }
+  },
+
+  /**
+   * Remove reaction from a message
+   */
+  async removeReaction(messageId: string, reactorType: 'teacher' | 'student', reactorId: string): Promise<{ error: Error | null }> {
+    try {
+      const { error } = await supabase
+        .from('message_reaction')
+        .delete()
+        .eq('message_id', messageId)
+        .eq('reactor_type', reactorType)
+        .eq('reactor_id', reactorId);
+
+      if (error) throw error;
+      return { error: null };
+    } catch (error) {
+      console.error('Error removing reaction:', error);
+      return { error: error as Error };
+    }
+  },
+
+  /**
+   * Get reactions for a message
+   */
+  async getReactions(messageId: string): Promise<{ data: { emoji: string; count: number; reactors: string[] }[]; error: Error | null }> {
+    try {
+      const { data, error } = await supabase
+        .from('message_reaction')
+        .select('emoji, reactor_type, reactor_id')
+        .eq('message_id', messageId);
+
+      if (error) throw error;
+
+      // Group by emoji
+      const emojiMap = new Map<string, string[]>();
+      (data || []).forEach(r => {
+        const key = r.emoji;
+        if (!emojiMap.has(key)) emojiMap.set(key, []);
+        emojiMap.get(key)!.push(`${r.reactor_type}:${r.reactor_id}`);
+      });
+
+      const result = Array.from(emojiMap.entries()).map(([emoji, reactors]) => ({
+        emoji,
+        count: reactors.length,
+        reactors
+      }));
+
+      return { data: result, error: null };
+    } catch (error) {
+      console.error('Error getting reactions:', error);
+      return { data: [], error: error as Error };
+    }
   }
 };
 
-export default { announcementService, messageService };
+// =====================================================
+// ANNOUNCEMENT REACTION & COMMENT SERVICES
+// =====================================================
+
+export const announcementReactionService = {
+  /**
+   * Toggle a reaction on an announcement
+   */
+  async toggle(announcementId: string, studentId: string, emoji: string): Promise<{ added: boolean; error: Error | null }> {
+    try {
+      // Check if reaction exists
+      const { data: existing } = await supabase
+        .from('announcement_reaction')
+        .select('reaction_id')
+        .eq('announcement_id', announcementId)
+        .eq('student_id', studentId)
+        .eq('emoji', emoji)
+        .single();
+
+      if (existing) {
+        // Remove reaction
+        await supabase
+          .from('announcement_reaction')
+          .delete()
+          .eq('reaction_id', existing.reaction_id);
+        return { added: false, error: null };
+      } else {
+        // Add reaction
+        await supabase
+          .from('announcement_reaction')
+          .insert({ announcement_id: announcementId, student_id: studentId, emoji });
+        return { added: true, error: null };
+      }
+    } catch (error) {
+      console.error('Error toggling reaction:', error);
+      return { added: false, error: error as Error };
+    }
+  },
+
+  /**
+   * Get all reactions for an announcement
+   */
+  async getForAnnouncement(announcementId: string, currentStudentId?: string): Promise<{ 
+    data: { emoji: string; count: number; hasReacted: boolean }[]; 
+    error: Error | null 
+  }> {
+    try {
+      const { data, error } = await supabase
+        .from('announcement_reaction')
+        .select('emoji, student_id')
+        .eq('announcement_id', announcementId);
+
+      if (error) throw error;
+
+      // Group by emoji
+      const emojiMap = new Map<string, { count: number; studentIds: string[] }>();
+      (data || []).forEach(r => {
+        if (!emojiMap.has(r.emoji)) emojiMap.set(r.emoji, { count: 0, studentIds: [] });
+        const entry = emojiMap.get(r.emoji)!;
+        entry.count++;
+        entry.studentIds.push(r.student_id);
+      });
+
+      const result = Array.from(emojiMap.entries()).map(([emoji, { count, studentIds }]) => ({
+        emoji,
+        count,
+        hasReacted: currentStudentId ? studentIds.includes(currentStudentId) : false
+      }));
+
+      return { data: result, error: null };
+    } catch (error) {
+      console.error('Error getting reactions:', error);
+      return { data: [], error: error as Error };
+    }
+  }
+};
+
+export interface AnnouncementComment {
+  comment_id: string;
+  announcement_id: string;
+  commenter_type: 'teacher' | 'student';
+  commenter_id: string;
+  content: string;
+  parent_comment_id: string | null;
+  is_pinned: boolean;
+  created_at: string;
+  updated_at: string;
+  commenter?: {
+    name: string;
+    email: string;
+  };
+  replies?: AnnouncementComment[];
+}
+
+export const announcementCommentService = {
+  /**
+   * Get comments for an announcement
+   */
+  async getForAnnouncement(announcementId: string): Promise<{ data: AnnouncementComment[]; error: Error | null }> {
+    try {
+      const { data, error } = await supabase
+        .from('announcement_comment')
+        .select('*')
+        .eq('announcement_id', announcementId)
+        .order('is_pinned', { ascending: false })
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      // Fetch commenter details
+      const commentsWithDetails = await Promise.all(
+        (data || []).map(async (comment) => {
+          let commenter = null;
+          if (comment.commenter_type === 'teacher') {
+            const { data: t } = await supabase
+              .from('teacher')
+              .select('name, email')
+              .eq('teacher_id', comment.commenter_id)
+              .single();
+            commenter = t;
+          } else {
+            const { data: s } = await supabase
+              .from('student')
+              .select('name, email')
+              .eq('student_id', comment.commenter_id)
+              .single();
+            commenter = s;
+          }
+          return { ...comment, commenter } as AnnouncementComment;
+        })
+      );
+
+      // Organize into threads (parent comments with replies)
+      const parentComments = commentsWithDetails.filter(c => !c.parent_comment_id);
+      const replies = commentsWithDetails.filter(c => c.parent_comment_id);
+
+      parentComments.forEach(parent => {
+        parent.replies = replies.filter(r => r.parent_comment_id === parent.comment_id);
+      });
+
+      return { data: parentComments, error: null };
+    } catch (error) {
+      console.error('Error getting comments:', error);
+      return { data: [], error: error as Error };
+    }
+  },
+
+  /**
+   * Add a comment
+   */
+  async add(
+    announcementId: string, 
+    commenterType: 'teacher' | 'student', 
+    commenterId: string, 
+    content: string,
+    parentCommentId?: string
+  ): Promise<{ data: AnnouncementComment | null; error: Error | null }> {
+    try {
+      const { data, error } = await supabase
+        .from('announcement_comment')
+        .insert({
+          announcement_id: announcementId,
+          commenter_type: commenterType,
+          commenter_id: commenterId,
+          content,
+          parent_comment_id: parentCommentId || null
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  /**
+   * Delete a comment
+   */
+  async delete(commentId: string): Promise<{ error: Error | null }> {
+    try {
+      const { error } = await supabase
+        .from('announcement_comment')
+        .delete()
+        .eq('comment_id', commentId);
+
+      if (error) throw error;
+      return { error: null };
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+      return { error: error as Error };
+    }
+  },
+
+  /**
+   * Toggle pin on a comment (teacher only)
+   */
+  async togglePin(commentId: string): Promise<{ isPinned: boolean; error: Error | null }> {
+    try {
+      // Get current state
+      const { data: comment } = await supabase
+        .from('announcement_comment')
+        .select('is_pinned')
+        .eq('comment_id', commentId)
+        .single();
+
+      const newPinned = !comment?.is_pinned;
+
+      await supabase
+        .from('announcement_comment')
+        .update({ is_pinned: newPinned })
+        .eq('comment_id', commentId);
+
+      return { isPinned: newPinned, error: null };
+    } catch (error) {
+      console.error('Error toggling pin:', error);
+      return { isPinned: false, error: error as Error };
+    }
+  },
+
+  /**
+   * Get comment count for an announcement
+   */
+  async getCount(announcementId: string): Promise<{ count: number; error: Error | null }> {
+    try {
+      const { count, error } = await supabase
+        .from('announcement_comment')
+        .select('*', { count: 'exact', head: true })
+        .eq('announcement_id', announcementId);
+
+      if (error) throw error;
+      return { count: count || 0, error: null };
+    } catch (error) {
+      console.error('Error getting comment count:', error);
+      return { count: 0, error: error as Error };
+    }
+  }
+};
+
+export default { announcementService, messageService, announcementReactionService, announcementCommentService };
