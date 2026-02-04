@@ -859,19 +859,32 @@ const AttendanceRecords = () => {
       .sort((a, b) => b.count - a.count);
 
     // Prepare host data objects with all possible fields
-    const hostDataObjectsUnsorted = hostRankings.map((host, index) => ({
-      rank: index + 1,
-      address: host.address,
-      count: host.count,
-      percentage: totalHostings > 0 ? Math.round(host.count / totalHostings * 100) : 0,
-      firstHostDate: host.rawDates.length > 0 ? format(new Date(Math.min(...host.rawDates.map(d => d.getTime()))), 'MMM dd, yyyy') : '-',
-      lastHostDate: host.rawDates.length > 0 ? format(new Date(Math.max(...host.rawDates.map(d => d.getTime()))), 'MMM dd, yyyy') : '-',
-      totalOnTime: host.present,
-      totalLate: host.late,
-      totalAbsent: host.absent,
-      totalExcused: host.excused,
-      dates: host.dates.join(', '),
-    }));
+    const hostDataObjectsUnsorted = hostRankings.map((host, index) => {
+      const totalPresent = host.present + host.late;
+      const totalStudents = totalPresent + host.absent + host.excused;
+      const attendanceRate = totalStudents > 0 ? Math.round(totalPresent / totalStudents * 100) : 0;
+      const firstDateTimestamp = host.rawDates.length > 0 ? Math.min(...host.rawDates.map(d => d.getTime())) : 0;
+      const lastDateTimestamp = host.rawDates.length > 0 ? Math.max(...host.rawDates.map(d => d.getTime())) : 0;
+      
+      return {
+        rank: index + 1,
+        address: host.address,
+        count: host.count,
+        percentage: totalHostings > 0 ? Math.round(host.count / totalHostings * 100) : 0,
+        attendanceRate,
+        firstHostDate: firstDateTimestamp > 0 ? format(new Date(firstDateTimestamp), 'MMM dd, yyyy') : '-',
+        firstHostDateRaw: firstDateTimestamp, // Raw timestamp for sorting
+        lastHostDate: lastDateTimestamp > 0 ? format(new Date(lastDateTimestamp), 'MMM dd, yyyy') : '-',
+        lastHostDateRaw: lastDateTimestamp, // Raw timestamp for sorting
+        totalOnTime: host.present,
+        totalLate: host.late,
+        totalPresent,
+        totalAbsent: host.absent,
+        totalExcused: host.excused,
+        totalStudents,
+        dates: host.dates.join(', '),
+      };
+    });
     
     // Apply sorting from saved settings for host analytics
     const hostDataObjects = sortDataBySettings(hostDataObjectsUnsorted, 'hostAnalytics');
@@ -1020,19 +1033,32 @@ const AttendanceRecords = () => {
     const hostDataObjectsUnsorted = Array.from(hostMap.entries())
       .map(([address, data]) => ({ address, ...data }))
       .sort((a, b) => b.count - a.count)
-      .map((host, index) => ({
-        rank: index + 1,
-        address: host.address,
-        count: host.count,
-        percentage: totalHostings > 0 ? Math.round(host.count / totalHostings * 100) : 0,
-        firstHostDate: host.rawDates.length > 0 ? format(new Date(Math.min(...host.rawDates.map(d => d.getTime()))), 'MMM dd, yyyy') : '-',
-        lastHostDate: host.rawDates.length > 0 ? format(new Date(Math.max(...host.rawDates.map(d => d.getTime()))), 'MMM dd, yyyy') : '-',
-        totalOnTime: host.present,
-        totalLate: host.late,
-        totalAbsent: host.absent,
-        totalExcused: host.excused,
-        dates: host.dates.join(', '),
-      }));
+      .map((host, index) => {
+        const totalPresent = host.present + host.late;
+        const totalStudents = totalPresent + host.absent + host.excused;
+        const attendanceRate = totalStudents > 0 ? Math.round(totalPresent / totalStudents * 100) : 0;
+        const firstDateTimestamp = host.rawDates.length > 0 ? Math.min(...host.rawDates.map(d => d.getTime())) : 0;
+        const lastDateTimestamp = host.rawDates.length > 0 ? Math.max(...host.rawDates.map(d => d.getTime())) : 0;
+        
+        return {
+          rank: index + 1,
+          address: host.address,
+          count: host.count,
+          percentage: totalHostings > 0 ? Math.round(host.count / totalHostings * 100) : 0,
+          attendanceRate,
+          firstHostDate: firstDateTimestamp > 0 ? format(new Date(firstDateTimestamp), 'MMM dd, yyyy') : '-',
+          firstHostDateRaw: firstDateTimestamp,
+          lastHostDate: lastDateTimestamp > 0 ? format(new Date(lastDateTimestamp), 'MMM dd, yyyy') : '-',
+          lastHostDateRaw: lastDateTimestamp,
+          totalOnTime: host.present,
+          totalLate: host.late,
+          totalPresent,
+          totalAbsent: host.absent,
+          totalExcused: host.excused,
+          totalStudents,
+          dates: host.dates.join(', '),
+        };
+      });
     const hostDataObjects = sortDataBySettings(hostDataObjectsUnsorted, 'hostAnalytics');
     hostDataObjects.forEach((obj, idx) => { obj.rank = idx + 1; });
 
@@ -1372,19 +1398,31 @@ const AttendanceRecords = () => {
     const hostDataObjectsUnsorted = Array.from(hostMap.entries())
       .map(([address, data]) => ({ address, ...data }))
       .sort((a, b) => b.count - a.count)
-      .map((host, index) => ({
-        rank: index + 1,
-        address: host.address,
-        count: host.count,
-        percentage: totalHostings > 0 ? Math.round(host.count / totalHostings * 100) : 0,
-        firstHostDate: host.rawDates.length > 0 ? format(new Date(Math.min(...host.rawDates.map(d => d.getTime()))), 'MMM dd, yyyy') : '-',
-        lastHostDate: host.rawDates.length > 0 ? format(new Date(Math.max(...host.rawDates.map(d => d.getTime()))), 'MMM dd, yyyy') : '-',
-        totalOnTime: host.present,
-        totalLate: host.late,
-        totalAbsent: host.absent,
-        totalExcused: host.excused,
-        dates: host.dates.join(', '),
-      }));
+      .map((host, index) => {
+        const totalStudents = host.present + host.late + host.absent + host.excused;
+        const totalPresent = host.present + host.late;
+        const attendanceRate = totalStudents > 0 ? Math.round(totalPresent / totalStudents * 100) : 0;
+        const firstRaw = host.rawDates.length > 0 ? Math.min(...host.rawDates.map(d => d.getTime())) : 0;
+        const lastRaw = host.rawDates.length > 0 ? Math.max(...host.rawDates.map(d => d.getTime())) : 0;
+        return {
+          rank: index + 1,
+          address: host.address,
+          count: host.count,
+          percentage: totalHostings > 0 ? Math.round(host.count / totalHostings * 100) : 0,
+          attendanceRate,
+          firstHostDate: host.rawDates.length > 0 ? format(new Date(firstRaw), 'MMM dd, yyyy') : '-',
+          firstHostDateRaw: firstRaw,
+          lastHostDate: host.rawDates.length > 0 ? format(new Date(lastRaw), 'MMM dd, yyyy') : '-',
+          lastHostDateRaw: lastRaw,
+          totalOnTime: host.present,
+          totalLate: host.late,
+          totalPresent,
+          totalAbsent: host.absent,
+          totalExcused: host.excused,
+          totalStudents,
+          dates: host.dates.join(', '),
+        };
+      });
     
     // Apply sorting from saved settings
     const hostDataObjects = sortDataBySettings(hostDataObjectsUnsorted, 'hostAnalytics');
@@ -1633,19 +1671,31 @@ const AttendanceRecords = () => {
     const hostDataObjectsUnsorted = Array.from(hostMap.entries())
       .map(([address, data]) => ({ address, ...data }))
       .sort((a, b) => b.count - a.count)
-      .map((host, index) => ({
-        rank: index + 1,
-        address: host.address,
-        count: host.count,
-        percentage: totalHostings > 0 ? Math.round(host.count / totalHostings * 100) : 0,
-        firstHostDate: host.rawDates.length > 0 ? format(new Date(Math.min(...host.rawDates.map(d => d.getTime()))), 'MMM dd, yyyy') : '-',
-        lastHostDate: host.rawDates.length > 0 ? format(new Date(Math.max(...host.rawDates.map(d => d.getTime()))), 'MMM dd, yyyy') : '-',
-        totalOnTime: host.present,
-        totalLate: host.late,
-        totalAbsent: host.absent,
-        totalExcused: host.excused,
-        dates: host.dates.join(', '),
-      }));
+      .map((host, index) => {
+        const totalStudents = host.present + host.late + host.absent + host.excused;
+        const totalPresent = host.present + host.late;
+        const attendanceRate = totalStudents > 0 ? Math.round(totalPresent / totalStudents * 100) : 0;
+        const firstRaw = host.rawDates.length > 0 ? Math.min(...host.rawDates.map(d => d.getTime())) : 0;
+        const lastRaw = host.rawDates.length > 0 ? Math.max(...host.rawDates.map(d => d.getTime())) : 0;
+        return {
+          rank: index + 1,
+          address: host.address,
+          count: host.count,
+          percentage: totalHostings > 0 ? Math.round(host.count / totalHostings * 100) : 0,
+          attendanceRate,
+          firstHostDate: host.rawDates.length > 0 ? format(new Date(firstRaw), 'MMM dd, yyyy') : '-',
+          firstHostDateRaw: firstRaw,
+          lastHostDate: host.rawDates.length > 0 ? format(new Date(lastRaw), 'MMM dd, yyyy') : '-',
+          lastHostDateRaw: lastRaw,
+          totalOnTime: host.present,
+          totalLate: host.late,
+          totalPresent,
+          totalAbsent: host.absent,
+          totalExcused: host.excused,
+          totalStudents,
+          dates: host.dates.join(', '),
+        };
+      });
     
     // Apply sorting from saved settings
     const hostDataObjects = sortDataBySettings(hostDataObjectsUnsorted, 'hostAnalytics');
@@ -2405,12 +2455,15 @@ const AttendanceRecords = () => {
         { key: 'address', label: 'Host Address', labelAr: 'عنوان المضيف' },
         { key: 'count', label: 'Times Hosted', labelAr: 'عدد مرات الاستضافة' },
         { key: 'percentage', label: 'Hosting Percentage %', labelAr: 'نسبة الاستضافة' },
+        { key: 'attendanceRate', label: 'Avg Attendance Rate %', labelAr: 'متوسط نسبة الحضور' },
         { key: 'firstHostDate', label: 'First Host Date', labelAr: 'أول تاريخ استضافة' },
         { key: 'lastHostDate', label: 'Last Host Date', labelAr: 'آخر تاريخ استضافة' },
         { key: 'totalOnTime', label: 'Total On Time', labelAr: 'إجمالي الحضور' },
         { key: 'totalLate', label: 'Total Late', labelAr: 'إجمالي المتأخرين' },
+        { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحاضرين' },
         { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب' },
         { key: 'totalExcused', label: 'Total Excused', labelAr: 'إجمالي المعذورين' },
+        { key: 'totalStudents', label: 'Total Students', labelAr: 'إجمالي الطلاب' },
         { key: 'dates', label: 'All Dates', labelAr: 'جميع التواريخ' },
       );
     }
@@ -2446,14 +2499,49 @@ const AttendanceRecords = () => {
     if (!sortByField) return data;
     
     const sortDir = sortDirection === 'desc' ? -1 : 1;
+    
+    // Check if this is a date field that needs special handling
+    const isDateField = sortByField.toLowerCase().includes('date') || 
+                        sortByField === 'firstHostDate' || 
+                        sortByField === 'lastHostDate';
+    
+    // For date fields, use the raw timestamp field if available
+    const getDateSortKey = (item: T): number => {
+      // Try to use raw timestamp field first
+      const rawKey = `${sortByField}Raw`;
+      if (rawKey in item && typeof item[rawKey] === 'number') {
+        return item[rawKey] as number;
+      }
+      // Otherwise parse the date string
+      const dateVal = item[sortByField];
+      if (dateVal && typeof dateVal === 'string') {
+        const parsed = new Date(dateVal);
+        if (!isNaN(parsed.getTime())) {
+          return parsed.getTime();
+        }
+      }
+      return 0;
+    };
+    
     return [...data].sort((a, b) => {
       const aVal = a[sortByField];
       const bVal = b[sortByField];
       if (aVal == null) return sortDir;
       if (bVal == null) return -sortDir;
+      
+      // Handle date fields specially
+      if (isDateField) {
+        const aTime = getDateSortKey(a);
+        const bTime = getDateSortKey(b);
+        return (aTime - bTime) * sortDir;
+      }
+      
+      // Handle numbers
       if (typeof aVal === 'number' && typeof bVal === 'number') {
         return (aVal - bVal) * sortDir;
       }
+      
+      // Handle strings
       return String(aVal).localeCompare(String(bVal)) * sortDir;
     });
   };
