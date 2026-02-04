@@ -74,6 +74,15 @@ export interface ExportConfig {
   filterEmptyValues?: boolean;       // Filter out rows with empty key values
 }
 
+// Export settings to pass back to parent
+export interface ExportSettings {
+  fields: string[];
+  sortByField?: string;
+  sortDirection?: 'asc' | 'desc';
+  enableConditionalColoring?: boolean;
+  coloringTheme?: 'default' | 'traffic' | 'heatmap' | 'status';
+}
+
 interface AdvancedExportBuilderProps {
   isOpen: boolean;
   onClose: () => void;
@@ -83,7 +92,9 @@ interface AdvancedExportBuilderProps {
   onExport?: (config: ExportConfig) => void;
   dateRange?: { start: string; end: string };
   savedFields?: string[];
+  savedSettings?: ExportSettings;
   onFieldSelectionChange?: (fields: string[]) => void;
+  onSettingsChange?: (settings: ExportSettings) => void;
 }
 
 // ==================== COMPONENT ====================
@@ -97,7 +108,9 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
   onExport,
   dateRange,
   savedFields,
+  savedSettings,
   onFieldSelectionChange,
+  onSettingsChange,
 }) => {
   // Build initial selected fields from categories
   const getDefaultSelectedFields = useCallback(() => {
@@ -156,7 +169,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
   const [activeTab, setActiveTab] = useState<'fields' | 'format' | 'validation' | 'preview'>('fields');
   const [exporting, setExporting] = useState(false);
 
-  // Reset config when modal opens or categories change
+  // Reset config when modal opens or categories change - use saved settings
   useEffect(() => {
     if (isOpen) {
       const newSelectedFields = getDefaultSelectedFields();
@@ -165,6 +178,9 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
         selectedFields: newSelectedFields,
         title: defaultTitle,
         subtitle: dateRange ? `${dateRange.start} to ${dateRange.end}` : '',
+        // Restore saved sort settings
+        sortByField: savedSettings?.sortByField || undefined,
+        sortDirection: savedSettings?.sortDirection || 'asc',
         dataValidation: {
           removeEmptyRows: false,
           removeDuplicates: false,
@@ -180,14 +196,14 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
           protectSheet: false,
           showDataQualityReport: false,
           highlightIssues: false,
-          enableConditionalColoring: true,
+          enableConditionalColoring: savedSettings?.enableConditionalColoring ?? true,
           coloringFields: [],
-          coloringTheme: 'default',
+          coloringTheme: savedSettings?.coloringTheme || 'default',
         },
       }));
       setActiveTab('fields');
     }
-  }, [isOpen, getDefaultSelectedFields, defaultTitle, dateRange]);
+  }, [isOpen, getDefaultSelectedFields, defaultTitle, dateRange, savedSettings]);
 
   // Get all fields flat
   const allFields = categories.flatMap(cat => cat.fields);
@@ -726,6 +742,17 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
         onFieldSelectionChange(config.selectedFields);
       }
       
+      // Save all export settings (sort, coloring, etc.)
+      if (onSettingsChange) {
+        onSettingsChange({
+          fields: config.selectedFields,
+          sortByField: config.sortByField,
+          sortDirection: config.sortDirection,
+          enableConditionalColoring: config.dataValidation.enableConditionalColoring,
+          coloringTheme: config.dataValidation.coloringTheme,
+        });
+      }
+      
       // Call custom export handler if provided
       if (onExport) {
         onExport(config);
@@ -755,10 +782,21 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     }
   };
   
-  // Handle close - also save field selection
+  // Handle close - save field selection and all settings
   const handleClose = () => {
+    // Save field selection
     if (onFieldSelectionChange && config.selectedFields.length > 0) {
       onFieldSelectionChange(config.selectedFields);
+    }
+    // Save all export settings (sort, coloring, etc.)
+    if (onSettingsChange) {
+      onSettingsChange({
+        fields: config.selectedFields,
+        sortByField: config.sortByField,
+        sortDirection: config.sortDirection,
+        enableConditionalColoring: config.dataValidation.enableConditionalColoring,
+        coloringTheme: config.dataValidation.coloringTheme,
+      });
     }
     onClose();
   };

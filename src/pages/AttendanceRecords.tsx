@@ -6,7 +6,7 @@ import { Select } from '../components/ui/Select';
 import { BulkImport } from '../components/BulkImport';
 import { Pagination } from '../components/ui/Pagination';
 import { AdvancedExportBuilder } from '../components/AdvancedExportBuilder';
-import type { ExportCategory } from '../components/AdvancedExportBuilder';
+import type { ExportCategory, ExportSettings } from '../components/AdvancedExportBuilder';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -176,17 +176,45 @@ const AttendanceRecords = () => {
   // Advanced Export Builder state
   const [showAdvancedExport, setShowAdvancedExport] = useState(false);
   const [exportDataType, setExportDataType] = useState<'records' | 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics'>('records');
+  
+  // Load saved field selections from localStorage
   const [savedFieldSelections, setSavedFieldSelections] = useState<{
     records: string[];
     studentAnalytics: string[];
     dateAnalytics: string[];
     hostAnalytics: string[];
-  }>({
-    records: [],
-    studentAnalytics: [],
-    dateAnalytics: [],
-    hostAnalytics: [],
+  }>(() => {
+    try {
+      const saved = localStorage.getItem('exportFieldSelections');
+      if (saved) return JSON.parse(saved);
+    } catch { /* ignore */ }
+    return { records: [], studentAnalytics: [], dateAnalytics: [], hostAnalytics: [] };
   });
+  
+  // Load saved export settings from localStorage (includes sort, coloring options)
+  const [savedExportSettings, setSavedExportSettings] = useState<{
+    records: ExportSettings;
+    studentAnalytics: ExportSettings;
+    dateAnalytics: ExportSettings;
+    hostAnalytics: ExportSettings;
+  }>(() => {
+    try {
+      const saved = localStorage.getItem('exportSettings');
+      if (saved) return JSON.parse(saved);
+    } catch { /* ignore */ }
+    const defaultSettings: ExportSettings = { fields: [], enableConditionalColoring: true, coloringTheme: 'default' };
+    return { records: defaultSettings, studentAnalytics: defaultSettings, dateAnalytics: defaultSettings, hostAnalytics: defaultSettings };
+  });
+  
+  // Persist field selections to localStorage
+  useEffect(() => {
+    localStorage.setItem('exportFieldSelections', JSON.stringify(savedFieldSelections));
+  }, [savedFieldSelections]);
+  
+  // Persist export settings to localStorage
+  useEffect(() => {
+    localStorage.setItem('exportSettings', JSON.stringify(savedExportSettings));
+  }, [savedExportSettings]);
 
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<AttendanceRecord[]>([]);
@@ -767,7 +795,7 @@ const AttendanceRecords = () => {
     const studentConfig = filterDataByFields('studentAnalytics', isArabic);
     
     // Prepare student data objects with all possible fields
-    const studentDataObjects = studentAnalytics.map((student, index) => {
+    const studentDataObjectsUnsorted = studentAnalytics.map((student, index) => {
       const totalPres = student.presentCount + student.lateCount;
       const punctRate = totalPres > 0 
         ? Math.round(student.presentCount / totalPres * 100)
@@ -799,6 +827,11 @@ const AttendanceRecords = () => {
         maxRate: student.maxRate || student.attendanceRate,
       };
     });
+    
+    // Apply sorting from saved settings
+    const studentDataObjects = sortDataBySettings(studentDataObjectsUnsorted, 'studentAnalytics');
+    // Re-assign ranks after sorting
+    studentDataObjects.forEach((obj, idx) => { obj.rank = idx + 1; });
 
     const studentRows = studentDataObjects.map((data, index) => 
       studentConfig.getData(data as Record<string, unknown>, index)
@@ -808,7 +841,7 @@ const AttendanceRecords = () => {
     const dateConfig = filterDataByFields('dateAnalytics', isArabic);
     
     // Prepare date data objects with all possible fields
-    const dateDataObjects = dateAnalytics.map((dateData) => {
+    const dateDataObjectsUnsorted = dateAnalytics.map((dateData) => {
       let excusedLabel = dateData.excusedNames.join(', ') || '-';
       if (
         dateData.hostAddress === 'SESSION_NOT_HELD' ||
@@ -859,6 +892,9 @@ const AttendanceRecords = () => {
         absentNames: dateData.absentNames.join(', ') || '-',
       };
     });
+    
+    // Apply sorting from saved settings for date analytics
+    const dateDataObjects = sortDataBySettings(dateDataObjectsUnsorted, 'dateAnalytics');
 
     const dateRows = dateDataObjects.map((data, index) => 
       dateConfig.getData(data as Record<string, unknown>, index)
@@ -889,7 +925,7 @@ const AttendanceRecords = () => {
       .sort((a, b) => b.count - a.count);
 
     // Prepare host data objects with all possible fields
-    const hostDataObjects = hostRankings.map((host, index) => ({
+    const hostDataObjectsUnsorted = hostRankings.map((host, index) => ({
       rank: index + 1,
       address: host.address,
       count: host.count,
@@ -902,6 +938,11 @@ const AttendanceRecords = () => {
       totalExcused: host.excused,
       dates: host.dates.join(', '),
     }));
+    
+    // Apply sorting from saved settings for host analytics
+    const hostDataObjects = sortDataBySettings(hostDataObjectsUnsorted, 'hostAnalytics');
+    // Re-assign ranks after sorting
+    hostDataObjects.forEach((obj, idx) => { obj.rank = idx + 1; });
 
     const hostRows = hostDataObjects.map((data, index) => 
       hostConfig.getData(data as Record<string, unknown>, index)
@@ -996,7 +1037,7 @@ const AttendanceRecords = () => {
     const hostConfig = filterDataByFields('hostAnalytics', false);
     
     // Prepare student data objects
-    const studentDataObjects = studentAnalytics.map((student, index) => {
+    const studentDataObjectsUnsorted = studentAnalytics.map((student, index) => {
       const totalPres = student.presentCount + student.lateCount;
       const punctRate = totalPres > 0 ? Math.round(student.presentCount / totalPres * 100) : 0;
       return {
@@ -1025,6 +1066,10 @@ const AttendanceRecords = () => {
         maxRate: `${student.maxRate || student.attendanceRate}%`,
       };
     });
+    
+    // Apply sorting from saved settings
+    const studentDataObjects = sortDataBySettings(studentDataObjectsUnsorted, 'studentAnalytics');
+    studentDataObjects.forEach((obj, idx) => { obj.rank = idx + 1; });
 
     // Student Performance Table using saved fields
     doc.setFontSize(12);
@@ -1085,7 +1130,7 @@ const AttendanceRecords = () => {
     doc.text('Attendance by Date', 14, performanceTableY + 10);
     
     // Prepare date data objects
-    const dateDataObjects = dateAnalytics.map((dateData) => {
+    const dateDataObjectsUnsorted = dateAnalytics.map((dateData) => {
       let excusedLabel = dateData.excusedNames.join(', ') || '-';
       const totalStudents = dateData.presentCount + dateData.lateCount + dateData.excusedAbsentCount + dateData.unexcusedAbsentCount;
       const totalPresent = dateData.presentCount + dateData.lateCount;
@@ -1137,6 +1182,9 @@ const AttendanceRecords = () => {
         absentNames: dateData.absentNames.join(', ') || '-',
       };
     });
+    
+    // Apply sorting from saved settings
+    const dateDataObjects = sortDataBySettings(dateDataObjectsUnsorted, 'dateAnalytics');
 
     // Detect percentage columns for date table
     const dateColorColumns = detectPercentageColumns(dateConfig.headers);
@@ -1202,7 +1250,7 @@ const AttendanceRecords = () => {
 
     const totalHostings = Array.from(hostMap.values()).reduce((sum, h) => sum + h.count, 0);
     
-    const hostDataObjects = Array.from(hostMap.entries())
+    const hostDataObjectsUnsorted = Array.from(hostMap.entries())
       .map(([address, data]) => ({ address, ...data }))
       .sort((a, b) => b.count - a.count)
       .map((host, index) => ({
@@ -1218,6 +1266,10 @@ const AttendanceRecords = () => {
         totalExcused: host.excused,
         dates: host.dates.join(', '),
       }));
+    
+    // Apply sorting from saved settings
+    const hostDataObjects = sortDataBySettings(hostDataObjectsUnsorted, 'hostAnalytics');
+    hostDataObjects.forEach((obj, idx) => { obj.rank = idx + 1; });
 
     if (hostDataObjects.length > 0) {
       doc.setFontSize(12);
@@ -1334,7 +1386,7 @@ const AttendanceRecords = () => {
     };
 
     // Prepare student data with all possible fields
-    const studentDataObjects = studentAnalytics.map((s, index) => {
+    const studentDataObjectsUnsorted = studentAnalytics.map((s, index) => {
       const totalPres = s.presentCount + s.lateCount;
       const punctualityRate = totalPres > 0 ? (s.presentCount / totalPres * 100) : 0;
 
@@ -1364,9 +1416,13 @@ const AttendanceRecords = () => {
         maxRate: `${s.maxRate || s.attendanceRate}%`,
       };
     });
+    
+    // Apply sorting from saved settings
+    const studentDataObjects = sortDataBySettings(studentDataObjectsUnsorted, 'studentAnalytics');
+    studentDataObjects.forEach((obj, idx) => { obj.rank = idx + 1; });
 
     // Prepare date data with all possible fields
-    const dateDataObjects = dateAnalytics.map(d => {
+    const dateDataObjectsUnsorted = dateAnalytics.map(d => {
       let excusedNames = d.excusedNames.join(', ') || '-';
       const totalStud = d.presentCount + d.lateCount + d.excusedAbsentCount + d.unexcusedAbsentCount;
       const totalPres = d.presentCount + d.lateCount;
@@ -1407,6 +1463,9 @@ const AttendanceRecords = () => {
         absentNames: d.absentNames.join(', ') || '-',
       };
     });
+    
+    // Apply sorting from saved settings
+    const dateDataObjects = sortDataBySettings(dateDataObjectsUnsorted, 'dateAnalytics');
 
     // Prepare host data with all possible fields
     const hostMap = new Map<string, {
@@ -1437,7 +1496,7 @@ const AttendanceRecords = () => {
 
     const totalHostings = Array.from(hostMap.values()).reduce((sum, h) => sum + h.count, 0);
 
-    const hostDataObjects = Array.from(hostMap.entries())
+    const hostDataObjectsUnsorted = Array.from(hostMap.entries())
       .map(([address, data]) => ({ address, ...data }))
       .sort((a, b) => b.count - a.count)
       .map((host, index) => ({
@@ -1453,6 +1512,10 @@ const AttendanceRecords = () => {
         totalExcused: host.excused,
         dates: host.dates.join(', '),
       }));
+    
+    // Apply sorting from saved settings
+    const hostDataObjects = sortDataBySettings(hostDataObjectsUnsorted, 'hostAnalytics');
+    hostDataObjects.forEach((obj, idx) => { obj.rank = idx + 1; });
 
     // Convert data objects to the format expected by wordExportService using saved field selections
     const studentDataForExport = studentDataObjects.map((data, index) => {
@@ -2222,6 +2285,36 @@ const AttendanceRecords = () => {
     // Return all field keys as default
     return getAllFieldsForType(dataType).map(f => f.key);
   };
+  
+  // Helper: Get sort settings for a data type
+  const getSortSettingsForType = (dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics'): { sortByField?: string; sortDirection: 'asc' | 'desc' } => {
+    const settings = savedExportSettings[dataType];
+    return {
+      sortByField: settings?.sortByField,
+      sortDirection: settings?.sortDirection || 'asc',
+    };
+  };
+  
+  // Helper: Sort data array based on saved settings
+  const sortDataBySettings = <T extends Record<string, unknown>>(
+    data: T[],
+    dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics'
+  ): T[] => {
+    const { sortByField, sortDirection } = getSortSettingsForType(dataType);
+    if (!sortByField) return data;
+    
+    const sortDir = sortDirection === 'desc' ? -1 : 1;
+    return [...data].sort((a, b) => {
+      const aVal = a[sortByField];
+      const bVal = b[sortByField];
+      if (aVal == null) return sortDir;
+      if (bVal == null) return -sortDir;
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return (aVal - bVal) * sortDir;
+      }
+      return String(aVal).localeCompare(String(bVal)) * sortDir;
+    });
+  };
 
   // Helper: Filter headers and data based on selected fields
   const filterDataByFields = (
@@ -2447,10 +2540,17 @@ const AttendanceRecords = () => {
           'Attendance Records'
         }
         savedFields={savedFieldSelections[exportDataType]}
+        savedSettings={savedExportSettings[exportDataType]}
         onFieldSelectionChange={(fields) => {
           setSavedFieldSelections(prev => ({
             ...prev,
             [exportDataType]: fields
+          }));
+        }}
+        onSettingsChange={(settings) => {
+          setSavedExportSettings(prev => ({
+            ...prev,
+            [exportDataType]: settings
           }));
         }}
       />
@@ -3086,6 +3186,11 @@ const AttendanceRecords = () => {
                     ? `${savedFieldSelections.studentAnalytics.length} selected` 
                     : 'All (default)'}
                 </span>
+                {savedExportSettings.studentAnalytics?.sortByField && (
+                  <span className="text-purple-600 dark:text-purple-400 text-xs">
+                    (Sort: {savedExportSettings.studentAnalytics.sortByField} {savedExportSettings.studentAnalytics.sortDirection === 'desc' ? '↓' : '↑'})
+                  </span>
+                )}
                 <button
                   onClick={() => {
                     setExportDataType('studentAnalytics');
@@ -3103,6 +3208,11 @@ const AttendanceRecords = () => {
                     ? `${savedFieldSelections.dateAnalytics.length} selected` 
                     : 'All (default)'}
                 </span>
+                {savedExportSettings.dateAnalytics?.sortByField && (
+                  <span className="text-purple-600 dark:text-purple-400 text-xs">
+                    (Sort: {savedExportSettings.dateAnalytics.sortByField} {savedExportSettings.dateAnalytics.sortDirection === 'desc' ? '↓' : '↑'})
+                  </span>
+                )}
                 <button
                   onClick={() => {
                     setExportDataType('dateAnalytics');
@@ -3120,6 +3230,11 @@ const AttendanceRecords = () => {
                     ? `${savedFieldSelections.hostAnalytics.length} selected` 
                     : 'All (default)'}
                 </span>
+                {savedExportSettings.hostAnalytics?.sortByField && (
+                  <span className="text-purple-600 dark:text-purple-400 text-xs">
+                    (Sort: {savedExportSettings.hostAnalytics.sortByField} {savedExportSettings.hostAnalytics.sortDirection === 'desc' ? '↓' : '↑'})
+                  </span>
+                )}
                 <button
                   onClick={() => {
                     setExportDataType('hostAnalytics');
