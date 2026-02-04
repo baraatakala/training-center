@@ -862,7 +862,9 @@ const AttendanceRecords = () => {
     const hostDataObjectsUnsorted = hostRankings.map((host, index) => {
       const totalPresent = host.present + host.late;
       const totalStudents = totalPresent + host.absent + host.excused;
-      const attendanceRate = totalStudents > 0 ? Math.round(totalPresent / totalStudents * 100) : 0;
+      // Fair calculation: Exclude excused from denominator - they had valid reasons
+      const expectedAttendees = totalPresent + host.absent;
+      const attendanceRate = expectedAttendees > 0 ? Math.round(totalPresent / expectedAttendees * 100) : 0;
       const firstDateTimestamp = host.rawDates.length > 0 ? Math.min(...host.rawDates.map(d => d.getTime())) : 0;
       const lastDateTimestamp = host.rawDates.length > 0 ? Math.max(...host.rawDates.map(d => d.getTime())) : 0;
       
@@ -1036,7 +1038,9 @@ const AttendanceRecords = () => {
       .map((host, index) => {
         const totalPresent = host.present + host.late;
         const totalStudents = totalPresent + host.absent + host.excused;
-        const attendanceRate = totalStudents > 0 ? Math.round(totalPresent / totalStudents * 100) : 0;
+        // Fair calculation: Exclude excused from denominator - they had valid reasons
+        const expectedAttendees = totalPresent + host.absent;
+        const attendanceRate = expectedAttendees > 0 ? Math.round(totalPresent / expectedAttendees * 100) : 0;
         const firstDateTimestamp = host.rawDates.length > 0 ? Math.min(...host.rawDates.map(d => d.getTime())) : 0;
         const lastDateTimestamp = host.rawDates.length > 0 ? Math.max(...host.rawDates.map(d => d.getTime())) : 0;
         
@@ -1401,7 +1405,9 @@ const AttendanceRecords = () => {
       .map((host, index) => {
         const totalStudents = host.present + host.late + host.absent + host.excused;
         const totalPresent = host.present + host.late;
-        const attendanceRate = totalStudents > 0 ? Math.round(totalPresent / totalStudents * 100) : 0;
+        // Fair calculation: Exclude excused from denominator - they had valid reasons
+        const expectedAttendees = totalPresent + host.absent;
+        const attendanceRate = expectedAttendees > 0 ? Math.round(totalPresent / expectedAttendees * 100) : 0;
         const firstRaw = host.rawDates.length > 0 ? Math.min(...host.rawDates.map(d => d.getTime())) : 0;
         const lastRaw = host.rawDates.length > 0 ? Math.max(...host.rawDates.map(d => d.getTime())) : 0;
         return {
@@ -1674,7 +1680,9 @@ const AttendanceRecords = () => {
       .map((host, index) => {
         const totalStudents = host.present + host.late + host.absent + host.excused;
         const totalPresent = host.present + host.late;
-        const attendanceRate = totalStudents > 0 ? Math.round(totalPresent / totalStudents * 100) : 0;
+        // Fair calculation: Exclude excused from denominator - they had valid reasons
+        const expectedAttendees = totalPresent + host.absent;
+        const attendanceRate = expectedAttendees > 0 ? Math.round(totalPresent / expectedAttendees * 100) : 0;
         const firstRaw = host.rawDates.length > 0 ? Math.min(...host.rawDates.map(d => d.getTime())) : 0;
         const lastRaw = host.rawDates.length > 0 ? Math.max(...host.rawDates.map(d => d.getTime())) : 0;
         return {
@@ -2716,13 +2724,39 @@ const AttendanceRecords = () => {
         };
       });
     } else if (exportDataType === 'hostAnalytics') {
-      const hostMap = new Map<string, { count: number; dates: string[]; rawDates: Date[] }>();
+      // Build host map with attendance stats per host
+      const hostMap = new Map<string, { 
+        count: number; 
+        dates: string[]; 
+        rawDates: Date[];
+        present: number;
+        late: number;
+        absent: number;
+        excused: number;
+        totalStudents: number;
+      }>();
+      
       dateAnalytics.forEach((dateData) => {
         if (dateData.hostAddress && dateData.hostAddress !== 'SESSION_NOT_HELD') {
-          const existing = hostMap.get(dateData.hostAddress) || { count: 0, dates: [], rawDates: [] };
+          const existing = hostMap.get(dateData.hostAddress) || { 
+            count: 0, 
+            dates: [], 
+            rawDates: [],
+            present: 0,
+            late: 0,
+            absent: 0,
+            excused: 0,
+            totalStudents: 0
+          };
           existing.count++;
           existing.dates.push(format(new Date(dateData.date), 'MMM dd'));
           existing.rawDates.push(new Date(dateData.date));
+          // Aggregate attendance stats
+          existing.present += dateData.presentCount;
+          existing.late += dateData.lateCount;
+          existing.absent += dateData.unexcusedAbsentCount;
+          existing.excused += dateData.excusedAbsentCount;
+          existing.totalStudents += dateData.presentCount + dateData.lateCount + dateData.excusedAbsentCount + dateData.unexcusedAbsentCount;
           hostMap.set(dateData.hostAddress, existing);
         }
       });
@@ -2730,19 +2764,35 @@ const AttendanceRecords = () => {
       return Array.from(hostMap.entries())
         .map(([address, data]) => ({ address, ...data }))
         .sort((a, b) => b.count - a.count)
-        .map((host, index) => ({
-          // Host Info
-          rank: index + 1,
-          address: host.address,
-          // Hosting Statistics
-          count: host.count,
-          percentage: totalHostings > 0 ? Math.round(host.count / totalHostings * 100) : 0,
-          firstHostDate: host.rawDates.length > 0 ? format(new Date(Math.min(...host.rawDates.map(d => d.getTime()))), 'MMM dd, yyyy') : '-',
-          lastHostDate: host.rawDates.length > 0 ? format(new Date(Math.max(...host.rawDates.map(d => d.getTime()))), 'MMM dd, yyyy') : '-',
-          // Hosting Dates
-          dates: host.dates.join(', '),
-          datesList: host.dates.join('\n'),
-        }));
+        .map((host, index) => {
+          const totalPresent = host.present + host.late;
+          // Fair calculation: Exclude excused from denominator
+          // Attendance Rate = Present / (Present + Absent) - excused don't count against host
+          const expectedAttendees = totalPresent + host.absent; // Those who should have attended
+          const attendanceRate = expectedAttendees > 0 ? Math.round(totalPresent / expectedAttendees * 100) : 0;
+          
+          return {
+            // Host Info
+            rank: index + 1,
+            address: host.address,
+            // Hosting Statistics
+            count: host.count,
+            percentage: totalHostings > 0 ? Math.round(host.count / totalHostings * 100) : 0,
+            firstHostDate: host.rawDates.length > 0 ? format(new Date(Math.min(...host.rawDates.map(d => d.getTime()))), 'MMM dd, yyyy') : '-',
+            lastHostDate: host.rawDates.length > 0 ? format(new Date(Math.max(...host.rawDates.map(d => d.getTime()))), 'MMM dd, yyyy') : '-',
+            // Attendance Stats
+            attendanceRate,
+            totalOnTime: host.present,
+            totalLate: host.late,
+            totalPresent,
+            totalAbsent: host.absent,
+            totalExcused: host.excused,
+            totalStudents: host.totalStudents,
+            // Hosting Dates
+            dates: host.dates.join(', '),
+            datesList: host.dates.join('\n'),
+          };
+        });
     }
     // Default: filtered records with all available fields
     return filteredRecords.map(r => {
