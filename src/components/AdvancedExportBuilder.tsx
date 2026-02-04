@@ -256,6 +256,31 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
       .filter(Boolean) as ExportField[];
   };
 
+  // Get sorted preview data based on current sort settings
+  const getSortedPreviewData = (): Record<string, unknown>[] => {
+    if (!config.sortByField) return data;
+    
+    const sortDir = config.sortDirection === 'desc' ? -1 : 1;
+    return [...data].sort((a, b) => {
+      const aVal = a[config.sortByField!];
+      const bVal = b[config.sortByField!];
+      
+      if (aVal == null && bVal == null) return 0;
+      if (aVal == null) return sortDir;
+      if (bVal == null) return -sortDir;
+      
+      // Try to compare as numbers
+      const aNum = typeof aVal === 'string' ? parseFloat(aVal.replace(/[^0-9.-]/g, '')) : aVal;
+      const bNum = typeof bVal === 'string' ? parseFloat(bVal.replace(/[^0-9.-]/g, '')) : bVal;
+      
+      if (typeof aNum === 'number' && typeof bNum === 'number' && !isNaN(aNum) && !isNaN(bNum)) {
+        return (aNum - bNum) * sortDir;
+      }
+      
+      return String(aVal).localeCompare(String(bVal)) * sortDir;
+    });
+  };
+
   // Format value for export
   const formatValue = (field: ExportField, record: Record<string, unknown>): string => {
     const value = record[field.key];
@@ -1641,11 +1666,16 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                 </div>
               </div>
 
-              {/* Data Preview Table */}
+              {/* Data Preview Table - Shows sorted data */}
               {config.selectedFields.length > 0 && data.length > 0 && (
                 <div className="border rounded-xl overflow-hidden">
-                  <div className="bg-gray-100 px-4 py-2 font-semibold text-gray-700">
-                    Data Preview (First 5 rows)
+                  <div className="bg-gray-100 px-4 py-2 font-semibold text-gray-700 flex items-center justify-between">
+                    <span>Data Preview (First 5 rows{config.sortByField ? ', sorted' : ''})</span>
+                    {config.sortByField && (
+                      <span className="text-xs text-indigo-600 font-normal">
+                        Sorted by {allFields.find(f => f.key === config.sortByField)?.label || config.sortByField} {config.sortDirection === 'desc' ? '↓' : '↑'}
+                      </span>
+                    )}
                   </div>
                   <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
@@ -1654,9 +1684,14 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                           {getSelectedFieldsOrdered().slice(0, 6).map(field => (
                             <th
                               key={field.key}
-                              className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                              className={`px-4 py-2 text-left text-xs font-medium uppercase tracking-wider ${
+                                field.key === config.sortByField ? 'text-indigo-600 bg-indigo-50' : 'text-gray-500'
+                              }`}
                             >
                               {field.label}
+                              {field.key === config.sortByField && (
+                                <span className="ml-1">{config.sortDirection === 'desc' ? '↓' : '↑'}</span>
+                              )}
                             </th>
                           ))}
                           {config.selectedFields.length > 6 && (
@@ -1667,7 +1702,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {data.slice(0, 5).map((record, idx) => (
+                        {getSortedPreviewData().slice(0, 5).map((record, idx) => (
                           <tr key={idx}>
                             {getSelectedFieldsOrdered().slice(0, 6).map(field => (
                               <td key={field.key} className="px-4 py-2 text-sm text-gray-600 whitespace-nowrap">
