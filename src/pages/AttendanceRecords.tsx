@@ -657,72 +657,6 @@ const AttendanceRecords = () => {
     }
   };
 
-  const exportToCSV = () => {
-    const headers = [
-      'Date',
-      'Student',
-      'Course',
-      'Instructor',
-      'Status',
-      'Late Duration (min)',
-      'Late Bracket',
-      'Early (min)',
-      'Check-in Method',
-      'Distance (m)',
-      'Excuse Reason',
-      'Location',
-      'GPS Latitude',
-      'GPS Longitude',
-      'GPS Accuracy',
-      'Marked By',
-      'Marked At'
-    ];
-
-    const rows = filteredRecords.map(record => [
-      format(new Date(record.attendance_date), 'MMM dd, yyyy'),
-      record.student_name,
-      record.course_name,
-      record.instructor_name,
-      record.status,
-      (record.status === 'late' && record.late_minutes) ? record.late_minutes.toString() : '-',
-      (record.status === 'late' && record.late_minutes) ? getLateBracketInfo(record.late_minutes).name : '-',
-      record.early_minutes ? record.early_minutes.toString() : '-',
-      record.check_in_method || '-',
-      record.distance_from_host ? record.distance_from_host.toFixed(1) : '-',
-      (record.status === 'excused' && record.excuse_reason) ? record.excuse_reason : '-',
-      record.session_location || '-',
-      record.gps_latitude ? record.gps_latitude.toString() : '-',
-      record.gps_longitude ? record.gps_longitude.toString() : '-',
-      record.gps_accuracy ? `${record.gps_accuracy}m` : '-',
-      record.marked_by || '-',
-      record.marked_at ? format(new Date(record.marked_at), 'MMM dd, yyyy HH:mm') : '-'
-    ]);
-
-    // Escape CSV fields and add BOM for UTF-8 encoding
-    const escapeCSV = (field: unknown) => {
-      const str = String(field || '');
-      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-        return `"${str.replace(/"/g, '""')}"`;
-      }
-      return str;
-    };
-
-    const csvContent = [
-      headers.map(escapeCSV).join(','),
-      ...rows.map(row => row.map(escapeCSV).join(','))
-    ].join('\n');
-
-    // Add UTF-8 BOM to support special characters in Excel
-    const BOM = '\uFEFF';
-    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `attendance-records-${format(new Date(), 'yyyy-MM-dd')}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-  };
-
   const exportAnalyticsToExcel = () => {
     if (!showAnalytics || studentAnalytics.length === 0) {
       warning('Please show analytics first to export analytics data');
@@ -972,6 +906,188 @@ const AttendanceRecords = () => {
       ? `تقرير_التحليلات_${format(new Date(), 'yyyy-MM-dd')}.xlsx`
       : `analytics-report-${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
     XLSX.writeFile(wb, excelFileName);
+  };
+
+  // ========== ANALYTICS CSV EXPORT - Uses saved field selections and sorting ==========
+  const exportAnalyticsToCSV = () => {
+    if (!showAnalytics || studentAnalytics.length === 0) {
+      warning('Please show analytics first to export CSV report');
+      return;
+    }
+
+    const isArabic = reportLanguage === 'ar';
+    
+    // Escape CSV fields and add proper quoting
+    const escapeCSV = (field: unknown): string => {
+      const str = String(field ?? '');
+      if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    // Get configurations for all three data types
+    const studentConfig = filterDataByFields('studentAnalytics', isArabic);
+    const dateConfig = filterDataByFields('dateAnalytics', isArabic);
+    const hostConfig = filterDataByFields('hostAnalytics', isArabic);
+
+    // Prepare student data with all possible fields
+    const studentDataObjectsUnsorted = studentAnalytics.map((student, index) => {
+      const totalPres = student.presentCount + student.lateCount;
+      const punctRate = totalPres > 0 ? Math.round(student.presentCount / totalPres * 100) : 0;
+      return {
+        rank: index + 1,
+        student_id: student.student_id,
+        student_name: student.student_name,
+        presentCount: student.presentCount,
+        lateCount: student.lateCount,
+        totalPresent: totalPres,
+        absentCount: student.absentCount,
+        unexcusedAbsent: student.unexcusedAbsent,
+        excusedCount: student.excusedCount,
+        totalRecords: student.totalRecords,
+        effectiveDays: student.effectiveDays,
+        daysCovered: student.daysCovered,
+        attendanceRate: student.attendanceRate,
+        punctualityRate: punctRate,
+        weightedScore: student.weightedScore,
+        consistencyIndex: Math.round(student.consistencyIndex * 100) / 100,
+        trendSlope: student.trend?.slope || 0,
+        trendClassification: student.trend?.classification || '-',
+        trendRSquared: student.trend?.rSquared || 0,
+        weeklyChange: student.weeklyChange || 0,
+        avgRate: student.avgRate || student.attendanceRate,
+        minRate: student.minRate || student.attendanceRate,
+        maxRate: student.maxRate || student.attendanceRate,
+      };
+    });
+    const studentDataObjects = sortDataBySettings(studentDataObjectsUnsorted, 'studentAnalytics');
+    studentDataObjects.forEach((obj, idx) => { obj.rank = idx + 1; });
+
+    // Prepare date data with all possible fields
+    const dateDataObjectsUnsorted = dateAnalytics.map((d) => {
+      const totalPres = d.presentCount + d.lateCount;
+      const totalAbs = d.excusedAbsentCount + d.unexcusedAbsentCount;
+      const totalStud = totalPres + totalAbs;
+      const punctRate = totalPres > 0 ? Math.round(d.presentCount / totalPres * 100) : 0;
+      const absRate = totalStud > 0 ? Math.round(totalAbs / totalStud * 100) : 0;
+      const bookPages = d.bookStartPage && d.bookEndPage ? `${d.bookStartPage}-${d.bookEndPage}` : '-';
+      const pagesCount = d.bookStartPage && d.bookEndPage ? d.bookEndPage - d.bookStartPage + 1 : 0;
+      const dateObj = new Date(d.date);
+      return {
+        date: format(dateObj, 'MMM dd, yyyy'),
+        dayOfWeek: format(dateObj, 'EEEE'),
+        hostAddress: d.hostAddress || '-',
+        bookTopic: d.bookTopic || '-',
+        bookPages,
+        bookStartPage: d.bookStartPage || '-',
+        bookEndPage: d.bookEndPage || '-',
+        pagesCount: pagesCount > 0 ? pagesCount : '-',
+        presentCount: d.presentCount,
+        lateCount: d.lateCount,
+        totalPresent: totalPres,
+        excusedAbsentCount: d.excusedAbsentCount,
+        unexcusedAbsentCount: d.unexcusedAbsentCount,
+        totalAbsent: totalAbs,
+        totalStudents: totalStud,
+        attendanceRate: d.attendanceRate,
+        punctualityRate: punctRate,
+        absentRate: absRate,
+        presentNames: d.presentNames.join(', ') || '-',
+        lateNames: d.lateNames.join(', ') || '-',
+        excusedNames: d.excusedNames.join(', ') || '-',
+        absentNames: d.absentNames.join(', ') || '-',
+      };
+    });
+    const dateDataObjects = sortDataBySettings(dateDataObjectsUnsorted, 'dateAnalytics');
+
+    // Prepare host data with all possible fields
+    const hostMap = new Map<string, { count: number; dates: string[]; rawDates: Date[]; present: number; late: number; absent: number; excused: number }>();
+    dateAnalytics.forEach((dateData) => {
+      if (dateData.hostAddress && dateData.hostAddress !== 'SESSION_NOT_HELD') {
+        const existing = hostMap.get(dateData.hostAddress) || { count: 0, dates: [], rawDates: [], present: 0, late: 0, absent: 0, excused: 0 };
+        existing.count++;
+        existing.dates.push(format(new Date(dateData.date), 'MMM dd'));
+        existing.rawDates.push(new Date(dateData.date));
+        existing.present += dateData.presentCount;
+        existing.late += dateData.lateCount;
+        existing.absent += dateData.unexcusedAbsentCount;
+        existing.excused += dateData.excusedAbsentCount;
+        hostMap.set(dateData.hostAddress, existing);
+      }
+    });
+    const totalHostings = Array.from(hostMap.values()).reduce((sum, h) => sum + h.count, 0);
+    const hostDataObjectsUnsorted = Array.from(hostMap.entries())
+      .map(([address, data]) => ({ address, ...data }))
+      .sort((a, b) => b.count - a.count)
+      .map((host, index) => ({
+        rank: index + 1,
+        address: host.address,
+        count: host.count,
+        percentage: totalHostings > 0 ? Math.round(host.count / totalHostings * 100) : 0,
+        firstHostDate: host.rawDates.length > 0 ? format(new Date(Math.min(...host.rawDates.map(d => d.getTime()))), 'MMM dd, yyyy') : '-',
+        lastHostDate: host.rawDates.length > 0 ? format(new Date(Math.max(...host.rawDates.map(d => d.getTime()))), 'MMM dd, yyyy') : '-',
+        totalOnTime: host.present,
+        totalLate: host.late,
+        totalAbsent: host.absent,
+        totalExcused: host.excused,
+        dates: host.dates.join(', '),
+      }));
+    const hostDataObjects = sortDataBySettings(hostDataObjectsUnsorted, 'hostAnalytics');
+    hostDataObjects.forEach((obj, idx) => { obj.rank = idx + 1; });
+
+    // Build CSV content with all three sections
+    const sections: string[] = [];
+    
+    // Section 1: Student Performance
+    const studentTitle = isArabic ? '# أداء الطلاب' : '# Student Performance';
+    const studentHeaderRow = studentConfig.headers.map(escapeCSV).join(',');
+    const studentRows = studentDataObjects.map((data, index) => 
+      studentConfig.getData(data as Record<string, unknown>, index).map(escapeCSV).join(',')
+    );
+    sections.push(studentTitle);
+    sections.push(studentHeaderRow);
+    sections.push(...studentRows);
+    sections.push(''); // Empty line between sections
+
+    // Section 2: Attendance by Date
+    const dateTitle = isArabic ? '# الحضور حسب التاريخ' : '# Attendance by Date';
+    const dateHeaderRow = dateConfig.headers.map(escapeCSV).join(',');
+    const dateRows = dateDataObjects.map((data, index) => 
+      dateConfig.getData(data as Record<string, unknown>, index).map(escapeCSV).join(',')
+    );
+    sections.push(dateTitle);
+    sections.push(dateHeaderRow);
+    sections.push(...dateRows);
+    sections.push(''); // Empty line between sections
+
+    // Section 3: Host Rankings
+    if (hostDataObjects.length > 0) {
+      const hostTitle = isArabic ? '# تصنيف المضيفين' : '# Host Rankings';
+      const hostHeaderRow = hostConfig.headers.map(escapeCSV).join(',');
+      const hostRows = hostDataObjects.map((data, index) => 
+        hostConfig.getData(data as Record<string, unknown>, index).map(escapeCSV).join(',')
+      );
+      sections.push(hostTitle);
+      sections.push(hostHeaderRow);
+      sections.push(...hostRows);
+    }
+
+    // Add BOM for UTF-8 and create blob
+    const BOM = '\uFEFF';
+    const csvContent = BOM + sections.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    const csvFileName = isArabic 
+      ? `تقرير_التحليلات_${format(new Date(), 'yyyy-MM-dd')}.csv`
+      : `analytics-report-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    link.setAttribute('download', csvFileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const exportAnalyticsToPDF = () => {
@@ -3165,7 +3281,7 @@ const AttendanceRecords = () => {
                 {exportingWord ? 'Exporting...' : 'Word'}
               </button>
               <button
-                onClick={exportToCSV}
+                onClick={exportAnalyticsToCSV}
                 className="px-4 py-2 bg-gray-700 hover:bg-gray-800 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
