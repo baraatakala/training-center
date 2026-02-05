@@ -1053,151 +1053,174 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       {/* Export Dialog Modal */}
       {showExportDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h3 className="text-xl font-bold mb-4">📤 Export Options</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b dark:border-gray-700 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-700 dark:to-gray-700">
+              <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                📤 Export Host Schedule
+              </h3>
+              <button
+                onClick={() => setShowExportDialog(false)}
+                className="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full transition-colors"
+                aria-label="Close"
+              >
+                <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
             
-            {/* Format Selection */}
-            <div className="mb-4">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Export Format</label>
-              <div className="space-y-2">
-                <label className="flex items-center p-2 border rounded hover:bg-gray-50 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="format"
-                    value="csv"
-                    checked={exportFormat === 'csv'}
-                    onChange={(e) => setExportFormat(e.target.value as typeof exportFormat)}
-                    className="mr-3"
-                  />
-                  <span>📊 CSV (English)</span>
-                </label>
-                <label className="flex items-center p-2 border rounded hover:bg-gray-50 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="format"
-                    value="csv-arabic"
-                    checked={exportFormat === 'csv-arabic'}
-                    onChange={(e) => setExportFormat(e.target.value as typeof exportFormat)}
-                    className="mr-3"
-                  />
-                  <span>📊 CSV (عربي)</span>
-                </label>
-                <label className="flex items-center p-2 border rounded hover:bg-gray-50 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="format"
-                    value="pdf"
-                    checked={exportFormat === 'pdf'}
-                    onChange={(e) => setExportFormat(e.target.value as typeof exportFormat)}
-                    className="mr-3"
-                  />
-                  <span>📄 PDF</span>
-                </label>
-                <label className="flex items-center p-2 border rounded hover:bg-gray-50 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="format"
-                    value="word"
-                    checked={exportFormat === 'word'}
-                    onChange={(e) => setExportFormat(e.target.value as typeof exportFormat)}
-                    className="mr-3"
-                  />
-                  <span>📝 Word (English)</span>
-                </label>
-                <label className="flex items-center p-2 border rounded hover:bg-gray-50 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="format"
-                    value="word-arabic"
-                    checked={exportFormat === 'word-arabic'}
-                    onChange={(e) => setExportFormat(e.target.value as typeof exportFormat)}
-                    className="mr-3"
-                  />
-                  <span>📝 Word (عربي)</span>
-                </label>
+            {/* Modal Body - Scrollable */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
+              {/* Format Selection */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Export Format</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <label className={`flex items-center p-3 border-2 rounded-lg cursor-pointer transition-all ${exportFormat === 'csv' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'}`}>
+                    <input
+                      type="radio"
+                      name="format"
+                      value="csv"
+                      checked={exportFormat === 'csv'}
+                      onChange={(e) => setExportFormat(e.target.value as typeof exportFormat)}
+                      className="mr-3 text-blue-600"
+                    />
+                    <span className="text-sm font-medium dark:text-gray-200">📊 CSV (English)</span>
+                  </label>
+                  <label className={`flex items-center p-3 border-2 rounded-lg cursor-pointer transition-all ${exportFormat === 'csv-arabic' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'}`}>
+                    <input
+                      type="radio"
+                      name="format"
+                      value="csv-arabic"
+                      checked={exportFormat === 'csv-arabic'}
+                      onChange={(e) => setExportFormat(e.target.value as typeof exportFormat)}
+                      className="mr-3 text-blue-600"
+                    />
+                    <span className="text-sm font-medium dark:text-gray-200">📊 CSV (عربي)</span>
+                  </label>
+                  <label className={`flex items-center p-3 border-2 rounded-lg cursor-pointer transition-all ${exportFormat === 'pdf' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'}`}>
+                    <input
+                      type="radio"
+                      name="format"
+                      value="pdf"
+                      checked={exportFormat === 'pdf'}
+                      onChange={(e) => setExportFormat(e.target.value as typeof exportFormat)}
+                      className="mr-3 text-blue-600"
+                    />
+                    <span className="text-sm font-medium dark:text-gray-200">📄 PDF</span>
+                  </label>
+                  <label className={`flex items-center p-3 border-2 rounded-lg cursor-pointer transition-all ${exportFormat === 'word' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'}`}>
+                    <input
+                      type="radio"
+                      name="format"
+                      value="word"
+                      checked={exportFormat === 'word'}
+                      onChange={(e) => setExportFormat(e.target.value as typeof exportFormat)}
+                      className="mr-3 text-blue-600"
+                    />
+                    <span className="text-sm font-medium dark:text-gray-200">📝 Word (English)</span>
+                  </label>
+                  <label className={`flex items-center p-3 border-2 rounded-lg cursor-pointer transition-all sm:col-span-2 ${exportFormat === 'word-arabic' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'}`}>
+                    <input
+                      type="radio"
+                      name="format"
+                      value="word-arabic"
+                      checked={exportFormat === 'word-arabic'}
+                      onChange={(e) => setExportFormat(e.target.value as typeof exportFormat)}
+                      className="mr-3 text-blue-600"
+                    />
+                    <span className="text-sm font-medium dark:text-gray-200">📝 Word (عربي)</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Field Selection */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Select Fields to Export</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto border dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-700/50">
+                  <label className="flex items-center p-2 hover:bg-white dark:hover:bg-gray-700 rounded cursor-pointer transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={exportFields.studentName}
+                      onChange={(e) => setExportFields({ ...exportFields, studentName: e.target.checked })}
+                      className="mr-3 rounded text-blue-600"
+                    />
+                    <span className="text-sm dark:text-gray-200">👤 Student Name</span>
+                  </label>
+                  <label className="flex items-center p-2 hover:bg-white dark:hover:bg-gray-700 rounded cursor-pointer transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={exportFields.address}
+                      onChange={(e) => setExportFields({ ...exportFields, address: e.target.checked })}
+                      className="mr-3 rounded text-blue-600"
+                    />
+                    <span className="text-sm dark:text-gray-200">📍 Address</span>
+                  </label>
+                  <label className="flex items-center p-2 hover:bg-white dark:hover:bg-gray-700 rounded cursor-pointer transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={exportFields.phone}
+                      onChange={(e) => setExportFields({ ...exportFields, phone: e.target.checked })}
+                      className="mr-3 rounded text-blue-600"
+                    />
+                    <span className="text-sm dark:text-gray-200">📱 Phone</span>
+                  </label>
+                  <label className="flex items-center p-2 hover:bg-white dark:hover:bg-gray-700 rounded cursor-pointer transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={exportFields.canHost}
+                      onChange={(e) => setExportFields({ ...exportFields, canHost: e.target.checked })}
+                      className="mr-3 rounded text-blue-600"
+                    />
+                    <span className="text-sm dark:text-gray-200">🏠 Can Host</span>
+                  </label>
+                  <label className="flex items-center p-2 hover:bg-white dark:hover:bg-gray-700 rounded cursor-pointer transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={exportFields.hostDate}
+                      onChange={(e) => setExportFields({ ...exportFields, hostDate: e.target.checked })}
+                      className="mr-3 rounded text-blue-600"
+                    />
+                    <span className="text-sm dark:text-gray-200">📅 Host Date</span>
+                  </label>
+                  <label className="flex items-center p-2 hover:bg-white dark:hover:bg-gray-700 rounded cursor-pointer transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={exportFields.enrollmentStatus}
+                      onChange={(e) => setExportFields({ ...exportFields, enrollmentStatus: e.target.checked })}
+                      className="mr-3 rounded text-blue-600"
+                    />
+                    <span className="text-sm dark:text-gray-200">✓ Status</span>
+                  </label>
+                  <label className="flex items-center p-2 hover:bg-white dark:hover:bg-gray-700 rounded cursor-pointer transition-colors sm:col-span-2">
+                    <input
+                      type="checkbox"
+                      checked={exportFields.studentId}
+                      onChange={(e) => setExportFields({ ...exportFields, studentId: e.target.checked })}
+                      className="mr-3 rounded text-blue-600"
+                    />
+                    <span className="text-sm dark:text-gray-200">🆔 Student ID</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Preview */}
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-700">
+                <div className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-1">Preview:</div>
+                <div className="text-sm text-blue-700 dark:text-blue-400">
+                  {Object.values(exportFields).filter(Boolean).length} field(s) selected for {displayedEnrollments.length} student(s)
+                </div>
               </div>
             </div>
 
-            {/* Field Selection */}
-            <div className="mb-4">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Select Fields to Export</label>
-              <div className="space-y-2 max-h-60 overflow-y-auto border rounded p-2">
-                <label className="flex items-center p-2 hover:bg-gray-50 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={exportFields.studentName}
-                    onChange={(e) => setExportFields({ ...exportFields, studentName: e.target.checked })}
-                    className="mr-3"
-                  />
-                  <span className="text-sm">👤 Student Name</span>
-                </label>
-                <label className="flex items-center p-2 hover:bg-gray-50 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={exportFields.address}
-                    onChange={(e) => setExportFields({ ...exportFields, address: e.target.checked })}
-                    className="mr-3"
-                  />
-                  <span className="text-sm">📍 Address</span>
-                </label>
-                <label className="flex items-center p-2 hover:bg-gray-50 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={exportFields.phone}
-                    onChange={(e) => setExportFields({ ...exportFields, phone: e.target.checked })}
-                    className="mr-3"
-                  />
-                  <span className="text-sm">📱 Phone</span>
-                </label>
-                <label className="flex items-center p-2 hover:bg-gray-50 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={exportFields.canHost}
-                    onChange={(e) => setExportFields({ ...exportFields, canHost: e.target.checked })}
-                    className="mr-3"
-                  />
-                  <span className="text-sm">🏠 Can Host</span>
-                </label>
-                <label className="flex items-center p-2 hover:bg-gray-50 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={exportFields.hostDate}
-                    onChange={(e) => setExportFields({ ...exportFields, hostDate: e.target.checked })}
-                    className="mr-3"
-                  />
-                  <span className="text-sm">📅 Host Date</span>
-                </label>
-                <label className="flex items-center p-2 hover:bg-gray-50 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={exportFields.enrollmentStatus}
-                    onChange={(e) => setExportFields({ ...exportFields, enrollmentStatus: e.target.checked })}
-                    className="mr-3"
-                  />
-                  <span className="text-sm">✓ Enrollment Status</span>
-                </label>
-                <label className="flex items-center p-2 hover:bg-gray-50 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={exportFields.studentId}
-                    onChange={(e) => setExportFields({ ...exportFields, studentId: e.target.checked })}
-                    className="mr-3"
-                  />
-                  <span className="text-sm">🆔 Student ID</span>
-                </label>
-              </div>
-            </div>
-
-            {/* Preview */}
-            <div className="mb-4 p-3 bg-gray-50 rounded text-sm">
-              <div className="font-semibold mb-1">Preview:</div>
-              <div className="text-gray-600">
-                {Object.values(exportFields).filter(Boolean).length} field(s) selected for {displayedEnrollments.length} student(s)
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex gap-3">
+            {/* Modal Footer */}
+            <div className="p-4 sm:p-6 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={() => setShowExportDialog(false)}
+                className="flex-1 px-4 py-3 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 font-semibold transition-colors order-2 sm:order-1"
+              >
+                Cancel
+              </button>
               <button
                 onClick={() => {
                   if (Object.values(exportFields).every(v => !v)) {
@@ -1210,15 +1233,12 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
                   else if (exportFormat === 'pdf') exportPDF();
                   else if (exportFormat === 'word' || exportFormat === 'word-arabic') exportWord();
                 }}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
+                className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold transition-colors flex items-center justify-center gap-2 order-1 sm:order-2"
               >
-                📤 Export
-              </button>
-              <button
-                onClick={() => setShowExportDialog(false)}
-                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-semibold"
-              >
-                Cancel
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                Export Data
               </button>
             </div>
           </div>

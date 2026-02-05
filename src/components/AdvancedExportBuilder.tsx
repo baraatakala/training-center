@@ -829,22 +829,23 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6">
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 sm:p-6">
           <div className="flex justify-between items-center">
             <div>
-              <h2 className="text-2xl font-bold flex items-center gap-2">
+              <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
                 📤 Advanced Export Builder
               </h2>
-              <p className="text-blue-100 text-sm mt-1">
+              <p className="text-blue-100 text-xs sm:text-sm mt-1 hidden sm:block">
                 Customize your export with full control over fields and formatting
               </p>
             </div>
             <button
               onClick={handleClose}
               className="text-white/80 hover:text-white p-2 rounded-lg hover:bg-white/10 transition"
+              aria-label="Close"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -853,20 +854,20 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
           </div>
           
           {/* Tabs */}
-          <div className="flex gap-2 mt-4">
+          <div className="flex flex-wrap gap-2 mt-4">
             {(['fields', 'format', 'validation', 'preview'] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition ${
                   activeTab === tab
                     ? 'bg-white text-blue-600'
                     : 'bg-white/10 text-white hover:bg-white/20'
                 }`}
               >
-                {tab === 'fields' && '📋 Select Fields'}
-                {tab === 'format' && '⚙️ Format Options'}
-                {tab === 'validation' && '✅ Data Validation'}
+                {tab === 'fields' && '📋 Fields'}
+                {tab === 'format' && '⚙️ Format'}
+                {tab === 'validation' && '✅ Validation'}
                 {tab === 'preview' && '👁️ Preview'}
               </button>
             ))}
@@ -874,25 +875,25 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 dark:bg-gray-800">
           {/* Fields Tab */}
           {activeTab === 'fields' && (
             <div className="space-y-6">
               {/* Quick Actions */}
-              <div className="flex flex-wrap gap-2 pb-4 border-b">
+              <div className="flex flex-wrap gap-2 pb-4 border-b dark:border-gray-700">
                 <button
                   onClick={selectAll}
-                  className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-sm font-medium hover:bg-green-200 transition"
+                  className="px-3 py-1.5 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded-lg text-sm font-medium hover:bg-green-200 dark:hover:bg-green-900/60 transition"
                 >
                   ✓ Select All
                 </button>
                 <button
                   onClick={deselectAll}
-                  className="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200 transition"
+                  className="px-3 py-1.5 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 rounded-lg text-sm font-medium hover:bg-red-200 dark:hover:bg-red-900/60 transition"
                 >
                   ✕ Clear All
                 </button>
-                <span className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-sm">
+                <span className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg text-sm">
                   {config.selectedFields.length} / {allFields.length} fields selected
                 </span>
               </div>
@@ -905,17 +906,17 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                 const someSelected = selectedInCategory > 0 && !allSelected;
 
                 return (
-                  <div key={category.id} className="border rounded-xl overflow-hidden">
+                  <div key={category.id} className="border dark:border-gray-700 rounded-xl overflow-hidden">
                     {/* Category Header */}
                     <div
-                      className="bg-gray-50 p-4 flex items-center justify-between cursor-pointer hover:bg-gray-100 transition"
+                      className="bg-gray-50 dark:bg-gray-700 p-4 flex items-center justify-between cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition"
                       onClick={() => toggleCategory(category.id)}
                     >
                       <div className="flex items-center gap-3">
                         <span className="text-2xl">{category.icon}</span>
                         <div>
-                          <h3 className="font-semibold text-gray-900">{category.label}</h3>
-                          <p className="text-sm text-gray-500">
+                          <h3 className="font-semibold text-gray-900 dark:text-white">{category.label}</h3>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
                             {selectedInCategory} of {category.fields.length} fields selected
                           </p>
                         </div>
@@ -929,20 +930,20 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                           }}
                           onChange={() => toggleCategory(category.id)}
                           onClick={e => e.stopPropagation()}
-                          className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          className="w-5 h-5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
                         />
                       </div>
                     </div>
 
                     {/* Fields */}
-                    <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 dark:bg-gray-800">
                       {category.fields.map(field => (
                         <label
                           key={field.key}
                           className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition ${
                             config.selectedFields.includes(field.key)
-                              ? 'bg-blue-50 border-2 border-blue-300'
-                              : 'bg-gray-50 border-2 border-transparent hover:bg-gray-100'
+                              ? 'bg-blue-50 dark:bg-blue-900/40 border-2 border-blue-300 dark:border-blue-600'
+                              : 'bg-gray-50 dark:bg-gray-700 border-2 border-transparent hover:bg-gray-100 dark:hover:bg-gray-600'
                           }`}
                         >
                           <input
@@ -966,7 +967,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
             <div className="space-y-6">
               {/* Export Format */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-3">Export Format</label>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Export Format</label>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {[
                     { value: 'excel', icon: '📊', label: 'Excel' },
@@ -979,12 +980,12 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                       onClick={() => setConfig(prev => ({ ...prev, format: fmt.value as ExportConfig['format'] }))}
                       className={`p-4 rounded-xl border-2 transition flex flex-col items-center gap-2 ${
                         config.format === fmt.value
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300'
+                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/40'
+                          : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
                       }`}
                     >
                       <span className="text-3xl">{fmt.icon}</span>
-                      <span className="font-medium text-gray-700">{fmt.label}</span>
+                      <span className="font-medium text-gray-700 dark:text-gray-200">{fmt.label}</span>
                     </button>
                   ))}
                 </div>
@@ -992,14 +993,14 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
 
               {/* Language */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-3">Language</label>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Language</label>
                 <div className="flex gap-3">
                   <button
                     onClick={() => setConfig(prev => ({ ...prev, language: 'en' }))}
                     className={`px-6 py-3 rounded-lg border-2 font-medium transition ${
                       config.language === 'en'
-                        ? 'border-blue-500 bg-blue-50 text-blue-700'
-                        : 'border-gray-200 hover:border-gray-300'
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                        : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 dark:text-gray-300'
                     }`}
                   >
                     🇺🇸 English
@@ -1008,8 +1009,8 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                     onClick={() => setConfig(prev => ({ ...prev, language: 'ar' }))}
                     className={`px-6 py-3 rounded-lg border-2 font-medium transition ${
                       config.language === 'ar'
-                        ? 'border-blue-500 bg-blue-50 text-blue-700'
-                        : 'border-gray-200 hover:border-gray-300'
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                        : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 dark:text-gray-300'
                     }`}
                   >
                     🇸🇦 العربية
@@ -1725,21 +1726,21 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="border-t bg-gray-50 p-4 flex justify-between items-center">
-          <div className="text-sm text-gray-500">
+        <div className="border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 flex flex-col sm:flex-row justify-between items-center gap-3">
+          <div className="text-sm text-gray-500 dark:text-gray-400">
             {data.length} records • {config.selectedFields.length} fields selected
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-3 w-full sm:w-auto">
             <button
               onClick={handleClose}
-              className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium transition"
+              className="flex-1 sm:flex-none px-6 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 font-medium transition"
             >
               Cancel
             </button>
             <button
               onClick={handleExport}
               disabled={exporting || config.selectedFields.length === 0}
-              className={`px-6 py-2 bg-blue-600 text-white rounded-lg font-medium transition flex items-center gap-2 ${
+              className={`flex-1 sm:flex-none px-6 py-2 bg-blue-600 text-white rounded-lg font-medium transition flex items-center justify-center gap-2 ${
                 exporting || config.selectedFields.length === 0
                   ? 'opacity-50 cursor-not-allowed'
                   : 'hover:bg-blue-700'
