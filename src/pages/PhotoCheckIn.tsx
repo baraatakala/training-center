@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { Tables } from '../types/database.types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { getSignedPhotoUrl } from '../components/PhotoUpload';
+import { getSignedPhotoUrl } from '../utils/photoUtils';
 import { format } from 'date-fns';
 import * as faceapi from 'face-api.js';
 import { isWithinProximity, formatDistance } from '../services/geocodingService';

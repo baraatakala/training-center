@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getSignedPhotoUrl } from './PhotoUpload';
+import { getSignedPhotoUrl } from '../utils/photoUtils';
 
 interface PhotoAvatarProps {
   photoPath: string | null;
