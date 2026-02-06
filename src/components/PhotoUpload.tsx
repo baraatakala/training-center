@@ -589,10 +589,15 @@ export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: Pho
               </Button>
               {previewUrl && (
                 <Button
-                  onClick={deletePhoto}
+                  onClick={() => {
+                    if (window.confirm('Are you sure you want to delete this photo? This will disable face recognition check-in for this student.')) {
+                      deletePhoto();
+                    }
+                  }}
                   disabled={uploading}
                   variant="outline"
-                  className="w-full text-red-600 hover:bg-red-50"
+                  className="w-full text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30"
+                  aria-label="Delete student photo"
                 >
                   🗑️ Delete Photo
                 </Button>

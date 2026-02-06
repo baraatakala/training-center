@@ -222,6 +222,8 @@ export function Courses() {
                                 variant="outline" 
                                 onClick={() => openBookReferences(course)}
                                 className="text-xs md:text-sm px-2 md:px-3"
+                                aria-label="Manage book references"
+                                title="Manage book references"
                               >
                                 📚
                               </Button>
@@ -230,6 +232,7 @@ export function Courses() {
                                 variant="secondary" 
                                 onClick={() => openEditModal(course)} 
                                 className="text-xs md:text-sm px-2 md:px-3"
+                                aria-label="Edit course"
                               >
                                 Edit
                               </Button>
@@ -257,6 +260,15 @@ export function Courses() {
         }}
         title={editingCourse ? 'Edit Course' : 'Add New Course'}
       >
+        <CourseForm
+          course={editingCourse}
+          onSubmit={editingCourse ? handleUpdateCourse : handleAddCourse}
+          onCancel={() => {
+            setIsModalOpen(false);
+            setEditingCourse(undefined);
+          }}
+        />
+      </Modal>
 
       <Modal
         isOpen={isBookReferencesOpen}
@@ -277,15 +289,6 @@ export function Courses() {
             }}
           />
         )}
-      </Modal>
-        <CourseForm
-          course={editingCourse}
-          onSubmit={editingCourse ? handleUpdateCourse : handleAddCourse}
-          onCancel={() => {
-            setIsModalOpen(false);
-            setEditingCourse(undefined);
-          }}
-        />
       </Modal>
     </div>
   );

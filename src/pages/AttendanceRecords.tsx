@@ -815,14 +815,14 @@ const AttendanceRecords = () => {
       const pagesCount = dateData.bookStartPage && dateData.bookEndPage
         ? dateData.bookEndPage - dateData.bookStartPage + 1
         : 0;
-      const totalPres = dateData.presentCount + dateData.lateCount;
-      const totalAbs = dateData.excusedAbsentCount + dateData.unexcusedAbsentCount;
-      const totalStud = totalPres + totalAbs;
-      const punctRate = totalPres > 0 
-        ? Math.round(dateData.presentCount / totalPres * 100)
-        : 0;
-      const absRate = totalStud > 0
-        ? Math.round(totalAbs / totalStud * 100)
+      const totalPresent = dateData.presentCount + dateData.lateCount;
+      const totalStudents = totalPresent + dateData.excusedAbsentCount + dateData.unexcusedAbsentCount;
+      // Attendance Rate: (Total Present / Total Students) * 100
+      const attendanceRate = totalStudents > 0 ? Math.round((totalPresent / totalStudents) * 100) : 0;
+      // Absence Rate: (Unexcused Absent / (Unexcused Absent + Present)) * 100
+      const absentRate = (dateData.unexcusedAbsentCount + totalPresent) > 0 ? Math.round((dateData.unexcusedAbsentCount / (dateData.unexcusedAbsentCount + totalPresent)) * 100) : 0;
+      const punctRate = totalPresent > 0 
+        ? Math.round(dateData.presentCount / totalPresent * 100)
         : 0;
       const dateObj = new Date(dateData.date);
       
@@ -837,14 +837,14 @@ const AttendanceRecords = () => {
         pagesCount: pagesCount > 0 ? pagesCount : '-',
         presentCount: dateData.presentCount,
         lateCount: dateData.lateCount,
-        totalPresent: totalPres,
+        totalPresent,
         excusedAbsentCount: dateData.excusedAbsentCount,
         unexcusedAbsentCount: dateData.unexcusedAbsentCount,
-        totalAbsent: totalAbs,
-        totalStudents: totalStud,
-        attendanceRate: dateData.attendanceRate,
+        totalAbsent: dateData.excusedAbsentCount + dateData.unexcusedAbsentCount,
+        totalStudents,
+        attendanceRate,
         punctualityRate: punctRate,
-        absentRate: absRate,
+        absentRate,
         presentNames: dateData.presentNames.join(', ') || '-',
         lateNames: dateData.lateNames.join(', ') || '-',
         excusedNames: excusedLabel,
@@ -1326,8 +1326,8 @@ const AttendanceRecords = () => {
       const punctualityRate = totalPresent > 0 
         ? Math.round(dateData.presentCount / totalPresent * 100)
         : 0;
-      const absentRate = totalStudents > 0
-        ? Math.round(totalAbsent / totalStudents * 100)
+      const absentRate = (dateData.unexcusedAbsentCount + totalPresent) > 0
+        ? Math.round((dateData.unexcusedAbsentCount / (dateData.unexcusedAbsentCount + totalPresent)) * 100)
         : 0;
       const dateObj = new Date(dateData.date);
       
@@ -1638,7 +1638,7 @@ const AttendanceRecords = () => {
       const bookPages = d.bookStartPage && d.bookEndPage ? `${d.bookStartPage}-${d.bookEndPage}` : '-';
       const pagesCount = d.bookStartPage && d.bookEndPage ? d.bookEndPage - d.bookStartPage + 1 : 0;
       const punctualityRate = totalPres > 0 ? Math.round(d.presentCount / totalPres * 100) : 0;
-      const absentRate = totalStud > 0 ? Math.round(totalAbs / totalStud * 100) : 0;
+      const absentRate = (d.unexcusedAbsentCount + totalPres) > 0 ? Math.round((d.unexcusedAbsentCount / (d.unexcusedAbsentCount + totalPres)) * 100) : 0;
       const dateObj = new Date(d.date);
       
       return {
@@ -2709,13 +2709,13 @@ const AttendanceRecords = () => {
           ? dateData.bookEndPage - dateData.bookStartPage + 1
           : 0;
         const totalPresent = dateData.presentCount + dateData.lateCount;
-        const totalAbsent = dateData.excusedAbsentCount + dateData.unexcusedAbsentCount;
-        const totalStudents = totalPresent + totalAbsent;
+        const totalStudents = totalPresent + dateData.excusedAbsentCount + dateData.unexcusedAbsentCount;
+        // Attendance Rate: (Total Present / Total Students) * 100
+        const attendanceRate = totalStudents > 0 ? Math.round((totalPresent / totalStudents) * 100) : 0;
+        // Absence Rate: (Unexcused Absent / Total Students) * 100
+        const absentRate = totalStudents > 0 ? Math.round((dateData.unexcusedAbsentCount / totalStudents) * 100) : 0;
         const punctualityRate = totalPresent > 0 
           ? Math.round(dateData.presentCount / totalPresent * 100)
-          : 0;
-        const absentRate = totalStudents > 0
-          ? Math.round(totalAbsent / totalStudents * 100)
           : 0;
         const dateObj = new Date(dateData.date);
         return {
@@ -2735,10 +2735,10 @@ const AttendanceRecords = () => {
           totalPresent,
           excusedAbsentCount: dateData.excusedAbsentCount,
           unexcusedAbsentCount: dateData.unexcusedAbsentCount,
-          totalAbsent,
+          totalAbsent: dateData.excusedAbsentCount + dateData.unexcusedAbsentCount,
           totalStudents,
           // Rates & Percentages
-          attendanceRate: dateData.attendanceRate,
+          attendanceRate,
           punctualityRate,
           absentRate,
           // Student Names

@@ -8,6 +8,8 @@ type ButtonProps = {
   type?: 'button' | 'submit' | 'reset';
   className?: string;
   icon?: React.ReactNode;
+  title?: string;
+  'aria-label'?: string;
 };
 
 export function Button({
@@ -19,6 +21,8 @@ export function Button({
   type = 'button',
   className = '',
   icon,
+  title,
+  'aria-label': ariaLabel,
 }: ButtonProps) {
   const baseStyles = `
     inline-flex items-center justify-center gap-2
@@ -79,6 +83,8 @@ export function Button({
       type={type}
       onClick={onClick}
       disabled={disabled}
+      title={title}
+      aria-label={ariaLabel}
       className={`${baseStyles} ${variantStyles[variant]} ${sizeStyles[size]} ${disabledStyles} ${className}`}
     >
       {icon && <span className="flex-shrink-0">{icon}</span>}
