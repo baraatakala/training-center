@@ -66,6 +66,16 @@ interface StudentAnalytics {
   avgRate: number;
   minRate: number;
   maxRate: number;
+  // Score transparency fields
+  qualityAdjustedRate: number;
+  rawWeightedScore: number;
+  coverageFactor: number;
+  punctualityRate: number;
+  // Late duration fields
+  totalLateMinutes: number;
+  avgLateMinutes: number;
+  maxLateMinutes: number;
+  lateScoreAvg: number;  // Average late score weight (0-1)
 }
 
 interface DateAnalytics {
@@ -83,6 +93,9 @@ interface DateAnalytics {
   bookTopic?: string | null;
   bookStartPage?: number | null;
   bookEndPage?: number | null;
+  // Late duration fields
+  totalLateMinutes: number;
+  avgLateMinutes: number;
 }
 
 interface FilterOptions {
@@ -784,6 +797,16 @@ const AttendanceRecords = () => {
         avgRate: student.avgRate || student.attendanceRate,
         minRate: student.minRate || student.attendanceRate,
         maxRate: student.maxRate || student.attendanceRate,
+        // Score Breakdown
+        qualityAdjustedRate: Math.round((student.qualityAdjustedRate || 0) * 100) / 100,
+        rawWeightedScore: Math.round((student.rawWeightedScore || 0) * 100) / 100,
+        coverageFactor: Math.round((student.coverageFactor || 0) * 1000) / 1000,
+        scoreFormula: `(${Math.round((student.rawWeightedScore || 0) * 100) / 100} × ${Math.round((student.coverageFactor || 0) * 1000) / 1000}) = ${student.weightedScore}`,
+        // Late Duration
+        totalLateMinutes: Math.round((student.totalLateMinutes || 0) * 10) / 10,
+        avgLateMinutes: Math.round((student.avgLateMinutes || 0) * 10) / 10,
+        maxLateMinutes: Math.round((student.maxLateMinutes || 0) * 10) / 10,
+        lateScoreAvg: Math.round((student.lateScoreAvg || 0) * 1000) / 1000,
       };
     });
     
@@ -845,6 +868,9 @@ const AttendanceRecords = () => {
         attendanceRate,
         punctualityRate: punctRate,
         absentRate,
+        // Late Duration
+        totalLateMinutes: Math.round((dateData.totalLateMinutes || 0) * 10) / 10,
+        avgLateMinutes: Math.round((dateData.avgLateMinutes || 0) * 10) / 10,
         presentNames: dateData.presentNames.join(', ') || '-',
         lateNames: dateData.lateNames.join(', ') || '-',
         excusedNames: excusedLabel,
@@ -999,6 +1025,16 @@ const AttendanceRecords = () => {
         avgRate: student.avgRate || student.attendanceRate,
         minRate: student.minRate || student.attendanceRate,
         maxRate: student.maxRate || student.attendanceRate,
+        // Score Breakdown
+        qualityAdjustedRate: Math.round((student.qualityAdjustedRate || 0) * 100) / 100,
+        rawWeightedScore: Math.round((student.rawWeightedScore || 0) * 100) / 100,
+        coverageFactor: Math.round((student.coverageFactor || 0) * 1000) / 1000,
+        scoreFormula: `(${Math.round((student.rawWeightedScore || 0) * 100) / 100} × ${Math.round((student.coverageFactor || 0) * 1000) / 1000}) = ${student.weightedScore}`,
+        // Late Duration
+        totalLateMinutes: Math.round((student.totalLateMinutes || 0) * 10) / 10,
+        avgLateMinutes: Math.round((student.avgLateMinutes || 0) * 10) / 10,
+        maxLateMinutes: Math.round((student.maxLateMinutes || 0) * 10) / 10,
+        lateScoreAvg: Math.round((student.lateScoreAvg || 0) * 1000) / 1000,
       };
     });
     const studentDataObjects = sortDataBySettings(studentDataObjectsUnsorted, 'studentAnalytics');
@@ -1033,6 +1069,9 @@ const AttendanceRecords = () => {
         attendanceRate: d.attendanceRate,
         punctualityRate: punctRate,
         absentRate: absRate,
+        // Late Duration
+        totalLateMinutes: Math.round((d.totalLateMinutes || 0) * 10) / 10,
+        avgLateMinutes: Math.round((d.avgLateMinutes || 0) * 10) / 10,
         presentNames: d.presentNames.join(', ') || '-',
         lateNames: d.lateNames.join(', ') || '-',
         excusedNames: d.excusedNames.join(', ') || '-',
@@ -1235,6 +1274,16 @@ const AttendanceRecords = () => {
         avgRate: `${student.avgRate || student.attendanceRate}%`,
         minRate: `${student.minRate || student.attendanceRate}%`,
         maxRate: `${student.maxRate || student.attendanceRate}%`,
+        // Score Breakdown
+        qualityAdjustedRate: `${Math.round((student.qualityAdjustedRate || 0) * 100) / 100}%`,
+        rawWeightedScore: (student.rawWeightedScore || 0).toFixed(1),
+        coverageFactor: (student.coverageFactor || 0).toFixed(3),
+        scoreFormula: `(${(student.rawWeightedScore || 0).toFixed(1)} × ${(student.coverageFactor || 0).toFixed(3)}) = ${student.weightedScore.toFixed(1)}`,
+        // Late Duration
+        totalLateMinutes: Math.round((student.totalLateMinutes || 0) * 10) / 10,
+        avgLateMinutes: Math.round((student.avgLateMinutes || 0) * 10) / 10,
+        maxLateMinutes: Math.round((student.maxLateMinutes || 0) * 10) / 10,
+        lateScoreAvg: (student.lateScoreAvg || 0).toFixed(3),
       };
     });
     
@@ -1370,6 +1419,9 @@ const AttendanceRecords = () => {
         attendanceRate: `${dateData.attendanceRate}%`,
         punctualityRate: `${punctualityRate}%`,
         absentRate: `${absentRate}%`,
+        // Late Duration
+        totalLateMinutes: Math.round((dateData.totalLateMinutes || 0) * 10) / 10,
+        avgLateMinutes: Math.round((dateData.avgLateMinutes || 0) * 10) / 10,
         presentNames: dateData.presentNames.join(', ') || '-',
         lateNames: dateData.lateNames.join(', ') || '-',
         excusedNames: excusedLabel,
@@ -1641,6 +1693,16 @@ const AttendanceRecords = () => {
         avgRate: `${s.avgRate || s.attendanceRate}%`,
         minRate: `${s.minRate || s.attendanceRate}%`,
         maxRate: `${s.maxRate || s.attendanceRate}%`,
+        // Score Breakdown
+        qualityAdjustedRate: `${Math.round((s.qualityAdjustedRate || 0) * 100) / 100}%`,
+        rawWeightedScore: (s.rawWeightedScore || 0).toFixed(1),
+        coverageFactor: (s.coverageFactor || 0).toFixed(3),
+        scoreFormula: `(${(s.rawWeightedScore || 0).toFixed(1)} × ${(s.coverageFactor || 0).toFixed(3)}) = ${s.weightedScore.toFixed(1)}`,
+        // Late Duration
+        totalLateMinutes: Math.round((s.totalLateMinutes || 0) * 10) / 10,
+        avgLateMinutes: Math.round((s.avgLateMinutes || 0) * 10) / 10,
+        maxLateMinutes: Math.round((s.maxLateMinutes || 0) * 10) / 10,
+        lateScoreAvg: (s.lateScoreAvg || 0).toFixed(3),
       };
     });
     
@@ -1684,6 +1746,9 @@ const AttendanceRecords = () => {
         attendanceRate: `${d.attendanceRate}%`,
         punctualityRate: `${punctualityRate}%`,
         absentRate: `${absentRate}%`,
+        // Late Duration
+        totalLateMinutes: Math.round((d.totalLateMinutes || 0) * 10) / 10,
+        avgLateMinutes: Math.round((d.avgLateMinutes || 0) * 10) / 10,
         presentNames: d.presentNames.join(', ') || '-',
         lateNames: d.lateNames.join(', ') || '-',
         excusedNames,
@@ -1954,6 +2019,14 @@ const AttendanceRecords = () => {
       // (i.e. accountable days minus days the student was present/on-time or late)
       const unexcusedAbsent = effectiveBase > 0 ? Math.max(0, effectiveBase - totalPresent) : 0;
 
+      // ==================== LATE DURATION AGGREGATION ====================
+      const lateMinutesArray = lateRecords
+        .map(r => r.late_minutes)
+        .filter((m): m is number => m != null && m > 0);
+      const totalLateMinutes = lateMinutesArray.reduce((sum, m) => sum + m, 0);
+      const avgLateMinutes = lateMinutesArray.length > 0 ? totalLateMinutes / lateMinutesArray.length : 0;
+      const maxLateMinutes = lateMinutesArray.length > 0 ? Math.max(...lateMinutesArray) : 0;
+
       // ==================== QUALITY-ADJUSTED SCORING ====================
       // Calculate quality-adjusted attendance where late arrivals get partial credit
       // On Time = 100% credit, Late = exponential decay based on minutes late
@@ -2057,6 +2130,16 @@ const AttendanceRecords = () => {
           Math.round((cumulativeRatesByDay.reduce((a, b) => a + b, 0) / cumulativeRatesByDay.length) * 10) / 10 : 0,
         minRate: cumulativeRatesByDay.length > 0 ? Math.round(Math.min(...cumulativeRatesByDay) * 10) / 10 : 0,
         maxRate: cumulativeRatesByDay.length > 0 ? Math.round(Math.max(...cumulativeRatesByDay) * 10) / 10 : 0,
+        // Score transparency
+        qualityAdjustedRate: Math.round(qualityAdjustedRate * 10) / 10,
+        rawWeightedScore: Math.round(rawWeightedScore * 10) / 10,
+        coverageFactor: Math.round(coverageFactor * 100) / 100,
+        punctualityRate: Math.round(punctualityPercentage * 10) / 10,
+        // Late duration stats
+        totalLateMinutes: Math.round(totalLateMinutes),
+        avgLateMinutes: Math.round(avgLateMinutes * 10) / 10,
+        maxLateMinutes: Math.round(maxLateMinutes),
+        lateScoreAvg: lateRecords.length > 0 ? Math.round((lateScoreSum / lateRecords.length) * 100) / 100 : 0,
       };
     }).sort((a, b) => b.weightedScore - a.weightedScore);
 
@@ -2114,6 +2197,13 @@ const AttendanceRecords = () => {
         excusedNames = excusedRecords.map(r => r.student_name);
       }
       
+      // Aggregate late minutes for this date
+      const dateLateMinutes = lateRecords
+        .map(r => r.late_minutes)
+        .filter((m): m is number => m != null && m > 0);
+      const dateTotalLateMin = dateLateMinutes.reduce((sum, m) => sum + m, 0);
+      const dateAvgLateMin = dateLateMinutes.length > 0 ? dateTotalLateMin / dateLateMinutes.length : 0;
+
       return {
         date,
         presentCount,
@@ -2129,6 +2219,8 @@ const AttendanceRecords = () => {
         bookTopic: dateRecords[0]?.book_topic || null,
         bookStartPage: dateRecords[0]?.book_start_page || null,
         bookEndPage: dateRecords[0]?.book_end_page || null,
+        totalLateMinutes: Math.round(dateTotalLateMin),
+        avgLateMinutes: Math.round(dateAvgLateMin * 10) / 10,
       };
     }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -2277,6 +2369,30 @@ const AttendanceRecords = () => {
             { key: 'minRate', label: 'Minimum Rate', labelAr: 'أدنى معدل', category: 'rates', defaultSelected: false },
             { key: 'maxRate', label: 'Maximum Rate', labelAr: 'أعلى معدل', category: 'rates', defaultSelected: false },
           ]
+        },
+        {
+          id: 'scoreBreakdown',
+          label: '🔍 Score Breakdown',
+          labelAr: '🔍 تفصيل الدرجة',
+          icon: '🧮',
+          fields: [
+            { key: 'qualityAdjustedRate', label: 'Quality-Adjusted Rate %', labelAr: 'معدل الجودة المعدل', category: 'scoreBreakdown', defaultSelected: false },
+            { key: 'rawWeightedScore', label: 'Raw Score (before coverage)', labelAr: 'الدرجة الخام', category: 'scoreBreakdown', defaultSelected: false },
+            { key: 'coverageFactor', label: 'Coverage Factor', labelAr: 'عامل التغطية', category: 'scoreBreakdown', defaultSelected: false },
+            { key: 'scoreFormula', label: 'Score Formula', labelAr: 'معادلة الدرجة', category: 'scoreBreakdown', defaultSelected: false },
+          ]
+        },
+        {
+          id: 'lateDuration',
+          label: '⏱️ Late Duration',
+          labelAr: '⏱️ مدة التأخير',
+          icon: '⏰',
+          fields: [
+            { key: 'totalLateMinutes', label: 'Total Late (min)', labelAr: 'مجموع التأخير (دقيقة)', category: 'lateDuration', defaultSelected: false },
+            { key: 'avgLateMinutes', label: 'Avg Late (min)', labelAr: 'متوسط التأخير', category: 'lateDuration', defaultSelected: false },
+            { key: 'maxLateMinutes', label: 'Max Late (min)', labelAr: 'أقصى تأخير', category: 'lateDuration', defaultSelected: false },
+            { key: 'lateScoreAvg', label: 'Avg Late Credit (0-1)', labelAr: 'متوسط رصيد التأخير', category: 'lateDuration', defaultSelected: false },
+          ]
         }
       ];
     } else if (exportDataType === 'dateAnalytics') {
@@ -2329,6 +2445,16 @@ const AttendanceRecords = () => {
             { key: 'attendanceRate', label: 'Attendance Rate %', labelAr: 'نسبة الحضور', category: 'rates', defaultSelected: true },
             { key: 'punctualityRate', label: 'Punctuality Rate %', labelAr: 'نسبة الالتزام', category: 'rates', defaultSelected: false },
             { key: 'absentRate', label: 'Absence Rate %', labelAr: 'نسبة الغياب', category: 'rates', defaultSelected: false },
+          ]
+        },
+        {
+          id: 'lateDuration',
+          label: '⏱️ Late Duration',
+          labelAr: '⏱️ مدة التأخير',
+          icon: '⏰',
+          fields: [
+            { key: 'totalLateMinutes', label: 'Total Late (min)', labelAr: 'مجموع التأخير (دقيقة)', category: 'lateDuration', defaultSelected: false },
+            { key: 'avgLateMinutes', label: 'Avg Late (min)', labelAr: 'متوسط التأخير', category: 'lateDuration', defaultSelected: false },
           ]
         },
         {
@@ -2782,6 +2908,16 @@ const AttendanceRecords = () => {
           avgRate: student.avgRate || student.attendanceRate,
           minRate: student.minRate || student.attendanceRate,
           maxRate: student.maxRate || student.attendanceRate,
+          // Score Breakdown (transparency)
+          qualityAdjustedRate: Math.round((student.qualityAdjustedRate || 0) * 100) / 100,
+          rawWeightedScore: Math.round((student.rawWeightedScore || 0) * 100) / 100,
+          coverageFactor: Math.round((student.coverageFactor || 0) * 1000) / 1000,
+          scoreFormula: `(${Math.round((student.rawWeightedScore || 0) * 100) / 100} × ${Math.round((student.coverageFactor || 0) * 1000) / 1000}) = ${student.weightedScore}`,
+          // Late Duration
+          totalLateMinutes: Math.round((student.totalLateMinutes || 0) * 10) / 10,
+          avgLateMinutes: Math.round((student.avgLateMinutes || 0) * 10) / 10,
+          maxLateMinutes: Math.round((student.maxLateMinutes || 0) * 10) / 10,
+          lateScoreAvg: Math.round((student.lateScoreAvg || 0) * 1000) / 1000,
         };
       });
     } else if (exportDataType === 'dateAnalytics') {
@@ -2825,6 +2961,9 @@ const AttendanceRecords = () => {
           attendanceRate,
           punctualityRate,
           absentRate,
+          // Late Duration
+          totalLateMinutes: Math.round((dateData.totalLateMinutes || 0) * 10) / 10,
+          avgLateMinutes: Math.round((dateData.avgLateMinutes || 0) * 10) / 10,
           // Student Names
           presentNames: dateData.presentNames.join(', ') || '-',
           lateNames: dateData.lateNames.join(', ') || '-',
