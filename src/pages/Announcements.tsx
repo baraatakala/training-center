@@ -11,6 +11,55 @@ import { announcementService, announcementReactionService, announcementCommentSe
 import type { Announcement, AnnouncementPriority, CreateAnnouncementData, AnnouncementComment } from '../services/communicationService';
 import { format, formatDistanceToNow } from 'date-fns';
 
+// Image upload helper
+const uploadAnnouncementImage = async (file: File): Promise<string | null> => {
+  try {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const filePath = `announcements/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('announcement-images')
+      .upload(filePath, file, { cacheControl: '3600', upsert: false });
+
+    if (uploadError) {
+      // If bucket doesn't exist, try 'student-photos' bucket as fallback
+      const { error: fallbackError } = await supabase.storage
+        .from('student-photos')
+        .upload(`announcements/${fileName}`, file, { cacheControl: '3600', upsert: false });
+      
+      if (fallbackError) {
+        console.error('Upload failed:', fallbackError);
+        return null;
+      }
+      return `announcements/${fileName}`;
+    }
+    return filePath;
+  } catch (err) {
+    console.error('Image upload error:', err);
+    return null;
+  }
+};
+
+const getAnnouncementImageUrl = async (filePath: string): Promise<string | null> => {
+  if (!filePath) return null;
+  if (filePath.startsWith('http')) return filePath;
+
+  // Try announcement-images bucket first
+  const { data } = await supabase.storage
+    .from('announcement-images')
+    .createSignedUrl(filePath, 60 * 60);
+  
+  if (data?.signedUrl) return data.signedUrl;
+
+  // Fallback to student-photos bucket
+  const { data: fallback } = await supabase.storage
+    .from('student-photos')
+    .createSignedUrl(filePath, 60 * 60);
+  
+  return fallback?.signedUrl || null;
+};
+
 // Available reaction emojis
 const REACTION_EMOJIS = ['👍', '❤️', '🎉', '😮', '🙏', '💡'];
 
@@ -64,7 +113,14 @@ export function Announcements() {
   const [formCategory, setFormCategory] = useState<CategoryType>('general');
   const [formIsPinned, setFormIsPinned] = useState(false);
   const [formExpiresAt, setFormExpiresAt] = useState('');
+  const [formImageFile, setFormImageFile] = useState<File | null>(null);
+  const [formImagePreview, setFormImagePreview] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  // Signed URLs cache for announcement images
+  const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
 
   // Courses for dropdown
   const [courses, setCourses] = useState<{ course_id: string; course_name: string }[]>([]);
@@ -186,6 +242,28 @@ export function Announcements() {
     checkUserAndLoadData();
   }, [checkUserAndLoadData]);
 
+  // Resolve signed URLs for announcement images
+  useEffect(() => {
+    const resolveImageUrls = async () => {
+      const announcementsWithImages = announcements.filter(a => a.image_url && !imageUrls[a.announcement_id]);
+      if (announcementsWithImages.length === 0) return;
+
+      const newUrls: Record<string, string> = {};
+      await Promise.all(
+        announcementsWithImages.map(async (a) => {
+          if (a.image_url) {
+            const url = await getAnnouncementImageUrl(a.image_url);
+            if (url) newUrls[a.announcement_id] = url;
+          }
+        })
+      );
+      if (Object.keys(newUrls).length > 0) {
+        setImageUrls(prev => ({ ...prev, ...newUrls }));
+      }
+    };
+    resolveImageUrls();
+  }, [announcements]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const openCreateModal = () => {
     setEditingAnnouncement(null);
     setFormTitle('');
@@ -195,6 +273,8 @@ export function Announcements() {
     setFormCategory('general');
     setFormIsPinned(false);
     setFormExpiresAt('');
+    setFormImageFile(null);
+    setFormImagePreview(null);
     setShowCreateModal(true);
   };
 
@@ -207,12 +287,16 @@ export function Announcements() {
     setFormCategory((announcement.category as CategoryType) || 'general');
     setFormIsPinned(announcement.is_pinned);
     setFormExpiresAt(announcement.expires_at ? announcement.expires_at.split('T')[0] : '');
+    setFormImageFile(null);
+    setFormImagePreview(announcement.image_url ? (imageUrls[announcement.announcement_id] || announcement.image_url) : null);
     setShowCreateModal(true);
   };
 
   const closeModal = () => {
     setShowCreateModal(false);
     setEditingAnnouncement(null);
+    setFormImageFile(null);
+    setFormImagePreview(null);
   };
 
   const handleCreateOrUpdate = async () => {
@@ -225,6 +309,17 @@ export function Announcements() {
 
     setSubmitting(true);
     try {
+      // Upload image if a new file was selected
+      let imageUrl: string | null | undefined = undefined;
+      if (formImageFile) {
+        setUploadingImage(true);
+        imageUrl = await uploadAnnouncementImage(formImageFile);
+        setUploadingImage(false);
+        if (!imageUrl) {
+          alert('Failed to upload image. The announcement will be saved without the image.');
+        }
+      }
+
       const data: CreateAnnouncementData = {
         title: formTitle,
         content: formContent,
@@ -232,7 +327,8 @@ export function Announcements() {
         course_id: formCourseId || undefined,
         category: formCategory,
         is_pinned: formIsPinned,
-        expires_at: formExpiresAt || undefined
+        expires_at: formExpiresAt || undefined,
+        ...(imageUrl !== undefined ? { image_url: imageUrl } : {}),
       };
 
       if (editingAnnouncement) {
@@ -279,6 +375,34 @@ export function Announcements() {
         ? { ...a, is_read: true }
         : a
     ));
+  };
+
+  // Handle image file selection
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type and size
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      alert('Please select a valid image file (JPEG, PNG, GIF, or WebP)');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image must be smaller than 5MB');
+      return;
+    }
+
+    setFormImageFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setFormImagePreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const removeImage = () => {
+    setFormImageFile(null);
+    setFormImagePreview(null);
+    if (imageInputRef.current) imageInputRef.current.value = '';
   };
 
   // Handle reaction toggle
@@ -615,6 +739,18 @@ export function Announcements() {
               <h3 className="font-semibold text-gray-900 dark:text-white line-clamp-1 mb-2">{announcement.title}</h3>
               <p className="text-gray-600 dark:text-gray-400 text-sm line-clamp-2 mb-3">{announcement.content}</p>
               
+              {/* Announcement image thumbnail */}
+              {announcement.image_url && imageUrls[announcement.announcement_id] && (
+                <div className="mb-3 rounded-lg overflow-hidden">
+                  <img
+                    src={imageUrls[announcement.announcement_id]}
+                    alt=""
+                    className="w-full h-32 object-cover rounded-lg"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  />
+                </div>
+              )}
+              
               {/* Reactions display with names on hover */}
               {announcement.reactions && announcement.reactions.length > 0 && (
                 <div className="flex flex-wrap gap-1 mb-3">
@@ -818,10 +954,51 @@ export function Announcements() {
               <span className="text-sm dark:text-gray-300">📌 Pin to top</span>
             </label>
           </div>
+
+          {/* Image Upload */}
+          <div>
+            <label className="block text-sm font-medium mb-2 dark:text-gray-300">📷 Image (Optional)</label>
+            {formImagePreview ? (
+              <div className="relative group">
+                <img
+                  src={formImagePreview}
+                  alt="Preview"
+                  className="w-full max-h-48 object-contain rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800"
+                />
+                <button
+                  type="button"
+                  onClick={removeImage}
+                  className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1.5 shadow-lg transition-all opacity-80 group-hover:opacity-100"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <div
+                onClick={() => imageInputRef.current?.click()}
+                className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 transition-colors"
+              >
+                <svg className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Click to upload an image</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">JPEG, PNG, GIF, WebP • Max 5MB</p>
+              </div>
+            )}
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/gif,image/webp"
+              onChange={handleImageSelect}
+              className="hidden"
+            />
+          </div>
           <div className="flex justify-end gap-3 pt-4 border-t dark:border-gray-700">
             <Button variant="outline" onClick={closeModal}>Cancel</Button>
-            <Button onClick={handleCreateOrUpdate} disabled={submitting}>
-              {submitting ? 'Saving...' : (editingAnnouncement ? 'Update' : 'Create')}
+            <Button onClick={handleCreateOrUpdate} disabled={submitting || uploadingImage}>
+              {uploadingImage ? '📷 Uploading...' : submitting ? 'Saving...' : (editingAnnouncement ? 'Update' : 'Create')}
             </Button>
           </div>
         </div>
@@ -864,6 +1041,18 @@ export function Announcements() {
             <div className="prose dark:prose-invert max-w-none py-4">
               <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300 text-base leading-relaxed">{viewingAnnouncement.content}</p>
             </div>
+            
+            {/* Announcement image (full size) */}
+            {viewingAnnouncement.image_url && imageUrls[viewingAnnouncement.announcement_id] && (
+              <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
+                <img
+                  src={imageUrls[viewingAnnouncement.announcement_id]}
+                  alt="Announcement"
+                  className="w-full max-h-96 object-contain bg-gray-50 dark:bg-gray-800"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                />
+              </div>
+            )}
             
             {viewingAnnouncement.expires_at && (
               <div className="text-sm text-orange-600 dark:text-orange-400 flex items-center gap-2 bg-orange-50 dark:bg-orange-900/20 px-3 py-2 rounded-lg">

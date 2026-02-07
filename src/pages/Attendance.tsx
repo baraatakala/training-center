@@ -1681,7 +1681,7 @@ export function Attendance() {
                   >
                     📍 Set/Update GPS Coordinates
                   </button>
-                  <p className="text-xs text-gray-500 mt-2">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                     💡 Tip: Proximity radius is {session?.proximity_radius || 'not set'}{session?.proximity_radius ? 'm' : ''}. Update in Sessions page if needed.
                   </p>
                 </div>
@@ -1748,10 +1748,10 @@ export function Attendance() {
                   <CardTitle>
                     Attendance for {format(new Date(selectedDate), 'MMMM dd, yyyy')}
                   </CardTitle>
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                     {session.location || 'No location specified'} • {session.time || 'No time specified'}
                   </p>
-                  <p className="text-sm text-gray-600 mt-1">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                     Course: {courseName}
                   </p>
                 </div>
@@ -1850,9 +1850,9 @@ export function Attendance() {
                         selectedStudents.size === attendance.filter(a => a.status !== 'not enrolled').length
                       }
                       onChange={handleSelectAll}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-500 rounded"
                     />
-                    <span className="text-sm font-medium">Select All</span>
+                    <span className="text-sm font-medium dark:text-gray-300">Select All</span>
                   </div>
                   {/* Search input for students */}
                   <div className="mb-2">

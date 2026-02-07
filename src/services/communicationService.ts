@@ -18,6 +18,7 @@ export interface Announcement {
   created_at: string;
   updated_at: string;
   category?: string;
+  image_url?: string | null;
   // Joined data
   teacher?: {
     name: string;
@@ -61,6 +62,7 @@ export interface CreateAnnouncementData {
   is_pinned?: boolean;
   expires_at?: string | null;
   category?: string;
+  image_url?: string | null;
 }
 
 export interface CreateMessageData {

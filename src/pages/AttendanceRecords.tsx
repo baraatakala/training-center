@@ -131,11 +131,11 @@ interface FilterOptions {
 
 // Display brackets (for UI only - scoring uses smooth decay)
 const LATE_DISPLAY_BRACKETS = [
-  { min: 1, max: 5, name: 'Minor', color: 'bg-green-100 text-green-800' },
-  { min: 6, max: 15, name: 'Moderate', color: 'bg-yellow-100 text-yellow-800' },
-  { min: 16, max: 30, name: 'Significant', color: 'bg-orange-100 text-orange-800' },
-  { min: 31, max: 60, name: 'Severe', color: 'bg-red-100 text-red-800' },
-  { min: 61, max: Infinity, name: 'Very Late', color: 'bg-red-200 text-red-900' },
+  { min: 1, max: 5, name: 'Minor', color: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' },
+  { min: 6, max: 15, name: 'Moderate', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300' },
+  { min: 16, max: 30, name: 'Significant', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300' },
+  { min: 31, max: 60, name: 'Severe', color: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300' },
+  { min: 61, max: Infinity, name: 'Very Late', color: 'bg-red-200 text-red-900 dark:bg-red-900/50 dark:text-red-200' },
 ];
 
 /**
@@ -169,16 +169,16 @@ const getLateScoreWeight = (lateMinutes: number | null | undefined): number => {
  */
 const getLateBracketInfo = (lateMinutes: number | null | undefined): { name: string; color: string } => {
   if (lateMinutes === null || lateMinutes === undefined) {
-    return { name: 'Unknown', color: 'bg-gray-100 text-gray-600' };
+    return { name: 'Unknown', color: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400' };
   }
   if (lateMinutes <= 0) {
-    return { name: 'On Time', color: 'bg-green-100 text-green-800' };
+    return { name: 'On Time', color: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' };
   }
   
   const bracket = LATE_DISPLAY_BRACKETS.find(b => lateMinutes >= b.min && lateMinutes <= b.max);
   return bracket 
     ? { name: bracket.name, color: bracket.color }
-    : { name: 'Very Late', color: 'bg-red-200 text-red-900' };
+    : { name: 'Very Late', color: 'bg-red-200 text-red-900 dark:bg-red-900/50 dark:text-red-200' };
 };
 
 const AttendanceRecords = () => {
@@ -672,12 +672,12 @@ const AttendanceRecords = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'on time': return 'bg-green-100 text-green-800';
-      case 'absent': return 'bg-red-100 text-red-800';
-      case 'late': return 'bg-yellow-100 text-yellow-800';
-      case 'excused': return 'bg-blue-100 text-blue-800';
-      case 'not enrolled': return 'bg-gray-100 text-gray-600';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'on time': return 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300';
+      case 'absent': return 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300';
+      case 'late': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300';
+      case 'excused': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300';
+      case 'not enrolled': return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400';
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
     }
   };
 
@@ -2232,15 +2232,62 @@ const AttendanceRecords = () => {
   }, [filteredRecords]); // Memoize with filteredRecords dependency
 
   const calculateConsistencyIndex = (pattern: number[]): number => {
-    // Consistency Index: measures how consistently present the student is
-    // Score 0-1 based on percentage of days present (excluding excused)
-    // 1.0 = always present, 0.0 = never present
-    if (pattern.length === 0) return 0;
-    
+    // Consistency Index: measures how REGULARLY a student attends
+    // Independent from attendance rate — focuses on whether absences
+    // are scattered (consistent) or clustered in streaks (inconsistent)
+    //
+    // Examples:
+    //   [1,0,1,0,1,0,1,0] → ~1.0 (absences perfectly scattered)
+    //   [1,1,1,1,0,0,0,0] → ~0.2 (all absences clustered)
+    //   [1,1,0,1,1,0,1,1] → 1.0  (single-day absences spread out)
+    //   Perfect attendance  → 1.0
+    //   All absent          → 0.0
+    if (pattern.length <= 1) return pattern.length === 1 ? pattern[0] : 0;
+
     const presentDays = pattern.filter(v => v === 1).length;
-    const consistency = presentDays / pattern.length;
-    
-    return Math.round(consistency * 100) / 100;
+    if (presentDays === 0) return 0;
+    if (presentDays === pattern.length) return 1;
+
+    const totalAbsent = pattern.length - presentDays;
+
+    // Find all consecutive absence streaks
+    const absenceStreaks: number[] = [];
+    let currentStreak = 0;
+    for (const day of pattern) {
+      if (day === 0) {
+        currentStreak++;
+      } else {
+        if (currentStreak > 0) absenceStreaks.push(currentStreak);
+        currentStreak = 0;
+      }
+    }
+    if (currentStreak > 0) absenceStreaks.push(currentStreak);
+
+    if (absenceStreaks.length === 0) return 1;
+
+    const longestStreak = Math.max(...absenceStreaks);
+
+    // Component 1: Scatter ratio — are absences fragmented into many small streaks?
+    // Best: each absence is its own streak (ratio = 1). Worst: one big block (ratio = 1/n).
+    const scatterRatio = absenceStreaks.length / totalAbsent;
+    const normalizedScatter = totalAbsent > 1
+      ? (scatterRatio - 1 / totalAbsent) / (1 - 1 / totalAbsent)
+      : 1;
+
+    // Component 2: Longest streak penalty — is there one dominant absence block?
+    const streakPenalty = totalAbsent > 1
+      ? 1 - (longestStreak - 1) / (totalAbsent - 1)
+      : 1;
+
+    // Raw consistency from average of both components
+    const rawConsistency = 0.5 * normalizedScatter + 0.5 * streakPenalty;
+
+    // Dampening: soften the effect when there are very few absences
+    // With only 1-2 absences, clustering matters much less
+    const dampeningFactor = Math.min(totalAbsent / 5, 1);
+    const consistency = rawConsistency * dampeningFactor + (1 - dampeningFactor);
+
+    return Math.round(Math.min(1, consistency) * 100) / 100;
   };
 
   const calculateCumulativeRates = (studentId: string, dates: string[], allRecords: AttendanceRecord[]): number[] => {
@@ -3124,7 +3171,7 @@ const AttendanceRecords = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-gray-50 pb-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-gray-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900 pb-8">
       {/* Toast Container */}
       <ToastContainer toasts={toasts} onClose={removeToast} />
       
@@ -3228,7 +3275,7 @@ const AttendanceRecords = () => {
               
               <button
                 onClick={loadRecords}
-                className="px-4 py-2 bg-white hover:bg-blue-50 text-blue-700 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-lg"
+                className="px-4 py-2 bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-gray-700 text-blue-700 dark:text-blue-400 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-lg"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -3565,91 +3612,91 @@ const AttendanceRecords = () => {
 
       {/* Summary Stats Cards - Enhanced Design */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-gradient-to-br from-white to-gray-50 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 group">
+        <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-800 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 dark:border-gray-700 group">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 mb-1">Total Records</p>
-              <p className="text-3xl font-bold text-gray-900">{filteredRecords.length}</p>
-              <p className="text-xs text-gray-500 mt-2">All attendance entries</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Total Records</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white">{filteredRecords.length}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">All attendance entries</p>
             </div>
-            <div className="bg-gradient-to-br from-gray-100 to-gray-200 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
-              <svg className="w-8 h-8 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
+              <svg className="w-8 h-8 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
           </div>
         </div>
         
-        <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-green-100 group">
+        <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-green-100 dark:border-green-800/50 group">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-green-700 mb-1">On Time</p>
-              <p className="text-3xl font-bold text-green-900">{filteredRecords.filter(r => r.status === 'on time').length}</p>
-              <p className="text-xs text-green-600 mt-2">
+              <p className="text-sm font-medium text-green-700 dark:text-green-400 mb-1">On Time</p>
+              <p className="text-3xl font-bold text-green-900 dark:text-green-100">{filteredRecords.filter(r => r.status === 'on time').length}</p>
+              <p className="text-xs text-green-600 dark:text-green-400 mt-2">
                 {filteredRecords.length > 0 
                   ? `${Math.round((filteredRecords.filter(r => r.status === 'on time').length / filteredRecords.length) * 100)}%` 
                   : '0%'} of total
               </p>
             </div>
-            <div className="bg-gradient-to-br from-green-200 to-emerald-300 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
-              <svg className="w-8 h-8 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="bg-gradient-to-br from-green-200 to-emerald-300 dark:from-green-700 dark:to-emerald-600 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
+              <svg className="w-8 h-8 text-green-700 dark:text-green-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
           </div>
         </div>
         
-        <div className="bg-gradient-to-br from-red-50 to-rose-50 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-red-100 group">
+        <div className="bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-900/30 dark:to-rose-900/30 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-red-100 dark:border-red-800/50 group">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-red-700 mb-1">Absent</p>
-              <p className="text-3xl font-bold text-red-900">{filteredRecords.filter(r => r.status === 'absent').length}</p>
-              <p className="text-xs text-red-600 mt-2">
+              <p className="text-sm font-medium text-red-700 dark:text-red-400 mb-1">Absent</p>
+              <p className="text-3xl font-bold text-red-900 dark:text-red-100">{filteredRecords.filter(r => r.status === 'absent').length}</p>
+              <p className="text-xs text-red-600 dark:text-red-400 mt-2">
                 {filteredRecords.length > 0 
                   ? `${Math.round((filteredRecords.filter(r => r.status === 'absent').length / filteredRecords.length) * 100)}%` 
                   : '0%'} of total
               </p>
             </div>
-            <div className="bg-gradient-to-br from-red-200 to-rose-300 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
-              <svg className="w-8 h-8 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="bg-gradient-to-br from-red-200 to-rose-300 dark:from-red-700 dark:to-rose-600 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
+              <svg className="w-8 h-8 text-red-700 dark:text-red-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </div>
           </div>
         </div>
         
-        <div className="bg-gradient-to-br from-yellow-50 to-amber-50 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-yellow-100 group">
+        <div className="bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/30 dark:to-amber-900/30 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-yellow-100 dark:border-yellow-800/50 group">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-yellow-700 mb-1">Late</p>
-              <p className="text-3xl font-bold text-yellow-900">{filteredRecords.filter(r => r.status === 'late').length}</p>
-              <p className="text-xs text-yellow-600 mt-2">
+              <p className="text-sm font-medium text-yellow-700 dark:text-yellow-400 mb-1">Late</p>
+              <p className="text-3xl font-bold text-yellow-900 dark:text-yellow-100">{filteredRecords.filter(r => r.status === 'late').length}</p>
+              <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">
                 {filteredRecords.length > 0 
                   ? `${Math.round((filteredRecords.filter(r => r.status === 'late').length / filteredRecords.length) * 100)}%` 
                   : '0%'} of total
               </p>
             </div>
-            <div className="bg-gradient-to-br from-yellow-200 to-amber-300 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
-              <svg className="w-8 h-8 text-yellow-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="bg-gradient-to-br from-yellow-200 to-amber-300 dark:from-yellow-700 dark:to-amber-600 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
+              <svg className="w-8 h-8 text-yellow-700 dark:text-yellow-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
           </div>
         </div>
         
-        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-blue-100 group">
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-blue-100 dark:border-blue-800/50 group">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-blue-700 mb-1">Excused</p>
-              <p className="text-3xl font-bold text-blue-900">{filteredRecords.filter(r => r.status === 'excused').length}</p>
-              <p className="text-xs text-blue-600 mt-2">
+              <p className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">Excused</p>
+              <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">{filteredRecords.filter(r => r.status === 'excused').length}</p>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
                 {filteredRecords.length > 0 
                   ? `${Math.round((filteredRecords.filter(r => r.status === 'excused').length / filteredRecords.length) * 100)}%` 
                   : '0%'} of total
               </p>
             </div>
-            <div className="bg-gradient-to-br from-blue-200 to-indigo-300 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
-              <svg className="w-8 h-8 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="bg-gradient-to-br from-blue-200 to-indigo-300 dark:from-blue-700 dark:to-indigo-600 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
+              <svg className="w-8 h-8 text-blue-700 dark:text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
@@ -3781,13 +3828,13 @@ const AttendanceRecords = () => {
               type="date"
               value={filters.startDate}
               onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             />
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+              <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
               End Date
@@ -3796,7 +3843,7 @@ const AttendanceRecords = () => {
               type="date"
               value={filters.endDate}
               onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             />
           </div>
         </div>

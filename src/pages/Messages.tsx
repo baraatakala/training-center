@@ -600,7 +600,7 @@ export function Messages() {
                       <button
                         onClick={(e) => handleToggleStar(message.message_id, e)}
                         className={`p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
-                          message.isStarred ? 'text-yellow-500' : 'text-gray-400'
+                          message.isStarred ? 'text-yellow-500' : 'text-gray-400 dark:text-gray-500'
                         }`}
                         title={message.isStarred ? 'Unstar' : 'Star'}
                       >
@@ -639,7 +639,7 @@ export function Messages() {
                 
                 {/* Read status for sent messages */}
                 {activeTab === 'sent' && (
-                  <div className="absolute bottom-2 right-3 flex items-center gap-1 text-xs text-gray-400">
+                  <div className="absolute bottom-2 right-3 flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
                     {message.is_read ? (
                       <span className="text-blue-500" title={`Read ${message.read_at ? formatTimeAgo(message.read_at) : ''}`}>✓✓</span>
                     ) : (message as Message & { delivered_at?: string }).delivered_at ? (
@@ -756,11 +756,11 @@ export function Messages() {
               onChange={(e) => setFormContent(e.target.value)}
               placeholder="Type your message..."
             />
-            <div className="text-xs text-gray-400 text-right mt-1">{formContent.length} characters</div>
+            <div className="text-xs text-gray-400 dark:text-gray-500 text-right mt-1">{formContent.length} characters</div>
           </div>
 
           <div className="flex justify-between items-center pt-4 border-t dark:border-gray-700">
-            <div className="text-xs text-gray-400">
+            <div className="text-xs text-gray-400 dark:text-gray-500">
               💡 Tip: Be clear and concise
             </div>
             <div className="flex gap-3">
@@ -815,7 +815,7 @@ export function Messages() {
                 <button
                   onClick={() => handleToggleStar(viewingMessage.message_id)}
                   className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
-                    viewingMessage.isStarred ? 'text-yellow-500' : 'text-gray-400'
+                    viewingMessage.isStarred ? 'text-yellow-500' : 'text-gray-400 dark:text-gray-500'
                   }`}
                 >
                   {viewingMessage.isStarred ? '⭐' : '☆'}
