@@ -618,7 +618,7 @@ export function Attendance() {
         }));
         
         await supabase.from(Tables.ATTENDANCE).upsert(newRecords, {
-          onConflict: 'enrollment_id,session_id,attendance_date',
+          onConflict: 'enrollment_id,attendance_date',
           ignoreDuplicates: false
         });
         // Reload to show saved records instead of temp placeholders
@@ -967,7 +967,7 @@ export function Attendance() {
         const { error } = await supabase
           .from(Tables.ATTENDANCE)
           .upsert([newRecord], {
-            onConflict: 'enrollment_id,session_id,attendance_date',
+            onConflict: 'enrollment_id,attendance_date',
             ignoreDuplicates: false
           });
 
@@ -1128,7 +1128,7 @@ export function Attendance() {
       const { error: insertError } = await supabase
         .from(Tables.ATTENDANCE)
         .upsert(newRecords, {
-          onConflict: 'enrollment_id,session_id,attendance_date',
+          onConflict: 'enrollment_id,attendance_date',
           ignoreDuplicates: false
         });
 
@@ -1250,7 +1250,7 @@ export function Attendance() {
         }));
         
         await supabase.from(Tables.ATTENDANCE).upsert(newRecords, {
-          onConflict: 'enrollment_id,session_id,attendance_date',
+          onConflict: 'enrollment_id,attendance_date',
           ignoreDuplicates: false
         });
       }

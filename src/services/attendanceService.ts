@@ -70,7 +70,7 @@ export const attendanceService = {
     return await supabase
       .from(Tables.ATTENDANCE)
       .upsert(attendance, {
-        onConflict: 'enrollment_id,session_id,attendance_date',
+        onConflict: 'enrollment_id,attendance_date',
         ignoreDuplicates: false
       })
       .select()
@@ -82,7 +82,7 @@ export const attendanceService = {
     return await supabase
       .from(Tables.ATTENDANCE)
       .upsert(attendanceRecords, {
-        onConflict: 'enrollment_id,session_id,attendance_date',
+        onConflict: 'enrollment_id,attendance_date',
         ignoreDuplicates: false
       })
       .select();

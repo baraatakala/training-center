@@ -589,7 +589,7 @@ export function StudentCheckIn() {
       const { error: attendanceError } = await supabase
         .from('attendance')
         .upsert(attendanceData, {
-          onConflict: 'enrollment_id,session_id,attendance_date',
+          onConflict: 'enrollment_id,attendance_date',
           ignoreDuplicates: false // Update existing record
         });
 
