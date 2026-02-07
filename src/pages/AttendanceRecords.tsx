@@ -239,6 +239,10 @@ const AttendanceRecords = () => {
   const [dateAnalytics, setDateAnalytics] = useState<DateAnalytics[]>([]);
   const [reportLanguage, setReportLanguage] = useState<'en' | 'ar'>('en');
 
+  // Collapse state for analytics sections
+  const [collapseStudentTable, setCollapseStudentTable] = useState(false);
+  const [collapseDateTable, setCollapseDateTable] = useState(false);
+
   // Sorting state
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -3310,173 +3314,251 @@ const AttendanceRecords = () => {
             </div>
           </div>
 
-          {/* Student Performance Table */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
-            <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600">
-              <h2 className="text-base sm:text-lg font-semibold dark:text-white">🎓 Student Performance Analytics</h2>
+          {/* Export Analytics Bar - Right after summary, easy access */}
+          <div className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 rounded-2xl shadow-lg p-4 border border-indigo-100 dark:border-indigo-800">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="bg-indigo-100 dark:bg-indigo-900/40 p-2 rounded-lg">
+                  <svg className="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">Export Analytics</h3>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">Download reports or configure fields shown in tables below</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 items-center">
+                <button onClick={exportAnalyticsToExcel} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  Excel
+                </button>
+                <button onClick={exportAnalyticsToPDF} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                  PDF
+                </button>
+                <button onClick={exportAnalyticsToWord} disabled={exportingWord} className={`px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md ${exportingWord ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  {exportingWord ? 'Exporting...' : 'Word'}
+                </button>
+                <button onClick={exportAnalyticsToCSV} className="px-4 py-2 bg-gray-700 hover:bg-gray-800 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  CSV
+                </button>
+              </div>
             </div>
-            <div className="overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead className="bg-gray-50 dark:bg-gray-700">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">#</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Student</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Present</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">On Time</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Late</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Absent</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Excused</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Effective Days</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Rate</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Punctuality</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Weighted Score</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                  {studentAnalytics.map((student, index) => (
-                    <tr key={student.student_id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{index + 1}</td>
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{student.student_name}</td>
-                      <td className="px-4 py-3 text-sm text-center text-green-600 font-medium">{student.presentCount + student.lateCount}</td>
-                      <td className="px-4 py-3 text-sm text-center text-green-700 font-medium">{student.presentCount}</td>
-                      <td className="px-4 py-3 text-sm text-center text-yellow-600 font-medium">{student.lateCount}</td>
-                      <td className="px-4 py-3 text-sm text-center text-red-600 font-medium">{student.unexcusedAbsent}</td>
-                      <td className="px-4 py-3 text-sm text-center text-blue-600 font-medium">{student.excusedCount}</td>
-                      <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-gray-300">{student.effectiveDays}</td>
-                      <td className="px-4 py-3 text-sm text-center">
-                        <span className={`font-semibold ${
-                          student.attendanceRate >= 90 ? 'text-green-600' :
-                          student.attendanceRate >= 70 ? 'text-yellow-600' : 'text-red-600'
-                        }`}>
-                          {student.attendanceRate}%
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-center">
-                        <span className={`font-semibold ${
-                          student.presentCount + student.lateCount > 0
-                            ? (student.presentCount / (student.presentCount + student.lateCount) * 100) >= 80 ? 'text-green-600'
-                            : (student.presentCount / (student.presentCount + student.lateCount) * 100) >= 60 ? 'text-yellow-600' : 'text-red-600'
-                            : 'text-gray-400'
-                        }`}>
-                          {student.presentCount + student.lateCount > 0
-                            ? `${Math.round(student.presentCount / (student.presentCount + student.lateCount) * 100)}%`
-                            : '-'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-center font-semibold text-purple-600">
-                        {student.weightedScore}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {/* Field Selection Status */}
+            <div className="mt-3 pt-3 border-t border-indigo-200 dark:border-indigo-700">
+              <div className="flex flex-wrap gap-3 text-sm">
+                <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg px-3 py-1.5 shadow-sm">
+                  <span className="text-blue-600 dark:text-blue-400 font-semibold">📊 Student:</span>
+                  <span className="text-green-600 dark:text-green-400">
+                    {savedFieldSelections.studentAnalytics.length > 0 ? `${savedFieldSelections.studentAnalytics.length} fields` : 'All'}
+                  </span>
+                  {savedExportSettings.studentAnalytics?.sortByField && (
+                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.studentAnalytics.sortByField} {savedExportSettings.studentAnalytics.sortDirection === 'desc' ? '↓' : '↑'})</span>
+                  )}
+                  {savedExportSettings.studentAnalytics?.enableConditionalColoring !== false && <span className="text-rose-500 text-xs">🌈</span>}
+                  <button onClick={() => { setExportDataType('studentAnalytics'); setShowAdvancedExport(true); }} className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline text-xs ml-1">Edit</button>
+                </div>
+                <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg px-3 py-1.5 shadow-sm">
+                  <span className="text-green-600 dark:text-green-400 font-semibold">📅 Date:</span>
+                  <span className="text-green-600 dark:text-green-400">
+                    {savedFieldSelections.dateAnalytics.length > 0 ? `${savedFieldSelections.dateAnalytics.length} fields` : 'All'}
+                  </span>
+                  {savedExportSettings.dateAnalytics?.sortByField && (
+                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.dateAnalytics.sortByField} {savedExportSettings.dateAnalytics.sortDirection === 'desc' ? '↓' : '↑'})</span>
+                  )}
+                  {savedExportSettings.dateAnalytics?.enableConditionalColoring !== false && <span className="text-rose-500 text-xs">🌈</span>}
+                  <button onClick={() => { setExportDataType('dateAnalytics'); setShowAdvancedExport(true); }} className="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 underline text-xs ml-1">Edit</button>
+                </div>
+                <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg px-3 py-1.5 shadow-sm">
+                  <span className="text-orange-600 dark:text-orange-400 font-semibold">🏠 Host:</span>
+                  <span className="text-green-600 dark:text-green-400">
+                    {savedFieldSelections.hostAnalytics.length > 0 ? `${savedFieldSelections.hostAnalytics.length} fields` : 'All'}
+                  </span>
+                  {savedExportSettings.hostAnalytics?.sortByField && (
+                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.hostAnalytics.sortByField} {savedExportSettings.hostAnalytics.sortDirection === 'desc' ? '↓' : '↑'})</span>
+                  )}
+                  {savedExportSettings.hostAnalytics?.enableConditionalColoring !== false && <span className="text-rose-500 text-xs">🌈</span>}
+                  <button onClick={() => { setExportDataType('hostAnalytics'); setShowAdvancedExport(true); }} className="text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-300 underline text-xs ml-1">Edit</button>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Date Analytics Table */}
+          {/* Student Performance Table — Dynamic columns from field selections */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
-            <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600">
+            <button
+              onClick={() => setCollapseStudentTable(prev => !prev)}
+              className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer"
+            >
+              <h2 className="text-base sm:text-lg font-semibold dark:text-white">🎓 Student Performance Analytics</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 dark:text-gray-400">{studentAnalytics.length} students</span>
+                <svg className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${collapseStudentTable ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </button>
+            {!collapseStudentTable && (
+              <div className="overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto">
+                {(() => {
+                  const isArabic = reportLanguage === 'ar';
+                  const config = filterDataByFields('studentAnalytics', isArabic);
+                  const dataObjects = studentAnalytics.map((student, index) => {
+                    const totalPres = student.presentCount + student.lateCount;
+                    const punctRate = totalPres > 0 ? Math.round(student.presentCount / totalPres * 100) : 0;
+                    return {
+                      rank: index + 1,
+                      student_id: student.student_id,
+                      student_name: student.student_name,
+                      presentCount: student.presentCount,
+                      lateCount: student.lateCount,
+                      totalPresent: totalPres,
+                      absentCount: student.absentCount,
+                      unexcusedAbsent: student.unexcusedAbsent,
+                      excusedCount: student.excusedCount,
+                      totalRecords: student.totalRecords,
+                      effectiveDays: student.effectiveDays,
+                      daysCovered: student.daysCovered,
+                      attendanceRate: `${student.attendanceRate}%`,
+                      punctualityRate: `${punctRate}%`,
+                      weightedScore: student.weightedScore.toFixed(1),
+                      consistencyIndex: Math.round(student.consistencyIndex * 100) / 100,
+                      trendSlope: student.trend?.slope || 0,
+                      trendClassification: student.trend?.classification || '-',
+                      trendRSquared: student.trend?.rSquared || 0,
+                      weeklyChange: `${student.weeklyChange || 0}%`,
+                      avgRate: `${student.avgRate || student.attendanceRate}%`,
+                      minRate: `${student.minRate || student.attendanceRate}%`,
+                      maxRate: `${student.maxRate || student.attendanceRate}%`,
+                      qualityAdjustedRate: `${Math.round((student.qualityAdjustedRate || 0) * 100) / 100}%`,
+                      rawWeightedScore: (student.rawWeightedScore || 0).toFixed(1),
+                      coverageFactor: (student.coverageFactor || 0).toFixed(3),
+                      scoreFormula: `(${(student.rawWeightedScore || 0).toFixed(1)} × ${(student.coverageFactor || 0).toFixed(3)}) = ${student.weightedScore.toFixed(1)}`,
+                      totalLateMinutes: Math.round((student.totalLateMinutes || 0) * 10) / 10,
+                      avgLateMinutes: Math.round((student.avgLateMinutes || 0) * 10) / 10,
+                      maxLateMinutes: Math.round((student.maxLateMinutes || 0) * 10) / 10,
+                      lateScoreAvg: (student.lateScoreAvg || 0).toFixed(3),
+                    } as Record<string, unknown>;
+                  });
+                  const sorted = sortDataBySettings(dataObjects, 'studentAnalytics');
+                  sorted.forEach((obj, idx) => { obj.rank = idx + 1; });
+                  return (
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                      <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0">
+                        <tr>
+                          {config.headers.map((header, i) => (
+                            <th key={i} className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase whitespace-nowrap">{header}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        {sorted.map((data, index) => {
+                          const row = config.getData(data, index);
+                          return (
+                            <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                              {row.map((cell, ci) => (
+                                <td key={ci} className="px-4 py-3 text-sm text-gray-900 dark:text-gray-200 whitespace-nowrap">{String(cell ?? '-')}</td>
+                              ))}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+
+          {/* Date Analytics Table — Dynamic columns from field selections */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
+            <button
+              onClick={() => setCollapseDateTable(prev => !prev)}
+              className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer"
+            >
               <h2 className="text-base sm:text-lg font-semibold dark:text-white">📅 Attendance by Date</h2>
-            </div>
-            <div className="overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead className="bg-gray-50 dark:bg-gray-700">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Book Progress</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Host Address</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">On Time</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Late</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Excused</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Absent</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Rate</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">On Time Names</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Late Names</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Excused Names</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Absent Names</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                  {dateAnalytics.map((dateData) => (
-                    <tr key={dateData.date} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">
-                        {format(new Date(dateData.date), 'MMM dd, yyyy')}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 max-w-xs">
-                        {dateData.bookTopic ? (
-                          <div className="space-y-1">
-                            <div className="flex items-start gap-1">
-                              <span className="text-base">📚</span>
-                              <span className="font-medium text-blue-900 dark:text-blue-300">{dateData.bookTopic}</span>
-                            </div>
-                            {dateData.bookStartPage && dateData.bookEndPage && (
-                              <div className="text-xs text-blue-700 dark:text-blue-400 pl-5">
-                                Pages {dateData.bookStartPage}-{dateData.bookEndPage}
-                                <span className="text-blue-600 dark:text-blue-500 ml-1">
-                                  ({dateData.bookEndPage - dateData.bookStartPage + 1} pages)
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-gray-400 dark:text-gray-500">-</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 max-w-xs">
-                        {dateData.hostAddress ? (
-                          <span className="bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-1 rounded text-xs font-medium">
-                            📍 {dateData.hostAddress}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400 dark:text-gray-500">-</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-center text-green-600 font-medium">
-                        {dateData.presentCount}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-center text-yellow-600 font-medium">
-                        {dateData.lateCount}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-center text-blue-600 font-medium">
-                        {dateData.excusedAbsentCount}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-center text-red-600 font-medium">
-                        {dateData.unexcusedAbsentCount}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-center whitespace-nowrap">
-                        <span className={`font-semibold px-3 py-1 rounded-full ${
-                          dateData.attendanceRate >= 90 ? 'bg-green-100 text-green-800' :
-                          dateData.attendanceRate >= 70 ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {dateData.attendanceRate}%
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-gray-600 max-w-xs">
-                        {dateData.presentNames.length > 0 ? dateData.presentNames.join(', ') : '-'}
-                      </td>
-                      <td className="px-4 py-3 text-xs text-gray-600 max-w-xs">
-                        {dateData.lateNames.length > 0 ? dateData.lateNames.join(', ') : '-'}
-                      </td>
-                      <td className="px-4 py-3 text-xs text-gray-600 max-w-xs">
-                        {(() => {
-                          if (
-                            dateData.hostAddress === 'SESSION_NOT_HELD' ||
-                            (dateData.hostAddress && dateData.hostAddress.toUpperCase() === 'SESSION_NOT_HELD')
-                          ) {
-                            return reportLanguage === 'ar' ? 'جميع الطلاب' : 'All Students';
-                          }
-                          return dateData.excusedNames.length > 0 ? dateData.excusedNames.join(', ') : '-';
-                        })()}
-                      </td>
-                      <td className="px-4 py-3 text-xs text-gray-600 max-w-xs">
-                        {dateData.absentNames.length > 0 ? dateData.absentNames.join(', ') : '-'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 dark:text-gray-400">{dateAnalytics.length} sessions</span>
+                <svg className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${collapseDateTable ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </button>
+            {!collapseDateTable && (
+              <div className="overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto">
+                {(() => {
+                  const isArabic = reportLanguage === 'ar';
+                  const config = filterDataByFields('dateAnalytics', isArabic);
+                  const dataObjects = dateAnalytics.map((d) => {
+                    const totalPres = d.presentCount + d.lateCount;
+                    const totalAbs = d.excusedAbsentCount + d.unexcusedAbsentCount;
+                    const totalStud = totalPres + totalAbs;
+                    const punctRate = totalPres > 0 ? Math.round(d.presentCount / totalPres * 100) : 0;
+                    const absRate = totalStud > 0 ? Math.round(totalAbs / totalStud * 100) : 0;
+                    const bookPages = d.bookStartPage && d.bookEndPage ? `${d.bookStartPage}-${d.bookEndPage}` : '-';
+                    const pagesCount = d.bookStartPage && d.bookEndPage ? d.bookEndPage - d.bookStartPage + 1 : 0;
+                    const dateObj = new Date(d.date);
+                    let excusedLabel = d.excusedNames.join(', ') || '-';
+                    if (d.hostAddress === 'SESSION_NOT_HELD' || (d.hostAddress && d.hostAddress.toUpperCase() === 'SESSION_NOT_HELD')) {
+                      excusedLabel = isArabic ? 'جميع الطلاب' : 'All Students';
+                    }
+                    return {
+                      date: format(dateObj, 'MMM dd, yyyy'),
+                      dayOfWeek: format(dateObj, 'EEEE'),
+                      hostAddress: d.hostAddress || '-',
+                      bookTopic: d.bookTopic || '-',
+                      bookPages,
+                      bookStartPage: d.bookStartPage || '-',
+                      bookEndPage: d.bookEndPage || '-',
+                      pagesCount: pagesCount > 0 ? pagesCount : '-',
+                      presentCount: d.presentCount,
+                      lateCount: d.lateCount,
+                      totalPresent: totalPres,
+                      excusedAbsentCount: d.excusedAbsentCount,
+                      unexcusedAbsentCount: d.unexcusedAbsentCount,
+                      totalAbsent: totalAbs,
+                      totalStudents: totalStud,
+                      attendanceRate: `${d.attendanceRate}%`,
+                      punctualityRate: `${punctRate}%`,
+                      absentRate: `${absRate}%`,
+                      totalLateMinutes: Math.round((d.totalLateMinutes || 0) * 10) / 10,
+                      avgLateMinutes: Math.round((d.avgLateMinutes || 0) * 10) / 10,
+                      presentNames: d.presentNames.join(', ') || '-',
+                      lateNames: d.lateNames.join(', ') || '-',
+                      excusedNames: excusedLabel,
+                      absentNames: d.absentNames.join(', ') || '-',
+                    } as Record<string, unknown>;
+                  });
+                  const sorted = sortDataBySettings(dataObjects, 'dateAnalytics');
+                  return (
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                      <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0">
+                        <tr>
+                          {config.headers.map((header, i) => (
+                            <th key={i} className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase whitespace-nowrap">{header}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        {sorted.map((data, index) => {
+                          const row = config.getData(data, index);
+                          return (
+                            <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                              {row.map((cell, ci) => (
+                                <td key={ci} className="px-4 py-3 text-sm text-gray-900 dark:text-gray-200 whitespace-nowrap">{String(cell ?? '-')}</td>
+                              ))}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  );
+                })()}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -3719,151 +3801,6 @@ const AttendanceRecords = () => {
           </div>
         </div>
       </div>
-
-      {/* Export Actions Bar */}
-      {showAnalytics && (
-        <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-2xl shadow-lg p-4 border border-indigo-100">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="bg-indigo-100 p-2 rounded-lg">
-                <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="font-semibold text-gray-900">Export Analytics</h3>
-                <p className="text-xs text-gray-600">Download comprehensive reports in your preferred format</p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2 items-center">
-              <button
-                onClick={exportAnalyticsToExcel}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Excel
-              </button>
-              <button
-                onClick={exportAnalyticsToPDF}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                </svg>
-                PDF
-              </button>
-              <button
-                onClick={exportAnalyticsToWord}
-                disabled={exportingWord}
-                className={`px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md ${exportingWord ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                {exportingWord ? 'Exporting...' : 'Word'}
-              </button>
-              <button
-                onClick={exportAnalyticsToCSV}
-                className="px-4 py-2 bg-gray-700 hover:bg-gray-800 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                CSV
-              </button>
-            </div>
-          </div>
-
-          {/* Field Selection Status */}
-          <div className="mt-4 pt-4 border-t border-indigo-200">
-            <div className="flex flex-wrap gap-4 text-sm">
-              <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg px-3 py-2 shadow-sm dark:shadow-gray-900/30">
-                <span className="text-blue-600 dark:text-blue-400 font-semibold">📊 Student Fields:</span>
-                <span className={savedFieldSelections.studentAnalytics.length > 0 ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}>
-                  {savedFieldSelections.studentAnalytics.length > 0 
-                    ? `${savedFieldSelections.studentAnalytics.length} selected` 
-                    : 'All (default)'}
-                </span>
-                {savedExportSettings.studentAnalytics?.sortByField && (
-                  <span className="text-purple-600 dark:text-purple-400 text-xs">
-                    (Sort: {savedExportSettings.studentAnalytics.sortByField} {savedExportSettings.studentAnalytics.sortDirection === 'desc' ? '↓' : '↑'})
-                  </span>
-                )}
-                {savedExportSettings.studentAnalytics?.enableConditionalColoring !== false && (
-                  <span className="text-rose-500 dark:text-rose-400 text-xs" title="Conditional coloring enabled">
-                    🌈
-                  </span>
-                )}
-                <button
-                  onClick={() => {
-                    setExportDataType('studentAnalytics');
-                    setShowAdvancedExport(true);
-                  }}
-                  className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline ml-1"
-                >
-                  Edit
-                </button>
-              </div>
-              <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg px-3 py-2 shadow-sm dark:shadow-gray-900/30">
-                <span className="text-green-600 dark:text-green-400 font-semibold">📅 Date Fields:</span>
-                <span className={savedFieldSelections.dateAnalytics.length > 0 ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}>
-                  {savedFieldSelections.dateAnalytics.length > 0 
-                    ? `${savedFieldSelections.dateAnalytics.length} selected` 
-                    : 'All (default)'}
-                </span>
-                {savedExportSettings.dateAnalytics?.sortByField && (
-                  <span className="text-purple-600 dark:text-purple-400 text-xs">
-                    (Sort: {savedExportSettings.dateAnalytics.sortByField} {savedExportSettings.dateAnalytics.sortDirection === 'desc' ? '↓' : '↑'})
-                  </span>
-                )}
-                {savedExportSettings.dateAnalytics?.enableConditionalColoring !== false && (
-                  <span className="text-rose-500 dark:text-rose-400 text-xs" title="Conditional coloring enabled">
-                    🌈
-                  </span>
-                )}
-                <button
-                  onClick={() => {
-                    setExportDataType('dateAnalytics');
-                    setShowAdvancedExport(true);
-                  }}
-                  className="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 underline ml-1"
-                >
-                  Edit
-                </button>
-              </div>
-              <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg px-3 py-2 shadow-sm dark:shadow-gray-900/30">
-                <span className="text-orange-600 dark:text-orange-400 font-semibold">🏠 Host Fields:</span>
-                <span className={savedFieldSelections.hostAnalytics.length > 0 ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}>
-                  {savedFieldSelections.hostAnalytics.length > 0 
-                    ? `${savedFieldSelections.hostAnalytics.length} selected` 
-                    : 'All (default)'}
-                </span>
-                {savedExportSettings.hostAnalytics?.sortByField && (
-                  <span className="text-purple-600 dark:text-purple-400 text-xs">
-                    (Sort: {savedExportSettings.hostAnalytics.sortByField} {savedExportSettings.hostAnalytics.sortDirection === 'desc' ? '↓' : '↑'})
-                  </span>
-                )}
-                {savedExportSettings.hostAnalytics?.enableConditionalColoring !== false && (
-                  <span className="text-rose-500 dark:text-rose-400 text-xs" title="Conditional coloring enabled">
-                    🌈
-                  </span>
-                )}
-                <button
-                  onClick={() => {
-                    setExportDataType('hostAnalytics');
-                    setShowAdvancedExport(true);
-                  }}
-                  className="text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-300 underline ml-1"
-                >
-                  Edit
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Records Table - Enhanced Design */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl dark:shadow-gray-900/30 overflow-hidden border border-gray-100 dark:border-gray-700">
