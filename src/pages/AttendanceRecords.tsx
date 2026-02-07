@@ -852,8 +852,8 @@ const AttendanceRecords = () => {
       };
     });
     
-    // Apply sorting from saved settings for date analytics
-    const dateDataObjects = sortDataBySettings(dateDataObjectsUnsorted, 'dateAnalytics');
+    // Apply sorting and row filtering from saved settings for date analytics
+    const dateDataObjects = filterExcludedDateRows(sortDataBySettings(dateDataObjectsUnsorted, 'dateAnalytics'));
 
     const dateRows = dateDataObjects.map((data, index) => 
       dateConfig.getData(data as Record<string, unknown>, index)
@@ -1039,7 +1039,7 @@ const AttendanceRecords = () => {
         absentNames: d.absentNames.join(', ') || '-',
       };
     });
-    const dateDataObjects = sortDataBySettings(dateDataObjectsUnsorted, 'dateAnalytics');
+    const dateDataObjects = filterExcludedDateRows(sortDataBySettings(dateDataObjectsUnsorted, 'dateAnalytics'));
 
     // Prepare host data with all possible fields
     const hostMap = new Map<string, { count: number; dates: string[]; rawDates: Date[]; present: number; late: number; absent: number; excused: number }>();
@@ -1260,19 +1260,39 @@ const AttendanceRecords = () => {
         .filter(idx => idx !== -1);
     };
 
-    // Get coloring settings from saved settings (use student settings as default)
-    const coloringSettings = getColoringSettingsForType('studentAnalytics');
-    
-    // Color function for PDF conditional coloring - uses theme from saved settings
-    const getColorForValuePDF = (value: number): [number, number, number] => {
-      return getColorForPercentage(value, coloringSettings.coloringTheme).rgb;
+    // Helper to resolve color columns for a specific data type using saved settings
+    const resolveColorColumns = (
+      dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics',
+      headers: string[]
+    ): { colorColumns: number[]; theme: 'default' | 'traffic' | 'heatmap' | 'status'; enabled: boolean } => {
+      const settings = getColoringSettingsForType(dataType);
+      if (!settings.enableConditionalColoring) return { colorColumns: [], theme: settings.coloringTheme, enabled: false };
+      
+      if (settings.coloringFields.length > 0) {
+        // User explicitly selected fields to color — map field keys to column indices
+        const selectedKeys = getSelectedFieldsForType(dataType);
+        const colorColumns = settings.coloringFields
+          .map(fieldKey => selectedKeys.indexOf(fieldKey))
+          .filter(idx => idx !== -1);
+        return { colorColumns, theme: settings.coloringTheme, enabled: true };
+      }
+      
+      // Auto-detect from headers
+      return { colorColumns: detectPercentageColumns(headers), theme: settings.coloringTheme, enabled: true };
     };
 
-    // Only apply coloring if enabled in settings
-    const shouldApplyColoring = coloringSettings.enableConditionalColoring;
+    // Color function for PDF conditional coloring - uses theme
+    const getColorForValuePDF = (value: number, theme: 'default' | 'traffic' | 'heatmap' | 'status'): [number, number, number] => {
+      return getColorForPercentage(value, theme).rgb;
+    };
+
+    // Resolve per-type coloring settings
+    const studentColoring = resolveColorColumns('studentAnalytics', studentConfig.headers);
+    const dateColoring = resolveColorColumns('dateAnalytics', dateConfig.headers);
+    const hostColoring = resolveColorColumns('hostAnalytics', hostConfig.headers);
 
     // Detect percentage columns for student table
-    const studentColorColumns = shouldApplyColoring ? detectPercentageColumns(studentConfig.headers) : [];
+    const studentColorColumns = studentColoring.colorColumns;
     
     autoTable(doc, {
       startY: 46,
@@ -1283,13 +1303,13 @@ const AttendanceRecords = () => {
       alternateRowStyles: { fillColor: [245, 245, 245] },
       rowPageBreak: 'avoid',
       didParseCell: (hookData) => {
-        if (shouldApplyColoring && hookData.section === 'body' && studentColorColumns.includes(hookData.column.index)) {
+        if (studentColoring.enabled && hookData.section === 'body' && studentColorColumns.includes(hookData.column.index)) {
           const cellText = hookData.cell.text.join('');
           const numMatch = cellText.match(/(\d+\.?\d*)/);
           if (numMatch) {
             const value = parseFloat(numMatch[1]);
             if (!isNaN(value) && value >= 0 && value <= 100) {
-              hookData.cell.styles.fillColor = getColorForValuePDF(value);
+              hookData.cell.styles.fillColor = getColorForValuePDF(value, studentColoring.theme);
               hookData.cell.styles.textColor = [255, 255, 255];
               hookData.cell.styles.fontStyle = 'bold';
             }
@@ -1357,11 +1377,11 @@ const AttendanceRecords = () => {
       };
     });
     
-    // Apply sorting from saved settings
-    const dateDataObjects = sortDataBySettings(dateDataObjectsUnsorted, 'dateAnalytics');
+    // Apply sorting and row filtering from saved settings
+    const dateDataObjects = filterExcludedDateRows(sortDataBySettings(dateDataObjectsUnsorted, 'dateAnalytics'));
 
-    // Detect percentage columns for date table - only if coloring enabled
-    const dateColorColumns = shouldApplyColoring ? detectPercentageColumns(dateConfig.headers) : [];
+    // Detect percentage columns for date table - use per-type settings
+    const dateColorColumns = dateColoring.colorColumns;
 
     autoTable(doc, {
       startY: performanceTableY + 14,
@@ -1372,13 +1392,13 @@ const AttendanceRecords = () => {
       alternateRowStyles: { fillColor: [245, 245, 245] },
       rowPageBreak: 'avoid',
       didParseCell: (hookData) => {
-        if (shouldApplyColoring && hookData.section === 'body' && dateColorColumns.includes(hookData.column.index)) {
+        if (dateColoring.enabled && hookData.section === 'body' && dateColorColumns.includes(hookData.column.index)) {
           const cellText = hookData.cell.text.join('');
           const numMatch = cellText.match(/(\d+\.?\d*)/);
           if (numMatch) {
             const value = parseFloat(numMatch[1]);
             if (!isNaN(value) && value >= 0 && value <= 100) {
-              hookData.cell.styles.fillColor = getColorForValuePDF(value);
+              hookData.cell.styles.fillColor = getColorForValuePDF(value, dateColoring.theme);
               hookData.cell.styles.textColor = [255, 255, 255];
               hookData.cell.styles.fontStyle = 'bold';
             }
@@ -1463,8 +1483,8 @@ const AttendanceRecords = () => {
       doc.setFontSize(12);
       doc.text('Host Rankings', 14, dateTableY + 10);
 
-      // Detect percentage columns for host table - only if coloring enabled
-      const hostColorColumns = shouldApplyColoring ? detectPercentageColumns(hostConfig.headers) : [];
+      // Detect percentage columns for host table - use per-type settings
+      const hostColorColumns = hostColoring.colorColumns;
 
       autoTable(doc, {
         startY: dateTableY + 14,
@@ -1474,13 +1494,13 @@ const AttendanceRecords = () => {
         headStyles: { fillColor: [59, 130, 246], fontSize: 7 },
         alternateRowStyles: { fillColor: [245, 245, 245] },
         didParseCell: (hookData) => {
-          if (shouldApplyColoring && hookData.section === 'body' && hostColorColumns.includes(hookData.column.index)) {
+          if (hostColoring.enabled && hookData.section === 'body' && hostColorColumns.includes(hookData.column.index)) {
             const cellText = hookData.cell.text.join('');
             const numMatch = cellText.match(/(\d+\.?\d*)/);
             if (numMatch) {
               const value = parseFloat(numMatch[1]);
               if (!isNaN(value) && value >= 0 && value <= 100) {
-                hookData.cell.styles.fillColor = getColorForValuePDF(value);
+                hookData.cell.styles.fillColor = getColorForValuePDF(value, hostColoring.theme);
                 hookData.cell.styles.textColor = [255, 255, 255];
                 hookData.cell.styles.fontStyle = 'bold';
               }
@@ -1490,21 +1510,25 @@ const AttendanceRecords = () => {
       });
     }
 
-    // Add color legend at the end of the PDF - only if coloring was applied
-    if (shouldApplyColoring) {
+    // Add color legend at the end of the PDF - only if any coloring was applied
+    const anyColoringEnabled = studentColoring.enabled || dateColoring.enabled || hostColoring.enabled;
+    if (anyColoringEnabled) {
+      // Use the theme from whichever section has coloring enabled (prefer student)
+      const legendTheme = studentColoring.enabled ? studentColoring.theme
+        : dateColoring.enabled ? dateColoring.theme : hostColoring.theme;
       const finalY = (doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || 200;
       doc.setFontSize(8);
       doc.setTextColor(100, 100, 100);
-      doc.text(`Color Legend (${coloringSettings.coloringTheme} theme):`, 14, finalY + 8);
+      doc.text(`Color Legend (${legendTheme} theme):`, 14, finalY + 8);
       
       // Draw legend boxes based on theme
-      const legendItems = coloringSettings.coloringTheme === 'traffic' 
+      const legendItems = legendTheme === 'traffic' 
         ? [
             { label: '80%+ Good', color: [34, 197, 94] as [number, number, number] },
             { label: '60-79% Warning', color: [234, 179, 8] as [number, number, number] },
             { label: '<60% Needs Attention', color: [239, 68, 68] as [number, number, number] },
           ]
-        : coloringSettings.coloringTheme === 'heatmap'
+        : legendTheme === 'heatmap'
         ? [
             { label: '90%+ Excellent', color: [30, 64, 175] as [number, number, number] },
             { label: '75-89% Good', color: [59, 130, 246] as [number, number, number] },
@@ -1667,8 +1691,8 @@ const AttendanceRecords = () => {
       };
     });
     
-    // Apply sorting from saved settings
-    const dateDataObjects = sortDataBySettings(dateDataObjectsUnsorted, 'dateAnalytics');
+    // Apply sorting and row filtering from saved settings
+    const dateDataObjects = filterExcludedDateRows(sortDataBySettings(dateDataObjectsUnsorted, 'dateAnalytics'));
 
     // Prepare host data with all possible fields
     const hostMap = new Map<string, {
@@ -1762,8 +1786,32 @@ const AttendanceRecords = () => {
       return row;
     });
 
-    // Get coloring settings from saved settings
-    const wordColoringSettings = getColoringSettingsForType('studentAnalytics');
+    // Get per-type coloring settings for Word export
+    const wordStudentColoring = (() => {
+      const s = getColoringSettingsForType('studentAnalytics');
+      const selectedKeys = getSelectedFieldsForType('studentAnalytics');
+      const colorCols = s.coloringFields.length > 0
+        ? s.coloringFields.map(fk => selectedKeys.indexOf(fk)).filter(i => i !== -1)
+        : [];
+      return { enabled: s.enableConditionalColoring, theme: s.coloringTheme, colorColumns: colorCols };
+    })();
+    const wordDateColoring = (() => {
+      const s = getColoringSettingsForType('dateAnalytics');
+      const selectedKeys = getSelectedFieldsForType('dateAnalytics');
+      const colorCols = s.coloringFields.length > 0
+        ? s.coloringFields.map(fk => selectedKeys.indexOf(fk)).filter(i => i !== -1)
+        : [];
+      return { enabled: s.enableConditionalColoring, theme: s.coloringTheme, colorColumns: colorCols };
+    })();
+    const wordHostColoring = (() => {
+      const s = getColoringSettingsForType('hostAnalytics');
+      const selectedKeys = getSelectedFieldsForType('hostAnalytics');
+      const colorCols = s.coloringFields.length > 0
+        ? s.coloringFields.map(fk => selectedKeys.indexOf(fk)).filter(i => i !== -1)
+        : [];
+      return { enabled: s.enableConditionalColoring, theme: s.coloringTheme, colorColumns: colorCols };
+    })();
+    const wordAnyEnabled = wordStudentColoring.enabled || wordDateColoring.enabled || wordHostColoring.enabled;
 
     try {
       await wordExportService.exportAnalyticsToWordDynamic(
@@ -1779,8 +1827,13 @@ const AttendanceRecords = () => {
         filters.endDate,
         undefined, // filename
         {
-          enableConditionalColoring: wordColoringSettings.enableConditionalColoring,
-          coloringTheme: wordColoringSettings.coloringTheme,
+          enableConditionalColoring: wordAnyEnabled,
+          coloringTheme: wordStudentColoring.theme,
+          perTypeColoring: {
+            studentAnalytics: wordStudentColoring,
+            dateAnalytics: wordDateColoring,
+            hostAnalytics: wordHostColoring,
+          },
         }
       );
       success('Word document exported successfully!');
@@ -2597,13 +2650,26 @@ const AttendanceRecords = () => {
   // Helper: Get conditional coloring settings for a data type
   const getColoringSettingsForType = (dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics'): { 
     enableConditionalColoring: boolean; 
+    coloringFields: string[];
     coloringTheme: 'default' | 'traffic' | 'heatmap' | 'status';
   } => {
     const settings = savedExportSettings[dataType];
     return {
       enableConditionalColoring: settings?.enableConditionalColoring ?? true,
+      coloringFields: settings?.coloringFields || [],
       coloringTheme: settings?.coloringTheme || 'default',
     };
+  };
+  
+  // Helper: Filter out excluded date rows from data
+  const filterExcludedDateRows = <T extends Record<string, unknown>>(
+    data: T[],
+    dateKey: string = 'date'
+  ): T[] => {
+    const excluded = savedExportSettings.dateAnalytics?.excludedRows;
+    if (!excluded || excluded.length === 0) return data;
+    const excludedSet = new Set(excluded);
+    return data.filter(row => !excludedSet.has(String(row[dateKey] ?? '')));
   };
   
   // Helper: Get color for a percentage value based on theme
@@ -2915,6 +2981,8 @@ const AttendanceRecords = () => {
             [exportDataType]: settings
           }));
         }}
+        rowFilterKey={exportDataType === 'dateAnalytics' ? 'date' : undefined}
+        rowFilterLabel={exportDataType === 'dateAnalytics' ? '📅 Date Rows to Export' : undefined}
       />
       
       {/* Modern Header with Gradient */}
@@ -3580,6 +3648,11 @@ const AttendanceRecords = () => {
                     (Sort: {savedExportSettings.dateAnalytics.sortByField} {savedExportSettings.dateAnalytics.sortDirection === 'desc' ? '↓' : '↑'})
                   </span>
                 )}
+                {savedExportSettings.dateAnalytics?.enableConditionalColoring !== false && (
+                  <span className="text-rose-500 dark:text-rose-400 text-xs" title="Conditional coloring enabled">
+                    🌈
+                  </span>
+                )}
                 <button
                   onClick={() => {
                     setExportDataType('dateAnalytics');
@@ -3600,6 +3673,11 @@ const AttendanceRecords = () => {
                 {savedExportSettings.hostAnalytics?.sortByField && (
                   <span className="text-purple-600 dark:text-purple-400 text-xs">
                     (Sort: {savedExportSettings.hostAnalytics.sortByField} {savedExportSettings.hostAnalytics.sortDirection === 'desc' ? '↓' : '↑'})
+                  </span>
+                )}
+                {savedExportSettings.hostAnalytics?.enableConditionalColoring !== false && (
+                  <span className="text-rose-500 dark:text-rose-400 text-xs" title="Conditional coloring enabled">
+                    🌈
                   </span>
                 )}
                 <button

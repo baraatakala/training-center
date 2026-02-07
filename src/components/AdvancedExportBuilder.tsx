@@ -80,7 +80,9 @@ export interface ExportSettings {
   sortByField?: string;
   sortDirection?: 'asc' | 'desc';
   enableConditionalColoring?: boolean;
+  coloringFields?: string[];
   coloringTheme?: 'default' | 'traffic' | 'heatmap' | 'status';
+  excludedRows?: string[];  // Row values to exclude (e.g., specific dates)
 }
 
 interface AdvancedExportBuilderProps {
@@ -95,6 +97,8 @@ interface AdvancedExportBuilderProps {
   savedSettings?: ExportSettings;
   onFieldSelectionChange?: (fields: string[]) => void;
   onSettingsChange?: (settings: ExportSettings) => void;
+  rowFilterKey?: string;  // If set, enables row filtering UI using this data key (e.g., "date")
+  rowFilterLabel?: string;  // Label for the row filter section (e.g., "Date Rows")
 }
 
 // ==================== COMPONENT ====================
@@ -111,6 +115,8 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
   savedSettings,
   onFieldSelectionChange,
   onSettingsChange,
+  rowFilterKey,
+  rowFilterLabel = 'Row Filter',
 }) => {
   // Build initial selected fields from categories
   const getDefaultSelectedFields = useCallback(() => {
@@ -168,6 +174,9 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
 
   const [activeTab, setActiveTab] = useState<'fields' | 'format' | 'validation' | 'preview'>('fields');
   const [exporting, setExporting] = useState(false);
+  const [excludedRows, setExcludedRows] = useState<Set<string>>(
+    new Set(savedSettings?.excludedRows || [])
+  );
 
   // Reset config when modal opens or categories change - use saved settings
   useEffect(() => {
@@ -197,11 +206,13 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
           showDataQualityReport: false,
           highlightIssues: false,
           enableConditionalColoring: savedSettings?.enableConditionalColoring ?? true,
-          coloringFields: [],
+          coloringFields: savedSettings?.coloringFields || [],
           coloringTheme: savedSettings?.coloringTheme || 'default',
         },
       }));
       setActiveTab('fields');
+      // Restore excluded rows from saved settings
+      setExcludedRows(new Set(savedSettings?.excludedRows || []));
     }
   }, [isOpen, getDefaultSelectedFields, defaultTitle, dateRange, savedSettings]);
 
@@ -332,6 +343,13 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     let processedData = [...inputData];
     const validationIssues: { row: number; field: string; issue: string }[] = [];
     const selectedFields = getSelectedFieldsOrdered();
+    
+    // Filter out excluded rows if rowFilterKey is set
+    if (rowFilterKey && excludedRows.size > 0) {
+      processedData = processedData.filter(record => 
+        !excludedRows.has(String(record[rowFilterKey] ?? ''))
+      );
+    }
     
     // Remove duplicates if enabled
     if (config.dataValidation.removeDuplicates) {
@@ -774,7 +792,9 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
           sortByField: config.sortByField,
           sortDirection: config.sortDirection,
           enableConditionalColoring: config.dataValidation.enableConditionalColoring,
+          coloringFields: config.dataValidation.coloringFields,
           coloringTheme: config.dataValidation.coloringTheme,
+          excludedRows: [...excludedRows],
         });
       }
       
@@ -820,7 +840,9 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
         sortByField: config.sortByField,
         sortDirection: config.sortDirection,
         enableConditionalColoring: config.dataValidation.enableConditionalColoring,
+        coloringFields: config.dataValidation.coloringFields,
         coloringTheme: config.dataValidation.coloringTheme,
+        excludedRows: [...excludedRows],
       });
     }
     onClose();
@@ -959,6 +981,82 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                   </div>
                 );
               })}
+
+              {/* Row Filter Section - only shown when rowFilterKey is set */}
+              {rowFilterKey && data.length > 0 && (() => {
+                // Extract unique row values from data using rowFilterKey
+                const allRowValues = [...new Set(data.map(d => String(d[rowFilterKey] ?? '')))].filter(v => v !== '');
+                const includedCount = allRowValues.filter(v => !excludedRows.has(v)).length;
+                
+                return (
+                  <div className="border dark:border-gray-700 rounded-xl overflow-hidden mt-4">
+                    <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/30 dark:to-orange-900/30 p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className="text-2xl">📋</span>
+                          <div>
+                            <h3 className="font-semibold text-gray-900 dark:text-white">{rowFilterLabel}</h3>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              {includedCount} of {allRowValues.length} rows included in export
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setExcludedRows(new Set())}
+                            className="px-2 py-1 text-xs bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/60 transition"
+                          >
+                            Include All
+                          </button>
+                          <button
+                            onClick={() => setExcludedRows(new Set(allRowValues))}
+                            className="px-2 py-1 text-xs bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/60 transition"
+                          >
+                            Exclude All
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-4 dark:bg-gray-800 max-h-60 overflow-y-auto">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                        {allRowValues.map(rowValue => {
+                          const isIncluded = !excludedRows.has(rowValue);
+                          return (
+                            <label
+                              key={rowValue}
+                              className={`flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition text-sm ${
+                                isIncluded
+                                  ? 'bg-green-50 dark:bg-green-900/30 border-2 border-green-300 dark:border-green-600'
+                                  : 'bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 opacity-60'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isIncluded}
+                                onChange={() => {
+                                  setExcludedRows(prev => {
+                                    const next = new Set(prev);
+                                    if (next.has(rowValue)) {
+                                      next.delete(rowValue);
+                                    } else {
+                                      next.add(rowValue);
+                                    }
+                                    return next;
+                                  });
+                                }}
+                                className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                              />
+                              <span className={`font-medium ${isIncluded ? 'text-gray-700 dark:text-gray-200' : 'text-gray-400 dark:text-gray-500 line-through'}`}>
+                                {rowValue}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
