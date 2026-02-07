@@ -242,6 +242,7 @@ const AttendanceRecords = () => {
   // Collapse state for analytics sections
   const [collapseStudentTable, setCollapseStudentTable] = useState(false);
   const [collapseDateTable, setCollapseDateTable] = useState(false);
+  const [collapseHostTable, setCollapseHostTable] = useState(false);
   const [collapseScoreExplainer, setCollapseScoreExplainer] = useState(true);
   const [scoreExplainerStudent, setScoreExplainerStudent] = useState<string>('');
   const [scoreExplainerLang, setScoreExplainerLang] = useState<'en' | 'ar' | 'both'>('both');
@@ -3583,6 +3584,125 @@ const AttendanceRecords = () => {
                     } as Record<string, unknown>;
                   });
                   const sorted = sortDataBySettings(dataObjects, 'dateAnalytics');
+                  return (
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                      <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0">
+                        <tr>
+                          {config.headers.map((header, i) => (
+                            <th key={i} className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase whitespace-nowrap">{header}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        {sorted.map((data, index) => {
+                          const row = config.getData(data, index);
+                          return (
+                            <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                              {row.map((cell, ci) => (
+                                <td key={ci} className="px-4 py-3 text-sm text-gray-900 dark:text-gray-200 whitespace-nowrap">{String(cell ?? '-')}</td>
+                              ))}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+
+          {/* Host Analytics Table — Dynamic columns from field selections */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
+            <button
+              onClick={() => setCollapseHostTable(prev => !prev)}
+              className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer"
+            >
+              <h2 className="text-base sm:text-lg font-semibold dark:text-white">🏠 Host Analytics</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  {(() => {
+                    const hostMap = new Map<string, number>();
+                    dateAnalytics.forEach((d) => {
+                      if (d.hostAddress && d.hostAddress !== 'SESSION_NOT_HELD') {
+                        hostMap.set(d.hostAddress, (hostMap.get(d.hostAddress) || 0) + 1);
+                      }
+                    });
+                    return `${hostMap.size} hosts`;
+                  })()}
+                </span>
+                <svg className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${collapseHostTable ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </button>
+            {!collapseHostTable && (
+              <div className="overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto">
+                {(() => {
+                  const isArabic = reportLanguage === 'ar';
+                  const config = filterDataByFields('hostAnalytics', isArabic);
+
+                  // Build host data from dateAnalytics
+                  const hostMap = new Map<string, { count: number; dates: string[]; rawDates: Date[]; present: number; late: number; absent: number; excused: number }>();
+                  dateAnalytics.forEach((dateData) => {
+                    if (dateData.hostAddress && dateData.hostAddress !== 'SESSION_NOT_HELD') {
+                      const existing = hostMap.get(dateData.hostAddress) || { count: 0, dates: [], rawDates: [], present: 0, late: 0, absent: 0, excused: 0 };
+                      existing.count++;
+                      existing.dates.push(format(new Date(dateData.date), 'MMM dd'));
+                      existing.rawDates.push(new Date(dateData.date));
+                      existing.present += dateData.presentCount;
+                      existing.late += dateData.lateCount;
+                      existing.absent += dateData.unexcusedAbsentCount;
+                      existing.excused += dateData.excusedAbsentCount;
+                      hostMap.set(dateData.hostAddress, existing);
+                    }
+                  });
+
+                  const totalHostings = Array.from(hostMap.values()).reduce((sum, h) => sum + h.count, 0);
+                  const hostRankings = Array.from(hostMap.entries())
+                    .map(([address, data]) => ({ address, ...data }))
+                    .sort((a, b) => b.count - a.count);
+
+                  const dataObjects = hostRankings.map((host, index) => {
+                    const totalPresent = host.present + host.late;
+                    const totalStudents = totalPresent + host.absent + host.excused;
+                    const expectedAttendees = totalPresent + host.absent;
+                    const attendanceRate = expectedAttendees > 0 ? Math.round(totalPresent / expectedAttendees * 100) : 0;
+                    const firstDateTimestamp = host.rawDates.length > 0 ? Math.min(...host.rawDates.map(d => d.getTime())) : 0;
+                    const lastDateTimestamp = host.rawDates.length > 0 ? Math.max(...host.rawDates.map(d => d.getTime())) : 0;
+
+                    return {
+                      rank: index + 1,
+                      address: host.address,
+                      count: host.count,
+                      percentage: totalHostings > 0 ? Math.round(host.count / totalHostings * 100) : 0,
+                      attendanceRate,
+                      firstHostDate: firstDateTimestamp > 0 ? format(new Date(firstDateTimestamp), 'MMM dd, yyyy') : '-',
+                      firstHostDateRaw: firstDateTimestamp,
+                      lastHostDate: lastDateTimestamp > 0 ? format(new Date(lastDateTimestamp), 'MMM dd, yyyy') : '-',
+                      lastHostDateRaw: lastDateTimestamp,
+                      totalOnTime: host.present,
+                      totalLate: host.late,
+                      totalPresent,
+                      totalAbsent: host.absent,
+                      totalExcused: host.excused,
+                      totalStudents,
+                      dates: host.dates.join(', '),
+                    } as Record<string, unknown>;
+                  });
+
+                  const sorted = sortDataBySettings(dataObjects, 'hostAnalytics');
+                  sorted.forEach((obj, idx) => { obj.rank = idx + 1; });
+
+                  if (sorted.length === 0) {
+                    return (
+                      <div className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                        <span className="text-2xl block mb-2">🏠</span>
+                        <p className="text-sm">No host data available. Host addresses are recorded when attendance is marked.</p>
+                      </div>
+                    );
+                  }
+
                   return (
                     <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                       <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0">
