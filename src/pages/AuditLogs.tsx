@@ -65,6 +65,7 @@ const TABLE_ICONS: Record<string, string> = {
   session: '📅',
   enrollment: '📋',
   attendance: '✅',
+  announcement: '📢',
 };
 
 const OP_ICONS: Record<string, string> = {

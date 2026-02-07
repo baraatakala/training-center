@@ -3,7 +3,7 @@ import type {
   CreateAttendance, 
   UpdateAttendance
 } from '../types/database.types';
-import { logDelete } from './auditService';
+import { logDelete, logUpdate } from './auditService';
 import { Tables } from '../types/database.types';
 
 export const attendanceService = {
@@ -90,12 +90,24 @@ export const attendanceService = {
 
   // Update attendance record
   async update(id: string, updates: UpdateAttendance) {
-    return await supabase
+    // Fetch old data for audit
+    const { data: oldData } = await supabase
+      .from(Tables.ATTENDANCE)
+      .select('*')
+      .eq('attendance_id', id)
+      .single();
+
+    const result = await supabase
       .from(Tables.ATTENDANCE)
       .update(updates)
       .eq('attendance_id', id)
       .select()
       .single();
+
+    if (oldData && result.data) {
+      await logUpdate('attendance', id, oldData as Record<string, unknown>, result.data as Record<string, unknown>);
+    }
+    return result;
   },
 
   // Mark student as on time (present)

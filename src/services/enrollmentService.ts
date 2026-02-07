@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 import type { CreateEnrollment, UpdateEnrollment } from '../types/database.types';
 import { Tables } from '../types/database.types';
-import { logDelete } from './auditService';
+import { logDelete, logUpdate, logInsert } from './auditService';
 
 export const enrollmentService = {
   // Get all enrollments
@@ -83,21 +83,37 @@ export const enrollmentService = {
 
   // Create new enrollment
   async create(enrollment: CreateEnrollment) {
-    return await supabase
+    const result = await supabase
       .from(Tables.ENROLLMENT)
       .insert(enrollment)
       .select()
       .single();
+
+    if (result.data) {
+      await logInsert('enrollment', result.data.enrollment_id, result.data as Record<string, unknown>);
+    }
+    return result;
   },
 
   // Update enrollment
   async update(id: string, updates: UpdateEnrollment) {
-    return await supabase
+    const { data: oldData } = await supabase
+      .from(Tables.ENROLLMENT)
+      .select('*')
+      .eq('enrollment_id', id)
+      .single();
+
+    const result = await supabase
       .from(Tables.ENROLLMENT)
       .update(updates)
       .eq('enrollment_id', id)
       .select()
       .single();
+
+    if (oldData && result.data) {
+      await logUpdate('enrollment', id, oldData as Record<string, unknown>, result.data as Record<string, unknown>);
+    }
+    return result;
   },
 
   // Update enrollment status

@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { Tables, type CreateTeacher, type UpdateTeacher } from '../types/database.types';
-import { logDelete } from './auditService';
+import { logDelete, logUpdate, logInsert } from './auditService';
 
 export const teacherService = {
   async getAll() {
@@ -19,20 +19,36 @@ export const teacherService = {
   },
 
   async create(data: CreateTeacher) {
-    return await supabase
+    const result = await supabase
       .from(Tables.TEACHER)
       .insert([data])
       .select()
       .single();
+
+    if (result.data) {
+      await logInsert('teacher', result.data.teacher_id, result.data as Record<string, unknown>);
+    }
+    return result;
   },
 
   async update(teacherId: string, data: UpdateTeacher) {
-    return await supabase
+    const { data: oldData } = await supabase
+      .from(Tables.TEACHER)
+      .select('*')
+      .eq('teacher_id', teacherId)
+      .single();
+
+    const result = await supabase
       .from(Tables.TEACHER)
       .update(data)
       .eq('teacher_id', teacherId)
       .select()
       .single();
+
+    if (oldData && result.data) {
+      await logUpdate('teacher', teacherId, oldData as Record<string, unknown>, result.data as Record<string, unknown>);
+    }
+    return result;
   },
 
   async delete(teacherId: string) {

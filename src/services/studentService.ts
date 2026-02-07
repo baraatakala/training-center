@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 import type { CreateStudent, UpdateStudent } from '../types/database.types';
 import { Tables } from '../types/database.types';
-import { logDelete } from './auditService';
+import { logDelete, logUpdate, logInsert } from './auditService';
 
 export const studentService = {
   // Get all students
@@ -77,21 +77,38 @@ export const studentService = {
 
   // Create new student
   async create(student: CreateStudent) {
-    return await supabase
+    const result = await supabase
       .from(Tables.STUDENT)
       .insert(student)
       .select()
       .single();
+
+    if (result.data) {
+      await logInsert('student', result.data.student_id, result.data as Record<string, unknown>);
+    }
+    return result;
   },
 
   // Update student
   async update(id: string, updates: UpdateStudent) {
-    return await supabase
+    // Fetch old data for audit
+    const { data: oldData } = await supabase
+      .from(Tables.STUDENT)
+      .select('*')
+      .eq('student_id', id)
+      .single();
+
+    const result = await supabase
       .from(Tables.STUDENT)
       .update(updates)
       .eq('student_id', id)
       .select()
       .single();
+
+    if (oldData && result.data) {
+      await logUpdate('student', id, oldData as Record<string, unknown>, result.data as Record<string, unknown>);
+    }
+    return result;
   },
 
   // Delete student

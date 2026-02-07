@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 import type { CreateSession, UpdateSession } from '../types/database.types';
 import { Tables } from '../types/database.types';
-import { logDelete } from './auditService';
+import { logDelete, logUpdate, logInsert } from './auditService';
 
 export const sessionService = {
   // Get all sessions
@@ -99,21 +99,37 @@ export const sessionService = {
 
   // Create new session
   async create(session: CreateSession) {
-    return await supabase
+    const result = await supabase
       .from(Tables.SESSION)
       .insert(session)
       .select()
       .single();
+
+    if (result.data) {
+      await logInsert('session', result.data.session_id, result.data as Record<string, unknown>);
+    }
+    return result;
   },
 
   // Update session
   async update(id: string, updates: UpdateSession) {
-    return await supabase
+    const { data: oldData } = await supabase
+      .from(Tables.SESSION)
+      .select('*')
+      .eq('session_id', id)
+      .single();
+
+    const result = await supabase
       .from(Tables.SESSION)
       .update(updates)
       .eq('session_id', id)
       .select()
       .single();
+
+    if (oldData && result.data) {
+      await logUpdate('session', id, oldData as Record<string, unknown>, result.data as Record<string, unknown>);
+    }
+    return result;
   },
 
   // Delete session

@@ -15,6 +15,7 @@ CREATE TABLE public.announcement (
   category character varying DEFAULT 'general'::character varying,
   attachments jsonb DEFAULT '[]'::jsonb,
   view_count integer DEFAULT 0,
+  image_url text,
   CONSTRAINT announcement_pkey PRIMARY KEY (announcement_id),
   CONSTRAINT announcement_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.teacher(teacher_id),
   CONSTRAINT announcement_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.course(course_id)

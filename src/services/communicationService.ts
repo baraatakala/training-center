@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { logDelete, logUpdate, logInsert } from './auditService';
 
 // =====================================================
 // TYPES
@@ -180,6 +181,11 @@ export const announcementService = {
         .single();
 
       if (error) throw error;
+
+      if (announcement) {
+        await logInsert('announcement', announcement.announcement_id, announcement as Record<string, unknown>);
+      }
+
       return { data: announcement, error: null };
     } catch (error) {
       console.error('Error creating announcement:', error);
@@ -192,6 +198,13 @@ export const announcementService = {
    */
   async update(announcementId: string, data: Partial<CreateAnnouncementData>): Promise<{ data: Announcement | null; error: Error | null }> {
     try {
+      // Fetch old data for audit
+      const { data: oldAnn } = await supabase
+        .from('announcement')
+        .select('*')
+        .eq('announcement_id', announcementId)
+        .single();
+
       const { data: announcement, error } = await supabase
         .from('announcement')
         .update(data)
@@ -204,6 +217,11 @@ export const announcementService = {
         .single();
 
       if (error) throw error;
+
+      if (oldAnn && announcement) {
+        await logUpdate('announcement', announcementId, oldAnn as Record<string, unknown>, announcement as Record<string, unknown>);
+      }
+
       return { data: announcement, error: null };
     } catch (error) {
       console.error('Error updating announcement:', error);
@@ -216,6 +234,17 @@ export const announcementService = {
    */
   async delete(announcementId: string): Promise<{ error: Error | null }> {
     try {
+      // Fetch announcement data before deletion for audit log
+      const { data: announcement } = await supabase
+        .from('announcement')
+        .select('*')
+        .eq('announcement_id', announcementId)
+        .single();
+
+      if (announcement) {
+        await logDelete('announcement', announcementId, announcement as Record<string, unknown>);
+      }
+
       const { error } = await supabase
         .from('announcement')
         .delete()
