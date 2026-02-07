@@ -3664,12 +3664,6 @@ const AttendanceRecords = () => {
                         <span className="text-indigo-600 dark:text-indigo-400 font-bold">Final Score</span> = Raw Score × √(Your Days ÷ Total Sessions)
                       </div>
                     </div>
-                    <div className="flex gap-2 flex-wrap">
-                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs">✨ On time = 100% credit</span>
-                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs">⏰ 15 min late ≈ 71%</span>
-                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-xs">🕐 30 min late ≈ 50%</span>
-                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs">📉 60 min late ≈ 25%</span>
-                    </div>
                   </div>
                 </div>
                 )}
@@ -3692,15 +3686,231 @@ const AttendanceRecords = () => {
                         <span className="text-indigo-600 dark:text-indigo-400 font-bold">الدرجة النهائية</span> = الدرجة الخام × √(أيامك ÷ إجمالي الجلسات)
                       </div>
                     </div>
-                    <div className="flex gap-2 flex-wrap">
-                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs">✨ بالوقت = ١٠٠٪</span>
-                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs">⏰ تأخر ١٥ د ≈ ٧١٪</span>
-                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-xs">🕐 تأخر ٣٠ د ≈ ٥٠٪</span>
-                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs">📉 تأخر ٦٠ د ≈ ٢٥٪</span>
-                    </div>
                   </div>
                 </div>
                 )}
+              </div>
+
+              {/* ── Deep Dive: Component Explanations ── */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                {/* === QUALITY RATE (50%) === */}
+                <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50/50 to-green-50/50 dark:from-emerald-900/10 dark:to-green-900/10 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-lg">💎</span>
+                    <h4 className="font-bold text-emerald-800 dark:text-emerald-300 text-sm">
+                      {scoreExplainerLang === 'ar' ? 'معدل الجودة (٥٠٪)' : scoreExplainerLang === 'both' ? 'Quality Rate / معدل الجودة (50%)' : 'Quality Rate (50%)'}
+                    </h4>
+                  </div>
+                  <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
+                    {(scoreExplainerLang === 'en' || scoreExplainerLang === 'both') && (
+                    <div className="space-y-2">
+                      <p>Not all "present" days are equal. <strong className="text-gray-800 dark:text-gray-200">On-time = 100% credit, but late arrivals get partial credit</strong> based on how late they were.</p>
+                      <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-2.5 border border-emerald-100 dark:border-emerald-800 font-mono text-[11px]">
+                        <div className="text-emerald-600 dark:text-emerald-400 font-bold mb-1">Late Credit = e<sup>−(minutes / 43.3)</sup></div>
+                        <div className="text-gray-500 dark:text-gray-400">This is a smooth exponential decay curve — no sudden drops.</div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1">
+                        {[
+                          { min: 5, pct: 89, bar: 'w-[89%]', clr: 'bg-emerald-400' },
+                          { min: 10, pct: 79, bar: 'w-[79%]', clr: 'bg-emerald-400' },
+                          { min: 15, pct: 71, bar: 'w-[71%]', clr: 'bg-yellow-400' },
+                          { min: 20, pct: 63, bar: 'w-[63%]', clr: 'bg-yellow-400' },
+                          { min: 30, pct: 50, bar: 'w-[50%]', clr: 'bg-orange-400' },
+                          { min: 45, pct: 35, bar: 'w-[35%]', clr: 'bg-orange-400' },
+                          { min: 60, pct: 25, bar: 'w-[25%]', clr: 'bg-red-400' },
+                          { min: 90, pct: 13, bar: 'w-[13%]', clr: 'bg-red-500' },
+                        ].map(r => (
+                          <div key={r.min} className="flex items-center gap-1.5">
+                            <span className="text-[10px] text-gray-500 dark:text-gray-400 w-8 text-right font-mono">{r.min}m</span>
+                            <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-1.5">
+                              <div className={`h-full rounded-full ${r.clr}`} style={{ width: `${r.pct}%` }} />
+                            </div>
+                            <span className="text-[10px] font-bold text-gray-700 dark:text-gray-300 w-8">{r.pct}%</span>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500 italic">Formula: Quality = (OnTimeDays + Σ late credits) / EffectiveDays × 100. If late_minutes is unknown, a default 60% credit is used (~20 min estimate). Minimum credit is 5% — you always get something for showing up.</p>
+                    </div>
+                    )}
+                    {(scoreExplainerLang === 'ar' || scoreExplainerLang === 'both') && (
+                    <div dir="rtl" className="space-y-2">
+                      <p>ليست كل أيام الحضور متساوية. <strong className="text-gray-800 dark:text-gray-200">بالوقت = رصيد كامل ١٠٠٪، لكن المتأخر يحصل على رصيد جزئي</strong> حسب مدة التأخر.</p>
+                      <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-2.5 border border-emerald-100 dark:border-emerald-800 font-mono text-[11px]">
+                        <div className="text-emerald-600 dark:text-emerald-400 font-bold mb-1">رصيد التأخر = e<sup>−(الدقائق / ٤٣.٣)</sup></div>
+                        <div className="text-gray-500 dark:text-gray-400">هذا منحنى تناقص انسيابي — بلا قفزات مفاجئة.</div>
+                      </div>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500 italic">الحساب: الجودة = (أيام بالوقت + مجموع أرصدة التأخر) / الأيام الفعلية × ١٠٠. تأخر ٥ دقائق = ٨٩٪، ١٥ دقيقة = ٧١٪، ٣٠ دقيقة = ٥٠٪، ٦٠ دقيقة = ٢٥٪. الحد الأدنى ٥٪ دائماً.</p>
+                    </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* === CONSISTENCY INDEX (15%) === */}
+                <div className="rounded-xl border border-purple-200 dark:border-purple-800 bg-gradient-to-br from-purple-50/50 to-indigo-50/50 dark:from-purple-900/10 dark:to-indigo-900/10 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-lg">📊</span>
+                    <h4 className="font-bold text-purple-800 dark:text-purple-300 text-sm">
+                      {scoreExplainerLang === 'ar' ? 'مؤشر الانتظام (١٥٪)' : scoreExplainerLang === 'both' ? 'Consistency Index / مؤشر الانتظام (15%)' : 'Consistency Index (15%)'}
+                    </h4>
+                  </div>
+                  <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
+                    {(scoreExplainerLang === 'en' || scoreExplainerLang === 'both') && (
+                    <div className="space-y-2">
+                      <p><strong className="text-gray-800 dark:text-gray-200">This is NOT the same as attendance rate.</strong> It measures how your absences are distributed — scattered single absences are better than big blocks of missing days.</p>
+                      <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-2.5 border border-purple-100 dark:border-purple-800 text-[11px] space-y-1.5">
+                        <div className="font-bold text-purple-600 dark:text-purple-400">Two Components (averaged):</div>
+                        <div className="pl-2 space-y-1">
+                          <div><span className="text-purple-500 font-bold">1. Scatter Ratio</span> — Are absences fragmented into many small gaps, or clumped together?</div>
+                          <div className="text-[10px] text-gray-500 dark:text-gray-400 pl-3">Best: each absence is isolated (ratio = 1). Worst: one big block (ratio ≈ 0).</div>
+                          <div><span className="text-purple-500 font-bold">2. Streak Penalty</span> — How long is your longest consecutive absence block?</div>
+                          <div className="text-[10px] text-gray-500 dark:text-gray-400 pl-3">Missing 3 days in a row hurts more than missing 3 separate days.</div>
+                        </div>
+                        <div className="border-t border-purple-100 dark:border-purple-800 pt-1.5 mt-1">
+                          <div><span className="text-purple-500 font-bold">Dampening:</span> With only 1-2 absences, clustering matters less → score trends toward 100%.</div>
+                          <div className="text-[10px] text-gray-500 dark:text-gray-400">dampening = min(absences / 5, 1). Fewer absences = less penalty.</div>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Examples (8-day patterns):</div>
+                        {[
+                          { pattern: '✅❌✅❌✅❌✅❌', score: '≈ 100%', desc: 'Absences perfectly scattered', color: 'text-emerald-600 dark:text-emerald-400' },
+                          { pattern: '✅✅❌✅✅❌✅✅', score: '≈ 100%', desc: 'Single absences spread out', color: 'text-emerald-600 dark:text-emerald-400' },
+                          { pattern: '✅✅✅❌❌✅✅✅', score: '≈ 72%', desc: '2-day block in the middle', color: 'text-amber-600 dark:text-amber-400' },
+                          { pattern: '✅✅✅✅❌❌❌❌', score: '≈ 20%', desc: 'All absences clustered at end', color: 'text-red-600 dark:text-red-400' },
+                        ].map((ex, i) => (
+                          <div key={i} className="flex items-center gap-2 bg-white/40 dark:bg-gray-800/40 rounded px-2 py-1">
+                            <span className="font-mono text-[10px] tracking-widest">{ex.pattern}</span>
+                            <span className={`font-bold text-[11px] ${ex.color}`}>{ex.score}</span>
+                            <span className="text-[10px] text-gray-400 dark:text-gray-500 hidden sm:inline">— {ex.desc}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    )}
+                    {(scoreExplainerLang === 'ar' || scoreExplainerLang === 'both') && (
+                    <div dir="rtl" className="space-y-2">
+                      <p><strong className="text-gray-800 dark:text-gray-200">هذا ليس نفس معدل الحضور.</strong> يقيس كيف توزّع غيابك — غياب يوم هنا ويوم هناك أفضل من غياب أيام متتالية.</p>
+                      <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-2.5 border border-purple-100 dark:border-purple-800 text-[11px] space-y-1.5">
+                        <div className="font-bold text-purple-600 dark:text-purple-400">مكوّنان (يتم حساب متوسطهما):</div>
+                        <div className="pr-2 space-y-1">
+                          <div><span className="text-purple-500 font-bold">١. نسبة التشتت</span> — هل الغياب مبعثر كأيام فردية أم متكتل؟</div>
+                          <div><span className="text-purple-500 font-bold">٢. عقوبة التتابع</span> — ما أطول سلسلة غياب متتالية عندك؟</div>
+                        </div>
+                        <div className="border-t border-purple-100 dark:border-purple-800 pt-1.5 mt-1">
+                          <div><span className="text-purple-500 font-bold">التخفيف:</span> إذا غبت يوم أو يومين فقط، التكتل لا يهم كثيراً → الدرجة تقترب من ١٠٠٪.</div>
+                        </div>
+                      </div>
+                      <div className="space-y-1 text-[10px]">
+                        <div>✅❌✅❌✅❌✅❌ → <span className="text-emerald-600 dark:text-emerald-400 font-bold">١٠٠٪</span> (غياب مبعثر)</div>
+                        <div>✅✅✅✅❌❌❌❌ → <span className="text-red-600 dark:text-red-400 font-bold">٢٠٪</span> (غياب متكتل)</div>
+                      </div>
+                    </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* === ATTENDANCE RATE (25%) + PUNCTUALITY (10%) === */}
+                <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50/50 to-sky-50/50 dark:from-blue-900/10 dark:to-sky-900/10 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-lg">📅</span>
+                    <h4 className="font-bold text-blue-800 dark:text-blue-300 text-sm">
+                      {scoreExplainerLang === 'ar' ? 'الحضور (٢٥٪) + الالتزام بالوقت (١٠٪)' : scoreExplainerLang === 'both' ? 'Attendance (25%) + Punctuality (10%) / الحضور + الالتزام' : 'Attendance (25%) + Punctuality (10%)'}
+                    </h4>
+                  </div>
+                  <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
+                    {(scoreExplainerLang === 'en' || scoreExplainerLang === 'both') && (
+                    <div className="space-y-2">
+                      <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-2.5 border border-blue-100 dark:border-blue-800 text-[11px] space-y-2">
+                        <div>
+                          <span className="font-bold text-blue-600 dark:text-blue-400">Attendance Rate</span> = (On Time + Late) / Effective Days × 100
+                          <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">Simple binary: Were you there? Yes or no. Late counts as present. Excused days are excluded from the denominator.</div>
+                        </div>
+                        <div className="border-t border-blue-100 dark:border-blue-800 pt-2">
+                          <span className="font-bold text-amber-600 dark:text-amber-400">Punctuality</span> = On Time Days / (On Time + Late) × 100
+                          <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">Of the days you showed up, what % were you on time? Someone always late gets low punctuality even with 100% attendance.</div>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500 italic">Why both? A student with 90% attendance but always late should score differently than one with 90% attendance always on time. Attendance rewards showing up; Punctuality rewards being prompt.</p>
+                    </div>
+                    )}
+                    {(scoreExplainerLang === 'ar' || scoreExplainerLang === 'both') && (
+                    <div dir="rtl" className="space-y-2">
+                      <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-2.5 border border-blue-100 dark:border-blue-800 text-[11px] space-y-2">
+                        <div>
+                          <span className="font-bold text-blue-600 dark:text-blue-400">معدل الحضور</span> = (بالوقت + متأخر) / الأيام الفعلية × ١٠٠
+                          <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">ببساطة: هل حضرت؟ نعم أو لا. المتأخر يُحسب حاضراً. الأيام المعذورة تُستبعد.</div>
+                        </div>
+                        <div className="border-t border-blue-100 dark:border-blue-800 pt-2">
+                          <span className="font-bold text-amber-600 dark:text-amber-400">الالتزام بالوقت</span> = أيام بالوقت / (بالوقت + متأخر) × ١٠٠
+                          <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">من الأيام التي حضرتها، كم نسبة اللي كنت بالوقت فيها؟</div>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500 italic">الحضور يكافئ من يأتي، والالتزام يكافئ من يأتي بالوقت.</p>
+                    </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* === COVERAGE FACTOR === */}
+                <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-gradient-to-br from-indigo-50/50 to-violet-50/50 dark:from-indigo-900/10 dark:to-violet-900/10 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-lg">📏</span>
+                    <h4 className="font-bold text-indigo-800 dark:text-indigo-300 text-sm">
+                      {scoreExplainerLang === 'ar' ? 'معامل التغطية (المضاعف النهائي)' : scoreExplainerLang === 'both' ? 'Coverage Factor / معامل التغطية' : 'Coverage Factor (Final Multiplier)'}
+                    </h4>
+                  </div>
+                  <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
+                    {(scoreExplainerLang === 'en' || scoreExplainerLang === 'both') && (
+                    <div className="space-y-2">
+                      <p><strong className="text-gray-800 dark:text-gray-200">Prevents inflated scores for students with few days.</strong> A student who attended 2/2 sessions with 100% quality shouldn't outrank someone with 95% quality over 25 sessions.</p>
+                      <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-2.5 border border-indigo-100 dark:border-indigo-800 font-mono text-[11px]">
+                        <div className="text-indigo-600 dark:text-indigo-400 font-bold">Coverage = √(EffectiveDays / TotalSessions)</div>
+                        <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">Square root scaling: gentle penalty that grows as the gap widens. Capped at 1.0 (no bonus).</div>
+                      </div>
+                      <div className="space-y-0.5">
+                        <div className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">With 27 total sessions:</div>
+                        {[
+                          { days: 1, factor: 0.19, label: 'Heavy penalty', color: 'text-red-600 dark:text-red-400', bar: 'w-[19%] bg-red-400' },
+                          { days: 3, factor: 0.33, label: 'Heavy penalty', color: 'text-red-600 dark:text-red-400', bar: 'w-[33%] bg-red-400' },
+                          { days: 8, factor: 0.54, label: 'Moderate', color: 'text-orange-600 dark:text-orange-400', bar: 'w-[54%] bg-orange-400' },
+                          { days: 15, factor: 0.75, label: 'Mild', color: 'text-amber-600 dark:text-amber-400', bar: 'w-[75%] bg-amber-400' },
+                          { days: 22, factor: 0.90, label: 'Minimal', color: 'text-emerald-600 dark:text-emerald-400', bar: 'w-[90%] bg-emerald-400' },
+                          { days: 27, factor: 1.00, label: 'Full credit', color: 'text-emerald-600 dark:text-emerald-400', bar: 'w-full bg-emerald-500' },
+                        ].map(r => (
+                          <div key={r.days} className="flex items-center gap-1.5">
+                            <span className="text-[10px] text-gray-500 dark:text-gray-400 w-8 text-right font-mono">{r.days}d</span>
+                            <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-1.5">
+                              <div className={`h-full rounded-full ${r.bar}`} />
+                            </div>
+                            <span className={`text-[10px] font-bold w-8 ${r.color}`}>{r.factor.toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500 italic">Example: Raw score 85 × coverage 0.54 (8 days) = Final 45.9. Same raw score × coverage 0.90 (22 days) = Final 76.5.</p>
+                    </div>
+                    )}
+                    {(scoreExplainerLang === 'ar' || scoreExplainerLang === 'both') && (
+                    <div dir="rtl" className="space-y-2">
+                      <p><strong className="text-gray-800 dark:text-gray-200">يمنع تضخم الدرجات لمن حضر أيام قليلة.</strong> طالب حضر ٢ من ٢ بنسبة ١٠٠٪ لا يجب أن يتفوق على طالب بنسبة ٩٥٪ على ٢٥ جلسة.</p>
+                      <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-2.5 border border-indigo-100 dark:border-indigo-800 font-mono text-[11px]">
+                        <div className="text-indigo-600 dark:text-indigo-400 font-bold">التغطية = √(أيامك الفعلية / إجمالي الجلسات)</div>
+                        <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">جذر تربيعي: عقوبة لطيفة تزداد كلما زادت الفجوة. الحد الأقصى ١.٠</div>
+                      </div>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500 italic">مثال: درجة خام ٨٥ × تغطية ٠.٥٤ (٨ أيام) = نهائي ٤٥.٩. نفس الدرجة × تغطية ٠.٩٠ (٢٢ يوم) = نهائي ٧٦.٥.</p>
+                    </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Late Credit Quick Reference */}
+              <div className="flex gap-2 flex-wrap justify-center">
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs">✨ On time = 100% credit</span>
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs">⏰ 15 min late ≈ 71%</span>
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-xs">🕐 30 min late ≈ 50%</span>
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs">📉 60 min late ≈ 25%</span>
               </div>
 
               {/* ── Controls ── */}
