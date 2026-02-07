@@ -27,6 +27,7 @@ type AttendanceRecord = {
   gps_accuracy: number | null;
   attendance_date: string;
   host_address?: string | null;
+  late_minutes?: number | null;
   student: {
     student_id: string;
     name: string;
@@ -116,6 +117,8 @@ export function Attendance() {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [bookReferences, setBookReferences] = useState<Array<{ reference_id: string; topic: string; start_page: number; end_page: number }>>([]);
   const [selectedBookReference, setSelectedBookReference] = useState<string>('');
+  const [editingLateMinutes, setEditingLateMinutes] = useState<string | null>(null);
+  const [lateMinutesInput, setLateMinutesInput] = useState<string>('');
 
   // GPS Geolocation capture function
   const captureGPSLocation = (): Promise<{
@@ -402,6 +405,7 @@ export function Attendance() {
         gps_accuracy,
         attendance_date,
         host_address,
+        late_minutes,
         student_id,
         student:student_id(student_id, name, email)
       `)
@@ -635,6 +639,7 @@ export function Attendance() {
             gps_accuracy,
             attendance_date,
             host_address,
+            late_minutes,
             student_id,
             student:student_id(student_id, name, email)
           `)
@@ -852,6 +857,31 @@ export function Attendance() {
         .delete()
         .eq('session_id', sessionId)
         .eq('attendance_date', selectedDate);
+    }
+  };
+
+  // Save edited late_minutes for a specific attendance record
+  const saveLateMinutes = async (attendanceId: string) => {
+    const parsed = parseInt(lateMinutesInput, 10);
+    if (isNaN(parsed) || parsed < 0) {
+      alert('Please enter a valid number of minutes (0 or more)');
+      return;
+    }
+    const newValue = parsed === 0 ? null : parsed;
+    const { error } = await supabase
+      .from(Tables.ATTENDANCE)
+      .update({ late_minutes: newValue })
+      .eq('attendance_id', attendanceId);
+    if (error) {
+      console.error('Error updating late_minutes:', error);
+      alert(`Error: ${error.message}`);
+    } else {
+      // Update local state immediately
+      setAttendance(prev => prev.map(a =>
+        a.attendance_id === attendanceId ? { ...a, late_minutes: newValue } : a
+      ));
+      setEditingLateMinutes(null);
+      setLateMinutesInput('');
     }
   };
 
@@ -1897,6 +1927,59 @@ export function Attendance() {
                             <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                               Checked in: {format(new Date(record.check_in_time), 'HH:mm:ss')}
                             </p>
+                          )}
+                          {/* Inline late_minutes editor */}
+                          {record.status === 'late' && !record.attendance_id.startsWith('temp-') && (
+                            <div className="mt-1.5 flex items-center gap-1.5">
+                              <span className="text-xs text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                Late:
+                              </span>
+                              {editingLateMinutes === record.attendance_id ? (
+                                <span className="flex items-center gap-1">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="999"
+                                    autoFocus
+                                    value={lateMinutesInput}
+                                    onChange={e => setLateMinutesInput(e.target.value)}
+                                    onKeyDown={e => {
+                                      if (e.key === 'Enter') saveLateMinutes(record.attendance_id);
+                                      if (e.key === 'Escape') { setEditingLateMinutes(null); setLateMinutesInput(''); }
+                                    }}
+                                    className="w-14 px-1.5 py-0.5 text-xs border border-yellow-400 dark:border-yellow-600 rounded bg-yellow-50 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 focus:outline-none focus:ring-1 focus:ring-yellow-500"
+                                  />
+                                  <span className="text-xs text-gray-500 dark:text-gray-400">min</span>
+                                  <button
+                                    onClick={() => saveLateMinutes(record.attendance_id)}
+                                    className="p-0.5 rounded hover:bg-green-100 dark:hover:bg-green-900/40 text-green-600 dark:text-green-400"
+                                    title="Save"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                                  </button>
+                                  <button
+                                    onClick={() => { setEditingLateMinutes(null); setLateMinutesInput(''); }}
+                                    className="p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/40 text-red-500 dark:text-red-400"
+                                    title="Cancel"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                  </button>
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    setEditingLateMinutes(record.attendance_id);
+                                    setLateMinutesInput(String(record.late_minutes ?? ''));
+                                  }}
+                                  className="group flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-800/50 transition-colors"
+                                  title="Click to edit late duration"
+                                >
+                                  {record.late_minutes != null ? `${record.late_minutes} min` : '—'}
+                                  <svg className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                </button>
+                              )}
+                            </div>
                           )}
                           {isNotEnrolled && record.enrollment_date && (
                             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">
