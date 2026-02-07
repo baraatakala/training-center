@@ -2666,6 +2666,16 @@ const AttendanceRecords = () => {
         { key: 'avgRate', label: 'Average Rate', labelAr: 'المعدل المتوسط' },
         { key: 'minRate', label: 'Minimum Rate', labelAr: 'أدنى معدل' },
         { key: 'maxRate', label: 'Maximum Rate', labelAr: 'أعلى معدل' },
+        // Score Breakdown
+        { key: 'qualityAdjustedRate', label: 'Quality-Adjusted Rate %', labelAr: 'معدل الجودة المعدل' },
+        { key: 'rawWeightedScore', label: 'Raw Score (before coverage)', labelAr: 'الدرجة الخام' },
+        { key: 'coverageFactor', label: 'Coverage Factor', labelAr: 'عامل التغطية' },
+        { key: 'scoreFormula', label: 'Score Formula', labelAr: 'معادلة الدرجة' },
+        // Late Duration
+        { key: 'totalLateMinutes', label: 'Total Late (min)', labelAr: 'مجموع التأخير (دقيقة)' },
+        { key: 'avgLateMinutes', label: 'Avg Late (min)', labelAr: 'متوسط التأخير' },
+        { key: 'maxLateMinutes', label: 'Max Late (min)', labelAr: 'أقصى تأخير' },
+        { key: 'lateScoreAvg', label: 'Avg Late Credit (0-1)', labelAr: 'متوسط رصيد التأخير' },
       );
     } else if (dataType === 'dateAnalytics') {
       // Date fields
@@ -2692,6 +2702,9 @@ const AttendanceRecords = () => {
         { key: 'lateNames', label: 'Late Names', labelAr: 'أسماء المتأخرين' },
         { key: 'excusedNames', label: 'Excused Names', labelAr: 'أسماء المعذورين' },
         { key: 'absentNames', label: 'Absent Names', labelAr: 'أسماء الغائبين' },
+        // Late Duration
+        { key: 'totalLateMinutes', label: 'Total Late (min)', labelAr: 'مجموع التأخير (دقيقة)' },
+        { key: 'avgLateMinutes', label: 'Avg Late (min)', labelAr: 'متوسط التأخير' },
       );
     } else if (dataType === 'hostAnalytics') {
       // Host fields
