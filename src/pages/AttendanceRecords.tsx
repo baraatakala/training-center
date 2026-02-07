@@ -242,6 +242,9 @@ const AttendanceRecords = () => {
   // Collapse state for analytics sections
   const [collapseStudentTable, setCollapseStudentTable] = useState(false);
   const [collapseDateTable, setCollapseDateTable] = useState(false);
+  const [collapseScoreExplainer, setCollapseScoreExplainer] = useState(true);
+  const [scoreExplainerStudent, setScoreExplainerStudent] = useState<string>('');
+  const [scoreExplainerLang, setScoreExplainerLang] = useState<'en' | 'ar' | 'both'>('both');
 
   // Sorting state
   const [sortColumn, setSortColumn] = useState<string | null>(null);
@@ -3607,6 +3610,312 @@ const AttendanceRecords = () => {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════════
+          WEIGHTED SCORE EXPLAINER — Bilingual, per-student breakdown
+          ════════════════════════════════════════════════════════════════════ */}
+      {showAnalytics && studentAnalytics.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg dark:shadow-gray-900/30 overflow-hidden border border-indigo-100 dark:border-indigo-900/40">
+          {/* Header */}
+          <button
+            onClick={() => setCollapseScoreExplainer(prev => !prev)}
+            className="w-full px-5 sm:px-6 py-4 bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 dark:from-indigo-900/30 dark:via-purple-900/30 dark:to-pink-900/30 border-b border-indigo-100 dark:border-indigo-800 flex items-center justify-between hover:from-indigo-100 hover:via-purple-100 hover:to-pink-100 dark:hover:from-indigo-900/40 dark:hover:via-purple-900/40 dark:hover:to-pink-900/40 transition-all cursor-pointer group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md group-hover:scale-105 transition-transform">
+                <span className="text-white text-lg">🧮</span>
+              </div>
+              <div className="text-left">
+                <h2 className="text-base sm:text-lg font-bold bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">
+                  Score Breakdown / تفصيل الدرجات
+                </h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Understand how each student's weighted score is calculated — افهم كيف يتم حساب الدرجة المرجحة لكل طالب
+                </p>
+              </div>
+            </div>
+            <svg className={`w-5 h-5 text-indigo-500 dark:text-indigo-400 transition-transform duration-300 ${collapseScoreExplainer ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {!collapseScoreExplainer && (
+            <div className="p-5 sm:p-6 space-y-6">
+
+              {/* ── Formula Overview ── */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* English */}
+                {(scoreExplainerLang === 'en' || scoreExplainerLang === 'both') && (
+                <div className="relative overflow-hidden rounded-xl border border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-5">
+                  <div className="absolute top-0 right-0 w-24 h-24 opacity-5 text-8xl">📐</div>
+                  <h3 className="font-bold text-blue-800 dark:text-blue-300 text-sm uppercase tracking-wider mb-3">🇬🇧 How Your Score Works</h3>
+                  <div className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
+                    <div className="bg-white/60 dark:bg-gray-800/60 rounded-lg p-3 font-mono text-xs border border-blue-100 dark:border-blue-800">
+                      <div className="text-blue-600 dark:text-blue-400 font-bold mb-1">Raw Score =</div>
+                      <div className="pl-4 space-y-0.5">
+                        <div><span className="text-emerald-600 dark:text-emerald-400 font-bold">50%</span> × Quality Rate <span className="text-gray-400">(on-time = full, late = partial credit)</span></div>
+                        <div><span className="text-blue-600 dark:text-blue-400 font-bold">25%</span> × Attendance Rate <span className="text-gray-400">(showed up at all)</span></div>
+                        <div><span className="text-purple-600 dark:text-purple-400 font-bold">15%</span> × Consistency <span className="text-gray-400">(regular patterns, not clustered absences)</span></div>
+                        <div><span className="text-amber-600 dark:text-amber-400 font-bold">10%</span> × Punctuality <span className="text-gray-400">(on-time ÷ total present)</span></div>
+                      </div>
+                      <div className="mt-2 pt-2 border-t border-blue-100 dark:border-blue-800">
+                        <span className="text-indigo-600 dark:text-indigo-400 font-bold">Final Score</span> = Raw Score × √(Your Days ÷ Total Sessions)
+                      </div>
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs">✨ On time = 100% credit</span>
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs">⏰ 15 min late ≈ 71%</span>
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-xs">🕐 30 min late ≈ 50%</span>
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs">📉 60 min late ≈ 25%</span>
+                    </div>
+                  </div>
+                </div>
+                )}
+
+                {/* Arabic */}
+                {(scoreExplainerLang === 'ar' || scoreExplainerLang === 'both') && (
+                <div dir="rtl" className="relative overflow-hidden rounded-xl border border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 p-5">
+                  <div className="absolute top-0 left-0 w-24 h-24 opacity-5 text-8xl">📐</div>
+                  <h3 className="font-bold text-emerald-800 dark:text-emerald-300 text-sm uppercase tracking-wider mb-3">🇸🇦 كيف يتم حساب درجتك</h3>
+                  <div className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
+                    <div className="bg-white/60 dark:bg-gray-800/60 rounded-lg p-3 font-mono text-xs border border-emerald-100 dark:border-emerald-800">
+                      <div className="text-emerald-600 dark:text-emerald-400 font-bold mb-1">الدرجة الخام =</div>
+                      <div className="pr-4 space-y-0.5">
+                        <div><span className="text-emerald-600 dark:text-emerald-400 font-bold">٥٠٪</span> × معدل الجودة <span className="text-gray-400">(حضور بالوقت = كامل، متأخر = رصيد جزئي)</span></div>
+                        <div><span className="text-blue-600 dark:text-blue-400 font-bold">٢٥٪</span> × معدل الحضور <span className="text-gray-400">(حضرت أصلاً)</span></div>
+                        <div><span className="text-purple-600 dark:text-purple-400 font-bold">١٥٪</span> × الانتظام <span className="text-gray-400">(نمط منتظم، ليس غياب متتالي)</span></div>
+                        <div><span className="text-amber-600 dark:text-amber-400 font-bold">١٠٪</span> × الالتزام بالوقت <span className="text-gray-400">(بالوقت ÷ مجموع الحضور)</span></div>
+                      </div>
+                      <div className="mt-2 pt-2 border-t border-emerald-100 dark:border-emerald-800">
+                        <span className="text-indigo-600 dark:text-indigo-400 font-bold">الدرجة النهائية</span> = الدرجة الخام × √(أيامك ÷ إجمالي الجلسات)
+                      </div>
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs">✨ بالوقت = ١٠٠٪</span>
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs">⏰ تأخر ١٥ د ≈ ٧١٪</span>
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-xs">🕐 تأخر ٣٠ د ≈ ٥٠٪</span>
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs">📉 تأخر ٦٠ د ≈ ٢٥٪</span>
+                    </div>
+                  </div>
+                </div>
+                )}
+              </div>
+
+              {/* ── Controls ── */}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Language / اللغة:</label>
+                  <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600">
+                    {(['both', 'en', 'ar'] as const).map((lang) => (
+                      <button
+                        key={lang}
+                        onClick={() => setScoreExplainerLang(lang)}
+                        className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                          scoreExplainerLang === lang
+                            ? 'bg-indigo-500 text-white'
+                            : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
+                        }`}
+                      >
+                        {lang === 'both' ? '🌍 Both' : lang === 'en' ? '🇬🇧 EN' : '🇸🇦 AR'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Student / الطالب:</label>
+                  <select
+                    value={scoreExplainerStudent}
+                    onChange={(e) => setScoreExplainerStudent(e.target.value)}
+                    className="flex-1 text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-700"
+                  >
+                    <option value="">All Students — جميع الطلاب</option>
+                    {studentAnalytics
+                      .sort((a, b) => b.weightedScore - a.weightedScore)
+                      .map((s) => (
+                        <option key={s.student_id} value={s.student_id}>
+                          {s.student_name} — {s.weightedScore.toFixed(1)}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* ── Per-Student Score Cards ── */}
+              <div className="space-y-3">
+                {studentAnalytics
+                  .filter((s) => !scoreExplainerStudent || s.student_id === scoreExplainerStudent)
+                  .sort((a, b) => b.weightedScore - a.weightedScore)
+                  .slice(0, scoreExplainerStudent ? 1 : 50)
+                  .map((student, idx) => {
+                    const totalPres = student.presentCount + student.lateCount;
+                    const punctRate = totalPres > 0 ? (student.presentCount / totalPres) * 100 : 0;
+                    const consistencyPct = student.consistencyIndex * 100;
+                    const qualityPct = student.qualityAdjustedRate;
+                    const attendancePct = student.attendanceRate;
+
+                    // Calculate individual component contributions
+                    const qualityContrib = 0.50 * qualityPct;
+                    const attendanceContrib = 0.25 * attendancePct;
+                    const consistencyContrib = 0.15 * consistencyPct;
+                    const punctualityContrib = 0.10 * punctRate;
+                    const rawScore = qualityContrib + attendanceContrib + consistencyContrib + punctualityContrib;
+                    const coverageF = student.coverageFactor || 0;
+                    const finalScore = student.weightedScore;
+
+                    // Score grade
+                    const grade = finalScore >= 90 ? { label: 'Excellent / ممتاز', emoji: '🏆', color: 'emerald' }
+                      : finalScore >= 75 ? { label: 'Very Good / جيد جداً', emoji: '🌟', color: 'blue' }
+                      : finalScore >= 60 ? { label: 'Good / جيد', emoji: '👍', color: 'amber' }
+                      : finalScore >= 40 ? { label: 'Needs Improvement / يحتاج تحسين', emoji: '⚠️', color: 'orange' }
+                      : { label: 'Critical / حرج', emoji: '🚨', color: 'red' };
+
+                    // Find weakest area
+                    const components = [
+                      { name: 'Quality', nameAr: 'الجودة', value: qualityPct, weight: 50 },
+                      { name: 'Attendance', nameAr: 'الحضور', value: attendancePct, weight: 25 },
+                      { name: 'Consistency', nameAr: 'الانتظام', value: consistencyPct, weight: 15 },
+                      { name: 'Punctuality', nameAr: 'الالتزام', value: punctRate, weight: 10 },
+                    ];
+                    const weakest = [...components].sort((a, b) => a.value - b.value)[0];
+                    const strongest = [...components].sort((a, b) => b.value - a.value)[0];
+
+                    return (
+                      <div
+                        key={student.student_id}
+                        className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden hover:shadow-md transition-all duration-200"
+                      >
+                        {/* Student header bar */}
+                        <div className={`px-4 py-3 flex flex-wrap items-center justify-between gap-2 bg-gradient-to-r ${
+                          grade.color === 'emerald' ? 'from-emerald-50 to-green-50 dark:from-emerald-900/20 dark:to-green-900/20' :
+                          grade.color === 'blue' ? 'from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20' :
+                          grade.color === 'amber' ? 'from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/20' :
+                          grade.color === 'orange' ? 'from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20' :
+                          'from-red-50 to-pink-50 dark:from-red-900/20 dark:to-pink-900/20'
+                        }`}>
+                          <div className="flex items-center gap-3">
+                            <span className="text-lg">{grade.emoji}</span>
+                            <div>
+                              <div className="font-bold text-gray-800 dark:text-white text-sm">{student.student_name}</div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400">{grade.label}</div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <div className="text-2xl font-black bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">
+                                {finalScore.toFixed(1)}
+                              </div>
+                              <div className="text-[10px] text-gray-400 dark:text-gray-500 font-mono">/ 100</div>
+                            </div>
+                            <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded-full">#{idx + 1}</span>
+                          </div>
+                        </div>
+
+                        {/* Score Breakdown */}
+                        <div className="px-4 py-4 space-y-3">
+                          {/* Component bars */}
+                          <div className="space-y-2">
+                            {[
+                              { label: 'Quality / الجودة', labelShort: '50%', value: qualityPct, contrib: qualityContrib, color: 'emerald', icon: '💎' },
+                              { label: 'Attendance / الحضور', labelShort: '25%', value: attendancePct, contrib: attendanceContrib, color: 'blue', icon: '📅' },
+                              { label: 'Consistency / الانتظام', labelShort: '15%', value: consistencyPct, contrib: consistencyContrib, color: 'purple', icon: '📊' },
+                              { label: 'Punctuality / الالتزام', labelShort: '10%', value: punctRate, contrib: punctualityContrib, color: 'amber', icon: '⏰' },
+                            ].map((comp) => (
+                              <div key={comp.label} className="group/bar">
+                                <div className="flex items-center justify-between text-xs mb-0.5">
+                                  <div className="flex items-center gap-1.5">
+                                    <span>{comp.icon}</span>
+                                    <span className="font-medium text-gray-700 dark:text-gray-300">{comp.label}</span>
+                                    <span className="text-gray-400 dark:text-gray-500 font-mono">({comp.labelShort})</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-bold text-gray-800 dark:text-gray-200">{comp.value.toFixed(1)}%</span>
+                                    <span className="text-gray-400 dark:text-gray-500 text-[10px] font-mono">→ +{comp.contrib.toFixed(1)}</span>
+                                  </div>
+                                </div>
+                                <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all duration-500 ${
+                                      comp.color === 'emerald' ? 'bg-gradient-to-r from-emerald-400 to-emerald-500' :
+                                      comp.color === 'blue' ? 'bg-gradient-to-r from-blue-400 to-blue-500' :
+                                      comp.color === 'purple' ? 'bg-gradient-to-r from-purple-400 to-purple-500' :
+                                      'bg-gradient-to-r from-amber-400 to-amber-500'
+                                    }`}
+                                    style={{ width: `${Math.min(comp.value, 100)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Raw → Coverage → Final pipeline */}
+                          <div className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-xs font-mono flex-wrap">
+                            <div className="flex flex-col items-center">
+                              <span className="text-[10px] text-gray-400 dark:text-gray-500">Raw / الخام</span>
+                              <span className="font-bold text-indigo-600 dark:text-indigo-400">{rawScore.toFixed(1)}</span>
+                            </div>
+                            <span className="text-gray-400 dark:text-gray-500">×</span>
+                            <div className="flex flex-col items-center">
+                              <span className="text-[10px] text-gray-400 dark:text-gray-500">Coverage / التغطية</span>
+                              <span className={`font-bold ${coverageF >= 0.8 ? 'text-green-600 dark:text-green-400' : coverageF >= 0.5 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>
+                                {coverageF.toFixed(3)}
+                              </span>
+                            </div>
+                            <span className="text-gray-400 dark:text-gray-500">=</span>
+                            <div className="flex flex-col items-center">
+                              <span className="text-[10px] text-gray-400 dark:text-gray-500">Final / النهائي</span>
+                              <span className="font-black text-base text-purple-600 dark:text-purple-400">{finalScore.toFixed(1)}</span>
+                            </div>
+                            <div className="ml-2 text-[10px] text-gray-400 dark:text-gray-500 border-l border-gray-200 dark:border-gray-600 pl-2">
+                              {student.effectiveDays}d / {dateAnalytics.length} sessions
+                            </div>
+                          </div>
+
+                          {/* Insight / Tip */}
+                          <div className="flex flex-col sm:flex-row gap-2">
+                            {(scoreExplainerLang === 'en' || scoreExplainerLang === 'both') && (
+                            <div className="flex-1 text-xs px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 text-blue-700 dark:text-blue-300">
+                              <span className="font-bold">💡 Tip:</span>{' '}
+                              {coverageF < 0.5
+                                ? `Low coverage factor (${coverageF.toFixed(2)}) is significantly reducing your score. Attend more sessions to improve.`
+                                : weakest.value < 50
+                                  ? `Your weakest area is ${weakest.name} (${weakest.value.toFixed(0)}%). Focus on improving this to boost your overall score.`
+                                  : strongest.value >= 90
+                                    ? `Great ${strongest.name.toLowerCase()} at ${strongest.value.toFixed(0)}%! ${weakest.name} (${weakest.value.toFixed(0)}%) has the most room for improvement.`
+                                    : `Well-balanced performance. Keep maintaining your attendance and punctuality.`
+                              }
+                            </div>
+                            )}
+                            {(scoreExplainerLang === 'ar' || scoreExplainerLang === 'both') && (
+                            <div dir="rtl" className="flex-1 text-xs px-3 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
+                              <span className="font-bold">💡 نصيحة:</span>{' '}
+                              {coverageF < 0.5
+                                ? `معامل التغطية منخفض (${coverageF.toFixed(2)}) وهذا يقلل درجتك بشكل كبير. احضر المزيد من الجلسات للتحسين.`
+                                : weakest.value < 50
+                                  ? `أضعف نقطة لديك هي ${weakest.nameAr} (${weakest.value.toFixed(0)}٪). ركّز على تحسينها لرفع درجتك.`
+                                  : strongest.value >= 90
+                                    ? `${strongest.nameAr} ممتاز بنسبة ${strongest.value.toFixed(0)}٪! ${weakest.nameAr} (${weakest.value.toFixed(0)}٪) فيه أكبر مجال للتحسين.`
+                                    : `أداء متوازن. حافظ على حضورك والتزامك بالوقت.`
+                              }
+                            </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+
+              {/* Show count when viewing all */}
+              {!scoreExplainerStudent && studentAnalytics.length > 50 && (
+                <p className="text-center text-xs text-gray-400 dark:text-gray-500">
+                  Showing top 50 of {studentAnalytics.length} students — عرض أفضل ٥٠ من {studentAnalytics.length} طالب
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
