@@ -1985,12 +1985,30 @@ const AttendanceRecords = () => {
       const consistencyIndex = calculateConsistencyIndex(dailyPattern);
       const consistencyPercentage = consistencyIndex * 100; // Convert 0-1 to 0-100
       
-      const weightedScore = 
+      const rawWeightedScore = 
         (0.50 * qualityAdjustedRate) +    // 50% Quality (with late penalties)
         (0.25 * attendanceRate) +          // 25% Attendance (showed up)
         (0.15 * consistencyPercentage) +   // 15% Consistency (regular patterns)
         (0.10 * punctualityPercentage);    // 10% Punctuality (on-time ratio)
 
+      // ==================== COVERAGE FACTOR ====================
+      // Penalize students with very few effective days relative to total sessions.
+      // Uses square root scaling: coverageFactor = sqrt(effectiveDays / totalSessionDays)
+      // This ensures students who only attended 1-2 days don't outrank
+      // students who maintained good attendance over 20+ sessions.
+      //
+      // Examples (with 27 total sessions):
+      //   1 day  → factor = 0.19  (heavy penalty)
+      //   2 days → factor = 0.27  (heavy penalty)
+      //   8 days → factor = 0.54  (moderate penalty)
+      //  15 days → factor = 0.75  (mild penalty)
+      //  24 days → factor = 0.94  (almost full credit)
+      //  27 days → factor = 1.00  (full credit)
+      const totalSessionDays = uniqueDates.length;
+      const coverageFactor = totalSessionDays > 0 
+        ? Math.sqrt(effectiveBase / totalSessionDays) 
+        : 1;
+      const weightedScore = rawWeightedScore * Math.min(coverageFactor, 1);
       // Calculate trend using student-specific dates (not all session dates)
       const cumulativeRates = calculateCumulativeRates(studentId, studentUniqueDates, analyticsRecords);
       const trend = calculateTrend(cumulativeRates.slice(-6)); // Last 6 samples
