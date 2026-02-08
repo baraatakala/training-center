@@ -11,6 +11,7 @@ import { studentService } from '../services/studentService';
 import { toast } from '../components/ui/toastUtils';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useIsTeacher } from '../hooks/useIsTeacher';
+import { useDebounce } from '../hooks/useDebounce';
 import type { Student, CreateStudent } from '../types/database.types';
 import { TableSkeleton } from '../components/ui/Skeleton';
 
@@ -19,6 +20,7 @@ export function Students() {
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebounce(searchQuery, 300);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | undefined>();
@@ -51,8 +53,8 @@ export function Students() {
 
   useEffect(() => {
     let result = [...students];
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
+    if (debouncedSearch) {
+      const query = debouncedSearch.toLowerCase();
       result = result.filter(
         (s) =>
           s.name.toLowerCase().includes(query) ||
@@ -75,7 +77,7 @@ export function Students() {
     });
     setFilteredStudents(result);
     setCurrentPage(1);
-  }, [searchQuery, students, sortField, sortDirection]);
+  }, [debouncedSearch, students, sortField, sortDirection]);
 
   const toggleSort = (field: typeof sortField) => {
     if (sortField === field) {

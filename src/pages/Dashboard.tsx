@@ -3,8 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
-import { studentService } from '../services/studentService';
-import { enrollmentService } from '../services/enrollmentService';
 import { supabase } from '../lib/supabase';
 import { Tables } from '../types/database.types';
 import { format } from 'date-fns';
@@ -51,18 +49,19 @@ export function Dashboard() {
 
   const loadStats = async () => {
     try {
+      // Use count-only queries instead of fetching all rows (massive perf win)
       const [studentsRes, enrollmentsRes, teachersRes, sessionsRes] = await Promise.all([
-        studentService.getAll(),
-        enrollmentService.getActive(),
-        supabase.from(Tables.TEACHER).select('teacher_id'),
-        supabase.from(Tables.SESSION).select('session_id'),
+        supabase.from(Tables.STUDENT).select('student_id', { count: 'exact', head: true }),
+        supabase.from(Tables.ENROLLMENT).select('enrollment_id', { count: 'exact', head: true }).eq('status', 'active'),
+        supabase.from(Tables.TEACHER).select('teacher_id', { count: 'exact', head: true }),
+        supabase.from(Tables.SESSION).select('session_id', { count: 'exact', head: true }),
       ]);
 
       setStats({
-        totalStudents: studentsRes.data?.length || 0,
-        totalTeachers: teachersRes.data?.length || 0,
-        activeEnrollments: enrollmentsRes.data?.length || 0,
-        totalSessions: sessionsRes.data?.length || 0,
+        totalStudents: studentsRes.count || 0,
+        totalTeachers: teachersRes.count || 0,
+        activeEnrollments: enrollmentsRes.count || 0,
+        totalSessions: sessionsRes.count || 0,
         loading: false,
       });
     } catch (err) {
@@ -75,7 +74,7 @@ export function Dashboard() {
     setLoadingAlerts(true);
     try {
       // Get attendance records with session and course info, ordered by date descending
-      let query = supabase
+      let attendanceQuery = supabase
         .from('attendance')
         .select(`
           student_id,
@@ -88,13 +87,24 @@ export function Dashboard() {
       
       // Apply date filters if set
       if (startDate) {
-        query = query.gte('attendance_date', startDate);
+        attendanceQuery = attendanceQuery.gte('attendance_date', startDate);
       }
       if (endDate) {
-        query = query.lte('attendance_date', endDate);
+        attendanceQuery = attendanceQuery.lte('attendance_date', endDate);
       }
       
-      const { data: attendanceRecords } = await query.order('attendance_date', { ascending: false });
+      // Run attendance and courses queries in parallel
+      const [attendanceResult, coursesResult] = await Promise.all([
+        attendanceQuery.order('attendance_date', { ascending: false }),
+        supabase.from('course').select('course_id, course_name').order('course_name'),
+      ]);
+
+      const attendanceRecords = attendanceResult.data;
+      const coursesData = coursesResult.data;
+
+      if (coursesData) {
+        setCourses(coursesData.map(c => ({ id: c.course_id, name: c.course_name })));
+      }
 
       if (!attendanceRecords || attendanceRecords.length === 0) {
         setAbsentStudents([]);
@@ -103,16 +113,6 @@ export function Dashboard() {
       }
 
       // Using ALL attendance records for comprehensive analysis (not just last 4 dates)
-
-      // Load courses for filter
-      const { data: coursesData } = await supabase
-        .from('course')
-        .select('course_id, course_name')
-        .order('course_name');
-      
-      if (coursesData) {
-        setCourses(coursesData.map(c => ({ id: c.course_id, name: c.course_name })));
-      }
 
       // Group by student per course with FULL history
       const studentCourseData: { 

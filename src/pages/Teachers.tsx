@@ -9,6 +9,7 @@ import { teacherService } from '../services/teacherService';
 import { toast } from '../components/ui/toastUtils';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useIsTeacher } from '../hooks/useIsTeacher';
+import { useDebounce } from '../hooks/useDebounce';
 import type { Teacher, CreateTeacher } from '../types/database.types';
 import { TableSkeleton } from '../components/ui/Skeleton';
 
@@ -21,6 +22,7 @@ export function Teachers() {
   const [filteredTeachers, setFilteredTeachers] = useState<TeacherWithCount[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebounce(searchQuery, 300);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | undefined>();
   const { isTeacher } = useIsTeacher();
@@ -58,8 +60,8 @@ export function Teachers() {
 
   useEffect(() => {
     let result = [...teachers];
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
+    if (debouncedSearch) {
+      const query = debouncedSearch.toLowerCase();
       result = result.filter(
         (t) =>
           t.name.toLowerCase().includes(query) ||
@@ -80,7 +82,7 @@ export function Teachers() {
       return sortDirection === 'desc' ? -cmp : cmp;
     });
     setFilteredTeachers(result);
-  }, [searchQuery, teachers, sortField, sortDirection]);
+  }, [debouncedSearch, teachers, sortField, sortDirection]);
 
   const toggleSort = (field: typeof sortField) => {
     if (sortField === field) {

@@ -10,6 +10,7 @@ import { enrollmentService } from '../services/enrollmentService';
 import { toast } from '../components/ui/toastUtils';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useIsTeacher } from '../hooks/useIsTeacher';
+import { useDebounce } from '../hooks/useDebounce';
 import { TableSkeleton } from '../components/ui/Skeleton';
 import type { CreateEnrollment, UpdateEnrollment } from '../types/database.types';
 
@@ -35,6 +36,7 @@ export function Enrollments() {
   const [filteredEnrollments, setFilteredEnrollments] = useState<EnrollmentWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebounce(searchQuery, 300);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEnrollment, setEditingEnrollment] = useState<EnrollmentWithDetails | null>(null);
   const [showOnlyHosting, setShowOnlyHosting] = useState(false);
@@ -69,8 +71,8 @@ export function Enrollments() {
     let filtered = [...enrollments];
     
     // Apply search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
+    if (debouncedSearch) {
+      const query = debouncedSearch.toLowerCase();
       filtered = filtered.filter(
         (e) =>
           e.student.name.toLowerCase().includes(query) ||
@@ -122,7 +124,7 @@ export function Enrollments() {
     
     setFilteredEnrollments(filtered);
     setCurrentPage(1);
-  }, [searchQuery, enrollments, showOnlyHosting, statusFilter, sortBy, sortOrder]);
+  }, [debouncedSearch, enrollments, showOnlyHosting, statusFilter, sortBy, sortOrder]);
 
   const toggleSort = (column: 'student' | 'course' | 'date' | 'status' | 'canHost') => {
     if (sortBy === column) {

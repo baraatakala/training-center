@@ -14,6 +14,7 @@ import { sessionService } from '../services/sessionService';
 import { toast } from '../components/ui/toastUtils';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useIsTeacher } from '../hooks/useIsTeacher';
+import { useDebounce } from '../hooks/useDebounce';
 import { Tables, type CreateSession } from '../types/database.types';
 
 type SessionWithDetails = {
@@ -39,6 +40,7 @@ export function Sessions() {
   const [filteredSessions, setFilteredSessions] = useState<SessionWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebounce(searchQuery, 300);
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'upcoming' | 'completed'>('all');
   const [sortBy, setSortBy] = useState<'course' | 'teacher' | 'startDate' | 'endDate'>('startDate');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -103,9 +105,9 @@ export function Sessions() {
     
     let filtered = sessions.filter(
       (session) =>
-        session.course.course_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        session.teacher.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        session.course.category.toLowerCase().includes(searchQuery.toLowerCase())
+        session.course.course_name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        session.teacher.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        session.course.category.toLowerCase().includes(debouncedSearch.toLowerCase())
     );
 
     // Apply status filter
@@ -159,7 +161,7 @@ export function Sessions() {
 
     setFilteredSessions(filtered);
     setCurrentPage(1);
-  }, [searchQuery, statusFilter, sessions, sortBy, sortOrder]);
+  }, [debouncedSearch, statusFilter, sessions, sortBy, sortOrder]);
 
   // Removed unused toggleSort function - sorting is handled by dropdown and toggle button
 
