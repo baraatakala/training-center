@@ -4,6 +4,7 @@ import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { SearchBar } from '../components/ui/SearchBar';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
+import { Pagination } from '../components/ui/Pagination';
 import { CourseForm } from '../components/CourseForm';
 import { BookReferencesManager } from '../components/BookReferencesManager';
 import { courseService } from '../services/courseService';
@@ -34,6 +35,8 @@ export function Courses() {
   const { isTeacher } = useIsTeacher();
   const [error, setError] = useState<string | null>(null);
   const [deletingCourse, setDeletingCourse] = useState<CourseWithTeacher | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
 
   const loadCourses = async () => {
     setLoading(true);
@@ -67,6 +70,7 @@ export function Courses() {
     } else {
       setFilteredCourses(courses);
     }
+    setCurrentPage(1);
   }, [searchQuery, courses]);
 
   const handleAddCourse = async (data: CreateCourse) => {
@@ -199,6 +203,7 @@ export function Courses() {
               </div>
             </div>
           ) : (
+            <>
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -210,7 +215,9 @@ export function Courses() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredCourses.map((course) => (
+                  {filteredCourses
+                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                    .map((course) => (
                     <TableRow key={course.course_id}>
                       <TableCell className="font-medium text-gray-900 dark:text-white min-w-[150px]">
                         <div className="flex flex-col">
@@ -264,6 +271,21 @@ export function Courses() {
                 </TableBody>
               </Table>
             </div>
+
+            {filteredCourses.length > 0 && (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={Math.ceil(filteredCourses.length / itemsPerPage)}
+                totalItems={filteredCourses.length}
+                itemsPerPage={itemsPerPage}
+                onPageChange={(page) => setCurrentPage(page)}
+                onItemsPerPageChange={(items) => {
+                  setItemsPerPage(items);
+                  setCurrentPage(1);
+                }}
+              />
+            )}
+            </>
           )}
         </div>
       )}

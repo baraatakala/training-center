@@ -4,6 +4,7 @@ import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { SearchBar } from '../components/ui/SearchBar';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
+import { Pagination } from '../components/ui/Pagination';
 import { EnrollmentForm } from '../components/EnrollmentForm';
 import { enrollmentService } from '../services/enrollmentService';
 import { toast } from '../components/ui/toastUtils';
@@ -42,6 +43,8 @@ export function Enrollments() {
   const { isTeacher } = useIsTeacher();
   const [error, setError] = useState<string | null>(null);
   const [deletingEnrollmentId, setDeletingEnrollmentId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
 
   const loadEnrollments = async () => {
     setLoading(true);
@@ -117,6 +120,7 @@ export function Enrollments() {
     });
     
     setFilteredEnrollments(filtered);
+    setCurrentPage(1);
   }, [searchQuery, enrollments, showOnlyHosting, statusFilter, sortBy, sortOrder]);
 
   const toggleSort = (column: 'student' | 'course' | 'date' | 'status' | 'canHost') => {
@@ -297,6 +301,7 @@ export function Enrollments() {
                 : 'No enrollments found. Click "Enroll Student" to get started.'}
             </div>
           ) : (
+            <>
             <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -346,7 +351,9 @@ export function Enrollments() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredEnrollments.map((enrollment) => (
+                {filteredEnrollments
+                  .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                  .map((enrollment) => (
                   <TableRow key={enrollment.enrollment_id}>
                     <TableCell className="font-medium text-gray-900 dark:text-white">
                       {enrollment.student.name}
@@ -432,6 +439,21 @@ export function Enrollments() {
               </TableBody>
             </Table>
             </div>
+
+            {filteredEnrollments.length > 0 && (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={Math.ceil(filteredEnrollments.length / itemsPerPage)}
+                totalItems={filteredEnrollments.length}
+                itemsPerPage={itemsPerPage}
+                onPageChange={(page) => setCurrentPage(page)}
+                onItemsPerPageChange={(items) => {
+                  setItemsPerPage(items);
+                  setCurrentPage(1);
+                }}
+              />
+            )}
+            </>
           )}
         </div>
       )}
