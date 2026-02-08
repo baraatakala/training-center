@@ -43,26 +43,32 @@ export function Dashboard() {
 
   const [absentStudents, setAbsentStudents] = useState<AbsentStudent[]>([]);
   const [loadingAlerts, setLoadingAlerts] = useState(false);
+  const [isTeacher, setIsTeacher] = useState<boolean | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<string>('all');
   const [courses, setCourses] = useState<{ id: string; name: string }[]>([]);
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
 
   const loadStats = async () => {
-    const [studentsRes, enrollmentsRes, teachersRes, sessionsRes] = await Promise.all([
-      studentService.getAll(),
-      enrollmentService.getActive(),
-      supabase.from(Tables.TEACHER).select('teacher_id'),
-      supabase.from(Tables.SESSION).select('session_id'),
-    ]);
+    try {
+      const [studentsRes, enrollmentsRes, teachersRes, sessionsRes] = await Promise.all([
+        studentService.getAll(),
+        enrollmentService.getActive(),
+        supabase.from(Tables.TEACHER).select('teacher_id'),
+        supabase.from(Tables.SESSION).select('session_id'),
+      ]);
 
-    setStats({
-      totalStudents: studentsRes.data?.length || 0,
-      totalTeachers: teachersRes.data?.length || 0,
-      activeEnrollments: enrollmentsRes.data?.length || 0,
-      totalSessions: sessionsRes.data?.length || 0,
-      loading: false,
-    });
+      setStats({
+        totalStudents: studentsRes.data?.length || 0,
+        totalTeachers: teachersRes.data?.length || 0,
+        activeEnrollments: enrollmentsRes.data?.length || 0,
+        totalSessions: sessionsRes.data?.length || 0,
+        loading: false,
+      });
+    } catch (err) {
+      console.error('Error loading stats:', err);
+      setStats(prev => ({ ...prev, loading: false }));
+    }
   };
 
   const loadAttendanceAlerts = async () => {
@@ -218,7 +224,6 @@ export function Dashboard() {
           // === TIME-WEIGHTED RECENCY ANALYSIS ===
           // Recent absences carry more weight using exponential decay
           let recencyScore = 0;
-          const recentAbsences = absentDates.filter(d => new Date(d) >= oneWeekAgo).length;
           const weeklyAbsences = absentDates.filter(d => new Date(d) >= oneWeekAgo).length;
           
           absentDates.forEach((absDate) => {
@@ -394,9 +399,6 @@ export function Dashboard() {
           // Clamp to 0-100
           engagementScore = Math.max(0, Math.min(100, engagementScore));
 
-          // Clamp to 0-100
-          engagementScore = Math.max(0, Math.min(100, engagementScore));
-
           // === AI-POWERED RISK ASSESSMENT WITH DYNAMIC THRESHOLDS ===
           let riskLevel: 'critical' | 'high' | 'medium' | 'watch' = 'watch';
           let shouldAlert = false;
@@ -431,7 +433,7 @@ export function Dashboard() {
           else if (recentConsecutive >= 3) recentRiskPoints = 20;
           else if (recentConsecutive >= 2) recentRiskPoints = 12;
           else if (weeklyAbsences >= 2) recentRiskPoints = 10;
-          else if (recentAbsences >= 1) recentRiskPoints = 5;
+          else if (weeklyAbsences >= 1) recentRiskPoints = 5;
           
           // Add recency weight
           recentRiskPoints += normalizedRecency * 0.15;
@@ -630,6 +632,25 @@ Please contact the training center urgently.`;
   };
 
   useEffect(() => {
+    const init = async () => {
+      // Check if current user is a teacher
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.email) {
+          const { data: teacher } = await supabase
+            .from('teacher')
+            .select('teacher_id')
+            .ilike('email', user.email)
+            .single();
+          setIsTeacher(!!teacher);
+        } else {
+          setIsTeacher(false);
+        }
+      } catch {
+        setIsTeacher(false);
+      }
+    };
+    init();
     loadStats();
     loadAttendanceAlerts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -752,17 +773,18 @@ Please contact the training center urgently.`;
                 View Sessions
               </Button>
             </Link>
-            <Link to="/sessions">
+            <Link to="/attendance-records">
               <Button variant="outline" className="w-full justify-start gap-3" size="lg">
                 <svg className="w-5 h-5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
-                Mark Attendance
+                Attendance Records
               </Button>
             </Link>
           </div>
         </CardContent>
       </Card>
 
-      {/* Attendance Alerts - Enhanced Analytics */}
+      {/* Attendance Alerts - Enhanced Analytics (Teachers Only) */}
+      {isTeacher && (
       <Card>
         <CardHeader className="flex flex-col gap-4">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -914,7 +936,7 @@ Please contact the training center urgently.`;
                     return (
                       <div
                         key={`${student.student_id}-${student.course_id}`}
-                        className={`block p-4 rounded-lg border-2 ${style.bg} ${style.border} ${style.hover} transition-colors cursor-pointer`}
+                        className={`block p-4 rounded-lg border-2 ${style.bg} ${style.border} ${style.hover} transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-500`}
                         onClick={() => {
                           const params = new URLSearchParams({
                             studentName: student.student_name,
@@ -1043,6 +1065,18 @@ Please contact the training center urgently.`;
           })()}
         </CardContent>
       </Card>
+      )}
+
+      {/* Student-facing: Simple personal message */}
+      {isTeacher === false && (
+        <Card>
+          <CardContent className="py-8 text-center">
+            <div className="text-4xl mb-3">📚</div>
+            <p className="text-gray-700 dark:text-gray-200 font-medium text-lg">Welcome to the Training Center</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Navigate to your courses, sessions, and attendance records using the menu above.</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
