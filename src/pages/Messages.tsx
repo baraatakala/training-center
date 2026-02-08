@@ -8,6 +8,8 @@ import { Modal } from '../components/ui/Modal';
 import { Skeleton } from '../components/ui/Skeleton';
 import { supabase } from '../lib/supabase';
 import { messageService } from '../services/communicationService';
+import { toast } from '../components/ui/toastUtils';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import type { Message, CreateMessageData } from '../services/communicationService';
 import { format, formatDistanceToNow, isToday, isYesterday } from 'date-fns';
 
@@ -224,7 +226,7 @@ export function Messages() {
 
   const handleSendMessage = async () => {
     if (!formRecipientId || !formContent.trim()) {
-      alert('Please select a recipient and enter a message');
+      toast.warning('Please select a recipient and enter a message');
       return;
     }
 
@@ -235,7 +237,7 @@ export function Messages() {
       const elapsed = Math.floor((Date.now() - lastSentAt) / 1000);
       if (elapsed < STUDENT_COOLDOWN_SECONDS && lastSentAt > 0) {
         const remaining = STUDENT_COOLDOWN_SECONDS - elapsed;
-        alert(`Please wait ${remaining}s before sending another message.`);
+        toast.warning(`Please wait ${remaining}s before sending another message.`);
         return;
       }
     }
@@ -263,7 +265,7 @@ export function Messages() {
       closeComposeModal();
     } catch (err) {
       console.error('Error sending message:', err);
-      alert('Failed to send message');
+      toast.error('Failed to send message');
     } finally {
       setSubmitting(false);
     }
@@ -280,22 +282,29 @@ export function Messages() {
     ));
   };
 
-  const handleDelete = async (messageId: string) => {
-    if (!window.confirm('Are you sure you want to delete this message?')) return;
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
 
+  const handleDelete = async (messageId: string) => {
+    setDeletingMessageId(messageId);
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingMessageId) return;
     try {
-      const { error: err } = await messageService.delete(messageId);
+      const { error: err } = await messageService.delete(deletingMessageId);
       if (err) {
         console.error('Delete error:', err);
-        alert(`Failed to delete message: ${err.message || 'Permission denied. The database may not allow deletion.'}`);
+        toast.error(`Failed to delete message: ${err.message || 'Permission denied.'}`);
       } else {
+        toast.success('Message deleted');
         await loadMessages();
         setViewingMessage(null);
       }
     } catch (err) {
       console.error('Delete error:', err);
-      alert('Failed to delete message. Please try again.');
+      toast.error('Failed to delete message. Please try again.');
     }
+    setDeletingMessageId(null);
   };
 
   const openComposeModal = (replyTo?: Message) => {
@@ -923,6 +932,18 @@ export function Messages() {
           </div>
         )}
       </Modal>
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        isOpen={!!deletingMessageId}
+        title="Delete Message"
+        message="Are you sure you want to delete this message? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeletingMessageId(null)}
+      />
     </div>
   );
 }
