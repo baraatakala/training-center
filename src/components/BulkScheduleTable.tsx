@@ -2,6 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Tables } from '../types/database.types';
 import { logDelete } from '../services/auditService';
+import { toast } from './ui/toastUtils';
+import { ConfirmDialog } from './ui/ConfirmDialog';
 
 type EnrollmentRow = {
   enrollment_id: string;
@@ -103,6 +105,11 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
   // Export dialog state
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [exportFormat, setExportFormat] = useState<'csv' | 'csv-arabic' | 'pdf' | 'word' | 'word-arabic'>('csv');
+  // ConfirmDialog state for cancel/uncancel session
+  const [cancelConfirm, setCancelConfirm] = useState<{ date: string } | null>(null);
+  const [uncancelConfirm, setUncancelConfirm] = useState<{ date: string } | null>(null);
+  // ConfirmDialog state for assigning a cancelled date
+  const [cancelledDateAssign, setCancelledDateAssign] = useState<{ enrollmentId: string; date: string } | null>(null);
   const [exportFields, setExportFields] = useState({
     studentName: true,
     address: true,
@@ -186,7 +193,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
 
       if (enrollmentError) {
         console.error('Error loading enrollments:', enrollmentError);
-        alert('Failed to load enrollments: ' + enrollmentError.message);
+        toast.error('Failed to load enrollments: ' + enrollmentError.message);
         return;
       }
 
@@ -272,7 +279,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
     } catch (err) {
       const error = err as Error;
       console.error('Enrollment load exception:', error);
-      alert('Error loading enrollments: ' + error.message);
+      toast.error('Error loading enrollments: ' + error.message);
     }
   }, [sessionId]);
 
@@ -286,19 +293,19 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
     
     // Prevent toggling teacher hosting status
     if (enrollment?.is_teacher) {
-      alert('Teacher is always available to host. You cannot change this setting.');
+      toast.info('Teacher is always available to host. You cannot change this setting.');
       return;
     }
     
     // Check if this is a temp enrollment (student not enrolled in session yet)
     if (enrollmentId.startsWith('temp-')) {
-      alert('This student is not enrolled in this session. Please enroll them first in the Enrollments page.');
+      toast.warning('This student is not enrolled in this session. Please enroll them first in the Enrollments page.');
       return;
     }
     
     // Only allow toggling can_host for active enrollments
     if (enrollment?.status !== 'active') {
-      alert('Can only set hosting for active enrollments');
+      toast.warning('Can only set hosting for active enrollments');
       return;
     }
     
@@ -312,7 +319,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
     
     if (error) {
       console.error('Failed to update can_host:', error);
-      alert('Failed to update hosting status: ' + error.message);
+      toast.error('Failed to update hosting status: ' + error.message);
       loadEnrollments(); // Reload to show correct state
     }
   };
@@ -389,123 +396,114 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
     const isCancelled = cancelledDates.has(date);
     
     if (!isCancelled) {
-      // Mark as cancelled
-      const confirmed = window.confirm(
-        `Mark ${new Date(date).toLocaleDateString()} as CANCELLED?\n\n` +
-        'This will:\n' +
-        '• Mark all students as EXCUSED for this date\n' +
-        '• Set excuse reason to "Session Not Held"\n' +
-        '• This date will be excluded from rotation'
-      );
-      
-      if (!confirmed) return;
-      
-      try {
-        // Get all enrollments for this session
-        const { data: enrollments } = await supabase
-          .from(Tables.ENROLLMENT)
-          .select('enrollment_id, student_id')
-          .eq('session_id', sessionId)
-          .eq('status', 'active');
-        
-        if (!enrollments || enrollments.length === 0) {
-          alert('No active enrollments found for this session');
-          return;
-        }
-        
-        // Get authenticated user
-        const { data: { user } } = await supabase.auth.getUser();
-        const userEmail = user?.email || 'system';
-        
-        // Create/update attendance records
-        const records = enrollments.map(e => ({
-          enrollment_id: e.enrollment_id,
-          session_id: sessionId,
-          student_id: e.student_id,
-          attendance_date: date,
-          status: 'excused',
-          excuse_reason: 'session not held',
-          host_address: 'SESSION_NOT_HELD',
-          check_in_time: null,
-          marked_by: `${userEmail} - session cancelled`,
-          marked_at: new Date().toISOString()
-        }));
-        
-        // Upsert records
-        const { error } = await supabase
-          .from(Tables.ATTENDANCE)
-          .upsert(records, { 
-            onConflict: 'enrollment_id,attendance_date',
-            ignoreDuplicates: false 
-          });
-        
-        if (error) {
-          console.error('Failed to mark session as cancelled:', error);
-          alert('Failed to mark session as cancelled: ' + error.message);
-          return;
-        }
-        
-        setCancelledDates(prev => new Set([...prev, date]));
-        console.log(`✅ Marked ${date} as cancelled`);
-      } catch (err) {
-        const error = err as Error;
-        console.error('Exception marking session as cancelled:', error);
-        alert('Error: ' + error.message);
-      }
+      // Show confirm dialog for marking as cancelled
+      setCancelConfirm({ date });
     } else {
-      // Unmark as cancelled
-      const confirmed = window.confirm(
-        `Unmark ${new Date(date).toLocaleDateString()} as cancelled?\n\n` +
-        'This will delete all attendance records for this date.'
-      );
-      
-      if (!confirmed) return;
-      
-      try {
-        // Fetch records before deletion for audit log
-        const { data: recordsToDelete } = await supabase
-          .from(Tables.ATTENDANCE)
-          .select('*')
-          .eq('session_id', sessionId)
-          .eq('attendance_date', date)
-          .eq('host_address', 'SESSION_NOT_HELD');
+      // Show confirm dialog for unmarking cancelled
+      setUncancelConfirm({ date });
+    }
+  };
 
-        // Log each deletion
-        if (recordsToDelete && recordsToDelete.length > 0) {
-          for (const record of recordsToDelete) {
-            await logDelete(
-              Tables.ATTENDANCE,
-              record.attendance_id,
-              record,
-              `Unmarked cancelled session for date ${date}`
-            );
-          }
-        }
-
-        const { error } = await supabase
-          .from(Tables.ATTENDANCE)
-          .delete()
-          .eq('session_id', sessionId)
-          .eq('attendance_date', date)
-          .eq('host_address', 'SESSION_NOT_HELD');
-        
-        if (error) {
-          console.error('Failed to unmark cancelled session:', error);
-          alert('Failed to unmark cancelled session: ' + error.message);
-          return;
-        }
-        
-        setCancelledDates(prev => {
-          const updated = new Set(prev);
-          updated.delete(date);
-          return updated;
-        });
-        console.log(`✅ Unmarked ${date} as cancelled`);
-      } catch (err) {
-        const error = err as Error;
-        console.error('Exception unmarking cancelled session:', error);
-        alert('Error: ' + error.message);
+  const executeCancelSession = async (date: string) => {
+    try {
+      // Get all enrollments for this session
+      const { data: enrollments } = await supabase
+        .from(Tables.ENROLLMENT)
+        .select('enrollment_id, student_id')
+        .eq('session_id', sessionId)
+        .eq('status', 'active');
+      
+      if (!enrollments || enrollments.length === 0) {
+        toast.warning('No active enrollments found for this session');
+        return;
       }
+      
+      // Get authenticated user
+      const { data: { user } } = await supabase.auth.getUser();
+      const userEmail = user?.email || 'system';
+      
+      // Create/update attendance records
+      const records = enrollments.map(e => ({
+        enrollment_id: e.enrollment_id,
+        session_id: sessionId,
+        student_id: e.student_id,
+        attendance_date: date,
+        status: 'excused',
+        excuse_reason: 'session not held',
+        host_address: 'SESSION_NOT_HELD',
+        check_in_time: null,
+        marked_by: `${userEmail} - session cancelled`,
+        marked_at: new Date().toISOString()
+      }));
+      
+      // Upsert records
+      const { error } = await supabase
+        .from(Tables.ATTENDANCE)
+        .upsert(records, { 
+          onConflict: 'enrollment_id,attendance_date',
+          ignoreDuplicates: false 
+        });
+      
+      if (error) {
+        console.error('Failed to mark session as cancelled:', error);
+        toast.error('Failed to mark session as cancelled: ' + error.message);
+        return;
+      }
+      
+      setCancelledDates(prev => new Set([...prev, date]));
+      console.log(`✅ Marked ${date} as cancelled`);
+    } catch (err) {
+      const error = err as Error;
+      console.error('Exception marking session as cancelled:', error);
+      toast.error(error.message);
+    }
+  };
+
+  const executeUncancelSession = async (date: string) => {
+    try {
+      // Fetch records before deletion for audit log
+      const { data: recordsToDelete } = await supabase
+        .from(Tables.ATTENDANCE)
+        .select('*')
+        .eq('session_id', sessionId)
+        .eq('attendance_date', date)
+        .eq('host_address', 'SESSION_NOT_HELD');
+
+      // Log each deletion
+      if (recordsToDelete && recordsToDelete.length > 0) {
+        for (const record of recordsToDelete) {
+          await logDelete(
+            Tables.ATTENDANCE,
+            record.attendance_id,
+            record,
+            `Unmarked cancelled session for date ${date}`
+          );
+        }
+      }
+
+      const { error } = await supabase
+        .from(Tables.ATTENDANCE)
+        .delete()
+        .eq('session_id', sessionId)
+        .eq('attendance_date', date)
+        .eq('host_address', 'SESSION_NOT_HELD');
+      
+      if (error) {
+        console.error('Failed to unmark cancelled session:', error);
+        toast.error('Failed to unmark cancelled session: ' + error.message);
+        return;
+      }
+      
+      setCancelledDates(prev => {
+        const updated = new Set(prev);
+        updated.delete(date);
+        return updated;
+      });
+      console.log(`✅ Unmarked ${date} as cancelled`);
+    } catch (err) {
+      const error = err as Error;
+      console.error('Exception unmarking cancelled session:', error);
+      toast.error(error.message);
     }
   };
 
@@ -680,7 +678,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
     } catch (err) {
       const error = err as Error;
       console.error('PDF export error:', error);
-      alert('Failed to export PDF: ' + error.message);
+      toast.error('Failed to export PDF: ' + error.message);
     }
   };
 
@@ -862,7 +860,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
     } catch (err) {
       const error = err as Error;
       console.error('Word export error:', error);
-      alert('Failed to export Word: ' + error.message);
+      toast.error('Failed to export Word: ' + error.message);
     }
   };
 
@@ -1029,7 +1027,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
     const duplicateDates = Object.entries(calendarView).filter(([, hosts]) => hosts.length > 1);
     
     if (duplicateDates.length === 0) {
-      alert('No duplicates found!');
+      toast.info('No duplicates found!');
       return;
     }
     
@@ -1045,7 +1043,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       return next;
     });
     
-    alert(`Fixed ${duplicateDates.length} duplicate date(s)`);
+    toast.success(`Fixed ${duplicateDates.length} duplicate date(s)`);
   };
   
   return (
@@ -1224,7 +1222,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
               <button
                 onClick={() => {
                   if (Object.values(exportFields).every(v => !v)) {
-                    alert('Please select at least one field to export');
+                    toast.warning('Please select at least one field to export');
                     return;
                   }
                   setShowExportDialog(false);
@@ -1534,13 +1532,12 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
                         onChange={(ev) => {
                           const newDate = ev.target.value || null;
                           if (e.enrollment_id.startsWith('temp-')) {
-                            alert('This student is not enrolled in this session. Please enroll them first.');
+                            toast.warning('This student is not enrolled in this session. Please enroll them first.');
                             return;
                           }
                           if (newDate && cancelledDates.has(newDate)) {
-                            if (!confirm(`${new Date(newDate).toLocaleDateString()} is marked as CANCELLED. Assign anyway?`)) {
-                              return;
-                            }
+                            setCancelledDateAssign({ enrollmentId: e.enrollment_id, date: newDate });
+                            return;
                           }
                           setHostDateMap((prev) => ({ ...prev, [e.enrollment_id]: newDate }));
                           saveHostDate(e.enrollment_id, newDate);
@@ -1625,13 +1622,12 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
                   onChange={(ev) => {
                     const newDate = ev.target.value || null;
                     if (e.enrollment_id.startsWith('temp-')) {
-                      alert('This student is not enrolled in this session. Please enroll them first.');
+                      toast.warning('This student is not enrolled in this session. Please enroll them first.');
                       return;
                     }
                     if (newDate && cancelledDates.has(newDate)) {
-                      if (!confirm(`${new Date(newDate).toLocaleDateString()} is marked as CANCELLED. Assign anyway?`)) {
-                        return;
-                      }
+                      setCancelledDateAssign({ enrollmentId: e.enrollment_id, date: newDate });
+                      return;
                     }
                     setHostDateMap((prev) => ({ ...prev, [e.enrollment_id]: newDate }));
                     saveHostDate(e.enrollment_id, newDate);
@@ -1669,6 +1665,54 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
           </div>
         ))}
       </div>
+
+      {/* ConfirmDialog for cancelling a session date */}
+      <ConfirmDialog
+        isOpen={!!cancelConfirm}
+        title="Cancel Session"
+        message={cancelConfirm ? `Mark ${new Date(cancelConfirm.date).toLocaleDateString()} as CANCELLED?\n\nThis will:\n• Mark all students as EXCUSED for this date\n• Set excuse reason to "Session Not Held"\n• This date will be excluded from rotation` : ''}
+        confirmText="Mark Cancelled"
+        cancelText="Cancel"
+        type="warning"
+        onConfirm={() => {
+          if (cancelConfirm) executeCancelSession(cancelConfirm.date);
+          setCancelConfirm(null);
+        }}
+        onCancel={() => setCancelConfirm(null)}
+      />
+
+      {/* ConfirmDialog for unmarking a cancelled session date */}
+      <ConfirmDialog
+        isOpen={!!uncancelConfirm}
+        title="Unmark Cancelled Session"
+        message={uncancelConfirm ? `Unmark ${new Date(uncancelConfirm.date).toLocaleDateString()} as cancelled?\n\nThis will delete all attendance records for this date.` : ''}
+        confirmText="Unmark"
+        cancelText="Cancel"
+        type="danger"
+        onConfirm={() => {
+          if (uncancelConfirm) executeUncancelSession(uncancelConfirm.date);
+          setUncancelConfirm(null);
+        }}
+        onCancel={() => setUncancelConfirm(null)}
+      />
+
+      {/* ConfirmDialog for assigning a cancelled date to a host */}
+      <ConfirmDialog
+        isOpen={!!cancelledDateAssign}
+        title="Assign Cancelled Date"
+        message={cancelledDateAssign ? `${new Date(cancelledDateAssign.date).toLocaleDateString()} is marked as CANCELLED. Assign anyway?` : ''}
+        confirmText="Assign"
+        cancelText="Cancel"
+        type="warning"
+        onConfirm={() => {
+          if (cancelledDateAssign) {
+            setHostDateMap((prev) => ({ ...prev, [cancelledDateAssign.enrollmentId]: cancelledDateAssign.date }));
+            saveHostDate(cancelledDateAssign.enrollmentId, cancelledDateAssign.date);
+          }
+          setCancelledDateAssign(null);
+        }}
+        onCancel={() => setCancelledDateAssign(null)}
+      />
     </div>
   );
 };

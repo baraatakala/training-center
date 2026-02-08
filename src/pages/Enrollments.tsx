@@ -7,6 +7,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 import { EnrollmentForm } from '../components/EnrollmentForm';
 import { enrollmentService } from '../services/enrollmentService';
 import { toast } from '../components/ui/toastUtils';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useIsTeacher } from '../hooks/useIsTeacher';
 import type { CreateEnrollment, UpdateEnrollment } from '../types/database.types';
 
@@ -40,6 +41,7 @@ export function Enrollments() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const { isTeacher } = useIsTeacher();
   const [error, setError] = useState<string | null>(null);
+  const [deletingEnrollmentId, setDeletingEnrollmentId] = useState<string | null>(null);
 
   const loadEnrollments = async () => {
     setLoading(true);
@@ -158,6 +160,22 @@ export function Enrollments() {
     }
   };
 
+
+  const handleDelete = (enrollmentId: string) => {
+    setDeletingEnrollmentId(enrollmentId);
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingEnrollmentId) return;
+    const { error } = await enrollmentService.delete(deletingEnrollmentId);
+    if (error) {
+      toast.error('Failed to delete enrollment: ' + error.message);
+    } else {
+      toast.success('Enrollment deleted successfully');
+      loadEnrollments();
+    }
+    setDeletingEnrollmentId(null);
+  };
 
   const getStatusVariant = (status: string) => {
     switch (status) {
@@ -396,6 +414,12 @@ export function Enrollments() {
                                         <option value="completed">Completed</option>
                                         <option value="dropped">Dropped</option>
                                       </select>
+                                          <button
+                                            className="text-sm border border-red-300 dark:border-red-700 rounded px-2 py-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30"
+                                            onClick={() => handleDelete(enrollment.enrollment_id)}
+                                          >
+                                            Delete
+                                          </button>
                                         </>
                                       )}
                                       {!isTeacher && (
@@ -432,6 +456,16 @@ export function Enrollments() {
           } : null}
         />
       </Modal>
+
+      <ConfirmDialog
+        isOpen={!!deletingEnrollmentId}
+        type="danger"
+        title="Delete Enrollment"
+        message="Are you sure you want to delete this enrollment? This action cannot be undone."
+        confirmText="Delete"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeletingEnrollmentId(null)}
+      />
     </div>
   );
 }

@@ -12,6 +12,8 @@ import { getAttendanceDateOptions } from '../utils/attendanceGenerator';
 import { QRCodeModal } from '../components/QRCodeModal';
 import { PhotoCheckInModal } from '../components/PhotoCheckInModal';
 import { logDelete } from '../services/auditService';
+import { toast } from '../components/ui/toastUtils';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 type AttendanceRecord = {
   attendance_id: string;
@@ -119,6 +121,10 @@ export function Attendance() {
   const [selectedBookReference, setSelectedBookReference] = useState<string>('');
   const [editingLateMinutes, setEditingLateMinutes] = useState<string | null>(null);
   const [lateMinutesInput, setLateMinutesInput] = useState<string>('');
+  const [confirmClearAttendance, setConfirmClearAttendance] = useState<string | null>(null);
+  const [confirmSessionNotHeld, setConfirmSessionNotHeld] = useState<boolean>(false);
+  const [confirmUnmarkSessionNotHeld, setConfirmUnmarkSessionNotHeld] = useState<boolean>(false);
+  const [confirmClearGPS, setConfirmClearGPS] = useState<{ hostId: string; isTeacher: boolean } | null>(null);
 
   // GPS Geolocation capture function
   const captureGPSLocation = (): Promise<{
@@ -795,7 +801,7 @@ export function Attendance() {
 
       if (error) {
         console.error('Error saving book reference:', error);
-        alert('Failed to save book reference selection');
+        toast.error('Failed to save book reference selection');
       }
     } else {
       // Delete if empty
@@ -848,7 +854,7 @@ export function Attendance() {
 
       if (error) {
         console.error('Error saving host address:', error);
-        alert('Failed to save host address selection');
+        toast.error('Failed to save host address selection');
       }
     } else {
       // Delete if empty/cleared
@@ -864,7 +870,7 @@ export function Attendance() {
   const saveLateMinutes = async (attendanceId: string) => {
     const parsed = parseInt(lateMinutesInput, 10);
     if (isNaN(parsed) || parsed < 0) {
-      alert('Please enter a valid number of minutes (0 or more)');
+      toast.warning('Please enter a valid number of minutes (0 or more)');
       return;
     }
     const newValue = parsed === 0 ? null : parsed;
@@ -874,7 +880,7 @@ export function Attendance() {
       .eq('attendance_id', attendanceId);
     if (error) {
       console.error('Error updating late_minutes:', error);
-      alert(`Error: ${error.message}`);
+      toast.error(error.message);
     } else {
       // Update local state immediately
       setAttendance(prev => prev.map(a =>
@@ -891,19 +897,19 @@ export function Attendance() {
 
     // Prevent marking attendance for students not yet enrolled
     if (record.status === 'not enrolled') {
-      alert('Cannot mark attendance: Student was not enrolled on this date');
+      toast.warning('Cannot mark attendance: Student was not enrolled on this date');
       return;
     }
 
     // Validate host address is selected
     if (!selectedAddress || selectedAddress === '') {
-      alert('Please select a host address before marking attendance');
+      toast.warning('Please select a host address before marking attendance');
       return;
     }
 
     // Validate excuse reason if status is excused
     if (status === 'excused' && !excuseReason[attendanceId]) {
-      alert('Please select an excuse reason before marking as excused');
+      toast.warning('Please select an excuse reason before marking as excused');
       return;
     }
 
@@ -961,7 +967,7 @@ export function Attendance() {
 
         if (error) {
           console.error('Error updating existing attendance:', error);
-          alert(`Error: ${error.message}`);
+          toast.error(error.message);
         } else {
           setExcuseReason(prev => {
             const updated = { ...prev };
@@ -1003,7 +1009,7 @@ export function Attendance() {
 
         if (error) {
           console.error('Error creating attendance:', error);
-          alert(`Error: ${error.message}`);
+          toast.error(error.message);
         } else {
           setExcuseReason(prev => {
             const updated = { ...prev };
@@ -1047,7 +1053,7 @@ export function Attendance() {
 
       if (error) {
         console.error('Error updating attendance:', error);
-        alert(`Error: ${error.message}`);
+        toast.error(error.message);
       } else {
         setExcuseReason(prev => {
           const updated = { ...prev };
@@ -1060,10 +1066,11 @@ export function Attendance() {
   };
 
   // Clear attendance for a single record: delete saved record or reset a temp placeholder
-  const clearAttendance = async (attendanceId: string) => {
-    const ok = window.confirm('Clear attendance for this student? This will remove the recorded status.');
-    if (!ok) return;
+  const clearAttendance = (attendanceId: string) => {
+    setConfirmClearAttendance(attendanceId);
+  };
 
+  const doClearAttendance = async (attendanceId: string) => {
     // If this is a temp (not-yet-saved) record, just reset locally
     if (attendanceId.startsWith('temp-')) {
       setAttendance((prev) => prev.map(a => a.attendance_id === attendanceId ? { ...a, status: 'pending', check_in_time: null } : a));
@@ -1091,7 +1098,7 @@ export function Attendance() {
 
       if (error) {
         console.error('Error deleting attendance record:', error);
-        alert('Failed to clear attendance: ' + error.message);
+        toast.error('Failed to clear attendance: ' + error.message);
         return;
       }
 
@@ -1102,19 +1109,19 @@ export function Attendance() {
     } catch (err: unknown) {
       console.error('Exception clearing attendance:', err);
       const errMessage = err instanceof Error ? err.message : String(err);
-      alert('Failed to clear attendance: ' + errMessage);
+      toast.error('Failed to clear attendance: ' + errMessage);
     }
   };
 
   const handleBulkUpdate = async (status: string) => {
     if (selectedStudents.size === 0) {
-      alert('Please select students first');
+      toast.warning('Please select students first');
       return;
     }
 
     // Validate host address is selected
     if (!selectedAddress || selectedAddress === '') {
-      alert('Please select a host address before marking attendance');
+      toast.warning('Please select a host address before marking attendance');
       return;
     }
 
@@ -1164,7 +1171,7 @@ export function Attendance() {
 
       if (insertError) {
         console.error('Error creating attendance:', insertError);
-        alert(`Error: ${insertError.message}`);
+        toast.error(insertError.message);
         return;
       }
     }
@@ -1211,7 +1218,7 @@ export function Attendance() {
 
       if (updateError) {
         console.error('Error updating attendance:', updateError);
-        alert(`Error: ${updateError.message}`);
+        toast.error(updateError.message);
         return;
       }
     }
@@ -1242,17 +1249,15 @@ export function Attendance() {
 
   const handleSessionNotHeld = async () => {
     if (!sessionNotHeld) {
-      // Marking as not held
-      const confirmed = window.confirm(
-        'Mark this session as NOT HELD?\n\n' +
-        'This will:\n' +
-        '• Mark all students as EXCUSED (session cancelled)\n' +
-        '• Set excuse reason to "Session Not Held"\n' +
-        '• Set host address to "Session Not Held"\n' +
-        '• This date will be skipped in rotation calculations'
-      );
-      
-      if (!confirmed) return;
+      // Marking as not held - show confirm dialog
+      setConfirmSessionNotHeld(true);
+    } else {
+      // Unmarking - show confirm dialog
+      setConfirmUnmarkSessionNotHeld(true);
+    }
+  };
+
+  const doMarkSessionNotHeld = async () => {
       
       // Mark all students as excused with special marker
       const gpsData = await captureGPSLocation();
@@ -1320,10 +1325,9 @@ export function Attendance() {
       setSessionNotHeld(true);
       setSelectedAddress('SESSION_NOT_HELD');
       loadAttendance();
-    } else {
-      // Unmarking - clear all attendance
-      const confirmed = window.confirm('Unmark "Session Not Held"? This will clear all attendance records for this date.');
-      if (!confirmed) return;
+  };
+
+  const doUnmarkSessionNotHeld = async () => {
       
       const realIds = attendance.filter(a => !a.attendance_id.startsWith('temp-'));
       if (realIds.length > 0) {
@@ -1361,7 +1365,6 @@ export function Attendance() {
       setSessionNotHeld(false);
       setSelectedAddress('');
       loadAttendance();
-    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -1454,7 +1457,7 @@ export function Attendance() {
             <Button
               onClick={() => {
                 if (!selectedAddress || selectedAddress === '') {
-                  alert('⚠️ Please select a host address first before generating QR code.');
+                  toast.warning('Please select a host address first before generating QR code.');
                   return;
                 }
                 setShowQRModal(true);
@@ -1467,7 +1470,7 @@ export function Attendance() {
             <Button
               onClick={() => {
                 if (!selectedAddress || selectedAddress === '') {
-                  alert('⚠️ Please select a host address first before generating Face Check-In link.');
+                  toast.warning('Please select a host address first before generating Face Check-In link.');
                   return;
                 }
                 setShowPhotoModal(true);
@@ -1633,40 +1636,20 @@ export function Attendance() {
                       const isTeacher = hostInfo?.is_teacher || hostInfo?.student_name?.includes('Teacher');
                       
                       if (!hostId || !hostInfo) {
-                        alert('❌ No host selected. Please select a host address first.');
+                        toast.warning('No host selected. Please select a host address first.');
                         return;
                       }
                       
                       if (coords.trim() === '') {
                         // Clear coordinates
-                        const confirmClear = window.confirm('Remove GPS coordinates? This will disable proximity validation.');
-                        if (!confirmClear) return;
-                        
-                        const table = isTeacher ? Tables.TEACHER : Tables.STUDENT;
-                        const idField = isTeacher ? 'teacher_id' : 'student_id';
-                        
-                        const { error: clearError } = await supabase
-                          .from(table)
-                          .update({ address_latitude: null, address_longitude: null })
-                          .eq(idField, hostId);
-                        
-                        if (!clearError) {
-                          setHostCoordinates(null);
-                          // Update local hostAddresses state
-                          setHostAddresses(prev => prev.map(h => 
-                            h.student_id === hostId 
-                              ? { ...h, address_latitude: null, address_longitude: null }
-                              : h
-                          ));
-                        }
-                        alert(clearError ? '❌ Failed to clear coordinates.' : '✅ Coordinates cleared. Proximity validation disabled.');
+                        setConfirmClearGPS({ hostId, isTeacher: !!isTeacher });
                         return;
                       }
                       
                       // Parse coordinates
                       const parts = coords.split(',');
                       if (parts.length !== 2) {
-                        alert('❌ Invalid format. Please use: latitude,longitude');
+                        toast.error('Invalid format. Please use: latitude,longitude');
                         return;
                       }
                       
@@ -1677,7 +1660,7 @@ export function Attendance() {
                       const isValidLon = !isNaN(lon) && lon >= -180 && lon <= 180;
                       
                       if (!isValidLat || !isValidLon) {
-                        alert('❌ Invalid coordinates. Latitude must be -90 to 90, longitude must be -180 to 180.');
+                        toast.error('Invalid coordinates. Latitude must be -90 to 90, longitude must be -180 to 180.');
                         return;
                       }
                       
@@ -1695,7 +1678,7 @@ export function Attendance() {
                       
                       if (error) {
                         console.error('Failed to save coordinates:', error);
-                        alert('❌ Failed to save coordinates. Please try again.');
+                        toast.error('Failed to save coordinates. Please try again.');
                       } else {
                         setHostCoordinates({ lat, lon });
                         // Update local hostAddresses state
@@ -1704,7 +1687,7 @@ export function Attendance() {
                             ? { ...h, address_latitude: lat, address_longitude: lon }
                             : h
                         ));
-                        alert('✅ Coordinates saved!\n\nLat: ' + lat + '\nLon: ' + lon + '\n\nProximity validation is now enabled.\nThese coordinates are saved to the host profile and will persist across sessions.');
+                        toast.success('Coordinates saved! Lat: ' + lat + ', Lon: ' + lon + '. Proximity validation is now enabled.');
                       }
                     }}
                     className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -2027,7 +2010,7 @@ export function Attendance() {
                               <Button
                                 onClick={() => {
                                   if (!excuseReason[record.attendance_id]) {
-                                    alert('Please select an excuse reason');
+                                    toast.warning('Please select an excuse reason');
                                   } else {
                                     updateAttendance(record.attendance_id, 'excused');
                                     setExcuseDropdownOpen(null);
@@ -2103,6 +2086,84 @@ export function Attendance() {
           onClose={() => setShowPhotoModal(false)}
         />
       )}
+
+      {/* Confirm: Clear Attendance */}
+      <ConfirmDialog
+        isOpen={confirmClearAttendance !== null}
+        title="Clear Attendance"
+        message="Clear attendance for this student? This will remove the recorded status."
+        confirmText="Clear"
+        cancelText="Cancel"
+        type="danger"
+        onConfirm={() => {
+          if (confirmClearAttendance) doClearAttendance(confirmClearAttendance);
+          setConfirmClearAttendance(null);
+        }}
+        onCancel={() => setConfirmClearAttendance(null)}
+      />
+
+      {/* Confirm: Mark Session Not Held */}
+      <ConfirmDialog
+        isOpen={confirmSessionNotHeld}
+        title="Mark Session Not Held"
+        message={'Mark this session as NOT HELD?\n\nThis will:\n• Mark all students as EXCUSED (session cancelled)\n• Set excuse reason to "Session Not Held"\n• Set host address to "Session Not Held"\n• This date will be skipped in rotation calculations'}
+        confirmText="Mark Not Held"
+        cancelText="Cancel"
+        type="warning"
+        onConfirm={() => {
+          setConfirmSessionNotHeld(false);
+          doMarkSessionNotHeld();
+        }}
+        onCancel={() => setConfirmSessionNotHeld(false)}
+      />
+
+      {/* Confirm: Unmark Session Not Held */}
+      <ConfirmDialog
+        isOpen={confirmUnmarkSessionNotHeld}
+        title="Unmark Session Not Held"
+        message={'Unmark "Session Not Held"? This will clear all attendance records for this date.'}
+        confirmText="Unmark"
+        cancelText="Cancel"
+        type="danger"
+        onConfirm={() => {
+          setConfirmUnmarkSessionNotHeld(false);
+          doUnmarkSessionNotHeld();
+        }}
+        onCancel={() => setConfirmUnmarkSessionNotHeld(false)}
+      />
+
+      {/* Confirm: Clear GPS Coordinates */}
+      <ConfirmDialog
+        isOpen={confirmClearGPS !== null}
+        title="Clear GPS Coordinates"
+        message="Remove GPS coordinates? This will disable proximity validation."
+        confirmText="Remove"
+        cancelText="Cancel"
+        type="warning"
+        onConfirm={async () => {
+          if (confirmClearGPS) {
+            const table = confirmClearGPS.isTeacher ? Tables.TEACHER : Tables.STUDENT;
+            const idField = confirmClearGPS.isTeacher ? 'teacher_id' : 'student_id';
+            const { error: clearError } = await supabase
+              .from(table)
+              .update({ address_latitude: null, address_longitude: null })
+              .eq(idField, confirmClearGPS.hostId);
+            if (!clearError) {
+              setHostCoordinates(null);
+              setHostAddresses(prev => prev.map(h =>
+                h.student_id === confirmClearGPS.hostId
+                  ? { ...h, address_latitude: null, address_longitude: null }
+                  : h
+              ));
+              toast.success('Coordinates cleared. Proximity validation disabled.');
+            } else {
+              toast.error('Failed to clear coordinates.');
+            }
+          }
+          setConfirmClearGPS(null);
+        }}
+        onCancel={() => setConfirmClearGPS(null)}
+      />
     </div>
   );
 }
