@@ -22,6 +22,8 @@ export function Teachers() {
   const [editingTeacher, setEditingTeacher] = useState<Teacher | undefined>();
   const [isTeacher, setIsTeacher] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<'name' | 'email' | 'phone' | 'enrolledCount'>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   const loadTeachers = async () => {
     setLoading(true);
@@ -64,20 +66,47 @@ export function Teachers() {
   }, []);
 
   useEffect(() => {
+    let result = [...teachers];
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      setFilteredTeachers(
-        teachers.filter(
-          (t) =>
-            t.name.toLowerCase().includes(query) ||
-            t.email.toLowerCase().includes(query) ||
-            t.phone?.toLowerCase().includes(query)
-        )
+      result = result.filter(
+        (t) =>
+          t.name.toLowerCase().includes(query) ||
+          t.email.toLowerCase().includes(query) ||
+          t.phone?.toLowerCase().includes(query)
       );
-    } else {
-      setFilteredTeachers(teachers);
     }
-  }, [searchQuery, teachers]);
+    // Apply sorting
+    result.sort((a, b) => {
+      let cmp = 0;
+      if (sortField === 'enrolledCount') {
+        cmp = (a.enrolledCount || 0) - (b.enrolledCount || 0);
+      } else {
+        const aVal = (a[sortField] || '').toLowerCase();
+        const bVal = (b[sortField] || '').toLowerCase();
+        cmp = aVal.localeCompare(bVal);
+      }
+      return sortDirection === 'desc' ? -cmp : cmp;
+    });
+    setFilteredTeachers(result);
+  }, [searchQuery, teachers, sortField, sortDirection]);
+
+  const toggleSort = (field: typeof sortField) => {
+    if (sortField === field) {
+      setSortDirection(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const SortIcon = ({ field }: { field: typeof sortField }) => (
+    <svg className={`w-3 h-3 inline ml-1 ${sortField === field ? 'text-blue-500' : 'text-gray-400 dark:text-gray-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      {sortField === field && sortDirection === 'desc'
+        ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />}
+    </svg>
+  );
 
   const handleAddTeacher = async (data: CreateTeacher) => {
     const { error } = await teacherService.create(data);
@@ -190,10 +219,10 @@ export function Teachers() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="whitespace-nowrap">Name</TableHead>
-                    <TableHead className="whitespace-nowrap hidden md:table-cell">Email</TableHead>
-                    <TableHead className="whitespace-nowrap hidden lg:table-cell">Phone</TableHead>
-                    <TableHead className="whitespace-nowrap hidden sm:table-cell">Enrolled Students</TableHead>
+                    <TableHead className="whitespace-nowrap cursor-pointer select-none hover:text-blue-600 dark:hover:text-blue-400" onClick={() => toggleSort('name')}>Name<SortIcon field="name" /></TableHead>
+                    <TableHead className="whitespace-nowrap hidden md:table-cell cursor-pointer select-none hover:text-blue-600 dark:hover:text-blue-400" onClick={() => toggleSort('email')}>Email<SortIcon field="email" /></TableHead>
+                    <TableHead className="whitespace-nowrap hidden lg:table-cell cursor-pointer select-none hover:text-blue-600 dark:hover:text-blue-400" onClick={() => toggleSort('phone')}>Phone<SortIcon field="phone" /></TableHead>
+                    <TableHead className="whitespace-nowrap hidden sm:table-cell cursor-pointer select-none hover:text-blue-600 dark:hover:text-blue-400" onClick={() => toggleSort('enrolledCount')}>Enrolled Students<SortIcon field="enrolledCount" /></TableHead>
                     <TableHead className="text-right whitespace-nowrap">Actions</TableHead>
                   </TableRow>
                 </TableHeader>

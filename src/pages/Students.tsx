@@ -24,6 +24,8 @@ export function Students() {
   const [itemsPerPage, setItemsPerPage] = useState(25);
   const [isTeacher, setIsTeacher] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<'name' | 'email' | 'phone' | 'nationality' | 'age'>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   const loadStudents = async () => {
     setLoading(true);
@@ -56,21 +58,49 @@ export function Students() {
   }, []);
 
   useEffect(() => {
+    let result = [...students];
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      setFilteredStudents(
-        students.filter(
-          (s) =>
-            s.name.toLowerCase().includes(query) ||
-            s.email.toLowerCase().includes(query) ||
-            s.phone?.toLowerCase().includes(query) ||
-            s.nationality?.toLowerCase().includes(query)
-        )
+      result = result.filter(
+        (s) =>
+          s.name.toLowerCase().includes(query) ||
+          s.email.toLowerCase().includes(query) ||
+          s.phone?.toLowerCase().includes(query) ||
+          s.nationality?.toLowerCase().includes(query)
       );
-    } else {
-      setFilteredStudents(students);
     }
-  }, [searchQuery, students]);
+    // Apply sorting
+    result.sort((a, b) => {
+      let cmp = 0;
+      if (sortField === 'age') {
+        cmp = (a.age || 0) - (b.age || 0);
+      } else {
+        const aVal = (a[sortField] || '').toLowerCase();
+        const bVal = (b[sortField] || '').toLowerCase();
+        cmp = aVal.localeCompare(bVal);
+      }
+      return sortDirection === 'desc' ? -cmp : cmp;
+    });
+    setFilteredStudents(result);
+    setCurrentPage(1);
+  }, [searchQuery, students, sortField, sortDirection]);
+
+  const toggleSort = (field: typeof sortField) => {
+    if (sortField === field) {
+      setSortDirection(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const SortIcon = ({ field }: { field: typeof sortField }) => (
+    <svg className={`w-3 h-3 inline ml-1 ${sortField === field ? 'text-blue-500' : 'text-gray-400 dark:text-gray-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      {sortField === field && sortDirection === 'desc'
+        ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />}
+    </svg>
+  );
 
   async function handleAddStudent(data: CreateStudent) {
     const { error } = await studentService.create(data);
@@ -190,11 +220,11 @@ export function Students() {
               <TableHeader className="sticky top-0 z-10 bg-gray-50/95 dark:bg-gray-700/95 backdrop-blur-sm">
                 <TableRow>
                   <TableHead className="whitespace-nowrap w-12">Photo</TableHead>
-                  <TableHead className="whitespace-nowrap">Name</TableHead>
-                  <TableHead className="whitespace-nowrap hidden md:table-cell">Email</TableHead>
-                  <TableHead className="whitespace-nowrap hidden lg:table-cell">Phone</TableHead>
-                  <TableHead className="whitespace-nowrap hidden lg:table-cell">Nationality</TableHead>
-                  <TableHead className="whitespace-nowrap hidden xl:table-cell">Age</TableHead>
+                  <TableHead className="whitespace-nowrap cursor-pointer select-none hover:text-blue-600 dark:hover:text-blue-400" onClick={() => toggleSort('name')}>Name<SortIcon field="name" /></TableHead>
+                  <TableHead className="whitespace-nowrap hidden md:table-cell cursor-pointer select-none hover:text-blue-600 dark:hover:text-blue-400" onClick={() => toggleSort('email')}>Email<SortIcon field="email" /></TableHead>
+                  <TableHead className="whitespace-nowrap hidden lg:table-cell cursor-pointer select-none hover:text-blue-600 dark:hover:text-blue-400" onClick={() => toggleSort('phone')}>Phone<SortIcon field="phone" /></TableHead>
+                  <TableHead className="whitespace-nowrap hidden lg:table-cell cursor-pointer select-none hover:text-blue-600 dark:hover:text-blue-400" onClick={() => toggleSort('nationality')}>Nationality<SortIcon field="nationality" /></TableHead>
+                  <TableHead className="whitespace-nowrap hidden xl:table-cell cursor-pointer select-none hover:text-blue-600 dark:hover:text-blue-400" onClick={() => toggleSort('age')}>Age<SortIcon field="age" /></TableHead>
                   <TableHead className="text-right whitespace-nowrap">Actions</TableHead>
                 </TableRow>
               </TableHeader>

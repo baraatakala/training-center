@@ -233,6 +233,7 @@ const AttendanceRecords = () => {
   const [loading, setLoading] = useState(false);
   const [exportingWord, setExportingWord] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
+  const [isTeacher, setIsTeacher] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [studentAnalytics, setStudentAnalytics] = useState<StudentAnalytics[]>([]);
   const [dateAnalytics, setDateAnalytics] = useState<DateAnalytics[]>([]);
@@ -311,6 +312,21 @@ const AttendanceRecords = () => {
       // load dropdown options and records after filters initialized
       await loadFilterOptions();
       await loadRecords();
+
+      // Check if current user is a teacher
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.email) {
+          const { data: teacher } = await supabase
+            .from('teacher')
+            .select('teacher_id')
+            .ilike('email', user.email)
+            .single();
+          setIsTeacher(!!teacher);
+        }
+      } catch {
+        setIsTeacher(false);
+      }
     };
 
     init();
@@ -3272,6 +3288,7 @@ const AttendanceRecords = () => {
                 </div>
               )}
               
+              {isTeacher && (
               <button
                 onClick={() => setShowBulkImport(!showBulkImport)}
                 className="px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 border border-white/20"
@@ -3281,6 +3298,7 @@ const AttendanceRecords = () => {
                 </svg>
                 {showBulkImport ? 'Hide' : 'Import'}
               </button>
+              )}
               
               <button
                 onClick={loadRecords}
@@ -3299,8 +3317,8 @@ const AttendanceRecords = () => {
       {/* Main Content Container */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-4 space-y-6">
 
-      {/* Bulk Import Section */}
-      {showBulkImport && (
+      {/* Bulk Import Section - Teachers Only */}
+      {isTeacher && showBulkImport && (
         <BulkImport onImportComplete={() => {
           loadRecords();
           setShowBulkImport(false);

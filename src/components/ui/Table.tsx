@@ -25,9 +25,9 @@ export function TableRow({ children, className = '' }: { children: React.ReactNo
   return <tr className={`hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors ${className}`}>{children}</tr>;
 }
 
-export function TableHead({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+export function TableHead({ children, className = '', onClick }: { children: React.ReactNode; className?: string; onClick?: () => void }) {
   return (
-    <th className={`px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider ${className}`}>
+    <th className={`px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider ${className}`} onClick={onClick}>
       {children}
     </th>
   );
