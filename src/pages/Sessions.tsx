@@ -5,6 +5,7 @@ import { Modal } from '../components/ui/Modal';
 import { Select } from '../components/ui/Select';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
 import { SearchBar } from '../components/ui/SearchBar';
+import { Pagination } from '../components/ui/Pagination';
 import { SessionForm } from '../components/SessionForm';
 import BulkScheduleTable from '../components/BulkScheduleTable';
 import { supabase } from '../lib/supabase';
@@ -48,6 +49,8 @@ export function Sessions() {
   const { isTeacher } = useIsTeacher();
   const [error, setError] = useState<string | null>(null);
   const [deletingSession, setDeletingSession] = useState<SessionWithDetails | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
 
   const loadSessions = async () => {
     setError(null);
@@ -154,6 +157,7 @@ export function Sessions() {
     });
 
     setFilteredSessions(filtered);
+    setCurrentPage(1);
   }, [searchQuery, statusFilter, sessions, sortBy, sortOrder]);
 
   // Removed unused toggleSort function - sorting is handled by dropdown and toggle button
@@ -362,7 +366,9 @@ export function Sessions() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredSessions.map((session) => {
+                filteredSessions
+                  .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                  .map((session) => {
                   const today = new Date();
                   today.setHours(0, 0, 0, 0);
                   const startDate = new Date(session.start_date);
@@ -460,6 +466,20 @@ export function Sessions() {
             </TableBody>
           </Table>
           </div>
+
+          {filteredSessions.length > 0 && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(filteredSessions.length / itemsPerPage)}
+              totalItems={filteredSessions.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={(page) => setCurrentPage(page)}
+              onItemsPerPageChange={(items) => {
+                setItemsPerPage(items);
+                setCurrentPage(1);
+              }}
+            />
+          )}
         </div>
       )}
 

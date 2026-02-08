@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Input } from './ui/Input';
 import { Tables, type CourseBookReference, type CreateCourseBookReference } from '../types/database.types';
+import { toast } from './ui/toastUtils';
+import { ConfirmDialog } from './ui/ConfirmDialog';
 
 interface BookReferencesManagerProps {
   courseId: string;
@@ -20,6 +22,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
     display_order: 0,
   });
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const loadReferences = async () => {
     const { data, error } = await supabase
@@ -45,7 +48,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
 
   const handleAdd = async () => {
     if (!newReference.topic.trim() || newReference.start_page > newReference.end_page) {
-      alert('Please fill all fields correctly. End page must be >= start page.');
+      toast.warning('Please fill all fields correctly. End page must be >= start page.');
       return;
     }
 
@@ -63,13 +66,11 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
       });
       loadReferences();
     } else {
-      alert('Error adding reference: ' + error.message);
+      toast.error('Error adding reference: ' + error.message);
     }
   };
 
   const handleDelete = async (referenceId: string) => {
-    if (!confirm('Are you sure you want to delete this book reference?')) return;
-
     const { error } = await supabase
       .from(Tables.COURSE_BOOK_REFERENCE)
       .delete()
@@ -78,13 +79,13 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
     if (!error) {
       loadReferences();
     } else {
-      alert('Error deleting reference: ' + error.message);
+      toast.error('Error deleting reference: ' + error.message);
     }
   };
 
   const handleUpdate = async (reference: CourseBookReference) => {
     if (!reference.topic.trim() || reference.start_page > reference.end_page) {
-      alert('Please fill all fields correctly. End page must be >= start page.');
+      toast.warning('Please fill all fields correctly. End page must be >= start page.');
       return;
     }
 
@@ -101,7 +102,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
       setEditingId(null);
       loadReferences();
     } else {
-      alert('Error updating reference: ' + error.message);
+      toast.error('Error updating reference: ' + error.message);
     }
   };
 
@@ -429,7 +430,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
                             Edit
                           </button>
                           <button
-                            onClick={() => handleDelete(ref.reference_id)}
+                            onClick={() => setDeleteConfirmId(ref.reference_id)}
                             className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 border border-red-200"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -460,6 +461,19 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
           </button>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={!!deleteConfirmId}
+        type="danger"
+        title="Delete Book Reference"
+        message="Are you sure you want to delete this book reference?"
+        confirmText="Delete"
+        onConfirm={() => {
+          if (deleteConfirmId) handleDelete(deleteConfirmId);
+          setDeleteConfirmId(null);
+        }}
+        onCancel={() => setDeleteConfirmId(null)}
+      />
     </div>
   );
 }

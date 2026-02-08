@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { Button } from '../components/ui/Button';
 import { format, parse, isValid } from 'date-fns';
 import * as XLSX from 'xlsx';
+import { toast } from './ui/toastUtils';
 
 interface ImportRow {
   studentName: string;
@@ -271,7 +272,7 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
       setPreviewData(rows);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      alert(`Failed to read file: ${errorMessage}`);
+      toast.error(`Failed to read file: ${errorMessage}`);
       setPreviewData(null);
     } finally {
       event.target.value = '';

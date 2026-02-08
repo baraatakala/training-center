@@ -4,6 +4,7 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { wordExportService } from '../services/wordExportService';
 import { format } from 'date-fns';
+import { toast } from './ui/toastUtils';
 
 // ==================== TYPES ====================
 
@@ -773,7 +774,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
   // Main export handler
   const handleExport = async () => {
     if (config.selectedFields.length === 0) {
-      alert('Please select at least one field to export');
+      toast.warning('Please select at least one field to export');
       return;
     }
 
@@ -821,7 +822,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
       onClose();
     } catch (error) {
       console.error('Export error:', error);
-      alert('Failed to export. Please try again.');
+      toast.error('Failed to export. Please try again.');
     } finally {
       setExporting(false);
     }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { toast } from './ui/toastUtils';
 
 type PhotoCheckInModalProps = {
   sessionId: string;
@@ -52,7 +53,7 @@ export function PhotoCheckInModal({
 
       if (insertError) {
         console.error('Failed to create photo session:', insertError);
-        alert('Failed to generate check-in link. Please try again.');
+        toast.error('Failed to generate check-in link. Please try again.');
         return;
       }
 
@@ -66,7 +67,7 @@ export function PhotoCheckInModal({
       console.log('✅ Photo check-in session created:', { token, expires, createdBy: userEmail });
     } catch (error) {
       console.error('Photo session generation error:', error);
-      alert('Error generating check-in link. Please try again.');
+      toast.error('Error generating check-in link. Please try again.');
     } finally {
       setLoading(false);
     }

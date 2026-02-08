@@ -4,6 +4,7 @@ import { Button } from './ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import * as faceapi from 'face-api.js';
 import { getSignedPhotoUrl } from '../utils/photoUtils';
+import { ConfirmDialog } from './ui/ConfirmDialog';
 
 interface PhotoUploadProps {
   studentId: string;
@@ -149,6 +150,7 @@ export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: Pho
   const [validating, setValidating] = useState(false);
   const [qualityResult, setQualityResult] = useState<PhotoQualityResult | null>(null);
   const [modelsLoaded, setModelsLoaded] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -569,11 +571,7 @@ export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: Pho
               </Button>
               {previewUrl && (
                 <Button
-                  onClick={() => {
-                    if (window.confirm('Are you sure you want to delete this photo? This will disable face recognition check-in for this student.')) {
-                      deletePhoto();
-                    }
-                  }}
+                  onClick={() => setShowDeleteConfirm(true)}
                   disabled={uploading}
                   variant="outline"
                   className="w-full text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30"
@@ -648,6 +646,19 @@ export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: Pho
           Ensure good lighting and face clearly visible.
         </p>
       </CardContent>
+
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        type="danger"
+        title="Delete Photo"
+        message="Are you sure you want to delete this photo? This will disable face recognition check-in for this student."
+        confirmText="Delete"
+        onConfirm={() => {
+          setShowDeleteConfirm(false);
+          deletePhoto();
+        }}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </Card>
   );
 }

@@ -10,6 +10,8 @@ import { supabase } from '../lib/supabase';
 import { announcementService, announcementReactionService, announcementCommentService } from '../services/communicationService';
 import type { Announcement, AnnouncementPriority, CreateAnnouncementData, AnnouncementComment } from '../services/communicationService';
 import { format, formatDistanceToNow } from 'date-fns';
+import { toast } from '../components/ui/toastUtils';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 // Image upload helper
 const uploadAnnouncementImage = async (file: File): Promise<string | null> => {
@@ -117,6 +119,8 @@ export function Announcements() {
   const [formImagePreview, setFormImagePreview] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   // Signed URLs cache for announcement images
@@ -301,7 +305,7 @@ export function Announcements() {
 
   const handleCreateOrUpdate = async () => {
     if (!formTitle || !formContent) {
-      alert('Please fill in title and content');
+      toast.warning('Please fill in title and content');
       return;
     }
 
@@ -316,7 +320,7 @@ export function Announcements() {
         imageUrl = await uploadAnnouncementImage(formImageFile);
         setUploadingImage(false);
         if (!imageUrl) {
-          alert('Failed to upload image. The announcement will be saved without the image.');
+          toast.error('Failed to upload image. The announcement will be saved without the image.');
         }
       }
 
@@ -343,26 +347,24 @@ export function Announcements() {
       closeModal();
     } catch (err) {
       console.error('Error saving announcement:', err);
-      alert('Failed to save announcement');
+      toast.error('Failed to save announcement');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDelete = async (announcementId: string) => {
-    if (!window.confirm('Are you sure you want to delete this announcement?')) return;
-
     try {
       const { error: err } = await announcementService.delete(announcementId);
       if (err) {
         console.error('Delete error:', err);
-        alert(`Failed to delete announcement: ${err.message || 'Permission denied.'}`);
+        toast.error(`Failed to delete announcement: ${err.message || 'Permission denied.'}`);
       } else {
         await loadAnnouncementsForTeacher(currentUserId!);
       }
     } catch (err) {
       console.error('Delete error:', err);
-      alert('Failed to delete announcement. Please try again.');
+      toast.error('Failed to delete announcement. Please try again.');
     }
   };
 
@@ -385,11 +387,11 @@ export function Announcements() {
     // Validate file type and size
     const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
-      alert('Please select a valid image file (JPEG, PNG, GIF, or WebP)');
+      toast.warning('Please select a valid image file (JPEG, PNG, GIF, or WebP)');
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      alert('Image must be smaller than 5MB');
+      toast.warning('Image must be smaller than 5MB');
       return;
     }
 
@@ -477,7 +479,7 @@ export function Announcements() {
 
     if (error) {
       console.error('Failed to add comment:', error);
-      alert('Failed to add comment. Please try again.');
+      toast.error('Failed to add comment. Please try again.');
       return;
     }
 
@@ -510,7 +512,7 @@ export function Announcements() {
 
     if (error) {
       console.error('Failed to add reply:', error);
-      alert('Failed to add reply. Please try again.');
+      toast.error('Failed to add reply. Please try again.');
       return;
     }
 
@@ -521,16 +523,21 @@ export function Announcements() {
 
   // Delete a comment
   const handleDeleteComment = async (commentId: string) => {
-    if (!window.confirm('Delete this comment?')) return;
-    
-    const { error } = await announcementCommentService.delete(commentId);
+    setDeletingCommentId(commentId);
+  };
+
+  const confirmDeleteComment = async () => {
+    if (!deletingCommentId) return;
+    const { error } = await announcementCommentService.delete(deletingCommentId);
     
     if (error) {
       console.error('Failed to delete comment:', error);
-      alert('Failed to delete comment. Please try again.');
+      toast.error('Failed to delete comment. Please try again.');
+      setDeletingCommentId(null);
       return;
     }
     
+    setDeletingCommentId(null);
     if (viewingAnnouncement) {
       await loadComments(viewingAnnouncement.announcement_id);
       setAnnouncements(prev => prev.map(a => 
@@ -861,7 +868,7 @@ export function Announcements() {
                   <Button size="sm" variant="outline" onClick={() => openEditModal(announcement)}>
                     ✏️ Edit
                   </Button>
-                  <Button size="sm" variant="danger" onClick={() => handleDelete(announcement.announcement_id)}>
+                  <Button size="sm" variant="danger" onClick={() => setDeleteConfirmId(announcement.announcement_id)}>
                     🗑️ Delete
                   </Button>
                 </div>
@@ -1238,6 +1245,29 @@ export function Announcements() {
           </div>
         )}
       </Modal>
+
+      <ConfirmDialog
+        isOpen={!!deleteConfirmId}
+        type="danger"
+        title="Delete Announcement"
+        message="Are you sure you want to delete this announcement?"
+        confirmText="Delete"
+        onConfirm={() => {
+          if (deleteConfirmId) handleDelete(deleteConfirmId);
+          setDeleteConfirmId(null);
+        }}
+        onCancel={() => setDeleteConfirmId(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={!!deletingCommentId}
+        type="danger"
+        title="Delete Comment"
+        message="Are you sure you want to delete this comment?"
+        confirmText="Delete"
+        onConfirm={confirmDeleteComment}
+        onCancel={() => setDeletingCommentId(null)}
+      />
     </div>
   );
 }
