@@ -25,8 +25,29 @@ export function TeacherForm({ teacher, onSubmit, onCancel }: TeacherFormProps) {
     setError('');
     setLoading(true);
 
+    // Client-side validation
+    const trimmedName = formData.name.trim();
+    if (!trimmedName || trimmedName.length < 2) {
+      setError('Name must be at least 2 characters');
+      setLoading(false);
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      setError('Please enter a valid email address');
+      setLoading(false);
+      return;
+    }
+
+    if (formData.phone && !/^[+\d][\d\s\-().]{6,}$/.test(formData.phone)) {
+      setError('Please enter a valid phone number');
+      setLoading(false);
+      return;
+    }
+
     try {
-      await onSubmit(formData);
+      await onSubmit({ ...formData, name: trimmedName, email: formData.email.trim() });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -37,7 +58,7 @@ export function TeacherForm({ teacher, onSubmit, onCancel }: TeacherFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded">
           {error}
         </div>
       )}

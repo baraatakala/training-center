@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-// ...existing code...
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
@@ -9,6 +8,10 @@ import { SearchBar } from '../components/ui/SearchBar';
 import { SessionForm } from '../components/SessionForm';
 import BulkScheduleTable from '../components/BulkScheduleTable';
 import { supabase } from '../lib/supabase';
+import { sessionService } from '../services/sessionService';
+import { toast } from '../components/ui/toastUtils';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useIsTeacher } from '../hooks/useIsTeacher';
 import { Tables, type CreateSession } from '../types/database.types';
 
 type SessionWithDetails = {
@@ -42,8 +45,9 @@ export function Sessions() {
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [selectedSessionForSchedule, setSelectedSessionForSchedule] = useState<SessionWithDetails | null>(null);
   const [enrollmentCounts, setEnrollmentCounts] = useState<Record<string, number>>({});
-  const [isTeacher, setIsTeacher] = useState(false);
+  const { isTeacher } = useIsTeacher();
   const [error, setError] = useState<string | null>(null);
+  const [deletingSession, setDeletingSession] = useState<SessionWithDetails | null>(null);
 
   const loadSessions = async () => {
     setError(null);
@@ -86,18 +90,6 @@ export function Sessions() {
   };
 
   useEffect(() => {
-    const checkTeacherAccess = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user?.email) {
-        const { data: teacher } = await supabase
-          .from('teacher')
-          .select('teacher_id')
-          .ilike('email', user.email)
-          .single();
-        setIsTeacher(!!teacher);
-      }
-    };
-    checkTeacherAccess();
     loadSessions();
   }, []);
 
@@ -167,11 +159,12 @@ export function Sessions() {
   // Removed unused toggleSort function - sorting is handled by dropdown and toggle button
 
   const handleAddSession = async (data: CreateSession) => {
-    const { error } = await supabase.from(Tables.SESSION).insert([data]);
+    const { error } = await sessionService.create(data);
 
     if (error) {
-      alert('Error creating session: ' + error.message);
+      toast.error('Error creating session: ' + error.message);
     } else {
+      toast.success('Session created successfully');
       setIsModalOpen(false);
       loadSessions();
     }
@@ -180,14 +173,12 @@ export function Sessions() {
   const handleUpdateSession = async (data: CreateSession) => {
     if (!editingSession) return;
 
-    const { error } = await supabase
-      .from(Tables.SESSION)
-      .update(data)
-      .eq('session_id', editingSession.session_id);
+    const { error } = await sessionService.update(editingSession.session_id, data);
 
     if (error) {
-      alert('Error updating session: ' + error.message);
+      toast.error('Error updating session: ' + error.message);
     } else {
+      toast.success('Session updated successfully');
       setIsModalOpen(false);
       setEditingSession(null);
       loadSessions();
@@ -197,6 +188,18 @@ export function Sessions() {
   const openAddModal = () => {
     setEditingSession(null);
     setIsModalOpen(true);
+  };
+
+  const handleDeleteSession = async () => {
+    if (!deletingSession) return;
+    const { error } = await sessionService.delete(deletingSession.session_id);
+    if (error) {
+      toast.error('Failed to delete session: ' + error.message);
+    } else {
+      toast.success('Session deleted successfully');
+      loadSessions();
+    }
+    setDeletingSession(null);
   };
 
   const openEditModal = (session: SessionWithDetails) => {
@@ -436,6 +439,13 @@ export function Sessions() {
                               >
                                 Edit
                               </Button>
+                              <button
+                                onClick={() => setDeletingSession(session)}
+                                className="px-2 md:px-3 py-1 text-xs md:text-sm rounded border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
+                                title="Delete session"
+                              >
+                                Delete
+                              </button>
                             </>
                           )}
                           {!isTeacher && (
@@ -506,6 +516,18 @@ export function Sessions() {
           />
         )}
       </Modal>
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        isOpen={!!deletingSession}
+        title="Delete Session"
+        message={`Are you sure you want to delete the session for "${deletingSession?.course?.course_name}"? This will also remove all attendance records.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="danger"
+        onConfirm={handleDeleteSession}
+        onCancel={() => setDeletingSession(null)}
+      />
     </div>
   );
 }

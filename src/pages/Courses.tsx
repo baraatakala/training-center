@@ -7,7 +7,9 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 import { CourseForm } from '../components/CourseForm';
 import { BookReferencesManager } from '../components/BookReferencesManager';
 import { courseService } from '../services/courseService';
-import { supabase } from '../lib/supabase';
+import { toast } from '../components/ui/toastUtils';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useIsTeacher } from '../hooks/useIsTeacher';
 import type { CreateCourse } from '../types/database.types';
 
 interface CourseWithTeacher {
@@ -29,8 +31,9 @@ export function Courses() {
   const [editingCourse, setEditingCourse] = useState<CourseWithTeacher | undefined>();
   const [isBookReferencesOpen, setIsBookReferencesOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<CourseWithTeacher | null>(null);
-  const [isTeacher, setIsTeacher] = useState(false);
+  const { isTeacher } = useIsTeacher();
   const [error, setError] = useState<string | null>(null);
+  const [deletingCourse, setDeletingCourse] = useState<CourseWithTeacher | null>(null);
 
   const loadCourses = async () => {
     setLoading(true);
@@ -47,18 +50,6 @@ export function Courses() {
   };
 
   useEffect(() => {
-    const checkTeacherAccess = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user?.email) {
-        const { data: teacher } = await supabase
-          .from('teacher')
-          .select('teacher_id')
-          .ilike('email', user.email)
-          .single();
-        setIsTeacher(!!teacher);
-      }
-    };
-    checkTeacherAccess();
     loadCourses();
   }, []);
 
@@ -80,7 +71,10 @@ export function Courses() {
 
   const handleAddCourse = async (data: CreateCourse) => {
     const { error } = await courseService.create(data);
-    if (!error) {
+    if (error) {
+      toast.error('Failed to add course: ' + error.message);
+    } else {
+      toast.success('Course added successfully');
       setIsModalOpen(false);
       loadCourses();
     }
@@ -89,7 +83,10 @@ export function Courses() {
   const handleUpdateCourse = async (data: CreateCourse) => {
     if (editingCourse) {
       const { error } = await courseService.update(editingCourse.course_id, data);
-      if (!error) {
+      if (error) {
+        toast.error('Failed to update course: ' + error.message);
+      } else {
+        toast.success('Course updated successfully');
         setIsModalOpen(false);
         setEditingCourse(undefined);
         loadCourses();
@@ -110,6 +107,18 @@ export function Courses() {
   const openBookReferences = (course: CourseWithTeacher) => {
     setSelectedCourse(course);
     setIsBookReferencesOpen(true);
+  };
+
+  const handleDeleteCourse = async () => {
+    if (!deletingCourse) return;
+    const { error } = await courseService.delete(deletingCourse.course_id);
+    if (error) {
+      toast.error('Failed to delete course: ' + error.message);
+    } else {
+      toast.success(`"${deletingCourse.course_name}" deleted successfully`);
+      loadCourses();
+    }
+    setDeletingCourse(null);
   };
 
   return (
@@ -236,6 +245,13 @@ export function Courses() {
                               >
                                 Edit
                               </Button>
+                              <button
+                                onClick={() => setDeletingCourse(course)}
+                                className="px-2 md:px-3 py-1 text-xs md:text-sm rounded border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
+                                title="Delete course"
+                              >
+                                Delete
+                              </button>
                             </>
                           )}
                           {!isTeacher && (
@@ -290,6 +306,18 @@ export function Courses() {
           />
         )}
       </Modal>
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        isOpen={!!deletingCourse}
+        title="Delete Course"
+        message={`Are you sure you want to delete "${deletingCourse?.course_name}"? This will also remove all associated sessions and enrollments.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="danger"
+        onConfirm={handleDeleteCourse}
+        onCancel={() => setDeletingCourse(null)}
+      />
     </div>
   );
 }

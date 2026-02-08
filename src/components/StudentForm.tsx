@@ -44,8 +44,37 @@ export function StudentForm({ student, onSubmit, onCancel }: StudentFormProps) {
     setLoading(true);
     setError('');
 
+    // Client-side validation
+    const trimmedName = formData.name.trim();
+    if (!trimmedName || trimmedName.length < 2) {
+      setError('Name must be at least 2 characters');
+      setLoading(false);
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      setError('Please enter a valid email address');
+      setLoading(false);
+      return;
+    }
+
+    if (formData.phone && !/^[+\d][\d\s\-().]{6,}$/.test(formData.phone)) {
+      setError('Please enter a valid phone number');
+      setLoading(false);
+      return;
+    }
+
+    if (formData.age !== null && formData.age !== undefined) {
+      if (formData.age < 1 || formData.age > 150) {
+        setError('Age must be between 1 and 150');
+        setLoading(false);
+        return;
+      }
+    }
+
     try {
-      await onSubmit(formData);
+      await onSubmit({ ...formData, name: trimmedName, email: formData.email.trim() });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -56,7 +85,7 @@ export function StudentForm({ student, onSubmit, onCancel }: StudentFormProps) {
   return (
     <form onSubmit={handleSubmit}>
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg">
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-300 rounded-lg">
           {error}
         </div>
       )}

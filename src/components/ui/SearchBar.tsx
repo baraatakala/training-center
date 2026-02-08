@@ -31,11 +31,13 @@ export function SearchBar({ value, onChange, placeholder = 'Search...', classNam
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        aria-label={placeholder}
         className={`block w-full ${sizeClasses[size]} border-2 border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50/80 dark:bg-gray-700/50 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none focus:ring-0 transition-all backdrop-blur-sm`}
       />
       {value && (
         <button
           onClick={() => onChange('')}
+          aria-label="Clear search"
           className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
         >
           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

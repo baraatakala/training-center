@@ -6,7 +6,9 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 import { TeacherForm } from '../components/TeacherForm';
 import { Badge } from '../components/ui/Badge';
 import { teacherService } from '../services/teacherService';
-import { supabase } from '../lib/supabase';
+import { toast } from '../components/ui/toastUtils';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useIsTeacher } from '../hooks/useIsTeacher';
 import type { Teacher, CreateTeacher } from '../types/database.types';
 
 interface TeacherWithCount extends Teacher {
@@ -20,10 +22,11 @@ export function Teachers() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | undefined>();
-  const [isTeacher, setIsTeacher] = useState(false);
+  const { isTeacher } = useIsTeacher();
   const [error, setError] = useState<string | null>(null);
   const [sortField, setSortField] = useState<'name' | 'email' | 'phone' | 'enrolledCount'>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [deletingTeacher, setDeletingTeacher] = useState<Teacher | null>(null);
 
   const loadTeachers = async () => {
     setLoading(true);
@@ -50,19 +53,7 @@ export function Teachers() {
   };
 
   useEffect(() => {
-    const checkTeacherAccess = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user?.email) {
-        const { data: teacher } = await supabase
-          .from('teacher')
-          .select('teacher_id')
-          .ilike('email', user.email)
-          .single();
-        setIsTeacher(!!teacher);
-      }
-    };
-    checkTeacherAccess();
-    loadTeachers();
+
   }, []);
 
   useEffect(() => {
@@ -110,7 +101,10 @@ export function Teachers() {
 
   const handleAddTeacher = async (data: CreateTeacher) => {
     const { error } = await teacherService.create(data);
-    if (!error) {
+    if (error) {
+      toast.error('Failed to add teacher: ' + error.message);
+    } else {
+      toast.success('Teacher added successfully');
       setIsModalOpen(false);
       loadTeachers();
     }
@@ -119,12 +113,27 @@ export function Teachers() {
   const handleUpdateTeacher = async (data: CreateTeacher) => {
     if (editingTeacher) {
       const { error } = await teacherService.update(editingTeacher.teacher_id, data);
-      if (!error) {
+      if (error) {
+        toast.error('Failed to update teacher: ' + error.message);
+      } else {
+        toast.success('Teacher updated successfully');
         setIsModalOpen(false);
         setEditingTeacher(undefined);
         loadTeachers();
       }
     }
+  };
+
+  const handleDeleteTeacher = async () => {
+    if (!deletingTeacher) return;
+    const { error } = await teacherService.delete(deletingTeacher.teacher_id);
+    if (error) {
+      toast.error('Failed to delete teacher: ' + error.message);
+    } else {
+      toast.success(`"${deletingTeacher.name}" deleted successfully`);
+      loadTeachers();
+    }
+    setDeletingTeacher(null);
   };
 
   const openAddModal = () => {
@@ -245,14 +254,23 @@ export function Teachers() {
                       <TableCell>
                         <div className="flex gap-1 md:gap-2 justify-end flex-nowrap">
                           {isTeacher && (
-                            <Button 
-                              size="sm" 
-                              variant="secondary" 
-                              onClick={() => openEditModal(teacher)} 
-                              className="text-xs md:text-sm px-2 md:px-3"
-                            >
-                              Edit
-                            </Button>
+                            <>
+                              <Button 
+                                size="sm" 
+                                variant="secondary" 
+                                onClick={() => openEditModal(teacher)} 
+                                className="text-xs md:text-sm px-2 md:px-3"
+                              >
+                                Edit
+                              </Button>
+                              <button
+                                onClick={() => setDeletingTeacher(teacher)}
+                                className="px-2 md:px-3 py-1 text-xs md:text-sm rounded border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
+                                title="Delete teacher"
+                              >
+                                Delete
+                              </button>
+                            </>
                           )}
                           {!isTeacher && (
                             <span className="text-xs text-gray-400 dark:text-gray-500 px-2">View only</span>
@@ -285,6 +303,18 @@ export function Teachers() {
           }}
         />
       </Modal>
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        isOpen={!!deletingTeacher}
+        title="Delete Teacher"
+        message={`Are you sure you want to delete "${deletingTeacher?.name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="danger"
+        onConfirm={handleDeleteTeacher}
+        onCancel={() => setDeletingTeacher(null)}
+      />
     </div>
   );
 }

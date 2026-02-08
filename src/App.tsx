@@ -17,12 +17,14 @@ import Login from './pages/Login';
 import PrivateRoute from './components/PrivateRoute';
 import { AuthProvider } from './context/AuthContext';
 import { ToastContainer } from './components/ui/Toast';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import './App.css';
 
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <ErrorBoundary>
         <ToastContainer />
         <Routes>
           <Route path="/login" element={<Login />} />
@@ -33,6 +35,7 @@ function App() {
             element={
               <PrivateRoute>
                 <Layout>
+                  <ErrorBoundary>
                   <Routes>
                     <Route path="/" element={<Dashboard />} />
                     <Route path="/teachers" element={<Teachers />} />
@@ -46,11 +49,13 @@ function App() {
                     <Route path="/announcements" element={<Announcements />} />
                     <Route path="/messages" element={<Messages />} />
                   </Routes>
+                  </ErrorBoundary>
                 </Layout>
               </PrivateRoute>
             }
           />
         </Routes>
+        </ErrorBoundary>
       </AuthProvider>
     </BrowserRouter>
   );

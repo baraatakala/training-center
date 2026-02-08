@@ -6,7 +6,8 @@ import { SearchBar } from '../components/ui/SearchBar';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
 import { EnrollmentForm } from '../components/EnrollmentForm';
 import { enrollmentService } from '../services/enrollmentService';
-import { supabase } from '../lib/supabase';
+import { toast } from '../components/ui/toastUtils';
+import { useIsTeacher } from '../hooks/useIsTeacher';
 import type { CreateEnrollment, UpdateEnrollment } from '../types/database.types';
 
 interface EnrollmentWithDetails {
@@ -37,7 +38,7 @@ export function Enrollments() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'student' | 'course' | 'date' | 'status' | 'canHost'>('student');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [isTeacher, setIsTeacher] = useState(false);
+  const { isTeacher } = useIsTeacher();
   const [error, setError] = useState<string | null>(null);
 
   const loadEnrollments = async () => {
@@ -55,18 +56,6 @@ export function Enrollments() {
   };
 
   useEffect(() => {
-    const checkTeacherAccess = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user?.email) {
-        const { data: teacher } = await supabase
-          .from('teacher')
-          .select('teacher_id')
-          .ilike('email', user.email)
-          .single();
-        setIsTeacher(!!teacher);
-      }
-    };
-    checkTeacherAccess();
     loadEnrollments();
   }, []);
 
@@ -140,8 +129,9 @@ export function Enrollments() {
   const handleAddEnrollment = async (data: CreateEnrollment) => {
     const { error } = await enrollmentService.create(data);
     if (error) {
-      alert('Error enrolling student: ' + error.message);
+      toast.error('Error enrolling student: ' + error.message);
     } else {
+      toast.success('Student enrolled successfully');
       setIsModalOpen(false);
       loadEnrollments();
     }
@@ -151,8 +141,9 @@ export function Enrollments() {
     if (!editingEnrollment) return;
     const { error } = await enrollmentService.update(editingEnrollment.enrollment_id, data as UpdateEnrollment);
     if (error) {
-      alert('Error updating enrollment: ' + error.message);
+      toast.error('Error updating enrollment: ' + error.message);
     } else {
+      toast.success('Enrollment updated successfully');
       setIsModalOpen(false);
       setEditingEnrollment(null);
       loadEnrollments();

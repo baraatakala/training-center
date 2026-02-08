@@ -121,6 +121,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <div className="flex items-center justify-between px-4 h-16">
           <button
             onClick={() => setMobileMenuOpen(true)}
+            aria-label="Open navigation menu"
             className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
           >
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -137,6 +138,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
           <button
             onClick={toggleTheme}
+            aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
             className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
           >
             {isDarkMode ? (
@@ -172,7 +174,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Desktop Sidebar */}
-      <aside className={`hidden lg:flex lg:flex-col fixed left-0 top-0 bottom-0 z-40 transition-all duration-300 ease-in-out ${
+      <aside
+        role="navigation"
+        aria-label="Main navigation"
+        className={`hidden lg:flex lg:flex-col fixed left-0 top-0 bottom-0 z-40 transition-all duration-300 ease-in-out ${
         sidebarCollapsed ? 'w-20' : 'w-64'
       }`}>
         <div className="flex flex-col h-full bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-r border-gray-200/50 dark:border-gray-700/50">
@@ -191,6 +196,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </Link>
             <button
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
               className={`p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors ${sidebarCollapsed ? 'hidden' : ''}`}
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

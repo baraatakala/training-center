@@ -8,7 +8,9 @@ import { StudentForm } from '../components/StudentForm';
 import { PhotoUpload } from '../components/PhotoUpload';
 import { PhotoAvatar } from '../components/PhotoAvatar';
 import { studentService } from '../services/studentService';
-import { supabase } from '../lib/supabase';
+import { toast } from '../components/ui/toastUtils';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useIsTeacher } from '../hooks/useIsTeacher';
 import type { Student, CreateStudent } from '../types/database.types';
 
 export function Students() {
@@ -22,10 +24,11 @@ export function Students() {
   const [photoStudent, setPhotoStudent] = useState<Student | undefined>();
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
-  const [isTeacher, setIsTeacher] = useState(false);
+  const { isTeacher } = useIsTeacher();
   const [error, setError] = useState<string | null>(null);
   const [sortField, setSortField] = useState<'name' | 'email' | 'phone' | 'nationality' | 'age'>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [deletingStudent, setDeletingStudent] = useState<Student | null>(null);
 
   const loadStudents = async () => {
     setLoading(true);
@@ -42,18 +45,6 @@ export function Students() {
   };
 
   useEffect(() => {
-    const checkTeacherAccess = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user?.email) {
-        const { data: teacher } = await supabase
-          .from('teacher')
-          .select('teacher_id')
-          .ilike('email', user.email)
-          .single();
-        setIsTeacher(!!teacher);
-      }
-    };
-    checkTeacherAccess();
     loadStudents();
   }, []);
 
@@ -104,7 +95,10 @@ export function Students() {
 
   async function handleAddStudent(data: CreateStudent) {
     const { error } = await studentService.create(data);
-    if (!error) {
+    if (error) {
+      toast.error('Failed to add student: ' + error.message);
+    } else {
+      toast.success('Student added successfully');
       setIsModalOpen(false);
       loadStudents();
     }
@@ -113,12 +107,27 @@ export function Students() {
   async function handleUpdateStudent(data: CreateStudent) {
     if (editingStudent) {
       const { error } = await studentService.update(editingStudent.student_id, data);
-      if (!error) {
+      if (error) {
+        toast.error('Failed to update student: ' + error.message);
+      } else {
+        toast.success('Student updated successfully');
         setIsModalOpen(false);
         setEditingStudent(undefined);
         loadStudents();
       }
     }
+  }
+
+  async function handleDeleteStudent() {
+    if (!deletingStudent) return;
+    const { error } = await studentService.delete(deletingStudent.student_id);
+    if (error) {
+      toast.error('Failed to delete student: ' + error.message);
+    } else {
+      toast.success(`"${deletingStudent.name}" deleted successfully`);
+      loadStudents();
+    }
+    setDeletingStudent(null);
   }
 
   function openAddModal() {
@@ -276,6 +285,13 @@ export function Students() {
                               >
                                 Edit
                               </Button>
+                              <button
+                                onClick={() => setDeletingStudent(student)}
+                                className="px-2 md:px-3 py-1 text-xs md:text-sm rounded border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
+                                title="Delete student"
+                              >
+                                Delete
+                              </button>
                             </>
                           )}
                           {!isTeacher && (
@@ -359,6 +375,18 @@ export function Students() {
           />
         )}
       </Modal>
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        isOpen={!!deletingStudent}
+        title="Delete Student"
+        message={`Are you sure you want to delete "${deletingStudent?.name}"? This action cannot be undone and will remove all associated records.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="danger"
+        onConfirm={handleDeleteStudent}
+        onCancel={() => setDeletingStudent(null)}
+      />
     </div>
   );
 }

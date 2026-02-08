@@ -47,14 +47,18 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', hideClose
 
         {/* Modal */}
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="modal-title"
           className={`relative bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200/50 dark:border-gray-700/50 ${sizeClasses[size]} w-full max-h-[90vh] overflow-y-auto animate-scale-in`}
         >
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-700/50">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white">{title}</h3>
+            <h3 id="modal-title" className="text-xl font-bold text-gray-900 dark:text-white">{title}</h3>
             {!hideClose && (
               <button
                 onClick={onClose}
+                aria-label="Close dialog"
                 className="p-2 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:text-gray-500 dark:hover:text-gray-300 dark:hover:bg-gray-700/50 transition-all"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
