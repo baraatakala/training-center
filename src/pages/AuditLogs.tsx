@@ -4,6 +4,7 @@ import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { format, subDays, subMonths, isAfter, isBefore, parseISO } from 'date-fns';
 import { getAuditLogs, type AuditLogEntry } from '../services/auditService';
+import { TableSkeleton } from '../components/ui/Skeleton';
 
 // =====================================================
 // HELPERS
@@ -448,9 +449,8 @@ export function AuditLogs() {
 
       {/* Content */}
       {loading ? (
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400 mx-auto"></div>
-          <p className="text-gray-600 dark:text-gray-400 mt-4">Loading activity log...</p>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
+          <TableSkeleton rows={10} columns={5} />
         </div>
       ) : filteredLogs.length === 0 ? (
         <Card>

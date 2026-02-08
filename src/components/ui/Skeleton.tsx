@@ -62,3 +62,56 @@ export function StatCardSkeleton() {
     </div>
   );
 }
+
+/**
+ * Full page skeleton for table-based pages.
+ * Matches the common layout: Header + Stats + Search/Filter + Table.
+ */
+export function PageSkeleton({ 
+  statCards = 4, 
+  tableRows = 8, 
+  tableColumns = 5,
+  hasFilters = true 
+}: { 
+  statCards?: number; 
+  tableRows?: number; 
+  tableColumns?: number;
+  hasFilters?: boolean;
+}) {
+  return (
+    <div className="space-y-6 p-4 md:p-6 animate-pulse">
+      {/* Title row */}
+      <div className="flex justify-between items-center">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-4 w-64" variant="text" />
+        </div>
+        <Skeleton className="h-10 w-32 rounded-lg" />
+      </div>
+
+      {/* Stat cards */}
+      {statCards > 0 && (
+        <div className={`grid grid-cols-1 md:grid-cols-${Math.min(statCards, 4)} gap-4`}>
+          {Array.from({ length: statCards }).map((_, i) => (
+            <StatCardSkeleton key={i} />
+          ))}
+        </div>
+      )}
+
+      {/* Search/Filter bar */}
+      {hasFilters && (
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow dark:shadow-gray-900/30">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <Skeleton className="h-10 flex-1 rounded-lg" />
+            <Skeleton className="h-10 w-48 rounded-lg" />
+          </div>
+        </div>
+      )}
+
+      {/* Table */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
+        <TableSkeleton rows={tableRows} columns={tableColumns} />
+      </div>
+    </div>
+  );
+}

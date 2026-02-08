@@ -6,6 +6,7 @@ import { Select } from '../components/ui/Select';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
 import { SearchBar } from '../components/ui/SearchBar';
 import { Pagination } from '../components/ui/Pagination';
+import { PageSkeleton } from '../components/ui/Skeleton';
 import { SessionForm } from '../components/SessionForm';
 import BulkScheduleTable from '../components/BulkScheduleTable';
 import { supabase } from '../lib/supabase';
@@ -336,9 +337,7 @@ export function Sessions() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12">
-          <div className="text-gray-400 dark:text-gray-500">Loading sessions...</div>
-        </div>
+        <PageSkeleton statCards={0} tableRows={8} tableColumns={11} hasFilters={false} />
       ) : (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
           <div className="overflow-x-auto">
@@ -361,8 +360,17 @@ export function Sessions() {
             <TableBody>
               {filteredSessions.length === 0 ? (
                 <TableRow>
-                  <TableCell className="text-center text-gray-500 py-8">
-                    <span className="block">No sessions found</span>
+                  <TableCell colSpan={11} className="text-center py-16">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                        <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                      </div>
+                      <p className="text-gray-500 dark:text-gray-400">
+                        {searchQuery || statusFilter !== 'all'
+                          ? 'No sessions match your filters.'
+                          : 'No sessions yet. Click "+ Add Session" to create one.'}
+                      </p>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (

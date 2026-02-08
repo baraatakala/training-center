@@ -18,6 +18,8 @@ export default defineConfig({
           'supabase': ['@supabase/supabase-js'],
           'ui-libs': ['date-fns', 'recharts'],
           'export-libs': ['jspdf', 'jspdf-autotable', 'xlsx', 'docx', 'file-saver'],
+          'face-recognition': ['face-api.js'],
+          'html2canvas': ['html2canvas'],
         },
       },
     },

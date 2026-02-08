@@ -10,6 +10,7 @@ import { toast } from '../components/ui/toastUtils';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useIsTeacher } from '../hooks/useIsTeacher';
 import type { Teacher, CreateTeacher } from '../types/database.types';
+import { TableSkeleton } from '../components/ui/Skeleton';
 
 interface TeacherWithCount extends Teacher {
   enrolledCount?: number;
@@ -39,13 +40,12 @@ export function Teachers() {
       return;
     }
     if (data) {
-      // Fetch enrolled student counts for each teacher
-      const teachersWithCounts = await Promise.all(
-        data.map(async (teacher) => {
-          const { count } = await teacherService.getEnrolledStudentsCount(teacher.teacher_id);
-          return { ...teacher, enrolledCount: count };
-        })
-      );
+      // Batch fetch enrolled student counts in 3 queries (instead of 3*N)
+      const countsMap = await teacherService.getAllEnrolledStudentCounts();
+      const teachersWithCounts = data.map((teacher) => ({
+        ...teacher,
+        enrolledCount: countsMap.get(teacher.teacher_id) || 0,
+      }));
       setTeachers(teachersWithCounts);
       setFilteredTeachers(teachersWithCounts);
     }
@@ -199,14 +199,8 @@ export function Teachers() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="flex items-center gap-3 text-gray-500 dark:text-gray-400">
-            <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            Loading teachers...
-          </div>
+        <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700/50 overflow-hidden">
+          <TableSkeleton rows={6} columns={5} />
         </div>
       ) : (
         <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700/50 overflow-hidden">

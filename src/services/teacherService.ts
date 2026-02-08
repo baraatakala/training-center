@@ -124,4 +124,86 @@ export const teacherService = {
     const uniqueStudents = [...new Set(enrollments.map(e => e.student_id))];
     return { count: uniqueStudents.length, error: null };
   },
+
+  /**
+   * Batch fetch enrolled student counts for ALL teachers in just 3 queries
+   * instead of 3 queries per teacher (N+1 fix).
+   * Returns a Map<teacher_id, count>.
+   */
+  async getAllEnrolledStudentCounts(): Promise<Map<string, number>> {
+    const counts = new Map<string, number>();
+
+    // 1. Get all courses with their teacher_id
+    const { data: courses } = await supabase
+      .from(Tables.COURSE)
+      .select('course_id, teacher_id');
+
+    if (!courses || courses.length === 0) return counts;
+
+    // Build teacher → course_ids map
+    const teacherCourses = new Map<string, string[]>();
+    const allCourseIds: string[] = [];
+    for (const c of courses) {
+      if (!teacherCourses.has(c.teacher_id)) {
+        teacherCourses.set(c.teacher_id, []);
+      }
+      teacherCourses.get(c.teacher_id)!.push(c.course_id);
+      allCourseIds.push(c.course_id);
+    }
+
+    // 2. Get all sessions for those courses
+    const { data: sessions } = await supabase
+      .from(Tables.SESSION)
+      .select('session_id, course_id')
+      .in('course_id', allCourseIds);
+
+    if (!sessions || sessions.length === 0) return counts;
+
+    // Build course → session_ids map
+    const courseSessions = new Map<string, string[]>();
+    const allSessionIds: string[] = [];
+    for (const s of sessions) {
+      if (!courseSessions.has(s.course_id)) {
+        courseSessions.set(s.course_id, []);
+      }
+      courseSessions.get(s.course_id)!.push(s.session_id);
+      allSessionIds.push(s.session_id);
+    }
+
+    // 3. Get all enrollments for those sessions
+    const { data: enrollments } = await supabase
+      .from(Tables.ENROLLMENT)
+      .select('student_id, session_id')
+      .in('session_id', allSessionIds);
+
+    if (!enrollments || enrollments.length === 0) return counts;
+
+    // Build session → student_ids map
+    const sessionStudents = new Map<string, Set<string>>();
+    for (const e of enrollments) {
+      if (!sessionStudents.has(e.session_id)) {
+        sessionStudents.set(e.session_id, new Set());
+      }
+      sessionStudents.get(e.session_id)!.add(e.student_id);
+    }
+
+    // Now aggregate: for each teacher, collect unique students across all their sessions
+    for (const [teacherId, courseIds] of teacherCourses) {
+      const uniqueStudents = new Set<string>();
+      for (const courseId of courseIds) {
+        const sessionIds = courseSessions.get(courseId) || [];
+        for (const sessionId of sessionIds) {
+          const students = sessionStudents.get(sessionId);
+          if (students) {
+            for (const studentId of students) {
+              uniqueStudents.add(studentId);
+            }
+          }
+        }
+      }
+      counts.set(teacherId, uniqueStudents.size);
+    }
+
+    return counts;
+  },
 };

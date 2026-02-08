@@ -33,6 +33,6 @@ export function TableHead({ children, className = '', onClick }: { children: Rea
   );
 }
 
-export function TableCell({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <td className={`px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300 ${className}`}>{children}</td>;
+export function TableCell({ children, className = '', colSpan }: { children: React.ReactNode; className?: string; colSpan?: number }) {
+  return <td colSpan={colSpan} className={`px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300 ${className}`}>{children}</td>;
 }

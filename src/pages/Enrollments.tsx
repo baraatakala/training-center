@@ -10,6 +10,7 @@ import { enrollmentService } from '../services/enrollmentService';
 import { toast } from '../components/ui/toastUtils';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useIsTeacher } from '../hooks/useIsTeacher';
+import { TableSkeleton } from '../components/ui/Skeleton';
 import type { CreateEnrollment, UpdateEnrollment } from '../types/database.types';
 
 interface EnrollmentWithDetails {
@@ -291,14 +292,23 @@ export function Enrollments() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 dark:text-gray-300">Loading enrollments...</div>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
+          <TableSkeleton rows={8} columns={7} />
+        </div>
       ) : (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
           {filteredEnrollments.length === 0 ? (
-            <div className="py-12 text-center text-gray-500 dark:text-gray-400">
-              {searchQuery
-                ? 'No enrollments found matching your search.'
-                : 'No enrollments found. Click "Enroll Student" to get started.'}
+            <div className="py-16 text-center">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                  <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
+                </div>
+                <p className="text-gray-500 dark:text-gray-400">
+                  {searchQuery
+                    ? 'No enrollments found matching your search.'
+                    : 'No enrollments found. Click "Enroll Student" to get started.'}
+                </p>
+              </div>
             </div>
           ) : (
             <>
