@@ -1118,24 +1118,24 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
 
               {/* Document Title */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Document Title</label>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Document Title</label>
                 <input
                   type="text"
                   value={config.title}
                   onChange={e => setConfig(prev => ({ ...prev, title: e.target.value }))}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Enter report title"
                 />
               </div>
 
               {/* Subtitle */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Subtitle (Optional)</label>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Subtitle (Optional)</label>
                 <input
                   type="text"
                   value={config.subtitle || ''}
                   onChange={e => setConfig(prev => ({ ...prev, subtitle: e.target.value }))}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Enter subtitle or date range"
                 />
               </div>
@@ -1144,14 +1144,14 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
               {config.format === 'pdf' && (
                 <>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-3">Page Orientation</label>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Page Orientation</label>
                     <div className="flex gap-3">
                       <button
                         onClick={() => setConfig(prev => ({ ...prev, orientation: 'portrait' }))}
                         className={`px-6 py-3 rounded-lg border-2 font-medium transition ${
                           config.orientation === 'portrait'
                             ? 'border-blue-500 bg-blue-50 text-blue-700'
-                            : 'border-gray-200 hover:border-gray-300'
+                            : 'border-gray-200 hover:border-gray-300 dark:border-gray-600 dark:hover:border-gray-500 dark:text-gray-300'
                         }`}
                       >
                         📄 Portrait
@@ -1161,7 +1161,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                         className={`px-6 py-3 rounded-lg border-2 font-medium transition ${
                           config.orientation === 'landscape'
                             ? 'border-blue-500 bg-blue-50 text-blue-700'
-                            : 'border-gray-200 hover:border-gray-300'
+                            : 'border-gray-200 hover:border-gray-300 dark:border-gray-600 dark:hover:border-gray-500 dark:text-gray-300'
                         }`}
                       >
                         📃 Landscape
@@ -1170,7 +1170,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-3">Font Size</label>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Font Size</label>
                     <div className="flex gap-3">
                       {(['small', 'medium', 'large'] as const).map(size => (
                         <button
@@ -1179,7 +1179,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                           className={`px-6 py-3 rounded-lg border-2 font-medium transition capitalize ${
                             config.fontSize === size
                               ? 'border-blue-500 bg-blue-50 text-blue-700'
-                              : 'border-gray-200 hover:border-gray-300'
+                              : 'border-gray-200 hover:border-gray-300 dark:border-gray-600 dark:hover:border-gray-500 dark:text-gray-300'
                           }`}
                         >
                           {size}
@@ -1199,7 +1199,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                     onChange={e => setConfig(prev => ({ ...prev, includeTimestamp: e.target.checked }))}
                     className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
-                  <span className="text-sm font-medium text-gray-700">Include generation timestamp</span>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Include generation timestamp</span>
                 </label>
                 
                 {(config.format === 'excel') && (
@@ -1210,7 +1210,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                       onChange={e => setConfig(prev => ({ ...prev, includeSummary: e.target.checked }))}
                       className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
-                    <span className="text-sm font-medium text-gray-700">Include summary sheet</span>
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Include summary sheet</span>
                   </label>
                 )}
               </div>
@@ -1222,14 +1222,14 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
             <div className="space-y-6">
               {/* Data Cleaning Section */}
               <div className="border rounded-xl overflow-hidden">
-                <div className="bg-blue-50 p-4 border-b">
-                  <h3 className="font-semibold text-blue-900 flex items-center gap-2">
+                <div className="bg-blue-50 dark:bg-blue-900/30 p-4 border-b dark:border-blue-800">
+                  <h3 className="font-semibold text-blue-900 dark:text-blue-200 flex items-center gap-2">
                     🧹 Data Cleaning
                   </h3>
-                  <p className="text-sm text-blue-700 mt-1">Clean and prepare your data before export</p>
+                  <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">Clean and prepare your data before export</p>
                 </div>
                 <div className="p-4 space-y-4">
-                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition">
+                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                     <input
                       type="checkbox"
                       checked={config.dataValidation.removeDuplicates}
@@ -1240,12 +1240,12 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                       className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-0.5"
                     />
                     <div>
-                      <span className="text-sm font-medium text-gray-900">Remove duplicate rows</span>
-                      <p className="text-xs text-gray-500 mt-1">Eliminates rows with identical values across all selected fields</p>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Remove duplicate rows</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Eliminates rows with identical values across all selected fields</p>
                     </div>
                   </label>
                   
-                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition">
+                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                     <input
                       type="checkbox"
                       checked={config.dataValidation.removeEmptyRows}
@@ -1256,12 +1256,12 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                       className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-0.5"
                     />
                     <div>
-                      <span className="text-sm font-medium text-gray-900">Remove empty rows</span>
-                      <p className="text-xs text-gray-500 mt-1">Removes rows where all selected fields are empty or contain only "-"</p>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Remove empty rows</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Removes rows where all selected fields are empty or contain only "-"</p>
                     </div>
                   </label>
                   
-                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition">
+                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                     <input
                       type="checkbox"
                       checked={config.dataValidation.trimWhitespace}
@@ -1272,8 +1272,8 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                       className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-0.5"
                     />
                     <div>
-                      <span className="text-sm font-medium text-gray-900">Trim whitespace</span>
-                      <p className="text-xs text-gray-500 mt-1">Removes leading and trailing spaces from text values</p>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Trim whitespace</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Removes leading and trailing spaces from text values</p>
                     </div>
                   </label>
                 </div>
@@ -1281,14 +1281,14 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
 
               {/* Data Validation Section */}
               <div className="border rounded-xl overflow-hidden">
-                <div className="bg-orange-50 p-4 border-b">
-                  <h3 className="font-semibold text-orange-900 flex items-center gap-2">
+                <div className="bg-orange-50 dark:bg-orange-900/30 p-4 border-b dark:border-orange-800">
+                  <h3 className="font-semibold text-orange-900 dark:text-orange-200 flex items-center gap-2">
                     ✅ Data Validation
                   </h3>
-                  <p className="text-sm text-orange-700 mt-1">Validate data quality and identify issues</p>
+                  <p className="text-sm text-orange-700 dark:text-orange-400 mt-1">Validate data quality and identify issues</p>
                 </div>
                 <div className="p-4 space-y-4">
-                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition">
+                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                     <input
                       type="checkbox"
                       checked={config.dataValidation.validateRequired}
@@ -1299,12 +1299,12 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                       className="w-5 h-5 rounded border-gray-300 text-orange-600 focus:ring-orange-500 mt-0.5"
                     />
                     <div>
-                      <span className="text-sm font-medium text-gray-900">Check for missing values</span>
-                      <p className="text-xs text-gray-500 mt-1">Identifies and reports cells with empty or missing data</p>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Check for missing values</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Identifies and reports cells with empty or missing data</p>
                     </div>
                   </label>
                   
-                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition">
+                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                     <input
                       type="checkbox"
                       checked={config.dataValidation.validateNumericRanges}
@@ -1315,12 +1315,12 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                       className="w-5 h-5 rounded border-gray-300 text-orange-600 focus:ring-orange-500 mt-0.5"
                     />
                     <div>
-                      <span className="text-sm font-medium text-gray-900">Validate numeric ranges</span>
-                      <p className="text-xs text-gray-500 mt-1">Checks that percentage values are between 0-100%</p>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Validate numeric ranges</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Checks that percentage values are between 0-100%</p>
                     </div>
                   </label>
                   
-                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition">
+                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                     <input
                       type="checkbox"
                       checked={config.dataValidation.validateDates}
@@ -1331,8 +1331,8 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                       className="w-5 h-5 rounded border-gray-300 text-orange-600 focus:ring-orange-500 mt-0.5"
                     />
                     <div>
-                      <span className="text-sm font-medium text-gray-900">Validate date formats</span>
-                      <p className="text-xs text-gray-500 mt-1">Ensures all date fields contain valid, parseable dates</p>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Validate date formats</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Ensures all date fields contain valid, parseable dates</p>
                     </div>
                   </label>
                 </div>
@@ -1340,14 +1340,14 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
 
               {/* Data Formatting Section */}
               <div className="border rounded-xl overflow-hidden">
-                <div className="bg-green-50 p-4 border-b">
-                  <h3 className="font-semibold text-green-900 flex items-center gap-2">
+                <div className="bg-green-50 dark:bg-green-900/30 p-4 border-b dark:border-green-800">
+                  <h3 className="font-semibold text-green-900 dark:text-green-200 flex items-center gap-2">
                     🎨 Data Formatting
                   </h3>
-                  <p className="text-sm text-green-700 mt-1">Format values for better readability</p>
+                  <p className="text-sm text-green-700 dark:text-green-400 mt-1">Format values for better readability</p>
                 </div>
                 <div className="p-4 space-y-4">
-                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition">
+                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                     <input
                       type="checkbox"
                       checked={config.dataValidation.formatNumbers}
@@ -1358,12 +1358,12 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                       className="w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500 mt-0.5"
                     />
                     <div>
-                      <span className="text-sm font-medium text-gray-900">Format numbers</span>
-                      <p className="text-xs text-gray-500 mt-1">Adds thousand separators (e.g., 1,234 instead of 1234)</p>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Format numbers</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Adds thousand separators (e.g., 1,234 instead of 1234)</p>
                     </div>
                   </label>
                   
-                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition">
+                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                     <input
                       type="checkbox"
                       checked={config.dataValidation.formatPercentages}
@@ -1374,12 +1374,12 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                       className="w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500 mt-0.5"
                     />
                     <div>
-                      <span className="text-sm font-medium text-gray-900">Format percentages</span>
-                      <p className="text-xs text-gray-500 mt-1">Ensures rate and percentage fields display with % symbol</p>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Format percentages</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Ensures rate and percentage fields display with % symbol</p>
                     </div>
                   </label>
                   
-                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition">
+                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                     <input
                       type="checkbox"
                       checked={config.dataValidation.formatDates}
@@ -1390,14 +1390,14 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                       className="w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500 mt-0.5"
                     />
                     <div>
-                      <span className="text-sm font-medium text-gray-900">Standardize date format</span>
-                      <p className="text-xs text-gray-500 mt-1">Ensures consistent date formatting across all date fields</p>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Standardize date format</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Ensures consistent date formatting across all date fields</p>
                     </div>
                   </label>
                   
                   {config.dataValidation.formatDates && (
-                    <div className="ml-8 p-3 bg-gray-50 rounded-lg">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Date Format Style</label>
+                    <div className="ml-8 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Date Format Style</label>
                       <div className="flex gap-2">
                         {(['short', 'medium', 'long'] as const).map(fmt => (
                           <button
@@ -1409,7 +1409,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                             className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
                               config.dataValidation.dateFormat === fmt
                                 ? 'bg-green-500 text-white'
-                                : 'bg-white border border-gray-300 hover:bg-gray-50'
+                                : 'bg-white border border-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:hover:bg-gray-600'
                             }`}
                           >
                             {fmt === 'short' && '01/15/26'}
@@ -1425,14 +1425,14 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
 
               {/* Report Options Section */}
               <div className="border rounded-xl overflow-hidden">
-                <div className="bg-purple-50 p-4 border-b">
-                  <h3 className="font-semibold text-purple-900 flex items-center gap-2">
+                <div className="bg-purple-50 dark:bg-purple-900/30 p-4 border-b dark:border-purple-800">
+                  <h3 className="font-semibold text-purple-900 dark:text-purple-200 flex items-center gap-2">
                     📊 Quality Report
                   </h3>
-                  <p className="text-sm text-purple-700 mt-1">Include data quality information in export</p>
+                  <p className="text-sm text-purple-700 dark:text-purple-400 mt-1">Include data quality information in export</p>
                 </div>
                 <div className="p-4 space-y-4">
-                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition">
+                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                     <input
                       type="checkbox"
                       checked={config.dataValidation.showDataQualityReport}
@@ -1443,8 +1443,8 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                       className="w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 mt-0.5"
                     />
                     <div>
-                      <span className="text-sm font-medium text-gray-900">Include data quality report</span>
-                      <p className="text-xs text-gray-500 mt-1">Adds a summary of data processing and any validation issues found</p>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Include data quality report</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Adds a summary of data processing and any validation issues found</p>
                     </div>
                   </label>
                 </div>
@@ -1452,14 +1452,14 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
 
               {/* Conditional Coloring Section */}
               <div className="border rounded-xl overflow-hidden">
-                <div className="bg-rose-50 p-4 border-b">
-                  <h3 className="font-semibold text-rose-900 flex items-center gap-2">
+                <div className="bg-rose-50 dark:bg-rose-900/30 p-4 border-b dark:border-rose-800">
+                  <h3 className="font-semibold text-rose-900 dark:text-rose-200 flex items-center gap-2">
                     🌈 Conditional Coloring
                   </h3>
-                  <p className="text-sm text-rose-700 mt-1">Apply color-coding to percentage and score fields (Word, Excel, PDF)</p>
+                  <p className="text-sm text-rose-700 dark:text-rose-400 mt-1">Apply color-coding to percentage and score fields (Word, Excel, PDF)</p>
                 </div>
                 <div className="p-4 space-y-4">
-                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition">
+                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                     <input
                       type="checkbox"
                       checked={config.dataValidation.enableConditionalColoring}
@@ -1470,17 +1470,17 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                       className="w-5 h-5 rounded border-gray-300 text-rose-600 focus:ring-rose-500 mt-0.5"
                     />
                     <div>
-                      <span className="text-sm font-medium text-gray-900">Enable conditional coloring</span>
-                      <p className="text-xs text-gray-500 mt-1">Color-code cells based on values (green for high, red for low)</p>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Enable conditional coloring</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Color-code cells based on values (green for high, red for low)</p>
                     </div>
                   </label>
                   
                   {config.dataValidation.enableConditionalColoring && (
                     <>
                       {/* Color Theme Selection */}
-                      <div className="ml-8 p-3 bg-gray-50 rounded-lg space-y-4">
+                      <div className="ml-8 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg space-y-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Color Theme</label>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Color Theme</label>
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                             {([
                               { id: 'default', label: 'Professional', colors: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444'] },
@@ -1497,7 +1497,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                                 className={`p-3 rounded-lg text-sm font-medium transition text-center border-2 ${
                                   config.dataValidation.coloringTheme === theme.id
                                     ? 'border-rose-500 bg-rose-50'
-                                    : 'border-gray-200 bg-white hover:border-gray-300'
+                                    : 'border-gray-200 bg-white hover:border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-gray-500'
                                 }`}
                               >
                                 <div className="text-xs mb-2">{theme.label}</div>
@@ -1517,9 +1517,9 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                         
                         {/* Field Selection for Coloring */}
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                             Fields to Color
-                            <span className="text-xs text-gray-500 ml-2">(leave empty for auto-detect)</span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">(leave empty for auto-detect)</span>
                           </label>
                           <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-40 overflow-y-auto">
                             {allFields.filter(f => config.selectedFields.includes(f.key)).map(field => {
@@ -1566,8 +1566,8 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                         </div>
                         
                         {/* Color Legend Preview */}
-                        <div className="mt-3 p-3 bg-white rounded-lg border border-gray-200">
-                          <div className="text-xs font-medium text-gray-600 mb-2">Color Legend Preview:</div>
+                        <div className="mt-3 p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                          <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Color Legend Preview:</div>
                           <div className="flex flex-wrap gap-2">
                             <span className="px-2 py-1 rounded text-xs text-white font-medium" style={{ backgroundColor: '#10b981' }}>90%+ Excellent</span>
                             <span className="px-2 py-1 rounded text-xs text-white font-medium" style={{ backgroundColor: '#3b82f6' }}>75-89% Good</span>
@@ -1583,20 +1583,20 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
 
               {/* Sorting Options */}
               <div className="border rounded-xl overflow-hidden">
-                <div className="bg-indigo-50 p-4 border-b">
-                  <h3 className="font-semibold text-indigo-900 flex items-center gap-2">
+                <div className="bg-indigo-50 dark:bg-indigo-900/30 p-4 border-b dark:border-indigo-800">
+                  <h3 className="font-semibold text-indigo-900 dark:text-indigo-200 flex items-center gap-2">
                     📑 Sort Data
                   </h3>
-                  <p className="text-sm text-indigo-700 mt-1">Sort exported data by a specific field</p>
+                  <p className="text-sm text-indigo-700 dark:text-indigo-400 mt-1">Sort exported data by a specific field</p>
                 </div>
                 <div className="p-4 space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Sort By Field</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Sort By Field</label>
                       <select
                         value={config.sortByField || ''}
                         onChange={e => setConfig(prev => ({ ...prev, sortByField: e.target.value || undefined }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                       >
                         <option value="">No sorting</option>
                         {allFields.filter(f => config.selectedFields.includes(f.key)).map(field => (
@@ -1606,14 +1606,14 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                     </div>
                     {config.sortByField && (
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Direction</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Direction</label>
                         <div className="flex gap-2">
                           <button
                             onClick={() => setConfig(prev => ({ ...prev, sortDirection: 'asc' }))}
                             className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${
                               config.sortDirection === 'asc'
                                 ? 'bg-indigo-500 text-white'
-                                : 'bg-white border border-gray-300 hover:bg-gray-50'
+                                : 'bg-white border border-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:hover:bg-gray-600'
                             }`}
                           >
                             ↑ Ascending
@@ -1623,7 +1623,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                             className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${
                               config.sortDirection === 'desc'
                                 ? 'bg-indigo-500 text-white'
-                                : 'bg-white border border-gray-300 hover:bg-gray-50'
+                                : 'bg-white border border-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:hover:bg-gray-600'
                             }`}
                           >
                             ↓ Descending
@@ -1642,44 +1642,44 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
             <div className="space-y-4">
               {/* Warning if no data */}
               {data.length === 0 && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 flex items-start gap-3">
+                <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700/50 rounded-xl p-4 flex items-start gap-3">
                   <span className="text-yellow-500 text-xl">⚠️</span>
                   <div>
-                    <h4 className="font-semibold text-yellow-800">No Data Available</h4>
-                    <p className="text-sm text-yellow-700 mt-1">There is no data to export. Please apply filters or load data first.</p>
+                    <h4 className="font-semibold text-yellow-800 dark:text-yellow-200">No Data Available</h4>
+                    <p className="text-sm text-yellow-700 dark:text-yellow-400 mt-1">There is no data to export. Please apply filters or load data first.</p>
                   </div>
                 </div>
               )}
               
               {/* Warning if no fields selected */}
               {config.selectedFields.length === 0 && (
-                <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex items-start gap-3">
+                <div className="bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-700/50 rounded-xl p-4 flex items-start gap-3">
                   <span className="text-orange-500 text-xl">⚠️</span>
                   <div>
-                    <h4 className="font-semibold text-orange-800">No Fields Selected</h4>
-                    <p className="text-sm text-orange-700 mt-1">Please go to the "Select Fields" tab and choose the fields you want to export.</p>
+                    <h4 className="font-semibold text-orange-800 dark:text-orange-200">No Fields Selected</h4>
+                    <p className="text-sm text-orange-700 dark:text-orange-400 mt-1">Please go to the "Select Fields" tab and choose the fields you want to export.</p>
                   </div>
                 </div>
               )}
               
-              <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="font-semibold text-gray-900 mb-3">Export Preview</h3>
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4">
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Export Preview</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
-                    <span className="text-gray-500">Format:</span>
-                    <span className="ml-2 font-medium text-gray-900 uppercase">{config.format}</span>
+                    <span className="text-gray-500 dark:text-gray-400">Format:</span>
+                    <span className="ml-2 font-medium text-gray-900 dark:text-white uppercase">{config.format}</span>
                   </div>
                   <div>
-                    <span className="text-gray-500">Language:</span>
-                    <span className="ml-2 font-medium text-gray-900">{config.language === 'en' ? 'English' : 'العربية'}</span>
+                    <span className="text-gray-500 dark:text-gray-400">Language:</span>
+                    <span className="ml-2 font-medium text-gray-900 dark:text-white">{config.language === 'en' ? 'English' : 'العربية'}</span>
                   </div>
                   <div>
-                    <span className="text-gray-500">Fields:</span>
-                    <span className="ml-2 font-medium text-gray-900">{config.selectedFields.length}</span>
+                    <span className="text-gray-500 dark:text-gray-400">Fields:</span>
+                    <span className="ml-2 font-medium text-gray-900 dark:text-white">{config.selectedFields.length}</span>
                   </div>
                   <div>
-                    <span className="text-gray-500">Records:</span>
-                    <span className="ml-2 font-medium text-gray-900">{data.length}</span>
+                    <span className="text-gray-500 dark:text-gray-400">Records:</span>
+                    <span className="ml-2 font-medium text-gray-900 dark:text-white">{data.length}</span>
                   </div>
                 </div>
                 
@@ -1691,51 +1691,51 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                   config.dataValidation.validateDates ||
                   config.dataValidation.enableConditionalColoring ||
                   config.sortByField) && (
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <h4 className="font-medium text-gray-700 mb-2">Data Processing</h4>
+                  <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-2">Data Processing</h4>
                     <div className="flex flex-wrap gap-2">
                       {config.dataValidation.removeDuplicates && (
-                        <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+                        <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded text-xs font-medium">
                           🔄 Remove Duplicates
                         </span>
                       )}
                       {config.dataValidation.removeEmptyRows && (
-                        <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+                        <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded text-xs font-medium">
                           🗑️ Remove Empty Rows
                         </span>
                       )}
                       {config.dataValidation.trimWhitespace && (
-                        <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">
+                        <span className="px-2 py-1 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded text-xs font-medium">
                           ✂️ Trim Whitespace
                         </span>
                       )}
                       {config.dataValidation.validateRequired && (
-                        <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs font-medium">
+                        <span className="px-2 py-1 bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 rounded text-xs font-medium">
                           ✅ Check Missing Values
                         </span>
                       )}
                       {config.dataValidation.validateNumericRanges && (
-                        <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs font-medium">
+                        <span className="px-2 py-1 bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 rounded text-xs font-medium">
                           📊 Validate Ranges
                         </span>
                       )}
                       {config.dataValidation.validateDates && (
-                        <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs font-medium">
+                        <span className="px-2 py-1 bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 rounded text-xs font-medium">
                           📅 Validate Dates
                         </span>
                       )}
                       {config.dataValidation.enableConditionalColoring && (
-                        <span className="px-2 py-1 bg-rose-100 text-rose-700 rounded text-xs font-medium">
+                        <span className="px-2 py-1 bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 rounded text-xs font-medium">
                           🌈 Conditional Coloring ({config.dataValidation.coloringTheme})
                         </span>
                       )}
                       {config.sortByField && (
-                        <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
+                        <span className="px-2 py-1 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded text-xs font-medium">
                           📑 Sort by {allFields.find(f => f.key === config.sortByField)?.label || config.sortByField} ({config.sortDirection})
                         </span>
                       )}
                       {config.dataValidation.showDataQualityReport && (
-                        <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-medium">
+                        <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded text-xs font-medium">
                           📋 Include Quality Report
                         </span>
                       )}
@@ -1745,7 +1745,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
               </div>
 
               <div className="border rounded-xl overflow-hidden">
-                <div className="bg-gray-100 px-4 py-2 font-semibold text-gray-700">
+                <div className="bg-gray-100 dark:bg-gray-700 px-4 py-2 font-semibold text-gray-700 dark:text-gray-300">
                   Selected Fields ({config.selectedFields.length})
                 </div>
                 <div className="p-4 max-h-40 overflow-y-auto">
@@ -1753,13 +1753,13 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                     {getSelectedFieldsOrdered().map(field => (
                       <span
                         key={field.key}
-                        className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium"
+                        className="px-3 py-1 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full text-sm font-medium"
                       >
                         {field.label}
                       </span>
                     ))}
                     {config.selectedFields.length === 0 && (
-                      <span className="text-gray-500 italic">No fields selected</span>
+                      <span className="text-gray-500 dark:text-gray-400 italic">No fields selected</span>
                     )}
                   </div>
                 </div>
@@ -1768,7 +1768,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
               {/* Data Preview Table - Shows sorted data */}
               {config.selectedFields.length > 0 && data.length > 0 && (
                 <div className="border rounded-xl overflow-hidden">
-                  <div className="bg-gray-100 px-4 py-2 font-semibold text-gray-700 flex items-center justify-between">
+                  <div className="bg-gray-100 dark:bg-gray-700 px-4 py-2 font-semibold text-gray-700 dark:text-gray-300 flex items-center justify-between">
                     <span>Data Preview (First 5 rows{config.sortByField ? ', sorted' : ''})</span>
                     {config.sortByField && (
                       <span className="text-xs text-indigo-600 font-normal">
@@ -1777,14 +1777,14 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                     )}
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                      <thead className="bg-gray-50 dark:bg-gray-800">
                         <tr>
                           {getSelectedFieldsOrdered().slice(0, 6).map(field => (
                             <th
                               key={field.key}
                               className={`px-4 py-2 text-left text-xs font-medium uppercase tracking-wider ${
-                                field.key === config.sortByField ? 'text-indigo-600 bg-indigo-50' : 'text-gray-500'
+                                field.key === config.sortByField ? 'text-indigo-600 bg-indigo-50' : 'text-gray-500 dark:text-gray-400'
                               }`}
                             >
                               {field.label}
@@ -1800,11 +1800,11 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                           )}
                         </tr>
                       </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
+                      <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
                         {getSortedPreviewData().slice(0, 5).map((record, idx) => (
                           <tr key={idx}>
                             {getSelectedFieldsOrdered().slice(0, 6).map(field => (
-                              <td key={field.key} className="px-4 py-2 text-sm text-gray-600 whitespace-nowrap">
+                              <td key={field.key} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap">
                                 {formatValue(field, record).substring(0, 30)}
                                 {formatValue(field, record).length > 30 && '...'}
                               </td>

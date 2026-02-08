@@ -1049,7 +1049,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
   };
   
   return (
-    <div style={{ width: '80vw', maxWidth: '1100px', margin: '0 auto' }} className="p-6 bg-white min-h-screen">
+    <div style={{ width: '80vw', maxWidth: '1100px', margin: '0 auto' }} className="p-6 bg-white dark:bg-gray-900 dark:text-white min-h-screen">
       {/* Export Dialog Modal */}
       {showExportDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -1249,8 +1249,8 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
         <h3 className="text-2xl font-bold mb-4">Host Schedule Setup</h3>
         
         {/* Info Banner */}
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="text-sm text-blue-800">
+        <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700/50 rounded-lg">
+          <p className="text-sm text-blue-800 dark:text-blue-300">
             <strong>ℹ️ How Rotation Works:</strong> The Attendance page automatically assigns hosts based on the <strong>Host Date</strong> order below. 
             Hosts are assigned in rotation (first host → second host → etc.) excluding cancelled sessions.
             Only <strong>active enrollments</strong> with <strong>Can Host</strong> checked will be included in the rotation.
@@ -1259,12 +1259,12 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
 
         {/* Validation Panel */}
         {showValidation && validationIssues.length > 0 && (
-          <div className="mb-4 border rounded-lg overflow-hidden">
-            <div className="bg-gray-100 px-4 py-2 flex items-center justify-between">
-              <h4 className="font-semibold text-gray-700">📋 Validation Results</h4>
+          <div className="mb-4 border dark:border-gray-700 rounded-lg overflow-hidden">
+            <div className="bg-gray-100 dark:bg-gray-800 px-4 py-2 flex items-center justify-between">
+              <h4 className="font-semibold text-gray-700 dark:text-gray-300">📋 Validation Results</h4>
               <button
                 onClick={() => setShowValidation(false)}
-                className="text-gray-500 hover:text-gray-700 text-sm"
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-sm"
               >
                 ✕ Hide
               </button>
@@ -1275,10 +1275,10 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
                   key={idx}
                   className={`p-2 rounded text-sm ${
                     issue.type === 'error'
-                      ? 'bg-red-50 text-red-800 border border-red-200'
+                      ? 'bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-700/50'
                       : issue.type === 'warning'
-                      ? 'bg-yellow-50 text-yellow-800 border border-yellow-200'
-                      : 'bg-blue-50 text-blue-800 border border-blue-200'
+                      ? 'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-700/50'
+                      : 'bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-700/50'
                   }`}
                 >
                   {issue.message}
@@ -1291,7 +1291,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
         {!showValidation && validationIssues.length > 0 && (
           <button
             onClick={() => setShowValidation(true)}
-            className="mb-4 text-sm text-blue-600 hover:text-blue-800 underline"
+            className="mb-4 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline"
           >
             Show Validation ({validationIssues.length} issue{validationIssues.length !== 1 ? 's' : ''})
           </button>
@@ -1299,23 +1299,23 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
         
         {/* Statistics Panel */}
         <div className="mb-4 grid grid-cols-2 md:grid-cols-5 gap-3">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <div className="text-xs text-blue-600 font-semibold uppercase">Total Dates</div>
-            <div className="text-2xl font-bold text-blue-900">{fullDates.length}</div>
+          <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700/50 rounded-lg p-3">
+            <div className="text-xs text-blue-600 dark:text-blue-400 font-semibold uppercase">Total Dates</div>
+            <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">{fullDates.length}</div>
           </div>
-          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-            <div className="text-xs text-green-600 font-semibold uppercase">Active Hosts</div>
-            <div className="text-2xl font-bold text-green-900">{displayedEnrollments.length}</div>
+          <div className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700/50 rounded-lg p-3">
+            <div className="text-xs text-green-600 dark:text-green-400 font-semibold uppercase">Active Hosts</div>
+            <div className="text-2xl font-bold text-green-900 dark:text-green-100">{displayedEnrollments.length}</div>
           </div>
-          <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-            <div className="text-xs text-purple-600 font-semibold uppercase">Assigned</div>
-            <div className="text-2xl font-bold text-purple-900">
+          <div className="bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-700/50 rounded-lg p-3">
+            <div className="text-xs text-purple-600 dark:text-purple-400 font-semibold uppercase">Assigned</div>
+            <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">
               {displayedEnrollments.filter(e => hostDateMap[e.enrollment_id]).length}
             </div>
           </div>
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-            <div className="text-xs text-yellow-600 font-semibold uppercase">Coverage</div>
-            <div className="text-2xl font-bold text-yellow-900">
+          <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700/50 rounded-lg p-3">
+            <div className="text-xs text-yellow-600 dark:text-yellow-400 font-semibold uppercase">Coverage</div>
+            <div className="text-2xl font-bold text-yellow-900 dark:text-yellow-100">
               {fullDates.length > 0 
                 ? Math.round((new Set(Object.values(hostDateMap).filter(Boolean)).size / fullDates.length) * 100)
                 : 0}%
@@ -1323,18 +1323,18 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
           </div>
           <div className={`border rounded-lg p-3 ${
             validationIssues.some(i => i.type === 'error')
-              ? 'bg-red-50 border-red-200'
-              : 'bg-gray-50 border-gray-200'
+              ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-700/50'
+              : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
           }`}>
             <div className={`text-xs font-semibold uppercase ${
-              validationIssues.some(i => i.type === 'error') ? 'text-red-600' : 'text-gray-600'
+              validationIssues.some(i => i.type === 'error') ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'
             }`}>
               Status
             </div>
             <div className={`text-2xl font-bold ${
               validationIssues.some(i => i.type === 'error')
-                ? 'text-red-900'
-                : 'text-gray-900'
+                ? 'text-red-900 dark:text-red-100'
+                : 'text-gray-900 dark:text-gray-100'
             }`}>
               {validationIssues.some(i => i.type === 'error') ? '⚠️ Issues' : '✓ OK'}
             </div>
@@ -1343,11 +1343,11 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
 
         {/* Filter Dropdown */}
         <div className="mb-4">
-          <label className="block text-sm font-semibold text-gray-700 mb-2">Filter by Host Status:</label>
+          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Filter by Host Status:</label>
           <select
             value={hostFilter}
             onChange={(e) => setHostFilter(e.target.value as 'all' | 'can-host' | 'cannot-host')}
-            className="border-2 border-gray-300 rounded px-4 py-2 text-base font-medium hover:border-blue-500 focus:outline-none focus:border-blue-600"
+            className="border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded px-4 py-2 text-base font-medium hover:border-blue-500 focus:outline-none focus:border-blue-600"
           >
             <option value="all">All Students ({enrollments.length})</option>
             <option value="can-host">Can Host ({enrollments.filter(e => e.can_host).length})</option>
@@ -1380,7 +1380,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
               </button>
             )}
             <button 
-              className="btn btn-sm btn-ghost text-red-600 hover:bg-red-50" 
+              className="btn btn-sm btn-ghost text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30" 
               onClick={clearAll}
               title="Clear all host dates"
             >
@@ -1400,8 +1400,8 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
 
         {/* Calendar View */}
         {showCalendar && (
-          <div className="mt-4 border rounded-lg p-4 bg-gray-50">
-            <h4 className="font-semibold text-gray-700 mb-3">📅 Calendar Preview</h4>
+          <div className="mt-4 border dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800">
+            <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-3">📅 Calendar Preview</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-96 overflow-y-auto">
               {fullDates.map((date) => {
                 const calendarView = getCalendarView();
@@ -1415,16 +1415,16 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
                     key={date}
                     className={`p-2 rounded border text-sm ${
                       isCancelled
-                        ? 'bg-gray-200 border-gray-400 opacity-75'
+                        ? 'bg-gray-200 dark:bg-gray-700 border-gray-400 dark:border-gray-600 opacity-75'
                         : hasMultiple
-                        ? 'bg-red-50 border-red-300'
+                        ? 'bg-red-50 dark:bg-red-900/30 border-red-300 dark:border-red-700/50'
                         : hasNone
-                        ? 'bg-gray-100 border-gray-300'
-                        : 'bg-green-50 border-green-300'
+                        ? 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600'
+                        : 'bg-green-50 dark:bg-green-900/30 border-green-300 dark:border-green-700/50'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1">
-                      <div className={`font-semibold ${isCancelled ? 'text-gray-500 line-through' : 'text-gray-700'}`}>
+                      <div className={`font-semibold ${isCancelled ? 'text-gray-500 dark:text-gray-400 line-through' : 'text-gray-700 dark:text-gray-300'}`}>
                         {new Date(date).toLocaleDateString('en-US', { 
                           month: 'short', 
                           day: 'numeric',
@@ -1444,15 +1444,15 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
                       </button>
                     </div>
                     {isCancelled ? (
-                      <div className="text-gray-600 italic font-semibold">❌ Session Cancelled</div>
+                      <div className="text-gray-600 dark:text-gray-400 italic font-semibold">❌ Session Cancelled</div>
                     ) : hasNone ? (
-                      <div className="text-gray-500 italic">No host assigned</div>
+                      <div className="text-gray-500 dark:text-gray-400 italic">No host assigned</div>
                     ) : (
                       <div className="space-y-1">
                         {hosts.map((host) => (
                           <div 
                             key={host.enrollmentId}
-                            className={`flex items-center gap-1 ${hasMultiple ? 'text-red-700' : 'text-gray-700'}`}
+                            className={`flex items-center gap-1 ${hasMultiple ? 'text-red-700 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'}`}
                           >
                             {host.hasAddress ? '🏠' : '⚠️'}
                             <span className={hasMultiple ? 'font-semibold' : ''}>{host.student}</span>
@@ -1464,27 +1464,27 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
                 );
               })}
             </div>
-            <div className="mt-3 text-xs text-gray-600 flex flex-wrap gap-4">
+            <div className="mt-3 text-xs text-gray-600 dark:text-gray-400 flex flex-wrap gap-4">
               <span>🏠 = Has address</span>
               <span>⚠️ = Missing address</span>
-              <span className="text-red-600">● = Duplicate assignment</span>
-              <span className="text-gray-500">● = No host</span>
-              <span className="text-gray-600">❌ = Session cancelled</span>
+              <span className="text-red-600 dark:text-red-400">● = Duplicate assignment</span>
+              <span className="text-gray-500 dark:text-gray-400">● = No host</span>
+              <span className="text-gray-600 dark:text-gray-400">❌ = Session cancelled</span>
             </div>
           </div>
         )}
       </div>
 
       {/* Desktop Table View */}
-      <div className="hidden lg:block overflow-x-auto border rounded-lg shadow">
+      <div className="hidden lg:block overflow-x-auto border dark:border-gray-700 rounded-lg shadow">
         <table className="w-full border-collapse">
-          <thead className="bg-gray-100">
+          <thead className="bg-gray-100 dark:bg-gray-800">
             <tr>
-              <th className="p-4 text-left font-semibold text-base min-w-[150px]">Student</th>
-              <th className="p-4 text-left font-semibold text-base min-w-[200px]">Address</th>
-              <th className="p-4 text-center font-semibold text-base min-w-[140px]">Phone</th>
-              <th className="p-4 text-center font-semibold text-base min-w-[100px]">Can Host</th>
-              <th className="p-4 text-left font-semibold text-base min-w-[220px]">Host Date</th>
+              <th className="p-4 text-left font-semibold text-base min-w-[150px] dark:text-gray-200">Student</th>
+              <th className="p-4 text-left font-semibold text-base min-w-[200px] dark:text-gray-200">Address</th>
+              <th className="p-4 text-center font-semibold text-base min-w-[140px] dark:text-gray-200">Phone</th>
+              <th className="p-4 text-center font-semibold text-base min-w-[100px] dark:text-gray-200">Can Host</th>
+              <th className="p-4 text-left font-semibold text-base min-w-[220px] dark:text-gray-200">Host Date</th>
             </tr>
           </thead>
           <tbody>
@@ -1501,8 +1501,8 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
               return (
                 <tr 
                   key={e.enrollment_id} 
-                  className={`border-b hover:bg-blue-50 transition ${
-                    isTempEnrollment ? 'bg-gray-100' : isDuplicate ? 'bg-red-50' : isUnassigned ? 'bg-yellow-50' : ''
+                  className={`border-b dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition ${
+                    isTempEnrollment ? 'bg-gray-100 dark:bg-gray-800' : isDuplicate ? 'bg-red-50 dark:bg-red-900/20' : isUnassigned ? 'bg-yellow-50 dark:bg-yellow-900/20' : ''
                   }`}
                 >
                   <td className="p-4 text-base font-medium">
@@ -1512,10 +1512,10 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
                       {e.student?.name}
                     </div>
                   </td>
-                  <td className="p-4 text-base">
-                    {e.student?.address || <span className="text-gray-400 italic">No address</span>}
+                  <td className="p-4 text-base dark:text-gray-300">
+                    {e.student?.address || <span className="text-gray-400 dark:text-gray-500 italic">No address</span>}
                   </td>
-                  <td className="p-4 text-center text-base">{e.student?.phone || '—'}</td>
+                  <td className="p-4 text-center text-base dark:text-gray-300">{e.student?.phone || '—'}</td>
                   <td className="p-4 text-center">
                     <input
                       type="checkbox"
@@ -1545,8 +1545,8 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
                           setHostDateMap((prev) => ({ ...prev, [e.enrollment_id]: newDate }));
                           saveHostDate(e.enrollment_id, newDate);
                         }}
-                        className={`border-2 rounded px-3 py-2 text-base font-medium hover:border-blue-500 focus:outline-none focus:border-blue-600 w-full ${
-                          isDuplicate ? 'border-red-500' : 'border-gray-300'
+                        className={`border-2 rounded px-3 py-2 text-base font-medium hover:border-blue-500 focus:outline-none focus:border-blue-600 w-full dark:bg-gray-700 dark:text-white ${
+                          isDuplicate ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
                         }`}
                         aria-label={`Host date for ${e.student?.name}`}
                       >
@@ -1566,7 +1566,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
                       </select>
                       <button
                         type="button"
-                        className="btn btn-sm btn-ghost text-red-600 hover:bg-red-100 whitespace-nowrap"
+                        className="btn btn-sm btn-ghost text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 whitespace-nowrap"
                         title="Clear Host Date"
                         onClick={() => {
                           setHostDateMap((prev) => ({ ...prev, [e.enrollment_id]: null }));
@@ -1587,14 +1587,14 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       {/* Mobile Card View */}
       <div className="lg:hidden space-y-4">
         {displayedEnrollments.map((e) => (
-          <div key={e.enrollment_id} className="border rounded-lg shadow p-4 bg-white hover:shadow-lg transition">
+          <div key={e.enrollment_id} className="border dark:border-gray-700 rounded-lg shadow p-4 bg-white dark:bg-gray-800 hover:shadow-lg transition">
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
-                <label className="text-sm font-semibold text-gray-600">Student</label>
+                <label className="text-sm font-semibold text-gray-600 dark:text-gray-400">Student</label>
                 <p className="text-base font-medium mt-1">{e.student?.name}</p>
               </div>
               <div>
-                <label className="text-sm font-semibold text-gray-600">Can Host</label>
+                <label className="text-sm font-semibold text-gray-600 dark:text-gray-400">Can Host</label>
                 <div className="mt-2">
                   <input
                     type="checkbox"
@@ -1608,17 +1608,17 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
 
             <div className="grid grid-cols-1 gap-3 mb-4">
               <div>
-                <label className="text-sm font-semibold text-gray-600">Address</label>
-                <p className="text-base mt-1">{e.student?.address || '—'}</p>
+                <label className="text-sm font-semibold text-gray-600 dark:text-gray-400">Address</label>
+                <p className="text-base mt-1 dark:text-gray-300">{e.student?.address || '—'}</p>
               </div>
               <div>
-                <label className="text-sm font-semibold text-gray-600">Phone</label>
+                <label className="text-sm font-semibold text-gray-600 dark:text-gray-400">Phone</label>
                 <p className="text-base mt-1">{e.student?.phone || '—'}</p>
               </div>
             </div>
 
             <div>
-              <label className="text-sm font-semibold text-gray-600">Host Date</label>
+              <label className="text-sm font-semibold text-gray-600 dark:text-gray-400">Host Date</label>
               <div className="flex gap-2 items-center mt-2">
                 <select
                   value={hostDateMap[e.enrollment_id] || ''}
@@ -1636,7 +1636,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
                     setHostDateMap((prev) => ({ ...prev, [e.enrollment_id]: newDate }));
                     saveHostDate(e.enrollment_id, newDate);
                   }}
-                  className="border-2 border-gray-300 rounded px-3 py-2 text-base font-medium hover:border-blue-500 focus:outline-none focus:border-blue-600 flex-1"
+                  className="border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded px-3 py-2 text-base font-medium hover:border-blue-500 focus:outline-none focus:border-blue-600 flex-1"
                   aria-label={`Host date for ${e.student?.name}`}
                 >
                   <option value="">-- choose date --</option>
@@ -1655,7 +1655,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
                 </select>
                 <button
                   type="button"
-                  className="btn btn-sm btn-ghost text-red-600 hover:bg-red-100"
+                  className="btn btn-sm btn-ghost text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30"
                   title="Clear Host Date"
                   onClick={() => {
                     setHostDateMap((prev) => ({ ...prev, [e.enrollment_id]: null }));
