@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { format, subDays } from 'date-fns';
-import { Select } from '../components/ui/Select';
 import { BulkImport } from '../components/BulkImport';
 import { Pagination } from '../components/ui/Pagination';
 import { AdvancedExportBuilder } from '../components/AdvancedExportBuilder';
@@ -99,10 +98,10 @@ interface DateAnalytics {
 }
 
 interface FilterOptions {
-  student_id: string;
-  course_id: string;
-  teacher_id: string;
-  status: string;
+  student_ids: string[];
+  course_ids: string[];
+  teacher_ids: string[];
+  statuses: string[];
   startDate: string;
   endDate: string;
 }
@@ -260,13 +259,16 @@ const AttendanceRecords = () => {
 
   // Filter state
   const [filters, setFilters] = useState<FilterOptions>({
-    student_id: '',
-    course_id: '',
-    teacher_id: '',
-    status: '',
+    student_ids: [],
+    course_ids: [],
+    teacher_ids: [],
+    statuses: [],
     startDate: '',
     endDate: format(new Date(), 'yyyy-MM-dd'),
   });
+
+  // Multi-select dropdown open states
+  const [openFilterDropdown, setOpenFilterDropdown] = useState<string | null>(null);
 
   // Dropdown options
   const [students, setStudents] = useState<{ value: string; label: string }[]>([]);
@@ -329,18 +331,18 @@ const AttendanceRecords = () => {
       if (studentName && students.length > 0) {
         const student = students.find(s => s.label === studentName);
         if (student) {
-          setFilters(f => ({ ...f, student_id: student.value }));
+          setFilters(f => ({ ...f, student_ids: [student.value] }));
         }
       }
 
       // Apply status filter
       if (status) {
-        setFilters(f => ({ ...f, status }));
+        setFilters(f => ({ ...f, statuses: [status] }));
       }
 
       // Apply course filter
       if (course) {
-        setFilters(f => ({ ...f, course_id: course }));
+        setFilters(f => ({ ...f, course_ids: [course] }));
       }
 
       // Apply date filters
@@ -357,24 +359,24 @@ const AttendanceRecords = () => {
   const applyFilters = useCallback(() => {
     let filtered = [...records];
 
-    // Filter by student
-    if (filters.student_id) {
-      filtered = filtered.filter(r => r.student_id === filters.student_id);
+    // Filter by students (multi-select)
+    if (filters.student_ids.length > 0) {
+      filtered = filtered.filter(r => filters.student_ids.includes(r.student_id));
     }
 
-    // Filter by course (only if not already filtered at DB level)
-    if (filters.course_id) {
-      filtered = filtered.filter(r => r.course_id === filters.course_id);
+    // Filter by courses (multi-select)
+    if (filters.course_ids.length > 0) {
+      filtered = filtered.filter(r => filters.course_ids.includes(r.course_id));
     }
 
-    // Filter by instructor (only if not already filtered at DB level)
-    if (filters.teacher_id) {
-      filtered = filtered.filter(r => r.teacher_id === filters.teacher_id);
+    // Filter by instructors (multi-select)
+    if (filters.teacher_ids.length > 0) {
+      filtered = filtered.filter(r => filters.teacher_ids.includes(r.teacher_id));
     }
 
-    // Filter by status (only if not already filtered at DB level)
-    if (filters.status) {
-      filtered = filtered.filter(r => r.status === filters.status);
+    // Filter by statuses (multi-select)
+    if (filters.statuses.length > 0) {
+      filtered = filtered.filter(r => filters.statuses.includes(r.status));
     }
 
     // Filter by startDate and endDate (inclusive)
@@ -496,8 +498,10 @@ const AttendanceRecords = () => {
         .not('status', 'is', null);
       
       // Apply filters at database level to reduce data transfer
-      if (filters.student_id) {
-        query = query.eq('student_id', filters.student_id);
+      if (filters.student_ids.length === 1) {
+        query = query.eq('student_id', filters.student_ids[0]);
+      } else if (filters.student_ids.length > 1) {
+        query = query.in('student_id', filters.student_ids);
       }
       
       if (filters.startDate) {
@@ -1920,13 +1924,14 @@ const AttendanceRecords = () => {
 
   const resetFilters = () => {
     setFilters({
-      student_id: '',
-      course_id: '',
-      teacher_id: '',
-      status: '',
+      student_ids: [],
+      course_ids: [],
+      teacher_ids: [],
+      statuses: [],
       startDate: earliestDate || format(subDays(new Date(), 365), 'yyyy-MM-dd'),
       endDate: format(new Date(), 'yyyy-MM-dd'),
     });
+    setOpenFilterDropdown(null);
   };
 
   const quickFilterLastWeek = () => {
@@ -1948,7 +1953,7 @@ const AttendanceRecords = () => {
   const quickFilterAbsentOnly = () => {
     setFilters({
       ...filters,
-      status: 'absent',
+      statuses: ['absent'],
     });
   };
 
@@ -4394,66 +4399,132 @@ const AttendanceRecords = () => {
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          {/* Multi-select: Student */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
               <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
               Student
+              {filters.student_ids.length > 0 && <span className="ml-auto bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{filters.student_ids.length}</span>}
             </label>
-            <Select
-              value={filters.student_id}
-              onChange={(value) => setFilters({ ...filters, student_id: value })}
-              options={[{ value: '', label: 'All Students' }, ...students]}
-            />
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setOpenFilterDropdown(openFilterDropdown === 'student' ? null : 'student')}
+                className="w-full px-3 py-2 border-2 rounded-xl bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400 text-left text-sm flex items-center justify-between"
+              >
+                <span className="truncate">{filters.student_ids.length === 0 ? 'All Students' : `${filters.student_ids.length} selected`}</span>
+                <svg className={`w-4 h-4 text-gray-400 transition-transform ${openFilterDropdown === 'student' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+              </button>
+              {openFilterDropdown === 'student' && (
+                <div className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                  <button type="button" onClick={() => setFilters(f => ({ ...f, student_ids: [] }))} className="w-full px-3 py-2 text-left text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 font-medium border-b border-gray-100 dark:border-gray-700">Clear all</button>
+                  {students.map(opt => (
+                    <label key={opt.value} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-800 dark:text-gray-200">
+                      <input type="checkbox" checked={filters.student_ids.includes(opt.value)} onChange={() => setFilters(f => ({ ...f, student_ids: f.student_ids.includes(opt.value) ? f.student_ids.filter(v => v !== opt.value) : [...f.student_ids, opt.value] }))} className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500" />
+                      <span className="truncate">{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
+          {/* Multi-select: Course */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
               <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
               </svg>
               Course
+              {filters.course_ids.length > 0 && <span className="ml-auto bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{filters.course_ids.length}</span>}
             </label>
-            <Select
-              value={filters.course_id}
-              onChange={(value) => setFilters({ ...filters, course_id: value })}
-              options={[{ value: '', label: 'All Courses' }, ...courses]}
-            />
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setOpenFilterDropdown(openFilterDropdown === 'course' ? null : 'course')}
+                className="w-full px-3 py-2 border-2 rounded-xl bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400 text-left text-sm flex items-center justify-between"
+              >
+                <span className="truncate">{filters.course_ids.length === 0 ? 'All Courses' : `${filters.course_ids.length} selected`}</span>
+                <svg className={`w-4 h-4 text-gray-400 transition-transform ${openFilterDropdown === 'course' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+              </button>
+              {openFilterDropdown === 'course' && (
+                <div className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                  <button type="button" onClick={() => setFilters(f => ({ ...f, course_ids: [] }))} className="w-full px-3 py-2 text-left text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 font-medium border-b border-gray-100 dark:border-gray-700">Clear all</button>
+                  {courses.map(opt => (
+                    <label key={opt.value} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-800 dark:text-gray-200">
+                      <input type="checkbox" checked={filters.course_ids.includes(opt.value)} onChange={() => setFilters(f => ({ ...f, course_ids: f.course_ids.includes(opt.value) ? f.course_ids.filter(v => v !== opt.value) : [...f.course_ids, opt.value] }))} className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500" />
+                      <span className="truncate">{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
+          {/* Multi-select: Instructor */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
               <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
               Instructor
+              {filters.teacher_ids.length > 0 && <span className="ml-auto bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{filters.teacher_ids.length}</span>}
             </label>
-            <Select
-              value={filters.teacher_id}
-              onChange={(value) => setFilters({ ...filters, teacher_id: value })}
-              options={[{ value: '', label: 'All Instructors' }, ...instructors]}
-            />
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setOpenFilterDropdown(openFilterDropdown === 'instructor' ? null : 'instructor')}
+                className="w-full px-3 py-2 border-2 rounded-xl bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400 text-left text-sm flex items-center justify-between"
+              >
+                <span className="truncate">{filters.teacher_ids.length === 0 ? 'All Instructors' : `${filters.teacher_ids.length} selected`}</span>
+                <svg className={`w-4 h-4 text-gray-400 transition-transform ${openFilterDropdown === 'instructor' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+              </button>
+              {openFilterDropdown === 'instructor' && (
+                <div className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                  <button type="button" onClick={() => setFilters(f => ({ ...f, teacher_ids: [] }))} className="w-full px-3 py-2 text-left text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 font-medium border-b border-gray-100 dark:border-gray-700">Clear all</button>
+                  {instructors.map(opt => (
+                    <label key={opt.value} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-800 dark:text-gray-200">
+                      <input type="checkbox" checked={filters.teacher_ids.includes(opt.value)} onChange={() => setFilters(f => ({ ...f, teacher_ids: f.teacher_ids.includes(opt.value) ? f.teacher_ids.filter(v => v !== opt.value) : [...f.teacher_ids, opt.value] }))} className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500" />
+                      <span className="truncate">{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
+          {/* Multi-select: Status */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
               <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               Status
+              {filters.statuses.length > 0 && <span className="ml-auto bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{filters.statuses.length}</span>}
             </label>
-            <Select
-              value={filters.status}
-              onChange={(value) => setFilters({ ...filters, status: value })}
-              options={[
-                { value: '', label: 'All Statuses' },
-                { value: 'on time', label: 'On Time' },
-                { value: 'absent', label: 'Absent' },
-                { value: 'late', label: 'Late' },
-                { value: 'excused', label: 'Excused' }
-              ]}
-            />
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setOpenFilterDropdown(openFilterDropdown === 'status' ? null : 'status')}
+                className="w-full px-3 py-2 border-2 rounded-xl bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400 text-left text-sm flex items-center justify-between"
+              >
+                <span className="truncate">{filters.statuses.length === 0 ? 'All Statuses' : filters.statuses.map(s => s === 'on time' ? 'On Time' : s.charAt(0).toUpperCase() + s.slice(1)).join(', ')}</span>
+                <svg className={`w-4 h-4 text-gray-400 transition-transform ${openFilterDropdown === 'status' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+              </button>
+              {openFilterDropdown === 'status' && (
+                <div className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                  <button type="button" onClick={() => setFilters(f => ({ ...f, statuses: [] }))} className="w-full px-3 py-2 text-left text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 font-medium border-b border-gray-100 dark:border-gray-700">Clear all</button>
+                  {[{ value: 'on time', label: 'On Time' }, { value: 'absent', label: 'Absent' }, { value: 'late', label: 'Late' }, { value: 'excused', label: 'Excused' }].map(opt => (
+                    <label key={opt.value} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-800 dark:text-gray-200">
+                      <input type="checkbox" checked={filters.statuses.includes(opt.value)} onChange={() => setFilters(f => ({ ...f, statuses: f.statuses.includes(opt.value) ? f.statuses.filter(v => v !== opt.value) : [...f.statuses, opt.value] }))} className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500" />
+                      <span className="truncate">{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="space-y-2">
