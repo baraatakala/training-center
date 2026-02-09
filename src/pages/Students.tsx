@@ -284,6 +284,7 @@ export function Students() {
                                     : 'text-orange-600 border-orange-300 bg-orange-50 hover:bg-orange-100 dark:text-orange-400 dark:border-orange-700 dark:bg-orange-900/20 dark:hover:bg-orange-900/40'
                                 }`}
                                 title={student.photo_url ? 'Update photo' : 'Add photo for face check-in'}
+                                aria-label={`${student.photo_url ? 'Update' : 'Add'} photo for ${student.name}`}
                               >
                                 📸
                               </button>
@@ -292,6 +293,7 @@ export function Students() {
                                 variant="secondary" 
                                 onClick={() => openEditModal(student)} 
                                 className="text-xs md:text-sm px-2 md:px-3"
+                                aria-label={`Edit ${student.name}`}
                               >
                                 Edit
                               </Button>
@@ -299,6 +301,7 @@ export function Students() {
                                 onClick={() => setDeletingStudent(student)}
                                 className="px-2 md:px-3 py-1 text-xs md:text-sm rounded border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
                                 title="Delete student"
+                                aria-label={`Delete ${student.name}`}
                               >
                                 Delete
                               </button>

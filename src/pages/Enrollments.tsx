@@ -438,6 +438,7 @@ export function Enrollments() {
                                           <button
                                             className="text-sm border border-red-300 dark:border-red-700 rounded px-2 py-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30"
                                             onClick={() => handleDelete(enrollment.enrollment_id)}
+                                            aria-label={`Delete enrollment for ${enrollment.student?.name || 'student'}`}
                                           >
                                             Delete
                                           </button>

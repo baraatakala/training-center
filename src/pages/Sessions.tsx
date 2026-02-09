@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
@@ -38,6 +39,7 @@ type SessionWithDetails = {
 };
 
 export function Sessions() {
+  const navigate = useNavigate();
   const [sessions, setSessions] = useState<SessionWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -446,7 +448,7 @@ export function Sessions() {
                               <Button
                                 size="sm"
                                 variant="success"
-                                onClick={() => window.location.href = `/attendance/${session.session_id}`}
+                                onClick={() => navigate(`/attendance/${session.session_id}`)}
                               >
                                 Attendance
                               </Button>

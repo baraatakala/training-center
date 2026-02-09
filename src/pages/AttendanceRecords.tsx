@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { format, subDays } from 'date-fns';
@@ -2035,20 +2035,18 @@ const AttendanceRecords = () => {
     }
   };
 
-  // Get sorted records
-  const getSortedRecords = () => {
+  // Get sorted records — memoized to avoid re-sorting on every render
+  const sortedRecords = useMemo(() => {
     if (!sortColumn) return filteredRecords;
 
-    const sorted = [...filteredRecords].sort((a, b) => {
+    return [...filteredRecords].sort((a, b) => {
       let aVal: string | number | null | undefined = a[sortColumn as keyof AttendanceRecord];
       let bVal: string | number | null | undefined = b[sortColumn as keyof AttendanceRecord];
 
-      // Handle null/undefined
       if (aVal == null && bVal == null) return 0;
       if (aVal == null) return sortDirection === 'asc' ? 1 : -1;
       if (bVal == null) return sortDirection === 'asc' ? -1 : 1;
 
-      // Convert to lowercase for string comparison
       if (typeof aVal === 'string') aVal = aVal.toLowerCase();
       if (typeof bVal === 'string') bVal = bVal.toLowerCase();
 
@@ -2056,9 +2054,7 @@ const AttendanceRecords = () => {
       if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
       return 0;
     });
-
-    return sorted;
-  };
+  }, [filteredRecords, sortColumn, sortDirection]);
 
   // Calculate advanced analytics - memoized for performance
   const calculateAnalytics = useCallback(() => {
@@ -4857,7 +4853,7 @@ const AttendanceRecords = () => {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {getSortedRecords()
+              {sortedRecords
                 .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                 .map((record) => (
                   <tr 

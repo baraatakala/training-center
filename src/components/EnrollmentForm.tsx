@@ -62,21 +62,28 @@ export function EnrollmentForm({ onSubmit, onCancel, initialData = null }: Enrol
   } | null>(null);
 
   const loadData = async () => {
-    const [studentsRes, sessionsRes] = await Promise.all([
-      supabase.from(Tables.STUDENT).select('student_id, name, email, address').order('name'),
-      supabase.from(Tables.SESSION).select(`
-        session_id,
-        start_date,
-        teacher_id,
-        course:course_id(course_name)
-      `).order('start_date', { ascending: false }),
-    ]);
+    try {
+      const [studentsRes, sessionsRes] = await Promise.all([
+        supabase.from(Tables.STUDENT).select('student_id, name, email, address').order('name'),
+        supabase.from(Tables.SESSION).select(`
+          session_id,
+          start_date,
+          teacher_id,
+          course:course_id(course_name)
+        `).order('start_date', { ascending: false }),
+      ]);
 
-    if (studentsRes.data) setStudents(studentsRes.data);
-    if (sessionsRes.data) {
-      const sessionData = sessionsRes.data as unknown as Session[];
-      setSessions(sessionData);
-      setFilteredSessions(sessionData);
+      if (studentsRes.error) throw new Error('Failed to load students');
+      if (sessionsRes.error) throw new Error('Failed to load sessions');
+
+      if (studentsRes.data) setStudents(studentsRes.data);
+      if (sessionsRes.data) {
+        const sessionData = sessionsRes.data as unknown as Session[];
+        setSessions(sessionData);
+        setFilteredSessions(sessionData);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load form data. Please try again.');
     }
   };
 

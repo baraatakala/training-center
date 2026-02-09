@@ -1574,10 +1574,10 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                         <div className="mt-3 p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                           <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Color Legend Preview:</div>
                           <div className="flex flex-wrap gap-2">
-                            <span className="px-2 py-1 rounded text-xs text-white font-medium" style={{ backgroundColor: '#10b981' }}>90%+ Excellent</span>
-                            <span className="px-2 py-1 rounded text-xs text-white font-medium" style={{ backgroundColor: '#3b82f6' }}>75-89% Good</span>
-                            <span className="px-2 py-1 rounded text-xs text-white font-medium" style={{ backgroundColor: '#f59e0b' }}>60-74% Moderate</span>
-                            <span className="px-2 py-1 rounded text-xs text-white font-medium" style={{ backgroundColor: '#ef4444' }}>&lt;60% Needs Attention</span>
+                            <span className="px-2 py-1 rounded text-xs text-white font-medium bg-emerald-500">90%+ Excellent</span>
+                            <span className="px-2 py-1 rounded text-xs text-white font-medium bg-blue-500">75-89% Good</span>
+                            <span className="px-2 py-1 rounded text-xs text-white font-medium bg-amber-500">60-74% Moderate</span>
+                            <span className="px-2 py-1 rounded text-xs text-white font-medium bg-red-500">&lt;60% Needs Attention</span>
                           </div>
                         </div>
                       </div>

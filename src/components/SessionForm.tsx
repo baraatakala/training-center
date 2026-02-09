@@ -52,19 +52,27 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
   ];
 
   const loadTeachers = async () => {
-    const { data } = await supabase
+    const { data, error: fetchError } = await supabase
       .from(Tables.TEACHER)
       .select('teacher_id, name')
       .order('name');
-    if (data) setTeachers(data);
+    if (fetchError) {
+      setError('Failed to load teachers.');
+    } else if (data) {
+      setTeachers(data);
+    }
   };
 
   const loadCourses = async () => {
-    const { data } = await supabase
+    const { data, error: fetchError } = await supabase
       .from(Tables.COURSE)
       .select('course_id, course_name')
       .order('course_name');
-    if (data) setCourses(data);
+    if (fetchError) {
+      setError('Failed to load courses.');
+    } else if (data) {
+      setCourses(data);
+    }
   };
 
   useEffect(() => {

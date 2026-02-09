@@ -516,7 +516,6 @@ Please contact the training center urgently.`;
                             navigate(`/attendance-records?${params.toString()}`);
                           }
                         }}
-                        style={{ outline: 'none' }}
                       >
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1 min-w-0">

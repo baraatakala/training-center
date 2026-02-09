@@ -35,11 +35,15 @@ export function CourseForm({ course, onSubmit, onCancel }: CourseFormProps) {
   const [error, setError] = useState('');
 
   const loadTeachers = async () => {
-    const { data } = await supabase
+    const { data, error: fetchError } = await supabase
       .from(Tables.TEACHER)
       .select('teacher_id, name')
       .order('name');
-    if (data) setTeachers(data);
+    if (fetchError) {
+      setError('Failed to load teachers. Please try again.');
+    } else if (data) {
+      setTeachers(data);
+    }
   };
 
   useEffect(() => {
