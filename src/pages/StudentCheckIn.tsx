@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Tables } from '../types/database.types';
@@ -43,13 +43,14 @@ export function StudentCheckIn() {
   const [studentInfo, setStudentInfo] = useState<{ student_id: string; name: string; email: string } | null>(null);
   const [hostAddresses, setHostAddresses] = useState<HostInfo[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<string>('');
+  const successTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     // Small delay to ensure auth state is fully propagated after login redirect
     const timer = setTimeout(() => {
       validateAndLoadCheckIn();
     }, 100);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); if (successTimerRef.current) clearTimeout(successTimerRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
@@ -600,7 +601,7 @@ export function StudentCheckIn() {
       setWasLate(attendanceStatus === 'late');
       setCheckedInAfterSession(checkInAfterSession);
       setSuccess(true);
-      setTimeout(() => {
+      successTimerRef.current = setTimeout(() => {
         navigate('/');
       }, 3000);
     } catch (err: unknown) {

@@ -97,6 +97,10 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
       setError('End date must be after start date.');
       return;
     }
+    if (selectedDays.length === 0) {
+      setError('Please select at least one day.');
+      return;
+    }
 
     setLoading(true);
 
@@ -170,7 +174,7 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
                 }}
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
-              <span className="text-sm text-gray-700">{day}</span>
+              <span className="text-sm text-gray-700 dark:text-gray-300">{day}</span>
             </label>
           ))}
         </div>
@@ -193,7 +197,7 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
               const endTime = formData.time?.split('-')[1]?.trim() || '';
               setFormData({ ...formData, time: endTime ? `${e.target.value}-${endTime}` : e.target.value });
             }}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             placeholder="Start time"
           />
           <input
@@ -203,7 +207,7 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
               const startTime = formData.time?.split('-')[0]?.trim() || '';
               setFormData({ ...formData, time: startTime ? `${startTime}-${e.target.value}` : e.target.value });
             }}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             placeholder="End time"
           />
         </div>
@@ -223,14 +227,14 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
           Grace Period (minutes)
-          <span className="text-gray-500 font-normal ml-2">
+          <span className="text-gray-500 dark:text-gray-400 font-normal ml-2">
             Students can check in without being marked late
           </span>
         </label>
         <select
           value={formData.grace_period_minutes}
           onChange={(e) => setFormData({ ...formData, grace_period_minutes: parseInt(e.target.value) })}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         >
           <option value={0}>0 minutes (no grace period)</option>
           <option value={5}>5 minutes</option>

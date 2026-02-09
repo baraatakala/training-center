@@ -49,6 +49,16 @@ function PageLoader() {
   );
 }
 
+function SafePage({ children }: { children: React.ReactNode }) {
+  return (
+    <ErrorBoundary>
+      <Suspense fallback={<PageLoader />}>
+        {children}
+      </Suspense>
+    </ErrorBoundary>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -58,31 +68,27 @@ function App() {
         <ScrollToTop />
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route path="/checkin/:token" element={<Suspense fallback={<PageLoader />}><StudentCheckIn /></Suspense>} />
-          <Route path="/photo-checkin/:token" element={<Suspense fallback={<PageLoader />}><PhotoCheckIn /></Suspense>} />
+          <Route path="/checkin/:token" element={<SafePage><StudentCheckIn /></SafePage>} />
+          <Route path="/photo-checkin/:token" element={<SafePage><PhotoCheckIn /></SafePage>} />
           <Route
             path="/*"
             element={
               <PrivateRoute>
                 <Layout>
-                  <ErrorBoundary>
-                  <Suspense fallback={<PageLoader />}>
                   <Routes>
                     <Route path="/" element={<Dashboard />} />
-                    <Route path="/teachers" element={<Teachers />} />
-                    <Route path="/students" element={<Students />} />
-                    <Route path="/courses" element={<Courses />} />
-                    <Route path="/sessions" element={<Sessions />} />
-                    <Route path="/enrollments" element={<Enrollments />} />
-                    <Route path="/attendance/:sessionId" element={<Attendance />} />
-                    <Route path="/attendance-records" element={<AttendanceRecords />} />
-                    <Route path="/audit-logs" element={<AuditLogs />} />
-                    <Route path="/announcements" element={<Announcements />} />
-                    <Route path="/messages" element={<Messages />} />
-                    <Route path="*" element={<NotFound />} />
+                    <Route path="/teachers" element={<SafePage><Teachers /></SafePage>} />
+                    <Route path="/students" element={<SafePage><Students /></SafePage>} />
+                    <Route path="/courses" element={<SafePage><Courses /></SafePage>} />
+                    <Route path="/sessions" element={<SafePage><Sessions /></SafePage>} />
+                    <Route path="/enrollments" element={<SafePage><Enrollments /></SafePage>} />
+                    <Route path="/attendance/:sessionId" element={<SafePage><Attendance /></SafePage>} />
+                    <Route path="/attendance-records" element={<SafePage><AttendanceRecords /></SafePage>} />
+                    <Route path="/audit-logs" element={<SafePage><AuditLogs /></SafePage>} />
+                    <Route path="/announcements" element={<SafePage><Announcements /></SafePage>} />
+                    <Route path="/messages" element={<SafePage><Messages /></SafePage>} />
+                    <Route path="*" element={<SafePage><NotFound /></SafePage>} />
                   </Routes>
-                  </Suspense>
-                  </ErrorBoundary>
                 </Layout>
               </PrivateRoute>
             }

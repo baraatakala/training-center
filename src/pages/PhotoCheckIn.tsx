@@ -65,6 +65,7 @@ export function PhotoCheckIn() {
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const successTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Load face-api models
   useEffect(() => {
@@ -97,7 +98,7 @@ export function PhotoCheckIn() {
     const timer = setTimeout(() => {
       validateAndLoadCheckIn();
     }, 100);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); if (successTimerRef.current) clearTimeout(successTimerRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
@@ -761,7 +762,7 @@ export function PhotoCheckIn() {
       setCheckedInAfterSession(checkInAfterSession);
       setSuccess(true);
       
-      setTimeout(() => navigate('/'), 3000);
+      successTimerRef.current = setTimeout(() => navigate('/'), 3000);
     } catch (err) {
       console.error('Check-in error:', err);
       setError(err instanceof Error ? err.message : 'Failed to check in. Please try again.');

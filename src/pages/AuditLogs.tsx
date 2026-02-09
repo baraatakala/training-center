@@ -654,7 +654,14 @@ export function AuditLogs() {
 
                     return (
                       <React.Fragment key={log.audit_id}>
-                        <tr className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer" onClick={() => setExpandedLog(isExpanded ? null : log.audit_id || null)}>
+                        <tr
+                          className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer focus-within:ring-2 focus-within:ring-blue-500"
+                          onClick={() => setExpandedLog(isExpanded ? null : log.audit_id || null)}
+                          tabIndex={0}
+                          role="button"
+                          aria-expanded={isExpanded}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedLog(isExpanded ? null : log.audit_id || null); } }}
+                        >
                           <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                             {log.deleted_at ? format(new Date(log.deleted_at), 'MMM dd, HH:mm') : '—'}
                           </td>
