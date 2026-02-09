@@ -38,6 +38,8 @@ export function Courses() {
   const [deletingCourse, setDeletingCourse] = useState<CourseWithTeacher | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [sortField, setSortField] = useState<'course_name' | 'category' | 'teacher'>('course_name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   const loadCourses = async () => {
     setLoading(true);
@@ -58,21 +60,50 @@ export function Courses() {
   }, []);
 
   useEffect(() => {
+    let result = [...courses];
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      setFilteredCourses(
-        courses.filter(
-          (c) =>
-            c.course_name.toLowerCase().includes(query) ||
-            c.category.toLowerCase().includes(query) ||
-            (c.teacher?.name && c.teacher.name.toLowerCase().includes(query))
-        )
+      result = result.filter(
+        (c) =>
+          c.course_name.toLowerCase().includes(query) ||
+          c.category.toLowerCase().includes(query) ||
+          (c.teacher?.name && c.teacher.name.toLowerCase().includes(query))
       );
-    } else {
-      setFilteredCourses(courses);
     }
+    // Apply sorting
+    result.sort((a, b) => {
+      let cmp = 0;
+      if (sortField === 'teacher') {
+        const aVal = (a.teacher?.name || '').toLowerCase();
+        const bVal = (b.teacher?.name || '').toLowerCase();
+        cmp = aVal.localeCompare(bVal);
+      } else {
+        const aVal = (a[sortField] || '').toLowerCase();
+        const bVal = (b[sortField] || '').toLowerCase();
+        cmp = aVal.localeCompare(bVal);
+      }
+      return sortDirection === 'desc' ? -cmp : cmp;
+    });
+    setFilteredCourses(result);
     setCurrentPage(1);
-  }, [searchQuery, courses]);
+  }, [searchQuery, courses, sortField, sortDirection]);
+
+  const toggleSort = (field: typeof sortField) => {
+    if (sortField === field) {
+      setSortDirection(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const sortIcon = (field: typeof sortField) => (
+    <svg className={`w-3 h-3 inline ml-1 ${sortField === field ? 'text-blue-500' : 'text-gray-400 dark:text-gray-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      {sortField === field && sortDirection === 'desc'
+        ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />}
+    </svg>
+  );
 
   const handleAddCourse = async (data: CreateCourse) => {
     const { error } = await courseService.create(data);
@@ -203,9 +234,9 @@ export function Courses() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="whitespace-nowrap">Course Name</TableHead>
-                    <TableHead className="whitespace-nowrap hidden lg:table-cell">Category</TableHead>
-                    <TableHead className="whitespace-nowrap hidden md:table-cell">Instructor</TableHead>
+                    <TableHead className="whitespace-nowrap cursor-pointer select-none hover:text-blue-600 dark:hover:text-blue-400" onClick={() => toggleSort('course_name')}>Course Name{sortIcon('course_name')}</TableHead>
+                    <TableHead className="whitespace-nowrap hidden lg:table-cell cursor-pointer select-none hover:text-blue-600 dark:hover:text-blue-400" onClick={() => toggleSort('category')}>Category{sortIcon('category')}</TableHead>
+                    <TableHead className="whitespace-nowrap hidden md:table-cell cursor-pointer select-none hover:text-blue-600 dark:hover:text-blue-400" onClick={() => toggleSort('teacher')}>Instructor{sortIcon('teacher')}</TableHead>
                     <TableHead className="text-right whitespace-nowrap">Actions</TableHead>
                   </TableRow>
                 </TableHeader>

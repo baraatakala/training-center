@@ -163,7 +163,7 @@ export function EnrollmentForm({ onSubmit, onCancel, initialData = null }: Enrol
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded">
           {error}
         </div>
       )}

@@ -230,8 +230,8 @@ export function PhotoCheckInModal({
 
   /* -------------------- UI -------------------- */
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-gradient-to-r from-purple-600 to-pink-600 text-white p-6 rounded-t-2xl flex justify-between">
           <div>
@@ -255,17 +255,17 @@ export function PhotoCheckInModal({
               <div className="animate-spin h-16 w-16 border-b-2 border-purple-600 rounded-full" />
             </div>
           ) : (
-            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 text-center space-y-4">
+            <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl p-6 text-center space-y-4">
               <div className="text-6xl">📸</div>
-              <h3 className="text-lg font-bold text-gray-800">Face Recognition Check-In</h3>
-              <p className="text-sm text-gray-600">
+              <h3 className="text-lg font-bold text-gray-800 dark:text-white">Face Recognition Check-In</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 Students can check in by verifying their face against their profile photo.
               </p>
               
               {/* URL Display */}
-              <div className="bg-white rounded-lg p-3 border border-purple-200">
-                <p className="text-xs text-gray-500 mb-1">Check-in Link:</p>
-                <p className="text-sm font-mono text-purple-700 break-all">{checkInUrl}</p>
+              <div className="bg-white dark:bg-gray-700 rounded-lg p-3 border border-purple-200 dark:border-purple-700">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Check-in Link:</p>
+                <p className="text-sm font-mono text-purple-700 dark:text-purple-300 break-all">{checkInUrl}</p>
               </div>
 
               {/* Action Buttons */}
@@ -291,11 +291,11 @@ export function PhotoCheckInModal({
           )}
 
           {/* How it works */}
-          <div className="bg-blue-50 rounded-xl p-4 space-y-2">
-            <h4 className="font-bold text-gray-800 flex items-center gap-2">
+          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 space-y-2">
+            <h4 className="font-bold text-gray-800 dark:text-white flex items-center gap-2">
               <span>ℹ️</span> How It Works
             </h4>
-            <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
+            <ol className="text-sm text-gray-600 dark:text-gray-400 space-y-1 list-decimal list-inside">
               <li>Share the link with students (copy or use Share button)</li>
               <li>Student opens link and logs in if needed</li>
               <li>Student opens camera and takes a live photo</li>
@@ -305,11 +305,11 @@ export function PhotoCheckInModal({
           </div>
 
           {/* Requirements */}
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-            <h4 className="font-bold text-yellow-800 flex items-center gap-2 mb-2">
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700/50 rounded-xl p-4">
+            <h4 className="font-bold text-yellow-800 dark:text-yellow-300 flex items-center gap-2 mb-2">
               <span>⚠️</span> Requirements
             </h4>
-            <ul className="text-sm text-yellow-700 space-y-1">
+            <ul className="text-sm text-yellow-700 dark:text-yellow-400 space-y-1">
               <li>• Students must have uploaded a profile photo</li>
               <li>• Good lighting required for face detection</li>
               <li>• Camera access must be allowed</li>
@@ -317,29 +317,29 @@ export function PhotoCheckInModal({
           </div>
 
           {/* Stats */}
-          <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-6">
+          <div className="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 rounded-xl p-6">
             <div className="flex justify-between items-center mb-3">
-              <h3 className="font-bold text-lg">Live Attendance</h3>
+              <h3 className="font-bold text-lg dark:text-white">Live Attendance</h3>
               <div className="text-2xl font-bold">
                 {checkInCount}/{totalStudents}
               </div>
             </div>
 
-            <div className="h-4 bg-gray-200 rounded-full overflow-hidden">
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
               <div
                 className="h-full bg-gradient-to-r from-green-500 to-blue-500 transition-all"
                 style={{ width: `${percentage}%` }}
               />
             </div>
 
-            <p className="text-sm text-gray-600 mt-2">{percentage}% Present</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">{percentage}% Present</p>
           </div>
 
           {/* Timer */}
-          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex items-center gap-3">
+          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700/50 rounded-xl p-4 flex items-center gap-3">
             <span className="text-3xl">⏰</span>
             <div>
-              <p className="text-sm text-gray-600">Link Expires In</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Link Expires In</p>
               <p className="text-xl font-mono font-bold">{timeLeft}</p>
             </div>
           </div>
