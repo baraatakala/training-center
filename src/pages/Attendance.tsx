@@ -82,7 +82,6 @@ export function Attendance() {
 
         if (error || !teacher) {
           // Not a teacher - redirect to dashboard
-          console.log('Access denied: User is not a teacher');
           navigate('/');
           return;
         }
@@ -749,8 +748,6 @@ export function Attendance() {
         .then(({ error }) => {
           if (error) {
             console.error('Error auto-saving suggested host:', error);
-          } else {
-            console.log(`📅 Auto-saved planned host: ${plannedHost.student_name} (scheduled for ${selectedDate})`);
           }
         });
       

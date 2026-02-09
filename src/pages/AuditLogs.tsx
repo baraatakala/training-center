@@ -418,6 +418,7 @@ export function AuditLogs() {
                   value={customStart}
                   onChange={(e) => setCustomStart(e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
+                  aria-label="Start date"
                 />
               </div>
               <div>
@@ -427,6 +428,7 @@ export function AuditLogs() {
                   value={customEnd}
                   onChange={(e) => setCustomEnd(e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
+                  aria-label="End date"
                 />
               </div>
             </div>

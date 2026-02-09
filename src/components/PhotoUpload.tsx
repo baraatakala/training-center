@@ -166,7 +166,6 @@ export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: Pho
           faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
         ]);
         setModelsLoaded(true);
-        console.log('✅ Face detection models loaded for photo quality check');
       } catch (err) {
         console.error('Failed to load face detection models:', err);
       }
@@ -358,7 +357,6 @@ export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: Pho
           return;
         }
         
-        console.log(`✅ Image compressed from ${(file.size / 1024 / 1024).toFixed(2)}MB to ${(compressedBlob.size / 1024 / 1024).toFixed(2)}MB`);
         setUploading(false);
         await uploadPhoto(compressedBlob);
         return;
@@ -437,8 +435,6 @@ export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: Pho
 
       setPreviewUrl(signedUrlData.signedUrl);
       onPhotoUploaded(fileName);
-
-      console.log('✅ Photo uploaded successfully:', fileName);
     } catch (err) {
       console.error('Upload error:', err);
       setError(err instanceof Error ? err.message : 'Failed to upload photo');
@@ -479,8 +475,6 @@ export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: Pho
 
       setPreviewUrl(null);
       onPhotoUploaded('');
-
-      console.log('✅ Photo deleted successfully');
     } catch (err) {
       console.error('Delete error:', err);
       setError(err instanceof Error ? err.message : 'Failed to delete photo');

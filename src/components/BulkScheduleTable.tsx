@@ -28,7 +28,6 @@ interface Props {
 
 function getDatesBetween(start: string, end: string, dayString?: string | null) {
   const dates: string[] = [];
-  console.log('getDatesBetween called with:', { start, end, dayString });
   
   // Parse YYYY-MM-DD without timezone conversion to avoid off-by-one issues
   const parseYMD = (ymd: string) => {
@@ -66,7 +65,6 @@ function getDatesBetween(start: string, end: string, dayString?: string | null) 
       }
     });
     if (allowedWeekdays.size === 0) allowedWeekdays = null;
-    console.log('Parsed allowedWeekdays:', Array.from(allowedWeekdays || []));
   }
 
   for (let d = new Date(s); d <= e; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
@@ -85,7 +83,6 @@ function getDatesBetween(start: string, end: string, dayString?: string | null) 
       dates.push(`${y}-${m}-${day}`);
     }
   }
-  console.log('Generated dates count:', dates.length, 'first 3:', dates.slice(0, 3));
   return dates;
 }
 
@@ -185,7 +182,6 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
 
       const cancelled = new Set(data?.map(d => d.attendance_date) || []);
       setCancelledDates(cancelled);
-      console.log('Loaded cancelled dates:', Array.from(cancelled));
     } catch (err) {
       const error = err as Error;
       console.error('Exception loading cancelled dates:', error);
@@ -194,8 +190,6 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
 
   const loadEnrollments = useCallback(async () => {
     try {
-      console.log('Loading enrolled students for session:', sessionId);
-      
       // First, load the session to get teacher info
       const { data: sessionData, error: sessionError } = await supabase
         .from(Tables.SESSION)
@@ -241,7 +235,6 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       }
 
       if (!enrollmentData || enrollmentData.length === 0) {
-        console.log('No active enrollments found for this session');
         setEnrollments([]);
         return;
       }
@@ -298,7 +291,6 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
           is_teacher: true
         };
         rows.unshift(teacherRow); // Add teacher at the beginning
-        console.log('Added teacher as potential host:', teacher.name);
       }
 
       // Sort students by name (teacher already at top)
@@ -311,7 +303,6 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       });
 
       setEnrollments([...teacherRows, ...studentRows]);
-      console.log('Loaded enrolled students with addresses:', rows.length);
 
       // initialize hostDateMap from DB host_date values (convert DATE to ISO string yyyy-mm-dd)
       const hd: Record<string, string | null> = {};
@@ -371,14 +362,12 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
   const saveHostDate = async (enrollmentId: string, hostDate: string | null) => {
     // Skip if temp enrollment
     if (enrollmentId.startsWith('temp-')) {
-      console.log('Skipping save for temp enrollment');
-      return;
+
     }
     
     // Handle teacher hosting dates separately
     if (enrollmentId.startsWith('teacher-')) {
       const teacherId = enrollmentId.replace('teacher-', '');
-      console.log(`Saving teacher host_date for teacher ${teacherId}:`, hostDate);
       
       try {
         if (hostDate) {
@@ -396,8 +385,6 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
           
           if (error) {
             console.error('Failed to save teacher host_date:', error);
-          } else {
-            console.log(`Successfully saved teacher host_date for teacher ${teacherId}`);
           }
         } else {
           // Delete if hostDate is null
@@ -409,8 +396,6 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
           
           if (error) {
             console.error('Failed to delete teacher host_date:', error);
-          } else {
-            console.log(`Successfully deleted teacher host_date for teacher ${teacherId}`);
           }
         }
       } catch (err) {
@@ -421,12 +406,9 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
     }
     
     try {
-      console.log(`Saving host_date for enrollment ${enrollmentId}:`, hostDate);
       const { error } = await supabase.from(Tables.ENROLLMENT).update({ host_date: hostDate }).eq('enrollment_id', enrollmentId);
       if (error) {
         console.error('Failed to save host_date:', error);
-      } else {
-        console.log(`Successfully saved host_date for enrollment ${enrollmentId}`);
       }
     } catch (err) {
       const error = err as Error;
@@ -494,7 +476,6 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       }
       
       setCancelledDates(prev => new Set([...prev, date]));
-      console.log(`✅ Marked ${date} as cancelled`);
     } catch (err) {
       const error = err as Error;
       console.error('Exception marking session as cancelled:', error);
@@ -542,7 +523,6 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
         updated.delete(date);
         return updated;
       });
-      console.log(`✅ Unmarked ${date} as cancelled`);
     } catch (err) {
       const error = err as Error;
       console.error('Exception unmarking cancelled session:', error);
@@ -745,7 +725,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
     const bodyFont = hasArabic ? "'Noto Sans Arabic', Arial, sans-serif" : 'Arial, Helvetica, sans-serif';
 
     const html = `<!doctype html><html lang="${hasArabic ? 'ar' : 'en'}" dir="${htmlDir}"><head><meta charset="utf-8"><title>Host Schedule</title>${fontLink}<style>body{font-family:${bodyFont};padding:20px}table{border-collapse:collapse;width:100%}th{background:#f4f4f4;text-align:left}td,th{word-break:break-word}</style></head><body><h2 style="text-align:${hasArabic ? 'right' : 'left'}">Host Schedule</h2><table><thead><tr>${headerHtml}</tr></thead><tbody>${bodyHtml}</tbody></table></body></html>`;
-    const w = window.open('', '_blank');
+    const w = window.open('', '_blank', 'noopener,noreferrer');
     if (!w) throw new Error('Popup blocked');
     w.document.write(html);
     w.document.close();

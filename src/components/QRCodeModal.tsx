@@ -44,7 +44,6 @@ export function QRCodeModal({
       }
       
       const userEmail = session.user.email || 'system';
-      console.log('✅ Session refreshed for QR generation');
 
       // Step 2: Generate secure QR session token via Supabase function
       const { data: qrSession, error: qrError } = await supabase
@@ -80,11 +79,9 @@ export function QRCodeModal({
       });
 
       setQrCodeUrl(qrDataUrl);
-      console.log('✅ Secure QR session created:', { token, expires, isRefresh });
       
       if (isRefresh) {
         setRefreshCount(prev => prev + 1);
-        console.log('🔄 QR code refreshed automatically');
       }
     } catch (error) {
       console.error('QR code generation error:', error);
@@ -146,7 +143,6 @@ export function QRCodeModal({
     if (qrToken) {
       try {
         await supabase.rpc('invalidate_qr_session', { p_token: qrToken });
-        console.log('✅ QR session invalidated');
       } catch (error) {
         console.error('Failed to invalidate QR session:', error);
       }
@@ -211,7 +207,6 @@ export function QRCodeModal({
     const REFRESH_INTERVAL = 3 * 60 * 1000; // 3 minutes
     
     const refreshTimer = setInterval(async () => {
-      console.log('🔄 Auto-refreshing QR code for security...');
       // Invalidate old QR session
       await invalidateQRSession();
       // Generate new QR code

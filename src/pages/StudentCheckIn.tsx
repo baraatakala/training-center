@@ -110,8 +110,6 @@ export function StudentCheckIn() {
       const sessionId = qrSession.session_id;
       const date = qrSession.attendance_date;
 
-      console.log('✅ QR token validated:', { sessionId, date, expiresAt: qrSession.expires_at });
-
       // STEP 3: Get student info (case-insensitive email lookup)
       const { data: student, error: studentError } = await supabase
         .from('student')
@@ -284,7 +282,6 @@ export function StudentCheckIn() {
         },
       });
 
-      console.log('✅ Check-in page loaded successfully');
       setLoading(false);
     } catch (err: unknown) {
       console.error('Validation error:', err);
@@ -308,7 +305,6 @@ export function StudentCheckIn() {
 
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          console.log('GPS captured successfully:', position.coords.latitude, position.coords.longitude);
           resolve({
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
@@ -412,16 +408,6 @@ export function StudentCheckIn() {
         // Store distance for database record
         distanceFromHost = Math.round(proximityResult.distance * 100) / 100; // Round to 2 decimals
 
-        console.log('📍 Proximity check:', {
-          userLat: gpsData.latitude,
-          userLon: gpsData.longitude,
-          hostLat: hostLat,
-          hostLon: hostLon,
-          distance: proximityResult.distance,
-          allowed: checkInData.session!.proximity_radius,
-          isWithin: proximityResult.isWithinRadius
-        });
-
         if (!proximityResult.isWithinRadius) {
           setError(
             `⚠️ You are too far from the session location!\n\n` +
@@ -433,7 +419,6 @@ export function StudentCheckIn() {
           return;
         }
 
-        console.log('✅ Proximity validation passed:', formatDistance(proximityResult.distance), 'from host');
       } else if (checkInData.session?.proximity_radius && !hostLat) {
         console.warn('📍 Proximity radius configured but no host coordinates set - validation skipped');
       }

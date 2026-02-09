@@ -466,6 +466,7 @@ export function Sessions() {
                                 onClick={() => setDeletingSession(session)}
                                 className="px-2 md:px-3 py-1 text-xs md:text-sm rounded border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
                                 title="Delete session"
+                                aria-label={`Delete session ${session.course?.course_name || ''}`}
                               >
                                 Delete
                               </button>

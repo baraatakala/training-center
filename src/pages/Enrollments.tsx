@@ -256,6 +256,7 @@ export function Enrollments() {
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              aria-label="Filter by status"
             >
               <option value="all">All Statuses</option>
               <option value="active">Active</option>
@@ -271,6 +272,7 @@ export function Enrollments() {
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as 'student' | 'course' | 'date' | 'status' | 'canHost')}
               className="border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              aria-label="Sort enrollments by"
             >
               <option value="student">Student Name</option>
               <option value="course">Course</option>

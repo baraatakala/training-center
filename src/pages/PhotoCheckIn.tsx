@@ -80,7 +80,6 @@ export function PhotoCheckIn() {
           faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
         ]);
         
-        console.log('✅ Face-api models loaded');
         setModelsLoading(false);
       } catch (err) {
         console.error('Failed to load face-api models:', err);
@@ -156,8 +155,6 @@ export function PhotoCheckIn() {
 
       const sessionId = photoSession.session_id;
       const date = photoSession.attendance_date;
-
-      console.log('✅ Photo check-in token validated:', { sessionId, date });
 
       // STEP 3: Get student info with photo_url (user already authenticated in STEP 1)
       const { data: student, error: studentError } = await supabase
@@ -456,8 +453,6 @@ export function PhotoCheckIn() {
       const matched = distance < 0.6;
 
       setFaceMatchResult({ matched, confidence });
-
-      console.log(`Face verification: distance=${distance.toFixed(3)}, confidence=${confidence}%, matched=${matched}`);
     } catch (err) {
       console.error('Face verification error:', err);
       setFaceMatchResult({ matched: false, confidence: 0, error: 'Face verification failed. Please try again.' });
@@ -591,16 +586,6 @@ export function PhotoCheckIn() {
         // Store distance for database record
         distanceFromHost = Math.round(proximityResult.distance * 100) / 100; // Round to 2 decimals
 
-        console.log('📍 Proximity check:', {
-          userLat: gpsData.latitude,
-          userLon: gpsData.longitude,
-          hostLat: hostLat,
-          hostLon: hostLon,
-          distance: proximityResult.distance,
-          allowed: checkInData.session!.proximity_radius,
-          isWithin: proximityResult.isWithinRadius
-        });
-
         if (!proximityResult.isWithinRadius) {
           setError(
             `⚠️ You are too far from the session location!\n\n` +
@@ -612,7 +597,6 @@ export function PhotoCheckIn() {
           return;
         }
 
-        console.log('✅ Proximity validation passed:', formatDistance(proximityResult.distance), 'from host');
       } else if (checkInData.session?.proximity_radius && !hostLat) {
         console.warn('📍 Proximity radius configured but no host coordinates set - validation skipped');
       }
