@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { useDebounce } from '../hooks/useDebounce';
 import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
@@ -133,6 +134,7 @@ export function Announcements() {
   const [filterPriority, setFilterPriority] = useState<string>('all');
   const [filterCourse, setFilterCourse] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearch = useDebounce(searchTerm, 300);
 
   // Animation state for new announcements
   const [newAnnouncementId] = useState<string | null>(null);
@@ -582,8 +584,8 @@ export function Announcements() {
   const filteredAnnouncements = announcements.filter(a => {
     if (filterPriority !== 'all' && a.priority !== filterPriority) return false;
     if (filterCourse !== 'all' && a.course_id !== filterCourse) return false;
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
+    if (debouncedSearch) {
+      const term = debouncedSearch.toLowerCase();
       if (!a.title.toLowerCase().includes(term) && !a.content.toLowerCase().includes(term)) {
         return false;
       }

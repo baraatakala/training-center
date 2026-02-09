@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { useDebounce } from '../hooks/useDebounce';
 import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
@@ -70,6 +71,7 @@ export function Messages() {
 
   // Search
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearch = useDebounce(searchTerm, 300);
 
   // Rate limiting for students (60s cooldown)
   const STUDENT_COOLDOWN_SECONDS = 60;
@@ -407,8 +409,8 @@ export function Messages() {
   };
 
   const filteredMessages = messages.filter(m => {
-    if (!searchTerm) return true;
-    const term = searchTerm.toLowerCase();
+    if (!debouncedSearch) return true;
+    const term = debouncedSearch.toLowerCase();
     return (
       (m.subject?.toLowerCase().includes(term)) ||
       (m.content.toLowerCase().includes(term)) ||

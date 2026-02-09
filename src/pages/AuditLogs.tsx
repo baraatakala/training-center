@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { useDebounce } from '../hooks/useDebounce';
 import { Select } from '../components/ui/Select';
 import { format, subDays, subMonths, isAfter, isBefore, parseISO } from 'date-fns';
 import { getAuditLogs, type AuditLogEntry } from '../services/auditService';
@@ -93,6 +94,7 @@ export function AuditLogs() {
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebounce(searchQuery, 300);
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -156,8 +158,8 @@ export function AuditLogs() {
     }
 
     // Search across record data
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
+    if (debouncedSearch.trim()) {
+      const q = debouncedSearch.toLowerCase();
       result = result.filter((l) => {
         const desc = describeAction(l).toLowerCase();
         const dataStr = JSON.stringify(l.old_data || l.new_data || {}).toLowerCase();
@@ -167,7 +169,7 @@ export function AuditLogs() {
     }
 
     return result;
-  }, [logs, filterDateRange, customStart, customEnd, searchQuery]);
+  }, [logs, filterDateRange, customStart, customEnd, debouncedSearch]);
 
   // Pagination
   const totalPages = Math.ceil(filteredLogs.length / PAGE_SIZE);
