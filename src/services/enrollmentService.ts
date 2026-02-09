@@ -90,7 +90,7 @@ export const enrollmentService = {
       .single();
 
     if (result.data) {
-      await logInsert('enrollment', result.data.enrollment_id, result.data as Record<string, unknown>);
+      try { await logInsert('enrollment', result.data.enrollment_id, result.data as Record<string, unknown>); } catch { /* audit non-critical */ }
     }
     return result;
   },
@@ -111,7 +111,7 @@ export const enrollmentService = {
       .single();
 
     if (oldData && result.data) {
-      await logUpdate('enrollment', id, oldData as Record<string, unknown>, result.data as Record<string, unknown>);
+      try { await logUpdate('enrollment', id, oldData as Record<string, unknown>, result.data as Record<string, unknown>); } catch { /* audit non-critical */ }
     }
     return result;
   },
@@ -144,7 +144,7 @@ export const enrollmentService = {
 
     // Log the deletion
     if (enrollment) {
-      await logDelete('enrollment', id, enrollment as Record<string, unknown>);
+      try { await logDelete('enrollment', id, enrollment as Record<string, unknown>); } catch { /* audit non-critical */ }
     }
 
     return await supabase

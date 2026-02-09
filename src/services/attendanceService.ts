@@ -105,7 +105,7 @@ export const attendanceService = {
       .single();
 
     if (oldData && result.data) {
-      await logUpdate('attendance', id, oldData as Record<string, unknown>, result.data as Record<string, unknown>);
+      try { await logUpdate('attendance', id, oldData as Record<string, unknown>, result.data as Record<string, unknown>); } catch { /* audit non-critical */ }
     }
     return result;
   },
@@ -146,7 +146,7 @@ export const attendanceService = {
 
     // Log the deletion
     if (attendance) {
-      await logDelete('attendance', id, attendance as Record<string, unknown>);
+      try { await logDelete('attendance', id, attendance as Record<string, unknown>); } catch { /* audit non-critical */ }
     }
 
     return await supabase

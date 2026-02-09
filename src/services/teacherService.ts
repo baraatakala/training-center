@@ -26,7 +26,7 @@ export const teacherService = {
       .single();
 
     if (result.data) {
-      await logInsert('teacher', result.data.teacher_id, result.data as Record<string, unknown>);
+      try { await logInsert('teacher', result.data.teacher_id, result.data as Record<string, unknown>); } catch { /* audit non-critical */ }
     }
     return result;
   },
@@ -46,7 +46,7 @@ export const teacherService = {
       .single();
 
     if (oldData && result.data) {
-      await logUpdate('teacher', teacherId, oldData as Record<string, unknown>, result.data as Record<string, unknown>);
+      try { await logUpdate('teacher', teacherId, oldData as Record<string, unknown>, result.data as Record<string, unknown>); } catch { /* audit non-critical */ }
     }
     return result;
   },
@@ -61,7 +61,7 @@ export const teacherService = {
 
     // Log the deletion
     if (teacher) {
-      await logDelete('teacher', teacherId, teacher as Record<string, unknown>);
+      try { await logDelete('teacher', teacherId, teacher as Record<string, unknown>); } catch { /* audit non-critical */ }
     }
 
     return await supabase

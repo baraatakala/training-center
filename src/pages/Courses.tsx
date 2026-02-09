@@ -11,6 +11,7 @@ import { courseService } from '../services/courseService';
 import { toast } from '../components/ui/toastUtils';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useIsTeacher } from '../hooks/useIsTeacher';
+import { useDebounce } from '../hooks/useDebounce';
 import { TableSkeleton } from '../components/ui/Skeleton';
 import type { CreateCourse } from '../types/database.types';
 
@@ -29,6 +30,7 @@ export function Courses() {
   const [filteredCourses, setFilteredCourses] = useState<CourseWithTeacher[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebounce(searchQuery, 300);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCourse, setEditingCourse] = useState<CourseWithTeacher | undefined>();
   const [isBookReferencesOpen, setIsBookReferencesOpen] = useState(false);
@@ -61,8 +63,8 @@ export function Courses() {
 
   useEffect(() => {
     let result = [...courses];
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
+    if (debouncedSearch) {
+      const query = debouncedSearch.toLowerCase();
       result = result.filter(
         (c) =>
           c.course_name.toLowerCase().includes(query) ||
@@ -86,7 +88,7 @@ export function Courses() {
     });
     setFilteredCourses(result);
     setCurrentPage(1);
-  }, [searchQuery, courses, sortField, sortDirection]);
+  }, [debouncedSearch, courses, sortField, sortDirection]);
 
   const toggleSort = (field: typeof sortField) => {
     if (sortField === field) {

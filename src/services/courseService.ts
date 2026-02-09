@@ -32,7 +32,7 @@ export const courseService = {
       .single();
 
     if (result.data) {
-      await logInsert('course', result.data.course_id, result.data as Record<string, unknown>);
+      try { await logInsert('course', result.data.course_id, result.data as Record<string, unknown>); } catch { /* audit non-critical */ }
     }
     return result;
   },
@@ -52,7 +52,7 @@ export const courseService = {
       .single();
 
     if (oldData && result.data) {
-      await logUpdate('course', courseId, oldData as Record<string, unknown>, result.data as Record<string, unknown>);
+      try { await logUpdate('course', courseId, oldData as Record<string, unknown>, result.data as Record<string, unknown>); } catch { /* audit non-critical */ }
     }
     return result;
   },
@@ -67,7 +67,7 @@ export const courseService = {
 
     // Log the deletion
     if (course) {
-      await logDelete('course', courseId, course as Record<string, unknown>);
+      try { await logDelete('course', courseId, course as Record<string, unknown>); } catch { /* audit non-critical */ }
     }
 
     return await supabase

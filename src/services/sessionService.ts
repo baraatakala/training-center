@@ -106,7 +106,7 @@ export const sessionService = {
       .single();
 
     if (result.data) {
-      await logInsert('session', result.data.session_id, result.data as Record<string, unknown>);
+      try { await logInsert('session', result.data.session_id, result.data as Record<string, unknown>); } catch { /* audit non-critical */ }
     }
     return result;
   },
@@ -127,7 +127,7 @@ export const sessionService = {
       .single();
 
     if (oldData && result.data) {
-      await logUpdate('session', id, oldData as Record<string, unknown>, result.data as Record<string, unknown>);
+      try { await logUpdate('session', id, oldData as Record<string, unknown>, result.data as Record<string, unknown>); } catch { /* audit non-critical */ }
     }
     return result;
   },
@@ -143,7 +143,7 @@ export const sessionService = {
 
     // Log the deletion
     if (session) {
-      await logDelete('session', id, session as Record<string, unknown>);
+      try { await logDelete('session', id, session as Record<string, unknown>); } catch { /* audit non-critical */ }
     }
 
     return await supabase

@@ -282,50 +282,53 @@ export function Attendance() {
     if (!sessionId) return;
 
     try {
-      // First, load the session to get teacher info (including coordinates)
-      const { data: sessionData, error: sessionError } = await supabase
-        .from(Tables.SESSION)
-        .select(`
-          teacher_id,
-          teacher:teacher_id (
+      // Load session teacher and enrolled hosts in parallel
+      const [sessionResult, enrollmentResult] = await Promise.all([
+        supabase
+          .from(Tables.SESSION)
+          .select(`
             teacher_id,
-            name,
-            address,
-            address_latitude,
-            address_longitude
-          )
-        `)
-        .eq('session_id', sessionId)
-        .single();
+            teacher:teacher_id (
+              teacher_id,
+              name,
+              address,
+              address_latitude,
+              address_longitude
+            )
+          `)
+          .eq('session_id', sessionId)
+          .single(),
+        supabase
+          .from(Tables.ENROLLMENT)
+          .select(`
+            student_id,
+            can_host,
+            host_date,
+            student:student_id (
+              student_id,
+              name,
+              address,
+              address_latitude,
+              address_longitude
+            )
+          `)
+          .eq('session_id', sessionId)
+          .eq('status', 'active')
+          .eq('can_host', true),
+      ]);
 
-      if (sessionError) {
-        console.error('Error loading session teacher:', sessionError);
+      const sessionData = sessionResult.data;
+      if (sessionResult.error) {
+        console.error('Error loading session teacher:', sessionResult.error);
       }
 
-      // Load ONLY ENROLLED students who can_host = true (with coordinates and host_date)
-      const { data: enrollments, error: enrollmentsError } = await supabase
-        .from(Tables.ENROLLMENT)
-        .select(`
-          student_id,
-          can_host,
-          host_date,
-          student:student_id (
-            student_id,
-            name,
-            address,
-            address_latitude,
-            address_longitude
-          )
-        `)
-        .eq('session_id', sessionId)
-        .eq('status', 'active')
-        .eq('can_host', true);
-
-      if (enrollmentsError) {
-        console.error('Error loading enrolled hosts:', enrollmentsError);
+      if (enrollmentResult.error) {
+        console.error('Error loading enrolled hosts:', enrollmentResult.error);
         setHostAddresses([]);
         return;
       }
+
+      const enrollments = enrollmentResult.data;
 
       // Filter students with addresses
       const hostsWithAddresses = (enrollments || [])
@@ -386,40 +389,40 @@ export function Attendance() {
     if (!sessionId || !selectedDate) return;
 
     try {
-      // Load host address from session_date_host table (single source of truth)
-      const { data: hostData } = await supabase
-        .from(Tables.SESSION_DATE_HOST)
-        .select('host_id, host_type, host_address')
-        .eq('session_id', sessionId)
-        .eq('attendance_date', selectedDate)
-        .maybeSingle();
-      
-      // Coordinates will be loaded later from the host's profile (student/teacher table)
-      // after we know who the host is - see the block after savedHostId is set
+      // Load host data and attendance records in parallel (independent queries)
+      const [hostResult, attendanceResult] = await Promise.all([
+        supabase
+          .from(Tables.SESSION_DATE_HOST)
+          .select('host_id, host_type, host_address')
+          .eq('session_id', sessionId)
+          .eq('attendance_date', selectedDate)
+          .maybeSingle(),
+        supabase
+          .from(Tables.ATTENDANCE)
+          .select(`
+            attendance_id,
+            status,
+            excuse_reason,
+            check_in_time,
+            notes,
+            gps_latitude,
+            gps_longitude,
+            gps_accuracy,
+            attendance_date,
+            host_address,
+            late_minutes,
+            student_id,
+            student:student_id(student_id, name, email)
+          `)
+          .eq('session_id', sessionId)
+          .eq('attendance_date', selectedDate),
+      ]);
 
-      // Check existing attendance records
-      const { data: existingAttendance, error: attendanceError } = await supabase
-      .from(Tables.ATTENDANCE)
-      .select(`
-        attendance_id,
-        status,
-        excuse_reason,
-        check_in_time,
-        notes,
-        gps_latitude,
-        gps_longitude,
-        gps_accuracy,
-        attendance_date,
-        host_address,
-        late_minutes,
-        student_id,
-        student:student_id(student_id, name, email)
-      `)
-      .eq('session_id', sessionId)
-      .eq('attendance_date', selectedDate);
+      const hostData = hostResult.data;
+      const existingAttendance = attendanceResult.data;
 
-      if (attendanceError) {
-        console.error('Error loading attendance:', attendanceError);
+      if (attendanceResult.error) {
+        console.error('Error loading attendance:', attendanceResult.error);
         return;
       }
 
