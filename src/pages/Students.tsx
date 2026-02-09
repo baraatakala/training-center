@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { SearchBar } from '../components/ui/SearchBar';
@@ -18,7 +18,6 @@ import { TableSkeleton } from '../components/ui/Skeleton';
 
 export function Students() {
   const [students, setStudents] = useState<Student[]>([]);
-  const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebounce(searchQuery, 300);
@@ -43,7 +42,6 @@ export function Students() {
       console.error('Load students error:', fetchError);
     } else if (data) {
       setStudents(data as Student[]);
-      setFilteredStudents(data as Student[]);
     }
     setLoading(false);
   }, []);
@@ -54,7 +52,7 @@ export function Students() {
     loadStudents();
   }, []);
 
-  useEffect(() => {
+  const filteredStudents = useMemo(() => {
     let result = [...students];
     if (debouncedSearch) {
       const query = debouncedSearch.toLowerCase();
@@ -66,7 +64,6 @@ export function Students() {
           s.nationality?.toLowerCase().includes(query)
       );
     }
-    // Apply sorting
     result.sort((a, b) => {
       let cmp = 0;
       if (sortField === 'age') {
@@ -78,9 +75,13 @@ export function Students() {
       }
       return sortDirection === 'desc' ? -cmp : cmp;
     });
-    setFilteredStudents(result);
-    setCurrentPage(1);
+    return result;
   }, [debouncedSearch, students, sortField, sortDirection]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, sortField, sortDirection]);
 
   const toggleSort = (field: typeof sortField) => {
     if (sortField === field) {
@@ -367,13 +368,6 @@ export function Students() {
               setStudents(prev => 
                 prev.map(s => 
                   s.student_id === photoStudent.student_id 
-                    ? { ...s, photo_url: url || null }
-                    : s
-                )
-              );
-              setFilteredStudents(prev =>
-                prev.map(s =>
-                  s.student_id === photoStudent.student_id
                     ? { ...s, photo_url: url || null }
                     : s
                 )

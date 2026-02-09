@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
@@ -28,7 +28,6 @@ interface CourseWithTeacher {
 
 export function Courses() {
   const [courses, setCourses] = useState<CourseWithTeacher[]>([]);
-  const [filteredCourses, setFilteredCourses] = useState<CourseWithTeacher[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebounce(searchQuery, 300);
@@ -53,7 +52,6 @@ export function Courses() {
       console.error('Load courses error:', fetchError);
     } else if (data) {
       setCourses(data as CourseWithTeacher[]);
-      setFilteredCourses(data as CourseWithTeacher[]);
     }
     setLoading(false);
   }, []);
@@ -64,7 +62,7 @@ export function Courses() {
     loadCourses();
   }, []);
 
-  useEffect(() => {
+  const filteredCourses = useMemo(() => {
     let result = [...courses];
     if (debouncedSearch) {
       const query = debouncedSearch.toLowerCase();
@@ -75,7 +73,6 @@ export function Courses() {
           (c.teacher?.name && c.teacher.name.toLowerCase().includes(query))
       );
     }
-    // Apply sorting
     result.sort((a, b) => {
       let cmp = 0;
       if (sortField === 'teacher') {
@@ -89,9 +86,13 @@ export function Courses() {
       }
       return sortDirection === 'desc' ? -cmp : cmp;
     });
-    setFilteredCourses(result);
-    setCurrentPage(1);
+    return result;
   }, [debouncedSearch, courses, sortField, sortDirection]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, sortField, sortDirection]);
 
   const toggleSort = (field: typeof sortField) => {
     if (sortField === field) {

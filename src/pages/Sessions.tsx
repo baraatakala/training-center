@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
@@ -39,7 +39,6 @@ type SessionWithDetails = {
 
 export function Sessions() {
   const [sessions, setSessions] = useState<SessionWithDetails[]>([]);
-  const [filteredSessions, setFilteredSessions] = useState<SessionWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebounce(searchQuery, 300);
@@ -77,7 +76,6 @@ export function Sessions() {
 
     if (data) {
       setSessions(data as SessionWithDetails[]);
-      setFilteredSessions(data as SessionWithDetails[]);
       
       // Load enrollment counts for each session
       const sessionIds = data.map((s: SessionWithDetails) => s.session_id);
@@ -103,7 +101,7 @@ export function Sessions() {
     loadSessions();
   }, []);
 
-  useEffect(() => {
+  const filteredSessions = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
@@ -114,7 +112,6 @@ export function Sessions() {
         session.course.category.toLowerCase().includes(debouncedSearch.toLowerCase())
     );
 
-    // Apply status filter
     if (statusFilter !== 'all') {
       filtered = filtered.filter((session) => {
         const startDate = new Date(session.start_date);
@@ -133,7 +130,6 @@ export function Sessions() {
       });
     }
 
-    // Apply sorting
     filtered.sort((a, b) => {
       let aVal: string, bVal: string;
       
@@ -163,9 +159,13 @@ export function Sessions() {
       return sortOrder === 'asc' ? comparison : -comparison;
     });
 
-    setFilteredSessions(filtered);
-    setCurrentPage(1);
+    return filtered;
   }, [debouncedSearch, statusFilter, sessions, sortBy, sortOrder]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, statusFilter, sortBy, sortOrder]);
 
   // Removed unused toggleSort function - sorting is handled by dropdown and toggle button
 

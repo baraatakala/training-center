@@ -628,13 +628,6 @@ const AttendanceRecords = () => {
           finalStatus = 'not enrolled';
         }
         
-        // If enrollment_date is missing but status is not already 'not enrolled', 
-        // keep the original status (assume it's valid)
-        // Log warning for debugging if needed
-        if (!enrollmentDate && finalStatus === 'not enrolled') {
-          console.warn(`⚠️ Attendance record ${record.attendance_id} marked as 'not enrolled' but enrollment_date is missing`);
-        }
-        
         return {
           attendance_id: record.attendance_id,
           student_id: record.student_id,
@@ -662,33 +655,8 @@ const AttendanceRecords = () => {
           book_topic: bookInfo?.topic || null,
           book_start_page: bookInfo?.start_page || null,
           book_end_page: bookInfo?.end_page || null,
-          _enrollmentDate: enrollmentDate, // For debugging
         };
       });
-
-      // Debug: Log summary of enrollment data availability
-      const withEnrollment = formattedRecords.filter((r) => (r as AttendanceRecord & { _enrollmentDate?: string })._enrollmentDate).length;
-      const withoutEnrollment = formattedRecords.length - withEnrollment;
-      const markedNotEnrolled = formattedRecords.filter(r => r.status === 'not enrolled').length;
-      
-      console.log(`📊 Attendance Records Loaded:`, {
-        total: formattedRecords.length,
-        withEnrollmentDate: withEnrollment,
-        withoutEnrollmentDate: withoutEnrollment,
-        markedAsNotEnrolled: markedNotEnrolled
-      });
-      
-      if (withoutEnrollment > 0) {
-        console.warn(`⚠️ ${withoutEnrollment} attendance records missing enrollment_date - these cannot be auto-detected as 'not enrolled'`);
-        // Log first few examples
-        const examples = formattedRecords.filter((r) => !(r as AttendanceRecord & { _enrollmentDate?: string })._enrollmentDate).slice(0, 3);
-        console.log('Examples:', examples.map(r => ({
-          student: r.student_name,
-          date: r.attendance_date,
-          status: r.status,
-          attendance_id: r.attendance_id
-        })));
-      }
 
       setRecords(formattedRecords);
     } catch (error) {
@@ -805,7 +773,7 @@ const AttendanceRecords = () => {
   const openMapLocation = (record: AttendanceRecord) => {
     if (record.gps_latitude && record.gps_longitude) {
       const url = `https://www.openstreetmap.org/#map=18/${record.gps_latitude}/${record.gps_longitude}`;
-      window.open(url, '_blank');
+      window.open(url, '_blank', 'noopener,noreferrer');
     }
   };
 

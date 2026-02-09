@@ -250,6 +250,14 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // Validate file size (max 10MB)
+    const MAX_FILE_SIZE = 10 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error('File is too large. Maximum file size is 10MB.');
+      event.target.value = '';
+      return;
+    }
+
     setResult(null);
     setFileName(file.name);
 

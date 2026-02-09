@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { useDebounce } from '../hooks/useDebounce';
@@ -578,7 +578,7 @@ export function Announcements() {
   };
 
   // Filter announcements
-  const filteredAnnouncements = announcements.filter(a => {
+  const filteredAnnouncements = useMemo(() => announcements.filter(a => {
     if (filterPriority !== 'all' && a.priority !== filterPriority) return false;
     if (filterCourse !== 'all' && a.course_id !== filterCourse) return false;
     if (debouncedSearch) {
@@ -588,14 +588,14 @@ export function Announcements() {
       }
     }
     return true;
-  });
+  }), [announcements, filterPriority, filterCourse, debouncedSearch]);
 
   // Sort: pinned first, then by date
-  const sortedAnnouncements = [...filteredAnnouncements].sort((a, b) => {
+  const sortedAnnouncements = useMemo(() => [...filteredAnnouncements].sort((a, b) => {
     if (a.is_pinned && !b.is_pinned) return -1;
     if (!a.is_pinned && b.is_pinned) return 1;
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-  });
+  }), [filteredAnnouncements]);
 
   // Pagination
   const totalPages = Math.ceil(sortedAnnouncements.length / pageSize);

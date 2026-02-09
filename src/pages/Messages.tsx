@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { useDebounce } from '../hooks/useDebounce';
@@ -28,6 +28,9 @@ const QUICK_REPLIES = [
 
 // Message reactions
 const MESSAGE_REACTIONS = ['👍', '❤️', '😊', '🎉', '👏'];
+
+// Rate limiting for students (1 hour cooldown)
+const STUDENT_COOLDOWN_SECONDS = 3600;
 
 // Extended message with additional features
 interface ExtendedMessage extends Message {
@@ -74,7 +77,6 @@ export function Messages() {
   const debouncedSearch = useDebounce(searchTerm, 300);
 
   // Rate limiting for students (1 hour cooldown)
-  const STUDENT_COOLDOWN_SECONDS = 3600;
   const [lastSentAt, setLastSentAt] = useState<number>(0);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
 
@@ -410,7 +412,7 @@ export function Messages() {
     messageInputRef.current?.focus();
   };
 
-  const filteredMessages = messages.filter(m => {
+  const filteredMessages = useMemo(() => messages.filter(m => {
     if (!debouncedSearch) return true;
     const term = debouncedSearch.toLowerCase();
     return (
@@ -419,10 +421,10 @@ export function Messages() {
       (m.sender?.name?.toLowerCase().includes(term)) ||
       (m.recipient?.name?.toLowerCase().includes(term))
     );
-  });
+  }), [messages, debouncedSearch]);
 
   // Group messages by date for better organization
-  const groupedMessages = filteredMessages.reduce((groups, message) => {
+  const groupedMessages = useMemo(() => filteredMessages.reduce((groups, message) => {
     const date = new Date(message.created_at);
     let key = 'Older';
     if (isToday(date)) key = 'Today';
@@ -432,7 +434,7 @@ export function Messages() {
     if (!groups[key]) groups[key] = [];
     groups[key].push(message);
     return groups;
-  }, {} as Record<string, ExtendedMessage[]>);
+  }, {} as Record<string, ExtendedMessage[]>), [filteredMessages]);
 
   const unreadCount = messages.filter(m => !m.is_read && activeTab === 'inbox').length;
   // starredCount is now managed by state, loaded on page load

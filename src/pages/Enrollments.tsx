@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
@@ -35,7 +35,6 @@ interface EnrollmentWithDetails {
 
 export function Enrollments() {
   const [enrollments, setEnrollments] = useState<EnrollmentWithDetails[]>([]);
-  const [filteredEnrollments, setFilteredEnrollments] = useState<EnrollmentWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebounce(searchQuery, 300);
@@ -60,7 +59,6 @@ export function Enrollments() {
       console.error('Load enrollments error:', fetchError);
     } else if (data) {
       setEnrollments(data as EnrollmentWithDetails[]);
-      setFilteredEnrollments(data as EnrollmentWithDetails[]);
     }
     setLoading(false);
   }, []);
@@ -71,10 +69,9 @@ export function Enrollments() {
     loadEnrollments();
   }, []);
 
-  useEffect(() => {
+  const filteredEnrollments = useMemo(() => {
     let filtered = [...enrollments];
     
-    // Apply search filter
     if (debouncedSearch) {
       const query = debouncedSearch.toLowerCase();
       filtered = filtered.filter(
@@ -85,17 +82,14 @@ export function Enrollments() {
       );
     }
     
-    // Apply status filter
     if (statusFilter !== 'all') {
       filtered = filtered.filter((e) => e.status === statusFilter);
     }
     
-    // Apply hosting filter
     if (showOnlyHosting) {
       filtered = filtered.filter((e) => e.can_host === true);
     }
     
-    // Apply sorting
     filtered.sort((a, b) => {
       let comparison: number;
       
@@ -113,10 +107,9 @@ export function Enrollments() {
           comparison = a.status.localeCompare(b.status);
           break;
         case 'canHost': {
-          // Sort by can_host: true values first, then false
           const aHost = a.can_host ? 1 : 0;
           const bHost = b.can_host ? 1 : 0;
-          comparison = bHost - aHost; // Descending by default (true first)
+          comparison = bHost - aHost;
           break;
         }
         default:
@@ -126,9 +119,13 @@ export function Enrollments() {
       return sortOrder === 'asc' ? comparison : -comparison;
     });
     
-    setFilteredEnrollments(filtered);
-    setCurrentPage(1);
+    return filtered;
   }, [debouncedSearch, enrollments, showOnlyHosting, statusFilter, sortBy, sortOrder]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, showOnlyHosting, statusFilter, sortBy, sortOrder]);
 
   const toggleSort = (column: 'student' | 'course' | 'date' | 'status' | 'canHost') => {
     if (sortBy === column) {

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { SearchBar } from '../components/ui/SearchBar';
@@ -20,7 +20,6 @@ interface TeacherWithCount extends Teacher {
 
 export function Teachers() {
   const [teachers, setTeachers] = useState<TeacherWithCount[]>([]);
-  const [filteredTeachers, setFilteredTeachers] = useState<TeacherWithCount[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebounce(searchQuery, 300);
@@ -50,7 +49,6 @@ export function Teachers() {
         enrolledCount: countsMap.get(teacher.teacher_id) || 0,
       }));
       setTeachers(teachersWithCounts);
-      setFilteredTeachers(teachersWithCounts);
     }
     setLoading(false);
   }, []);
@@ -61,7 +59,7 @@ export function Teachers() {
     loadTeachers();
   }, []);
 
-  useEffect(() => {
+  const filteredTeachers = useMemo(() => {
     let result = [...teachers];
     if (debouncedSearch) {
       const query = debouncedSearch.toLowerCase();
@@ -72,7 +70,6 @@ export function Teachers() {
           t.phone?.toLowerCase().includes(query)
       );
     }
-    // Apply sorting
     result.sort((a, b) => {
       let cmp = 0;
       if (sortField === 'enrolledCount') {
@@ -84,7 +81,7 @@ export function Teachers() {
       }
       return sortDirection === 'desc' ? -cmp : cmp;
     });
-    setFilteredTeachers(result);
+    return result;
   }, [debouncedSearch, teachers, sortField, sortDirection]);
 
   const toggleSort = (field: typeof sortField) => {
