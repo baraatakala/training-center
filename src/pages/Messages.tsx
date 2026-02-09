@@ -453,6 +453,12 @@ export function Messages() {
       <div className="text-center py-12">
         <div className="inline-block p-6 bg-red-50 dark:bg-red-900/30 border-2 border-red-200 dark:border-red-700 rounded-lg">
           <p className="text-red-600 dark:text-red-400 font-semibold">⚠️ {error}</p>
+          <button
+            onClick={() => { setError(null); checkUserAndLoadData(); }}
+            className="mt-3 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-sm"
+          >
+            Try Again
+          </button>
         </div>
       </div>
     );
@@ -795,6 +801,7 @@ export function Messages() {
             
             <textarea
               ref={messageInputRef}
+              aria-label="Message content"
               className="w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white min-h-[150px] resize-none"
               value={formContent}
               onChange={(e) => setFormContent(e.target.value)}

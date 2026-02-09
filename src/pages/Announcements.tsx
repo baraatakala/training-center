@@ -13,6 +13,9 @@ import type { Announcement, AnnouncementPriority, CreateAnnouncementData, Announ
 import { format, formatDistanceToNow } from 'date-fns';
 import { toast } from '../components/ui/toastUtils';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { Pagination } from '../components/ui/Pagination';
+
+const DEFAULT_PAGE_SIZE = 9;
 
 // Image upload helper
 const uploadAnnouncementImage = async (file: File): Promise<string | null> => {
@@ -135,6 +138,8 @@ export function Announcements() {
   const [filterCourse, setFilterCourse] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 300);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
   // Animation state for new announcements
   const [newAnnouncementId] = useState<string | null>(null);
@@ -592,6 +597,16 @@ export function Announcements() {
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
 
+  // Pagination
+  const totalPages = Math.ceil(sortedAnnouncements.length / pageSize);
+  const paginatedAnnouncements = sortedAnnouncements.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  // Reset page when filters change
+  useEffect(() => { setCurrentPage(1); }, [debouncedSearch, filterPriority, filterCourse]);
+
   const unreadCount = announcements.filter(a => !a.is_read).length;
 
   if (loading) {
@@ -612,6 +627,12 @@ export function Announcements() {
       <div className="text-center py-12">
         <div className="inline-block p-6 bg-red-50 dark:bg-red-900/30 border-2 border-red-200 dark:border-red-700 rounded-lg">
           <p className="text-red-600 dark:text-red-400 font-semibold">⚠️ {error}</p>
+          <button
+            onClick={() => { setError(null); checkUserAndLoadData(); }}
+            className="mt-3 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-sm"
+          >
+            Try Again
+          </button>
         </div>
       </div>
     );
@@ -708,7 +729,7 @@ export function Announcements() {
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {sortedAnnouncements.map((announcement) => (
+          {paginatedAnnouncements.map((announcement) => (
             <div
               key={announcement.announcement_id}
               className={`relative bg-white dark:bg-gray-800 rounded-xl shadow-md dark:shadow-gray-900/30 p-5 cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${
@@ -745,7 +766,7 @@ export function Announcements() {
                 <div className="mb-3 rounded-lg overflow-hidden">
                   <img
                     src={imageUrls[announcement.announcement_id]}
-                    alt=""
+                    alt={announcement.title}
                     className="w-full h-32 object-cover rounded-lg"
                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                   />
@@ -872,6 +893,18 @@ export function Announcements() {
         </div>
       )}
 
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={sortedAnnouncements.length}
+          itemsPerPage={pageSize}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+        />
+      )}
+
       {/* Create/Edit Modal */}
       <Modal
         isOpen={showCreateModal}
@@ -889,8 +922,9 @@ export function Announcements() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1 dark:text-gray-300">Content *</label>
+            <label htmlFor="announcement-content" className="block text-sm font-medium mb-1 dark:text-gray-300">Content *</label>
             <textarea
+              id="announcement-content"
               className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white min-h-[150px]"
               value={formContent}
               onChange={(e) => setFormContent(e.target.value)}
@@ -969,6 +1003,7 @@ export function Announcements() {
                 <button
                   type="button"
                   onClick={removeImage}
+                  aria-label="Remove image"
                   className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1.5 shadow-lg transition-all opacity-80 group-hover:opacity-100"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1220,6 +1255,7 @@ export function Announcements() {
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
                   placeholder="Write a comment..."
+                  aria-label="Write a comment"
                   className="flex-1 px-4 py-2 border rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                   onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}
                 />

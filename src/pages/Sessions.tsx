@@ -320,6 +320,7 @@ export function Sessions() {
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as 'course' | 'teacher' | 'startDate' | 'endDate')}
+            aria-label="Sort sessions by"
             className="border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded px-3 py-1.5 focus:ring-2 focus:ring-blue-500"
           >
             <option value="startDate">Start Date</option>
