@@ -3,6 +3,7 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { Select } from '../components/ui/Select';
+import { formatDate } from '../utils/formatDate';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
 import { SearchBar } from '../components/ui/SearchBar';
 import { Pagination } from '../components/ui/Pagination';
@@ -429,8 +430,8 @@ export function Sessions() {
                       <TableCell>{session.day || 'N/A'}</TableCell>
                       <TableCell>{session.time || 'N/A'}</TableCell>
                       <TableCell>{session.location || 'N/A'}</TableCell>
-                      <TableCell>{new Date(session.start_date).toLocaleDateString()}</TableCell>
-                      <TableCell>{new Date(session.end_date).toLocaleDateString()}</TableCell>
+                      <TableCell>{formatDate(session.start_date)}</TableCell>
+                      <TableCell>{formatDate(session.end_date)}</TableCell>
                       <TableCell>
                         <Badge variant={statusVariant}>{sessionStatus}</Badge>
                       </TableCell>

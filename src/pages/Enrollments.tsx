@@ -3,6 +3,7 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { SearchBar } from '../components/ui/SearchBar';
+import { formatDate } from '../utils/formatDate';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
 import { Pagination } from '../components/ui/Pagination';
 import { EnrollmentForm } from '../components/EnrollmentForm';
@@ -375,10 +376,10 @@ export function Enrollments() {
                       {enrollment.session.course.course_name}
                     </TableCell>
                     <TableCell className="text-gray-600 dark:text-gray-300">
-                      {new Date(enrollment.session.start_date).toLocaleDateString()}
+                      {formatDate(enrollment.session.start_date)}
                     </TableCell>
                     <TableCell className="text-gray-600 dark:text-gray-300">
-                      {new Date(enrollment.enrollment_date).toLocaleDateString()}
+                      {formatDate(enrollment.enrollment_date)}
                     </TableCell>
                     <TableCell>
                       <Badge variant={getStatusVariant(enrollment.status)}>

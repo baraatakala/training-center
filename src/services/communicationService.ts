@@ -810,6 +810,63 @@ export const announcementReactionService = {
       console.error('Error getting reactions:', error);
       return { data: [], error: error as Error };
     }
+  },
+
+  /**
+   * Batch-fetch reactions for multiple announcements in a single query
+   */
+  async getForMultipleAnnouncements(announcementIds: string[], currentStudentId?: string): Promise<{
+    data: Map<string, { emoji: string; count: number; hasReacted: boolean; reactors: { id: string; name: string }[] }[]>;
+    error: Error | null;
+  }> {
+    try {
+      const { data, error } = await supabase
+        .from('announcement_reaction')
+        .select('announcement_id, emoji, student_id, student:student_id(name)')
+        .in('announcement_id', announcementIds);
+
+      if (error) throw error;
+
+      const resultMap = new Map<string, { emoji: string; count: number; hasReacted: boolean; reactors: { id: string; name: string }[] }[]>();
+
+      // Group by announcement_id, then by emoji
+      const byAnnouncement = new Map<string, Map<string, { count: number; studentIds: string[]; reactors: { id: string; name: string }[] }>>();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (data || []).forEach((r: any) => {
+        const annId = r.announcement_id as string;
+        const emoji = r.emoji as string;
+        const studentId = r.student_id as string;
+        const studentName = r.student?.name || 'Unknown Student';
+
+        if (!byAnnouncement.has(annId)) byAnnouncement.set(annId, new Map());
+        const emojiMap = byAnnouncement.get(annId)!;
+        if (!emojiMap.has(emoji)) emojiMap.set(emoji, { count: 0, studentIds: [], reactors: [] });
+        const entry = emojiMap.get(emoji)!;
+        entry.count++;
+        entry.studentIds.push(studentId);
+        entry.reactors.push({ id: studentId, name: studentName });
+      });
+
+      // Convert to result format
+      announcementIds.forEach(annId => {
+        const emojiMap = byAnnouncement.get(annId);
+        if (!emojiMap) {
+          resultMap.set(annId, []);
+          return;
+        }
+        resultMap.set(annId, Array.from(emojiMap.entries()).map(([emoji, { count, studentIds, reactors }]) => ({
+          emoji,
+          count,
+          hasReacted: currentStudentId ? studentIds.includes(currentStudentId) : false,
+          reactors
+        })));
+      });
+
+      return { data: resultMap, error: null };
+    } catch (error) {
+      console.error('Error batch-fetching reactions:', error);
+      return { data: new Map(), error: error as Error };
+    }
   }
 };
 
@@ -973,6 +1030,35 @@ export const announcementCommentService = {
     } catch (error) {
       console.error('Error getting comment count:', error);
       return { count: 0, error: error as Error };
+    }
+  },
+
+  /**
+   * Batch-fetch comment counts for multiple announcements in a single query
+   */
+  async getCountsForMultiple(announcementIds: string[]): Promise<{
+    data: Map<string, number>;
+    error: Error | null;
+  }> {
+    try {
+      const { data, error } = await supabase
+        .from('announcement_comment')
+        .select('announcement_id')
+        .in('announcement_id', announcementIds);
+
+      if (error) throw error;
+
+      const countMap = new Map<string, number>();
+      announcementIds.forEach(id => countMap.set(id, 0));
+      (data || []).forEach(row => {
+        const id = row.announcement_id;
+        countMap.set(id, (countMap.get(id) || 0) + 1);
+      });
+
+      return { data: countMap, error: null };
+    } catch (error) {
+      console.error('Error batch-fetching comment counts:', error);
+      return { data: new Map(), error: error as Error };
     }
   }
 };

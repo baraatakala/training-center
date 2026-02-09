@@ -143,28 +143,20 @@ export function Announcements() {
   const loadReactionsForAllAnnouncements = useCallback(async (announcementsList: Announcement[], userId: string | null) => {
     if (!announcementsList.length) return;
     
-    // Fetch reactions for ALL announcements in parallel
-    const reactionsPromises = announcementsList.map(async (ann) => {
-      const { data: reactions } = await announcementReactionService.getForAnnouncement(ann.announcement_id, userId || undefined);
-      const { data: commentsData } = await announcementCommentService.getForAnnouncement(ann.announcement_id);
-      return {
-        announcement_id: ann.announcement_id,
-        reactions: reactions || [],
-        commentCount: commentsData?.length || 0
-      };
-    });
-    
-    const reactionsResults = await Promise.all(reactionsPromises);
+    const announcementIds = announcementsList.map(a => a.announcement_id);
+
+    // Batch-fetch reactions and comment counts in 2 queries instead of 2×N
+    const [reactionsResult, commentCountsResult] = await Promise.all([
+      announcementReactionService.getForMultipleAnnouncements(announcementIds, userId || undefined),
+      announcementCommentService.getCountsForMultiple(announcementIds)
+    ]);
     
     // Update announcements with reactions
-    setAnnouncements(prev => prev.map(ann => {
-      const reactionData = reactionsResults.find(r => r.announcement_id === ann.announcement_id);
-      return reactionData ? {
-        ...ann,
-        reactions: reactionData.reactions,
-        commentCount: reactionData.commentCount
-      } : ann;
-    }));
+    setAnnouncements(prev => prev.map(ann => ({
+      ...ann,
+      reactions: reactionsResult.data.get(ann.announcement_id) || [],
+      commentCount: commentCountsResult.data.get(ann.announcement_id) || 0
+    })));
   }, []);
 
   const loadAnnouncementsForTeacher = useCallback(async (teacherId: string) => {

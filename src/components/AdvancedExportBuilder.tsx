@@ -496,6 +496,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
   };
 
   const exportToExcel = () => {
+    try {
     const { processedData, validationIssues, stats } = processDataForExport(data);
     const selectedFields = getSelectedFieldsOrdered();
     const isArabic = config.language === 'ar';
@@ -577,6 +578,9 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     }
     
     XLSX.writeFile(wb, `${config.title.replace(/\s+/g, '-')}-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    } catch (err) {
+      toast.error(`Export failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
   };
 
   const exportToPDF = () => {

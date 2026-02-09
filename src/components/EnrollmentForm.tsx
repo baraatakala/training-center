@@ -3,6 +3,7 @@ import { Select } from './ui/Select';
 import { Input } from './ui/Input';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
+import { formatDate } from '../utils/formatDate';
 import { supabase } from '../lib/supabase';
 import { enrollmentService } from '../services/enrollmentService';
 import { Tables, type CreateEnrollment } from '../types/database.types';
@@ -210,7 +211,7 @@ export function EnrollmentForm({ onSubmit, onCancel, initialData = null }: Enrol
         onChange={(value) => setFormData({ ...formData, session_id: value })}
         options={filteredSessions.map(s => ({ 
           value: s.session_id, 
-          label: `${s.course.course_name} - ${new Date(s.start_date).toLocaleDateString()}` 
+          label: `${s.course.course_name} - ${formatDate(s.start_date)}` 
         }))}
         placeholder="Select a session"
         required

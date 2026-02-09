@@ -48,7 +48,12 @@ export class ExcelExportService {
   exportToExcel(
     data: AttendanceExportData[],
     filename?: string
-  ): void {
+  ): { success: boolean; error?: string } {
+    if (!data || data.length === 0) {
+      return { success: false, error: 'No data to export' };
+    }
+
+    try {
     // Prepare data for Excel
     const excelData = data.map((record) => ({
       'Date': record.date,
@@ -118,6 +123,12 @@ export class ExcelExportService {
 
     // Save file
     XLSX.writeFile(workbook, fileName);
+
+    return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to export file';
+      return { success: false, error: message };
+    }
   }
 
   /**
@@ -178,7 +189,12 @@ export class ExcelExportService {
       attendance_rate: number;
     }>,
     filename?: string
-  ): void {
+  ): { success: boolean; error?: string } {
+    if (!data || data.length === 0) {
+      return { success: false, error: 'No data to export' };
+    }
+
+    try {
     const excelData = data.map((student) => ({
       'Student Name': student.student_name,
       'Email': student.student_email,
@@ -207,6 +223,12 @@ export class ExcelExportService {
 
     const fileName = filename || `student_summary_${format(new Date(), 'yyyy-MM-dd_HHmmss')}.xlsx`;
     XLSX.writeFile(workbook, fileName);
+
+    return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to export file';
+      return { success: false, error: message };
+    }
   }
 }
 

@@ -521,7 +521,7 @@ export function Messages() {
       </Card>
 
       {/* Stats with animations */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 border-0">
           <CardContent className="pt-4 text-center">
             <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
