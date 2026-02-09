@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import QRCode from 'qrcode';
 import { supabase } from '../lib/supabase';
 
@@ -24,6 +24,8 @@ export function QRCodeModal({
   const [qrToken, setQrToken] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<Date | null>(null);
   const [refreshCount, setRefreshCount] = useState<number>(0);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousActiveElement = useRef<Element | null>(null);
 
   /* -------------------- QR CODE -------------------- */
   const generateQRCode = useCallback(async (isRefresh = false) => {
@@ -221,6 +223,38 @@ export function QRCodeModal({
     };
   }, [generateQRCode, invalidateQRSession]);
 
+  // Focus trap + Escape key + body scroll lock
+  useEffect(() => {
+    previousActiveElement.current = document.activeElement;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { onClose(); return; }
+      if (e.key === 'Tab' && modalRef.current) {
+        const focusable = modalRef.current.querySelectorAll('button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])');
+        if (focusable.length === 0) return;
+        const first = focusable[0] as HTMLElement;
+        const last = focusable[focusable.length - 1] as HTMLElement;
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    requestAnimationFrame(() => {
+      if (modalRef.current) {
+        const first = modalRef.current.querySelector('button') as HTMLElement;
+        first?.focus();
+      }
+    });
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = 'unset';
+      if (previousActiveElement.current instanceof HTMLElement) previousActiveElement.current.focus();
+    };
+  }, [onClose]);
+
   const percentage =
     totalStudents > 0
       ? Math.round((checkInCount / totalStudents) * 100)
@@ -228,8 +262,8 @@ export function QRCodeModal({
 
   /* -------------------- UI -------------------- */
   return (
-    <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-label="QR Check-In">
+      <div ref={modalRef} className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 sm:p-6 rounded-t-2xl flex justify-between items-start">
           <div>
