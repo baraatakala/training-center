@@ -7,6 +7,7 @@ import PrivateRoute from './components/PrivateRoute';
 import { AuthProvider } from './context/AuthContext';
 import { ToastContainer } from './components/ui/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { ScrollToTop } from './components/ui/ScrollToTop';
 import './App.css';
 
 // Lazy-loaded pages for code splitting
@@ -43,6 +44,7 @@ function App() {
       <AuthProvider>
         <ErrorBoundary>
         <ToastContainer />
+        <ScrollToTop />
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/checkin/:token" element={<Suspense fallback={<PageLoader />}><StudentCheckIn /></Suspense>} />
