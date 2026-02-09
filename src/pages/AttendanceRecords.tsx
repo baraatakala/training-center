@@ -253,6 +253,9 @@ const AttendanceRecords = () => {
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
+  // Arabic display mode for the table
+  const [arabicMode, setArabicMode] = useState(false);
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
@@ -708,6 +711,16 @@ const AttendanceRecords = () => {
   };
 
   const getStatusLabel = (status: string) => {
+    if (arabicMode) {
+      switch (status) {
+        case 'on time': return 'في الوقت';
+        case 'absent': return 'غائب';
+        case 'late': return 'متأخر';
+        case 'excused': return 'معذور';
+        case 'not enrolled': return 'غير مسجل';
+        default: return status;
+      }
+    }
     switch (status) {
       case 'on time': return 'On Time';
       case 'absent': return 'Absent';
@@ -716,6 +729,77 @@ const AttendanceRecords = () => {
       case 'not enrolled': return 'Not Enrolled';
       default: return status;
     }
+  };
+
+  // Arabic translations for table headers and values
+  const t = arabicMode ? {
+    attendanceRecords: 'سجلات الحضور',
+    showing: 'عرض',
+    records: 'سجلات',
+    filteredFrom: 'مصفاة من',
+    total: 'إجمالي',
+    advancedExport: 'تصدير متقدم',
+    itemsPerPage: 'عناصر لكل صفحة:',
+    date: 'التاريخ',
+    student: 'الطالب',
+    course: 'الدورة',
+    instructor: 'المدرس',
+    status: 'الحالة',
+    lateDuration: 'مدة التأخير',
+    method: 'الطريقة',
+    excuseReason: 'سبب العذر',
+    location: 'الموقع',
+    gps: 'GPS',
+    markedAt: 'وقت التسجيل',
+    actions: 'الإجراءات',
+    viewMap: 'عرض الخريطة',
+    notRecorded: 'غير مسجل',
+    noGps: 'بدون GPS',
+    minEarly: 'دقيقة مبكراً',
+    min: 'دقيقة',
+    loading: 'جاري تحميل سجلات الحضور...',
+    noRecords: 'لا توجد سجلات',
+    noRecordsDesc: 'حاول تعديل الفلاتر أو نطاق التاريخ لرؤية سجلات الحضور',
+    resetFilters: 'إعادة تعيين الفلاتر',
+    qrCode: 'رمز QR',
+    photo: 'صورة',
+    bulk: 'استيراد جماعي',
+    manual: 'يدوي',
+    by: 'بواسطة',
+  } : {
+    attendanceRecords: 'Attendance Records',
+    showing: 'Showing',
+    records: 'records',
+    filteredFrom: 'filtered from',
+    total: 'total',
+    advancedExport: 'Advanced Export',
+    itemsPerPage: 'Items per page:',
+    date: 'Date',
+    student: 'Student',
+    course: 'Course',
+    instructor: 'Instructor',
+    status: 'Status',
+    lateDuration: 'Late Duration',
+    method: 'Method',
+    excuseReason: 'Excuse Reason',
+    location: 'Location',
+    gps: 'GPS',
+    markedAt: 'Marked At',
+    actions: 'Actions',
+    viewMap: 'View Map',
+    notRecorded: 'Not recorded',
+    noGps: 'No GPS',
+    minEarly: 'min early',
+    min: 'min',
+    loading: 'Loading attendance records...',
+    noRecords: 'No Records Found',
+    noRecordsDesc: 'Try adjusting your filters or date range to see attendance records',
+    resetFilters: 'Reset Filters',
+    qrCode: 'QR Code',
+    photo: 'Photo',
+    bulk: 'Bulk',
+    manual: 'Manual',
+    by: 'by',
   };
 
   const openMapLocation = (record: AttendanceRecord) => {
@@ -4587,16 +4671,29 @@ const AttendanceRecords = () => {
                 </svg>
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Attendance Records</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t.attendanceRecords}</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Showing <span className="font-semibold text-blue-600 dark:text-blue-400">{filteredRecords.length}</span> records
+                  {t.showing} <span className="font-semibold text-blue-600 dark:text-blue-400">{filteredRecords.length}</span> {t.records}
                   {filteredRecords.length !== records.length && (
-                    <span className="text-gray-500 dark:text-gray-500"> (filtered from {records.length} total)</span>
+                    <span className="text-gray-500 dark:text-gray-500"> ({t.filteredFrom} {records.length} {t.total})</span>
                   )}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-3">
+              {/* Arabic Toggle */}
+              <button
+                onClick={() => setArabicMode(!arabicMode)}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all border ${
+                  arabicMode
+                    ? 'bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-600'
+                    : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'
+                }`}
+                title={arabicMode ? 'Switch to English' : 'التبديل إلى العربية'}
+              >
+                <span className="text-base">{arabicMode ? '🇺🇸' : '🇸🇦'}</span>
+                <span>{arabicMode ? 'EN' : 'عربي'}</span>
+              </button>
               <button
                 onClick={() => {
                   setExportDataType('records');
@@ -4609,7 +4706,7 @@ const AttendanceRecords = () => {
                 <span>Advanced Export</span>
               </button>
               <div className="flex items-center gap-2 text-sm">
-                <span className="text-gray-600 dark:text-gray-400">Items per page:</span>
+                <span className="text-gray-600 dark:text-gray-400">{t.itemsPerPage}</span>
                 <select
                   value={itemsPerPage}
                   onChange={(e) => {
@@ -4638,7 +4735,7 @@ const AttendanceRecords = () => {
                 </svg>
               </div>
             </div>
-            <p className="text-gray-600 dark:text-gray-300 font-medium">Loading attendance records...</p>
+            <p className="text-gray-600 dark:text-gray-300 font-medium">{t.loading}</p>
             <p className="text-sm text-gray-500 dark:text-gray-400">Please wait while we fetch the data</p>
           </div>
         ) : filteredRecords.length === 0 ? (
@@ -4648,9 +4745,9 @@ const AttendanceRecords = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">No Records Found</h3>
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">{t.noRecords}</h3>
             <p className="text-gray-600 dark:text-gray-400 text-center max-w-md">
-              Try adjusting your filters or date range to see attendance records
+              {t.noRecordsDesc}
             </p>
             <button
               onClick={resetFilters}
@@ -4663,7 +4760,7 @@ const AttendanceRecords = () => {
             </button>
           </div>
         ) : (
-        <div className="overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto">
+        <div className={`overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto${arabicMode ? ' direction-rtl' : ''}`} dir={arabicMode ? 'rtl' : 'ltr'}>
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-600 sticky top-0 z-10 shadow-sm">
               <tr>
@@ -4675,7 +4772,7 @@ const AttendanceRecords = () => {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
-                    Date
+                    {t.date}
                     <span className="opacity-50 group-hover:opacity-100 transition-opacity">
                       {sortColumn === 'attendance_date' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
                     </span>
@@ -4689,81 +4786,105 @@ const AttendanceRecords = () => {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
-                    Student
-                    <span className="opacity-0 group-hover:opacity-100">
+                    {t.student}
+                    <span className="opacity-50 group-hover:opacity-100 transition-opacity">
                       {sortColumn === 'student_name' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
                     </span>
                   </div>
                 </th>
                 <th 
-                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group"
+                  className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors group"
                   onClick={() => handleSort('course_name')}
                 >
                   <div className="flex items-center gap-1">
-                    Course
-                    <span className="opacity-0 group-hover:opacity-100">
+                    {t.course}
+                    <span className="opacity-50 group-hover:opacity-100">
                       {sortColumn === 'course_name' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
                     </span>
                   </div>
                 </th>
                 <th 
-                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group"
-                  onClick={() => handleSort('teacher_name')}
+                  className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors group"
+                  onClick={() => handleSort('instructor_name')}
                 >
                   <div className="flex items-center gap-1">
-                    Instructor
-                    <span className="opacity-0 group-hover:opacity-100">
-                      {sortColumn === 'teacher_name' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                    {t.instructor}
+                    <span className="opacity-50 group-hover:opacity-100">
+                      {sortColumn === 'instructor_name' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
                     </span>
                   </div>
                 </th>
                 <th 
-                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group"
+                  className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors group"
                   onClick={() => handleSort('status')}
                 >
                   <div className="flex items-center gap-1">
-                    Status
-                    <span className="opacity-0 group-hover:opacity-100">
+                    {t.status}
+                    <span className="opacity-50 group-hover:opacity-100">
                       {sortColumn === 'status' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
                     </span>
                   </div>
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">
-                  Late Duration
-                </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">
-                  Method
-                </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">
-                  Excuse Reason
-                </th>
                 <th 
-                  className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group"
-                  onClick={() => handleSort('location')}
+                  className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors group"
+                  onClick={() => handleSort('late_minutes')}
                 >
                   <div className="flex items-center gap-1">
-                    Location
-                    <span className="opacity-0 group-hover:opacity-100">
-                      {sortColumn === 'location' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                    {t.lateDuration}
+                    <span className="opacity-50 group-hover:opacity-100">
+                      {sortColumn === 'late_minutes' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
                     </span>
                   </div>
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">
-                  GPS
+                <th 
+                  className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors group"
+                  onClick={() => handleSort('check_in_method')}
+                >
+                  <div className="flex items-center gap-1">
+                    {t.method}
+                    <span className="opacity-50 group-hover:opacity-100">
+                      {sortColumn === 'check_in_method' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                    </span>
+                  </div>
                 </th>
                 <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group"
+                  className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors group"
+                  onClick={() => handleSort('excuse_reason')}
+                >
+                  <div className="flex items-center gap-1">
+                    {t.excuseReason}
+                    <span className="opacity-50 group-hover:opacity-100">
+                      {sortColumn === 'excuse_reason' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                    </span>
+                  </div>
+                </th>
+                <th 
+                  className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors group"
+                  onClick={() => handleSort('session_location')}
+                >
+                  <div className="flex items-center gap-1">
+                    {t.location}
+                    <span className="opacity-50 group-hover:opacity-100">
+                      {sortColumn === 'session_location' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                    </span>
+                  </div>
+                </th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                  {t.gps}
+                </th>
+                <th 
+                  className="px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors group"
                   onClick={() => handleSort('marked_at')}
                 >
                   <div className="flex items-center gap-1">
-                    Marked At
-                    <span className="opacity-0 group-hover:opacity-100">
+                    {t.markedAt}
+                    <span className="opacity-50 group-hover:opacity-100">
                       {sortColumn === 'marked_at' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
                     </span>
                   </div>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Actions
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                  {t.actions}
                 </th>
               </tr>
             </thead>
@@ -4800,13 +4921,13 @@ const AttendanceRecords = () => {
                     <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm">
                       {record.status === 'late' && record.late_minutes ? (
                         <span className={`px-2 py-1 text-xs font-medium rounded ${getLateBracketInfo(record.late_minutes).color}`}>
-                          {record.late_minutes} min ({getLateBracketInfo(record.late_minutes).name})
+                          {record.late_minutes} {t.min} ({getLateBracketInfo(record.late_minutes).name})
                         </span>
                       ) : record.status === 'late' ? (
-                        <span className="text-gray-400 dark:text-gray-500 text-xs">Not recorded</span>
+                        <span className="text-gray-400 dark:text-gray-500 text-xs">{t.notRecorded}</span>
                       ) : record.early_minutes ? (
                         <span className="px-2 py-1 text-xs font-medium rounded bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300">
-                          {record.early_minutes} min early
+                          {record.early_minutes} {t.minEarly}
                         </span>
                       ) : (
                         <span className="text-gray-400 dark:text-gray-500">-</span>
@@ -4820,10 +4941,10 @@ const AttendanceRecords = () => {
                           record.check_in_method === 'bulk' ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-300' :
                           'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
                         }`}>
-                          {record.check_in_method === 'qr_code' ? 'QR Code' :
-                           record.check_in_method === 'photo' ? 'Photo' :
-                           record.check_in_method === 'bulk' ? 'Bulk' :
-                           record.check_in_method === 'manual' ? 'Manual' :
+                          {record.check_in_method === 'qr_code' ? t.qrCode :
+                           record.check_in_method === 'photo' ? t.photo :
+                           record.check_in_method === 'bulk' ? t.bulk :
+                           record.check_in_method === 'manual' ? t.manual :
                            record.check_in_method}
                         </span>
                       ) : (
@@ -4853,7 +4974,7 @@ const AttendanceRecords = () => {
                           )}
                         </div>
                       ) : (
-                        <span className="text-gray-400 dark:text-gray-500 text-xs">No GPS</span>
+                        <span className="text-gray-400 dark:text-gray-500 text-xs">{t.noGps}</span>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
@@ -4861,7 +4982,7 @@ const AttendanceRecords = () => {
                         <div className="space-y-1">
                           <div>{format(new Date(record.marked_at), 'MMM dd, HH:mm')}</div>
                           {record.marked_by && (
-                            <div className="text-xs text-gray-500 dark:text-gray-400">by {record.marked_by}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">{t.by} {record.marked_by}</div>
                           )}
                         </div>
                       ) : (
@@ -4882,7 +5003,7 @@ const AttendanceRecords = () => {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                           </svg>
-                          View Map
+                          {t.viewMap}
                         </button>
                       )}
                     </td>

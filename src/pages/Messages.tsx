@@ -73,8 +73,8 @@ export function Messages() {
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 300);
 
-  // Rate limiting for students (60s cooldown)
-  const STUDENT_COOLDOWN_SECONDS = 60;
+  // Rate limiting for students (1 hour cooldown)
+  const STUDENT_COOLDOWN_SECONDS = 3600;
   const [lastSentAt, setLastSentAt] = useState<number>(0);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
 
@@ -216,15 +216,17 @@ export function Messages() {
 
   // Cooldown timer for student rate limiting
   useEffect(() => {
-    if (userType !== 'student' || cooldownRemaining <= 0) return;
-    const timer = setInterval(() => {
+    if (userType !== 'student' || lastSentAt <= 0) return;
+    const tick = () => {
       const elapsed = Math.floor((Date.now() - lastSentAt) / 1000);
       const remaining = Math.max(0, STUDENT_COOLDOWN_SECONDS - elapsed);
       setCooldownRemaining(remaining);
       if (remaining <= 0) clearInterval(timer);
-    }, 1000);
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
-  }, [userType, lastSentAt, cooldownRemaining, STUDENT_COOLDOWN_SECONDS]);
+  }, [userType, lastSentAt, STUDENT_COOLDOWN_SECONDS]);
 
   const handleSendMessage = async () => {
     if (!formRecipientId || !formContent.trim()) {
@@ -813,7 +815,7 @@ export function Messages() {
           <div className="flex justify-between items-center pt-4 border-t dark:border-gray-700">
             <div className="text-xs text-gray-400 dark:text-gray-500">
               {userType === 'student' && cooldownRemaining > 0
-                ? `⏳ Wait ${cooldownRemaining}s before sending again`
+                ? `⏳ Wait ${cooldownRemaining >= 60 ? Math.ceil(cooldownRemaining / 60) + 'min' : cooldownRemaining + 's'} before sending again`
                 : '💡 Tip: Be clear and concise'}
             </div>
             <div className="flex gap-3">
@@ -827,7 +829,7 @@ export function Messages() {
                   <span className="flex items-center gap-2">
                     <span className="animate-spin">⏳</span> Sending...
                   </span>
-                ) : cooldownRemaining > 0 && userType === 'student' ? `⏳ ${cooldownRemaining}s` : '📤 Send Message'}
+                ) : cooldownRemaining > 0 && userType === 'student' ? `⏳ ${cooldownRemaining >= 60 ? Math.ceil(cooldownRemaining / 60) + 'min' : cooldownRemaining + 's'}` : '📤 Send Message'}
               </Button>
             </div>
           </div>

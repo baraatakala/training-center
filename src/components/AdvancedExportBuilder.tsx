@@ -979,7 +979,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                             onChange={() => toggleField(field.key)}
                             className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                           />
-                          <span className="text-sm font-medium text-gray-700">{field.label}</span>
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{field.label}</span>
                         </label>
                       ))}
                     </div>
@@ -1155,7 +1155,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                         onClick={() => setConfig(prev => ({ ...prev, orientation: 'portrait' }))}
                         className={`px-6 py-3 rounded-lg border-2 font-medium transition ${
                           config.orientation === 'portrait'
-                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
                             : 'border-gray-200 hover:border-gray-300 dark:border-gray-600 dark:hover:border-gray-500 dark:text-gray-300'
                         }`}
                       >
@@ -1165,7 +1165,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                         onClick={() => setConfig(prev => ({ ...prev, orientation: 'landscape' }))}
                         className={`px-6 py-3 rounded-lg border-2 font-medium transition ${
                           config.orientation === 'landscape'
-                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
                             : 'border-gray-200 hover:border-gray-300 dark:border-gray-600 dark:hover:border-gray-500 dark:text-gray-300'
                         }`}
                       >
@@ -1183,7 +1183,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                           onClick={() => setConfig(prev => ({ ...prev, fontSize: size }))}
                           className={`px-6 py-3 rounded-lg border-2 font-medium transition capitalize ${
                             config.fontSize === size
-                              ? 'border-blue-500 bg-blue-50 text-blue-700'
+                              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
                               : 'border-gray-200 hover:border-gray-300 dark:border-gray-600 dark:hover:border-gray-500 dark:text-gray-300'
                           }`}
                         >
@@ -1501,7 +1501,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                                 }))}
                                 className={`p-3 rounded-lg text-sm font-medium transition text-center border-2 ${
                                   config.dataValidation.coloringTheme === theme.id
-                                    ? 'border-rose-500 bg-rose-50'
+                                    ? 'border-rose-500 bg-rose-50 dark:bg-rose-900/40'
                                     : 'border-gray-200 bg-white hover:border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-gray-500'
                                 }`}
                               >
@@ -1535,10 +1535,10 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                                   key={field.key}
                                   className={`flex items-center gap-2 p-2 rounded-lg text-xs cursor-pointer transition ${
                                     isSelected 
-                                      ? 'bg-rose-100 text-rose-800' 
+                                      ? 'bg-rose-100 dark:bg-rose-900/40 text-rose-800 dark:text-rose-200' 
                                       : isAutoDetected && config.dataValidation.coloringFields.length === 0
-                                        ? 'bg-green-50 text-green-700 border border-green-200'
-                                        : 'bg-white hover:bg-gray-50 border border-gray-200'
+                                        ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-700'
+                                        : 'bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600'
                                   }`}
                                 >
                                   <input
@@ -1789,7 +1789,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                             <th
                               key={field.key}
                               className={`px-4 py-2 text-left text-xs font-medium uppercase tracking-wider ${
-                                field.key === config.sortByField ? 'text-indigo-600 bg-indigo-50' : 'text-gray-500 dark:text-gray-400'
+                                field.key === config.sortByField ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30' : 'text-gray-500 dark:text-gray-400'
                               }`}
                             >
                               {field.label}
@@ -1799,7 +1799,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                             </th>
                           ))}
                           {config.selectedFields.length > 6 && (
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-400">
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 dark:text-gray-500">
                               +{config.selectedFields.length - 6} more
                             </th>
                           )}
