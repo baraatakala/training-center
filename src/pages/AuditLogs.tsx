@@ -82,6 +82,7 @@ const OP_ICONS: Record<string, string> = {
 export function AuditLogs() {
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [expandedLog, setExpandedLog] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'timeline' | 'table'>('timeline');
 
@@ -108,6 +109,7 @@ export function AuditLogs() {
       setLogs(data);
     } catch (error) {
       console.error('Error loading audit logs:', error);
+      setError('Failed to load audit logs. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -448,6 +450,22 @@ export function AuditLogs() {
       </Card>
 
       {/* Content */}
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/50 rounded-xl p-4 flex items-center gap-3">
+          <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center">
+            <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </div>
+          <div className="flex-1">
+            <p className="text-red-700 dark:text-red-300 text-sm">{error}</p>
+            <button 
+              onClick={() => { setError(null); loadLogs(); }} 
+              className="mt-1 text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 font-medium"
+            >
+              Click to retry
+            </button>
+          </div>
+        </div>
+      )}
       {loading ? (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
           <TableSkeleton rows={10} columns={5} />

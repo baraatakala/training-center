@@ -55,7 +55,7 @@ export function Teachers() {
   };
 
   useEffect(() => {
-
+    loadTeachers();
   }, []);
 
   useEffect(() => {

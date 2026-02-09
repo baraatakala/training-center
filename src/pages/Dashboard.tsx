@@ -41,6 +41,7 @@ export function Dashboard() {
 
   const [absentStudents, setAbsentStudents] = useState<AbsentStudent[]>([]);
   const [loadingAlerts, setLoadingAlerts] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [isTeacher, setIsTeacher] = useState<boolean | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<string>('all');
   const [courses, setCourses] = useState<{ id: string; name: string }[]>([]);
@@ -66,6 +67,7 @@ export function Dashboard() {
       });
     } catch (err) {
       console.error('Error loading stats:', err);
+      setError('Failed to load dashboard statistics. Please try again.');
       setStats(prev => ({ ...prev, loading: false }));
     }
   };
@@ -671,6 +673,24 @@ Please contact the training center urgently.`;
         <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
         <p className="text-sm md:text-base text-gray-500 dark:text-gray-400 mt-1">Overview of your training center</p>
       </div>
+
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/50 rounded-xl p-4 flex items-center gap-3">
+          <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center">
+            <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </div>
+          <div className="flex-1">
+            <p className="text-red-700 dark:text-red-300 text-sm">{error}</p>
+            <button 
+              onClick={() => { setError(null); loadStats(); loadAttendanceAlerts(); }} 
+              className="mt-1 text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 font-medium"
+            >
+              Click to retry
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">

@@ -75,14 +75,32 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
+
+    // Client-side validation
+    if (!formData.course_id) {
+      setError('Please select a course.');
+      return;
+    }
+    if (!formData.teacher_id) {
+      setError('Please select a teacher.');
+      return;
+    }
+    if (!formData.start_date) {
+      setError('Start date is required.');
+      return;
+    }
+    if (!formData.end_date) {
+      setError('End date is required.');
+      return;
+    }
+    if (new Date(formData.end_date) <= new Date(formData.start_date)) {
+      setError('End date must be after start date.');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      // Validate dates
-      if (new Date(formData.end_date) <= new Date(formData.start_date)) {
-        throw new Error('End date must be after start date');
-      }
-
       await onSubmit(formData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');

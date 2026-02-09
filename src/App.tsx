@@ -23,6 +23,7 @@ const StudentCheckIn = lazy(() => import('./pages/StudentCheckIn').then(m => ({ 
 const PhotoCheckIn = lazy(() => import('./pages/PhotoCheckIn').then(m => ({ default: m.PhotoCheckIn })));
 const Announcements = lazy(() => import('./pages/Announcements').then(m => ({ default: m.Announcements })));
 const Messages = lazy(() => import('./pages/Messages').then(m => ({ default: m.Messages })));
+const NotFound = lazy(() => import('./pages/NotFound'));
 
 function PageLoader() {
   return (
@@ -68,6 +69,7 @@ function App() {
                     <Route path="/audit-logs" element={<AuditLogs />} />
                     <Route path="/announcements" element={<Announcements />} />
                     <Route path="/messages" element={<Messages />} />
+                    <Route path="*" element={<NotFound />} />
                   </Routes>
                   </Suspense>
                   </ErrorBoundary>

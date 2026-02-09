@@ -115,6 +115,21 @@ export function EnrollmentForm({ onSubmit, onCancel, initialData = null }: Enrol
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
+
+    // Client-side validation
+    if (!formData.student_id) {
+      setError('Please select a student.');
+      return;
+    }
+    if (!formData.session_id) {
+      setError('Please select a session.');
+      return;
+    }
+    if (!formData.enrollment_date) {
+      setError('Enrollment date is required.');
+      return;
+    }
+
     setLoading(true);
 
     try {

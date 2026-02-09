@@ -49,10 +49,25 @@ export function CourseForm({ course, onSubmit, onCancel }: CourseFormProps) {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
+
+    // Client-side validation
+    if (!formData.course_name.trim()) {
+      setError('Course name is required.');
+      return;
+    }
+    if (formData.course_name.trim().length < 2) {
+      setError('Course name must be at least 2 characters.');
+      return;
+    }
+    if (!formData.teacher_id) {
+      setError('Please select an instructor.');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      await onSubmit(formData);
+      await onSubmit({ ...formData, course_name: formData.course_name.trim() });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
