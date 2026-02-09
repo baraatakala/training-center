@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
@@ -16,6 +16,7 @@ import { toast } from '../components/ui/toastUtils';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useIsTeacher } from '../hooks/useIsTeacher';
 import { useDebounce } from '../hooks/useDebounce';
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
 import { Tables, type CreateSession } from '../types/database.types';
 
 type SessionWithDetails = {
@@ -56,7 +57,7 @@ export function Sessions() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
 
-  const loadSessions = async () => {
+  const loadSessions = useCallback(async () => {
     setError(null);
     const { data, error: fetchError } = await supabase
       .from(Tables.SESSION)
@@ -94,7 +95,9 @@ export function Sessions() {
       }
     }
     setLoading(false);
-  };
+  }, []);
+
+  useRefreshOnFocus(loadSessions);
 
   useEffect(() => {
     loadSessions();

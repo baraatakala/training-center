@@ -1,3 +1,5 @@
+import { useId } from 'react';
+
 type SelectProps = {
   label?: string;
   value: string;
@@ -9,6 +11,7 @@ type SelectProps = {
   error?: string;
   hint?: string;
   disabled?: boolean;
+  id?: string;
 };
 
 export function Select({
@@ -22,17 +25,21 @@ export function Select({
   error,
   hint,
   disabled = false,
+  id: externalId,
 }: SelectProps) {
+  const autoId = useId();
+  const selectId = externalId || autoId;
   return (
     <div className={`mb-4 ${className}`}>
       {label && (
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        <label htmlFor={selectId} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           {label}
           {required && <span className="text-red-500 ml-1">*</span>}
         </label>
       )}
       <div className="relative">
         <select
+          id={selectId}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           required={required}

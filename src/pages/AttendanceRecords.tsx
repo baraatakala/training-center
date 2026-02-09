@@ -4775,6 +4775,9 @@ const AttendanceRecords = () => {
                     key={record.attendance_id} 
                     className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
                     onClick={() => navigate(`/attendance/${record.session_id}`, { state: { selectedDate: record.attendance_date } })}
+                    role="link"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/attendance/${record.session_id}`, { state: { selectedDate: record.attendance_date } }); } }}
                     title="Click to view/edit attendance for this date"
                   >
                     <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">

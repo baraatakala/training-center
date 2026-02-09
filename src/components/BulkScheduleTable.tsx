@@ -4,6 +4,7 @@ import { Tables } from '../types/database.types';
 import { logDelete } from '../services/auditService';
 import { toast } from './ui/toastUtils';
 import { ConfirmDialog } from './ui/ConfirmDialog';
+import { format } from 'date-fns';
 
 type EnrollmentRow = {
   enrollment_id: string;
@@ -946,7 +947,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       if (students.length > 1) {
         issues.push({
           type: 'error',
-          message: `⚠️ Duplicate: ${students.length} hosts on ${new Date(date).toLocaleDateString()} (${students.join(', ')})`
+          message: `⚠️ Duplicate: ${students.length} hosts on ${format(new Date(date), 'MMM dd, yyyy')} (${students.join(', ')})`
         });
       }
     });
@@ -1468,11 +1469,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
                   >
                     <div className="flex items-center justify-between mb-1">
                       <div className={`font-semibold ${isCancelled ? 'text-gray-500 dark:text-gray-400 line-through' : 'text-gray-700 dark:text-gray-300'}`}>
-                        {new Date(date).toLocaleDateString('en-US', { 
-                          month: 'short', 
-                          day: 'numeric',
-                          weekday: 'short'
-                        })}
+                        {format(new Date(date), 'EEE, MMM d')}
                       </div>
                       <button
                         onClick={() => toggleSessionCancelled(date)}
@@ -1601,7 +1598,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
                               value={d}
                               style={isCancelled ? { textDecoration: 'line-through', color: '#999' } : {}}
                             >
-                              {new Date(d).toLocaleDateString()}{isCancelled ? ' ❌ CANCELLED' : ''}
+                              {format(new Date(d), 'MMM dd, yyyy')}{isCancelled ? ' ❌ CANCELLED' : ''}
                             </option>
                           );
                         })}
@@ -1689,7 +1686,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
                         value={d}
                         style={isCancelled ? { textDecoration: 'line-through', color: '#999' } : {}}
                       >
-                        {new Date(d).toLocaleDateString()}{isCancelled ? ' ❌ CANCELLED' : ''}
+                        {format(new Date(d), 'MMM dd, yyyy')}{isCancelled ? ' ❌ CANCELLED' : ''}
                       </option>
                     );
                   })}
@@ -1715,7 +1712,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       <ConfirmDialog
         isOpen={!!cancelConfirm}
         title="Cancel Session"
-        message={cancelConfirm ? `Mark ${new Date(cancelConfirm.date).toLocaleDateString()} as CANCELLED?\n\nThis will:\n• Mark all students as EXCUSED for this date\n• Set excuse reason to "Session Not Held"\n• This date will be excluded from rotation` : ''}
+        message={cancelConfirm ? `Mark ${format(new Date(cancelConfirm.date), 'MMM dd, yyyy')} as CANCELLED?\n\nThis will:\n• Mark all students as EXCUSED for this date\n• Set excuse reason to "Session Not Held"\n• This date will be excluded from rotation` : ''}
         confirmText="Mark Cancelled"
         cancelText="Cancel"
         type="warning"
@@ -1730,7 +1727,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       <ConfirmDialog
         isOpen={!!uncancelConfirm}
         title="Unmark Cancelled Session"
-        message={uncancelConfirm ? `Unmark ${new Date(uncancelConfirm.date).toLocaleDateString()} as cancelled?\n\nThis will delete all attendance records for this date.` : ''}
+        message={uncancelConfirm ? `Unmark ${format(new Date(uncancelConfirm.date), 'MMM dd, yyyy')} as cancelled?\n\nThis will delete all attendance records for this date.` : ''}
         confirmText="Unmark"
         cancelText="Cancel"
         type="danger"
@@ -1745,7 +1742,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       <ConfirmDialog
         isOpen={!!cancelledDateAssign}
         title="Assign Cancelled Date"
-        message={cancelledDateAssign ? `${new Date(cancelledDateAssign.date).toLocaleDateString()} is marked as CANCELLED. Assign anyway?` : ''}
+        message={cancelledDateAssign ? `${format(new Date(cancelledDateAssign.date), 'MMM dd, yyyy')} is marked as CANCELLED. Assign anyway?` : ''}
         confirmText="Assign"
         cancelText="Cancel"
         type="warning"

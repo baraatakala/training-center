@@ -512,7 +512,7 @@ export function StudentCheckIn() {
             const earliestCheckIn = new Date(sessionStart.getTime() - 30 * 60 * 1000);
             
             if (now < earliestCheckIn) {
-              setError('Cannot check in more than 30 minutes before session starts. Session starts at ' + sessionStart.toLocaleTimeString());
+              setError('Cannot check in more than 30 minutes before session starts. Session starts at ' + format(sessionStart, 'hh:mm a'));
               setSubmitting(false);
               return;
             }

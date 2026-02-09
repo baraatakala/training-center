@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -10,6 +11,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const isOnline = useOnlineStatus();
   
   // Theme state
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -116,6 +118,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-gray-900 dark:via-gray-900 dark:to-slate-900">
+      {/* Offline Banner */}
+      {!isOnline && (
+        <div className="fixed top-0 left-0 right-0 z-[100] bg-red-600 text-white text-center py-2 text-sm font-medium shadow-lg">
+          ⚠️ You are offline — changes may not be saved
+        </div>
+      )}
       {/* Mobile Header */}
       <header className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-700/50">
         <div className="flex items-center justify-between px-4 h-16">
@@ -157,7 +165,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Mobile Sidebar Overlay */}
       {mobileMenuOpen && (
         <div className="lg:hidden fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" role="button" aria-label="Close menu" tabIndex={-1} onClick={() => setMobileMenuOpen(false)} onKeyDown={(e) => { if (e.key === 'Escape') setMobileMenuOpen(false); }} />
           <div className="absolute left-0 top-0 bottom-0 w-72 bg-white dark:bg-gray-900 shadow-2xl animate-slide-in-right">
             <MobileSidebar 
               navLinks={navLinks}

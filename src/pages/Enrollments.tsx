@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
@@ -12,6 +12,7 @@ import { toast } from '../components/ui/toastUtils';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useIsTeacher } from '../hooks/useIsTeacher';
 import { useDebounce } from '../hooks/useDebounce';
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
 import { TableSkeleton } from '../components/ui/Skeleton';
 import type { CreateEnrollment, UpdateEnrollment } from '../types/database.types';
 
@@ -50,7 +51,7 @@ export function Enrollments() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
 
-  const loadEnrollments = async () => {
+  const loadEnrollments = useCallback(async () => {
     setLoading(true);
     setError(null);
     const { data, error: fetchError } = await enrollmentService.getAll();
@@ -62,7 +63,9 @@ export function Enrollments() {
       setFilteredEnrollments(data as EnrollmentWithDetails[]);
     }
     setLoading(false);
-  };
+  }, []);
+
+  useRefreshOnFocus(loadEnrollments);
 
   useEffect(() => {
     loadEnrollments();

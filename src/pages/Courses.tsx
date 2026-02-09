@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
@@ -12,6 +12,7 @@ import { toast } from '../components/ui/toastUtils';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useIsTeacher } from '../hooks/useIsTeacher';
 import { useDebounce } from '../hooks/useDebounce';
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
 import { TableSkeleton } from '../components/ui/Skeleton';
 import type { CreateCourse } from '../types/database.types';
 
@@ -43,7 +44,7 @@ export function Courses() {
   const [sortField, setSortField] = useState<'course_name' | 'category' | 'teacher'>('course_name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
-  const loadCourses = async () => {
+  const loadCourses = useCallback(async () => {
     setLoading(true);
     setError(null);
     const { data, error: fetchError } = await courseService.getAll();
@@ -55,7 +56,9 @@ export function Courses() {
       setFilteredCourses(data as CourseWithTeacher[]);
     }
     setLoading(false);
-  };
+  }, []);
+
+  useRefreshOnFocus(loadCourses);
 
   useEffect(() => {
     loadCourses();

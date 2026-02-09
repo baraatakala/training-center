@@ -768,6 +768,7 @@ export function Announcements() {
                     src={imageUrls[announcement.announcement_id]}
                     alt={announcement.title}
                     className="w-full h-32 object-cover rounded-lg"
+                    loading="lazy"
                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                   />
                 </div>
@@ -1085,6 +1086,7 @@ export function Announcements() {
                   src={imageUrls[viewingAnnouncement.announcement_id]}
                   alt="Announcement"
                   className="w-full max-h-96 object-contain bg-gray-50 dark:bg-gray-800"
+                  loading="lazy"
                   onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                 />
               </div>

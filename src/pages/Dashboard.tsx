@@ -357,6 +357,7 @@ Please contact the training center urgently.`;
             <select
               value={selectedCourse}
               onChange={(e) => setSelectedCourse(e.target.value)}
+              aria-label="Filter by course"
               className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm w-full md:w-auto dark:bg-gray-700 dark:text-white"
             >
               <option value="all">All Courses</option>
@@ -365,15 +366,17 @@ Please contact the training center urgently.`;
               ))}
             </select>
             <div className="flex gap-2 items-center flex-wrap">
-              <label className="text-sm text-gray-600 dark:text-gray-400">From:</label>
+              <label htmlFor="dashboard-start-date" className="text-sm text-gray-600 dark:text-gray-400">From:</label>
               <input
+                id="dashboard-start-date"
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm dark:bg-gray-700 dark:text-white"
               />
-              <label className="text-sm text-gray-600 dark:text-gray-400">To:</label>
+              <label htmlFor="dashboard-end-date" className="text-sm text-gray-600 dark:text-gray-400">To:</label>
               <input
+                id="dashboard-end-date"
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}

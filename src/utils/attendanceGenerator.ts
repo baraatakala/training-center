@@ -3,6 +3,8 @@
  * Automatically generates attendance dates based on session schedule
  */
 
+import { format } from 'date-fns';
+
 export interface SessionSchedule {
   session_id: string;
   start_date: string;
@@ -75,11 +77,7 @@ export function generateAttendanceDates(session: SessionSchedule): AttendanceDat
  */
 export function generateDateLabel(date: string, location: string | null): string {
   const dateObj = new Date(date);
-  const formattedDate = dateObj.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: '2-digit'
-  });
+  const formattedDate = format(dateObj, 'MMM dd, yyyy');
   
   return location ? `${formattedDate} - ${location}` : formattedDate;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { SearchBar } from '../components/ui/SearchBar';
@@ -12,6 +12,7 @@ import { toast } from '../components/ui/toastUtils';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useIsTeacher } from '../hooks/useIsTeacher';
 import { useDebounce } from '../hooks/useDebounce';
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
 import type { Student, CreateStudent } from '../types/database.types';
 import { TableSkeleton } from '../components/ui/Skeleton';
 
@@ -33,7 +34,7 @@ export function Students() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [deletingStudent, setDeletingStudent] = useState<Student | null>(null);
 
-  const loadStudents = async () => {
+  const loadStudents = useCallback(async () => {
     setLoading(true);
     setError(null);
     const { data, error: fetchError } = await studentService.getAll();
@@ -45,7 +46,9 @@ export function Students() {
       setFilteredStudents(data as Student[]);
     }
     setLoading(false);
-  };
+  }, []);
+
+  useRefreshOnFocus(loadStudents);
 
   useEffect(() => {
     loadStudents();

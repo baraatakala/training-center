@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { SearchBar } from '../components/ui/SearchBar';
@@ -10,6 +10,7 @@ import { toast } from '../components/ui/toastUtils';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useIsTeacher } from '../hooks/useIsTeacher';
 import { useDebounce } from '../hooks/useDebounce';
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
 import type { Teacher, CreateTeacher } from '../types/database.types';
 import { TableSkeleton } from '../components/ui/Skeleton';
 
@@ -31,7 +32,7 @@ export function Teachers() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [deletingTeacher, setDeletingTeacher] = useState<Teacher | null>(null);
 
-  const loadTeachers = async () => {
+  const loadTeachers = useCallback(async () => {
     setLoading(true);
     setError(null);
     const { data, error: fetchError } = await teacherService.getAll();
@@ -52,7 +53,9 @@ export function Teachers() {
       setFilteredTeachers(teachersWithCounts);
     }
     setLoading(false);
-  };
+  }, []);
+
+  useRefreshOnFocus(loadTeachers);
 
   useEffect(() => {
     loadTeachers();
