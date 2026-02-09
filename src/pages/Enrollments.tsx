@@ -319,46 +319,46 @@ export function Enrollments() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none">
-                    <div className="flex items-center gap-1" onClick={() => toggleSort('student')}>
+                  <TableHead onClick={() => toggleSort('student')}>
+                    <span className="flex items-center gap-1">
                       Student
                       {sortBy === 'student' && (
                         <span className="text-blue-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>
                       )}
-                    </div>
+                    </span>
                   </TableHead>
-                  <TableHead className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none">
-                    <div className="flex items-center gap-1" onClick={() => toggleSort('course')}>
+                  <TableHead onClick={() => toggleSort('course')}>
+                    <span className="flex items-center gap-1">
                       Course
                       {sortBy === 'course' && (
                         <span className="text-blue-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>
                       )}
-                    </div>
+                    </span>
                   </TableHead>
                   <TableHead>Start Date</TableHead>
-                  <TableHead className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none">
-                    <div className="flex items-center gap-1" onClick={() => toggleSort('date')}>
+                  <TableHead onClick={() => toggleSort('date')}>
+                    <span className="flex items-center gap-1">
                       Enrollment Date
                       {sortBy === 'date' && (
                         <span className="text-blue-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>
                       )}
-                    </div>
+                    </span>
                   </TableHead>
-                  <TableHead className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none">
-                    <div className="flex items-center gap-1" onClick={() => toggleSort('status')}>
+                  <TableHead onClick={() => toggleSort('status')}>
+                    <span className="flex items-center gap-1">
                       Status
                       {sortBy === 'status' && (
                         <span className="text-blue-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>
                       )}
-                    </div>
+                    </span>
                   </TableHead>
-                  <TableHead className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none text-center">
-                    <div className="flex items-center justify-center gap-1" onClick={() => toggleSort('canHost')}>
+                  <TableHead onClick={() => toggleSort('canHost')} className="text-center">
+                    <span className="flex items-center justify-center gap-1">
                       Can Host
                       {sortBy === 'canHost' && (
                         <span className="text-blue-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>
                       )}
-                    </div>
+                    </span>
                   </TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -425,6 +425,7 @@ export function Enrollments() {
                                             Edit
                                           </button>
                                           <select
+                                            aria-label={`Change status for ${enrollment.student?.name || 'student'}`}
                                             className="text-sm border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded px-2 py-1"
                                             value={enrollment.status}
                                             onChange={(e) => handleUpdateStatus(enrollment.enrollment_id, e.target.value)}
@@ -443,7 +444,7 @@ export function Enrollments() {
                                         </>
                                       )}
                                       {!isTeacher && (
-                                        <span className="text-xs text-gray-400 px-2">View only</span>
+                                        <span className="text-xs text-gray-400 dark:text-gray-500 px-2">View only</span>
                                       )}
                                     </div>
                     </TableCell>

@@ -12,6 +12,7 @@ import * as XLSX from 'xlsx';
 import { wordExportService } from '../services/wordExportService';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/ui/ToastContainer';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 interface AttendanceRecord {
   attendance_id: string;
@@ -238,6 +239,7 @@ const AttendanceRecords = () => {
   const [studentAnalytics, setStudentAnalytics] = useState<StudentAnalytics[]>([]);
   const [dateAnalytics, setDateAnalytics] = useState<DateAnalytics[]>([]);
   const [reportLanguage, setReportLanguage] = useState<'en' | 'ar'>('en');
+  const [showArabicPdfConfirm, setShowArabicPdfConfirm] = useState(false);
 
   // Collapse state for analytics sections
   const [collapseStudentTable, setCollapseStudentTable] = useState(false);
@@ -1212,7 +1214,7 @@ const AttendanceRecords = () => {
     URL.revokeObjectURL(url);
   };
 
-  const exportAnalyticsToPDF = () => {
+  const exportAnalyticsToPDF = (skipArabicCheck = false) => {
     if (!showAnalytics || studentAnalytics.length === 0 || dateAnalytics.length === 0) {
       warning('Please show analytics first to export PDF report');
       return;
@@ -1225,13 +1227,9 @@ const AttendanceRecords = () => {
     // For Arabic, we'll use a workaround: render text as images or use simple transliteration
     // Since jsPDF doesn't support Arabic fonts out of the box, we keep English for PDF
     // and recommend CSV for full Arabic support
-    if (isArabic) {
-      const confirmExport = window.confirm(
-        'PDF export works best in English.\n\n' +
-        'For full Arabic support with proper formatting, please use CSV Export.\n\n' +
-        'Continue with English PDF?'
-      );
-      if (!confirmExport) return;
+    if (isArabic && !skipArabicCheck) {
+      setShowArabicPdfConfirm(true);
+      return;
     }
     
     // Title (Always English for PDF)
@@ -3407,7 +3405,7 @@ const AttendanceRecords = () => {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                   Excel
                 </button>
-                <button onClick={exportAnalyticsToPDF} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md">
+                <button onClick={() => exportAnalyticsToPDF()} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
                   PDF
                 </button>
@@ -4910,6 +4908,16 @@ const AttendanceRecords = () => {
         )}
       </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={showArabicPdfConfirm}
+        type="warning"
+        title="Arabic PDF Export"
+        message="PDF export works best in English. For full Arabic support with proper formatting, please use CSV Export. Continue with English PDF?"
+        confirmText="Continue"
+        onConfirm={() => { setShowArabicPdfConfirm(false); exportAnalyticsToPDF(true); }}
+        onCancel={() => setShowArabicPdfConfirm(false)}
+      />
     </div>
   );
 };

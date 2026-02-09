@@ -276,8 +276,8 @@ export function Students() {
                                 }}
                                 className={`px-2 md:px-3 py-1 text-xs md:text-sm rounded border ${
                                   student.photo_url 
-                                    ? 'text-green-600 border-green-300 bg-green-50 hover:bg-green-100' 
-                                    : 'text-orange-600 border-orange-300 bg-orange-50 hover:bg-orange-100'
+                                    ? 'text-green-600 border-green-300 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:border-green-700 dark:bg-green-900/20 dark:hover:bg-green-900/40' 
+                                    : 'text-orange-600 border-orange-300 bg-orange-50 hover:bg-orange-100 dark:text-orange-400 dark:border-orange-700 dark:bg-orange-900/20 dark:hover:bg-orange-900/40'
                                 }`}
                                 title={student.photo_url ? 'Update photo' : 'Add photo for face check-in'}
                               >

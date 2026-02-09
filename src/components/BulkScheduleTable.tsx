@@ -108,6 +108,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
   // ConfirmDialog state for cancel/uncancel session
   const [cancelConfirm, setCancelConfirm] = useState<{ date: string } | null>(null);
   const [uncancelConfirm, setUncancelConfirm] = useState<{ date: string } | null>(null);
+  const [showClearAllConfirm, setShowClearAllConfirm] = useState(false);
   // ConfirmDialog state for assigning a cancelled date
   const [cancelledDateAssign, setCancelledDateAssign] = useState<{ enrollmentId: string; date: string } | null>(null);
   const [exportFields, setExportFields] = useState({
@@ -1050,8 +1051,11 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
   };
 
   const clearAll = () => {
-    if (!confirm('Clear all host date assignments? This cannot be undone.')) return;
-    
+    setShowClearAllConfirm(true);
+  };
+
+  const doClearAll = () => {
+    setShowClearAllConfirm(false);
     setHostDateMap((prev) => {
       const next: Record<string, string | null> = { ...prev };
       displayedEnrollments.forEach((e) => {
@@ -1753,6 +1757,18 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
           setCancelledDateAssign(null);
         }}
         onCancel={() => setCancelledDateAssign(null)}
+      />
+
+      {/* ConfirmDialog for clearing all host assignments */}
+      <ConfirmDialog
+        isOpen={showClearAllConfirm}
+        title="Clear All Assignments"
+        message="Clear all host date assignments? This cannot be undone."
+        confirmText="Clear All"
+        cancelText="Cancel"
+        type="danger"
+        onConfirm={doClearAll}
+        onCancel={() => setShowClearAllConfirm(false)}
       />
     </div>
   );
