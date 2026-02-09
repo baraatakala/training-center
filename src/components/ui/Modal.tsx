@@ -15,9 +15,16 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', hideClose
   const modalRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<Element | null>(null);
 
+  // Keep onClose in a ref so handleKeyDown stays stable and
+  // the focus-management effect doesn't re-run on every parent render.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Escape') {
-      onClose();
+      onCloseRef.current();
       return;
     }
 
@@ -41,7 +48,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', hideClose
         }
       }
     }
-  }, [onClose]);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -49,11 +56,13 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', hideClose
       document.addEventListener('keydown', handleKeyDown);
       document.body.style.overflow = 'hidden';
 
-      // Focus first focusable element in modal
+      // Focus the dialog container itself (WCAG-recommended for role="dialog").
+      // Focusing the first *interactive* child (the close button) was stealing
+      // focus from textarea / input fields on every parent re-render on some
+      // browsers and on mobile (collapsing the keyboard).
       requestAnimationFrame(() => {
-        if (modalRef.current) {
-          const firstFocusable = modalRef.current.querySelector(FOCUSABLE_SELECTOR) as HTMLElement;
-          firstFocusable?.focus();
+        if (modalRef.current && !modalRef.current.contains(document.activeElement)) {
+          modalRef.current.focus();
         }
       });
     }
@@ -62,7 +71,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', hideClose
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = 'unset';
 
-      // Restore focus to trigger element
+      // Restore focus to the element that opened the modal
       if (previousActiveElement.current instanceof HTMLElement) {
         previousActiveElement.current.focus();
       }
@@ -94,7 +103,8 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', hideClose
           role="dialog"
           aria-modal="true"
           aria-labelledby="modal-title"
-          className={`relative bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200/50 dark:border-gray-700/50 ${sizeClasses[size]} w-full max-h-[90vh] overflow-y-auto animate-scale-in`}
+          tabIndex={-1}
+          className={`relative bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200/50 dark:border-gray-700/50 ${sizeClasses[size]} w-full max-h-[90vh] overflow-y-auto animate-scale-in outline-none`}
         >
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-700/50">

@@ -797,11 +797,11 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
   };
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow">
+    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:shadow-gray-900/30">
       <div className="flex justify-between items-center mb-4">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Bulk Import Attendance</h2>
-          <p className="text-sm text-gray-600 mt-1">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Bulk Import Attendance</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
             Import attendance records from CSV or Excel file. The system will automatically create teachers, students, courses, sessions, and enrollments as needed.
           </p>
         </div>
@@ -814,9 +814,9 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
       </div>
 
       {showInstructions && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-          <h3 className="font-semibold text-blue-900 mb-2">📋 Import Instructions</h3>
-          <ol className="list-decimal list-inside space-y-2 text-sm text-blue-800">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
+          <h3 className="font-semibold text-blue-900 dark:text-blue-300 mb-2">📋 Import Instructions</h3>
+          <ol className="list-decimal list-inside space-y-2 text-sm text-blue-800 dark:text-blue-300">
             <li><strong>Download the clean CSV template</strong> - Contains 5 ready-to-use example rows with all field types</li>
             <li><strong>Edit the template</strong> - Replace example data with your actual attendance records or add new rows</li>
             <li><strong>Required fields:</strong> student_name, student_email, course_name, instructor_name, instructor_email, session_start_date, session_end_date, attendance_date, status</li>
@@ -851,8 +851,8 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
           <span 
             className={`inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white ${
               importing 
-                ? 'bg-gray-400 cursor-not-allowed' 
-                : 'bg-blue-600 hover:bg-blue-700 cursor-pointer'
+                ? 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed' 
+                : 'bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 cursor-pointer'
             }`}
           >
             {importing ? '⏳ Importing...' : '📤 Upload CSV/Excel File'}
@@ -862,14 +862,14 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
 
       {/* Preview Section */}
       {previewData && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
           <div className="flex justify-between items-center mb-4">
             <div>
-              <h3 className="text-lg font-semibold text-blue-900">📋 Preview Import Data</h3>
-              <p className="text-sm text-blue-700 mt-1">
+              <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-300">📋 Preview Import Data</h3>
+              <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">
                 File: <span className="font-medium">{fileName}</span> - {previewData.length} records found
               </p>
-              <p className="text-sm text-blue-600 mt-1">
+              <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
                 Review the data below and click "Confirm Import" to proceed or "Cancel" to discard.
               </p>
             </div>
@@ -884,74 +884,74 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
           </div>
 
           {/* Preview Stats */}
-          <div className="bg-white rounded-lg p-3 mb-4">
-            <h4 className="font-semibold text-gray-900 mb-2">Summary:</h4>
+          <div className="bg-white dark:bg-gray-700 rounded-lg p-3 mb-4">
+            <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Summary:</h4>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
               <div>
-                <span className="text-gray-600">Unique Students:</span>
+                <span className="text-gray-600 dark:text-gray-400">Unique Students:</span>
                 <span className="font-bold ml-2 text-blue-600">
                   {new Set(previewData.map(r => r.studentEmail)).size}
                 </span>
               </div>
               <div>
-                <span className="text-gray-600">Unique Instructors:</span>
+                <span className="text-gray-600 dark:text-gray-400">Unique Instructors:</span>
                 <span className="font-bold ml-2 text-blue-600">
                   {new Set(previewData.map(r => r.instructorEmail)).size}
                 </span>
               </div>
               <div>
-                <span className="text-gray-600">Unique Courses:</span>
+                <span className="text-gray-600 dark:text-gray-400">Unique Courses:</span>
                 <span className="font-bold ml-2 text-blue-600">
                   {new Set(previewData.map(r => r.courseName)).size}
                 </span>
               </div>
               <div>
-                <span className="text-gray-600">Attendance Records:</span>
+                <span className="text-gray-600 dark:text-gray-400">Attendance Records:</span>
                 <span className="font-bold ml-2 text-blue-600">{previewData.length}</span>
               </div>
             </div>
           </div>
 
           {/* Preview Table */}
-          <div className="bg-white rounded-lg overflow-hidden border border-gray-200 max-h-96 overflow-y-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50 sticky top-0">
+          <div className="bg-white dark:bg-gray-800 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 max-h-96 overflow-y-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0">
                 <tr>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">#</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Student</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Course</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Instructor</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">GPS</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">#</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Student</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Course</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Instructor</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">GPS</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {previewData.slice(0, 50).map((row, index) => (
-                  <tr key={index} className="hover:bg-gray-50">
-                    <td className="px-3 py-2 text-sm text-gray-500">{index + 1}</td>
-                    <td className="px-3 py-2 text-sm text-gray-900">
+                  <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">{index + 1}</td>
+                    <td className="px-3 py-2 text-sm text-gray-900 dark:text-white">
                       <div>{row.studentName}</div>
-                      <div className="text-xs text-gray-500">{row.studentEmail}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{row.studentEmail}</div>
                     </td>
-                    <td className="px-3 py-2 text-sm text-gray-900">{row.courseName}</td>
-                    <td className="px-3 py-2 text-sm text-gray-900">
+                    <td className="px-3 py-2 text-sm text-gray-900 dark:text-white">{row.courseName}</td>
+                    <td className="px-3 py-2 text-sm text-gray-900 dark:text-white">
                       <div>{row.instructorName}</div>
-                      <div className="text-xs text-gray-500">{row.instructorEmail}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{row.instructorEmail}</div>
                     </td>
-                    <td className="px-3 py-2 text-sm text-gray-900">{row.attendanceDate}</td>
+                    <td className="px-3 py-2 text-sm text-gray-900 dark:text-white">{row.attendanceDate}</td>
                     <td className="px-3 py-2">
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                        row.status === 'present' ? 'bg-green-100 text-green-800' :
-                        row.status === 'absent' ? 'bg-red-100 text-red-800' :
-                        row.status === 'late' ? 'bg-yellow-100 text-yellow-800' :
-                        row.status === 'excused' ? 'bg-blue-100 text-blue-800' :
-                        'bg-gray-100 text-gray-800'
+                        row.status === 'present' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                        row.status === 'absent' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
+                        row.status === 'late' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                        row.status === 'excused' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' :
+                        'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
                       }`}>
                         {row.status}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-sm text-gray-500">
+                    <td className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
                       {row.gpsLatitude && row.gpsLongitude ? '✓' : '-'}
                     </td>
                   </tr>
@@ -959,7 +959,7 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
               </tbody>
             </table>
             {previewData.length > 50 && (
-              <div className="bg-gray-50 px-3 py-2 text-sm text-gray-600 text-center border-t">
+              <div className="bg-gray-50 dark:bg-gray-700 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 text-center border-t dark:border-gray-600">
                 Showing first 50 of {previewData.length} records
               </div>
             )}
@@ -968,41 +968,41 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
       )}
 
       {result && (
-        <div className={`p-4 rounded-lg border ${result.success ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
-          <h3 className="font-semibold mb-2">{result.success ? '✅ Import Results' : '⚠️ Import Results'}</h3>
-          <p className="mb-3">{result.message}</p>
+        <div className={`p-4 rounded-lg border ${result.success ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'}`}>
+          <h3 className="font-semibold mb-2 dark:text-white">{result.success ? '✅ Import Results' : '⚠️ Import Results'}</h3>
+          <p className="mb-3 dark:text-gray-300">{result.message}</p>
           
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-3 text-sm">
-            <div className="bg-white p-2 rounded border">
-              <span className="text-gray-600">Teachers Created:</span>
-              <span className="font-bold ml-2">{result.teachersCreated}</span>
+            <div className="bg-white dark:bg-gray-700 p-2 rounded border dark:border-gray-600">
+              <span className="text-gray-600 dark:text-gray-400">Teachers Created:</span>
+              <span className="font-bold ml-2 dark:text-white">{result.teachersCreated}</span>
             </div>
-            <div className="bg-white p-2 rounded border">
-              <span className="text-gray-600">Students Created:</span>
-              <span className="font-bold ml-2">{result.studentsCreated}</span>
+            <div className="bg-white dark:bg-gray-700 p-2 rounded border dark:border-gray-600">
+              <span className="text-gray-600 dark:text-gray-400">Students Created:</span>
+              <span className="font-bold ml-2 dark:text-white">{result.studentsCreated}</span>
             </div>
-            <div className="bg-white p-2 rounded border">
-              <span className="text-gray-600">Courses Created:</span>
-              <span className="font-bold ml-2">{result.coursesCreated}</span>
+            <div className="bg-white dark:bg-gray-700 p-2 rounded border dark:border-gray-600">
+              <span className="text-gray-600 dark:text-gray-400">Courses Created:</span>
+              <span className="font-bold ml-2 dark:text-white">{result.coursesCreated}</span>
             </div>
-            <div className="bg-white p-2 rounded border">
-              <span className="text-gray-600">Sessions Created:</span>
-              <span className="font-bold ml-2">{result.sessionsCreated}</span>
+            <div className="bg-white dark:bg-gray-700 p-2 rounded border dark:border-gray-600">
+              <span className="text-gray-600 dark:text-gray-400">Sessions Created:</span>
+              <span className="font-bold ml-2 dark:text-white">{result.sessionsCreated}</span>
             </div>
-            <div className="bg-white p-2 rounded border">
-              <span className="text-gray-600">Enrollments Created:</span>
-              <span className="font-bold ml-2">{result.enrollmentsCreated}</span>
+            <div className="bg-white dark:bg-gray-700 p-2 rounded border dark:border-gray-600">
+              <span className="text-gray-600 dark:text-gray-400">Enrollments Created:</span>
+              <span className="font-bold ml-2 dark:text-white">{result.enrollmentsCreated}</span>
             </div>
-            <div className="bg-white p-2 rounded border">
-              <span className="text-gray-600">Attendance Records:</span>
-              <span className="font-bold ml-2">{result.attendanceCreated}</span>
+            <div className="bg-white dark:bg-gray-700 p-2 rounded border dark:border-gray-600">
+              <span className="text-gray-600 dark:text-gray-400">Attendance Records:</span>
+              <span className="font-bold ml-2 dark:text-white">{result.attendanceCreated}</span>
             </div>
           </div>
 
           {result.errors.length > 0 && (
-            <div className="bg-white p-3 rounded border border-red-200 max-h-40 overflow-y-auto">
-              <h4 className="font-semibold text-red-900 mb-2">Errors ({result.errors.length}):</h4>
-              <ul className="list-disc list-inside text-sm text-red-800 space-y-1">
+            <div className="bg-white dark:bg-gray-800 p-3 rounded border border-red-200 dark:border-red-800 max-h-40 overflow-y-auto">
+              <h4 className="font-semibold text-red-900 dark:text-red-400 mb-2">Errors ({result.errors.length}):</h4>
+              <ul className="list-disc list-inside text-sm text-red-800 dark:text-red-400 space-y-1">
                 {result.errors.map((error, index) => (
                   <li key={index}>{error}</li>
                 ))}

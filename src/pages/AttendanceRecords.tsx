@@ -248,6 +248,7 @@ const AttendanceRecords = () => {
   const [collapseScoreExplainer, setCollapseScoreExplainer] = useState(true);
   const [scoreExplainerStudent, setScoreExplainerStudent] = useState<string>('');
   const [scoreExplainerLang, setScoreExplainerLang] = useState<'en' | 'ar' | 'both'>('both');
+  const [showScoreDetails, setShowScoreDetails] = useState(false);
 
   // Sorting state
   const [sortColumn, setSortColumn] = useState<string | null>(null);
@@ -3880,6 +3881,20 @@ const AttendanceRecords = () => {
                 )}
               </div>
 
+              {/* Toggle for detailed explanations */}
+              <button
+                type="button"
+                onClick={() => setShowScoreDetails(prev => !prev)}
+                className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg border border-dashed border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 text-xs font-medium hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
+              >
+                <svg className={`w-4 h-4 transition-transform duration-200 ${showScoreDetails ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+                {showScoreDetails ? 'Hide Detailed Explanations / إخفاء التفاصيل' : '📖 Show Detailed Explanations / عرض شرح مفصل'}
+              </button>
+
+              {showScoreDetails && (
+              <>
               {/* ── Deep Dive: Component Explanations ── */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
@@ -4101,6 +4116,8 @@ const AttendanceRecords = () => {
                 <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-xs">🕐 30 min late ≈ 50%</span>
                 <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs">📉 60 min late ≈ 25%</span>
               </div>
+              </>
+              )}
 
               {/* ── Controls ── */}
               <div className="flex flex-wrap items-center gap-3">
