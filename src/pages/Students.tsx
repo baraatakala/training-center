@@ -27,7 +27,7 @@ export function Students() {
   const [photoStudent, setPhotoStudent] = useState<Student | undefined>();
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
-  const { isTeacher } = useIsTeacher();
+  const { isTeacher, isAdmin } = useIsTeacher();
   const [error, setError] = useState<string | null>(null);
   const [sortField, setSortField] = useState<'name' | 'email' | 'phone' | 'nationality' | 'age'>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -271,7 +271,7 @@ export function Students() {
                       <TableCell className="text-gray-600 dark:text-gray-300 hidden xl:table-cell">{student.age || '-'}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-1 md:gap-2 justify-end flex-nowrap">
-                          {isTeacher && (
+                          {isAdmin && (
                             <>
                               <button
                                 onClick={() => {

@@ -52,7 +52,7 @@ export function Sessions() {
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [selectedSessionForSchedule, setSelectedSessionForSchedule] = useState<SessionWithDetails | null>(null);
   const [enrollmentCounts, setEnrollmentCounts] = useState<Record<string, number>>({});
-  const { isTeacher } = useIsTeacher();
+  const { isTeacher, isAdmin } = useIsTeacher();
   const [error, setError] = useState<string | null>(null);
   const [deletingSession, setDeletingSession] = useState<SessionWithDetails | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -455,6 +455,10 @@ export function Sessions() {
                               <Button size="sm" variant="outline" onClick={() => { setSelectedSessionForSchedule(session); setIsScheduleModalOpen(true); }}>
                                 Host Schedule
                               </Button>
+                            </>
+                          )}
+                          {isAdmin && (
+                            <>
                               <Button 
                                 size="sm" 
                                 variant="outline" 

@@ -362,7 +362,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
   const saveHostDate = async (enrollmentId: string, hostDate: string | null) => {
     // Skip if temp enrollment
     if (enrollmentId.startsWith('temp-')) {
-
+      return;
     }
     
     // Handle teacher hosting dates separately

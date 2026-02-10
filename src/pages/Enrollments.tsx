@@ -44,7 +44,7 @@ export function Enrollments() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'student' | 'course' | 'date' | 'status' | 'canHost'>('student');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const { isTeacher } = useIsTeacher();
+  const { isTeacher, isAdmin } = useIsTeacher();
   const [error, setError] = useState<string | null>(null);
   const [deletingEnrollmentId, setDeletingEnrollmentId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -163,7 +163,10 @@ export function Enrollments() {
   const handleUpdateStatus = async (enrollmentId: string, newStatus: string) => {
     const statusValue = newStatus as 'active' | 'completed' | 'dropped' | 'pending';
     const { error } = await enrollmentService.updateStatusWithCanHost(enrollmentId, statusValue);
-    if (!error) {
+    if (error) {
+      toast.error('Failed to update status: ' + error.message);
+    } else {
+      toast.success(`Status updated to ${statusValue}`);
       loadEnrollments();
     }
   };
@@ -389,7 +392,7 @@ export function Enrollments() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
-                      {isTeacher ? (
+                      {isAdmin ? (
                         enrollment.status === 'active' ? (
                           <button
                             onClick={async () => {
@@ -415,7 +418,7 @@ export function Enrollments() {
                     </TableCell>
                     <TableCell>
                                     <div className="flex gap-2 justify-end">
-                                      {isTeacher && (
+                                      {isAdmin && (
                                         <>
                                           <button
                                             className="text-sm border dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"

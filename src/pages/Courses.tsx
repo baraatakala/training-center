@@ -35,7 +35,7 @@ export function Courses() {
   const [editingCourse, setEditingCourse] = useState<CourseWithTeacher | undefined>();
   const [isBookReferencesOpen, setIsBookReferencesOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<CourseWithTeacher | null>(null);
-  const { isTeacher } = useIsTeacher();
+  const { isTeacher, isAdmin } = useIsTeacher();
   const [error, setError] = useState<string | null>(null);
   const [deletingCourse, setDeletingCourse] = useState<CourseWithTeacher | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -264,7 +264,6 @@ export function Courses() {
                       <TableCell>
                         <div className="flex gap-1 md:gap-2 justify-end flex-nowrap">
                           {isTeacher && (
-                            <>
                               <Button 
                                 size="sm" 
                                 variant="outline" 
@@ -275,6 +274,9 @@ export function Courses() {
                               >
                                 📚
                               </Button>
+                          )}
+                          {isAdmin && (
+                            <>
                               <Button 
                                 size="sm" 
                                 variant="secondary" 
