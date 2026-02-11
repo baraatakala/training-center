@@ -731,6 +731,13 @@ const AttendanceRecords = () => {
     bulk: 'استيراد جماعي',
     manual: 'يدوي',
     by: 'بواسطة',
+    // Summary Statistics
+    summaryStatistics: '📊 إحصائيات عامة',
+    totalStudents: 'إجمالي الطلاب',
+    classAvgRate: 'معدل الفصل',
+    avgWeightedScore: 'متوسط الدرجة الموزونة',
+    avgAttendanceByDate: 'متوسط الحضور حسب التاريخ',
+    medianRateByDate: 'المعدل الوسيط حسب التاريخ',
   } : {
     attendanceRecords: 'Attendance Records',
     showing: 'Showing',
@@ -765,6 +772,13 @@ const AttendanceRecords = () => {
     bulk: 'Bulk',
     manual: 'Manual',
     by: 'by',
+    // Summary Statistics
+    summaryStatistics: '📊 Summary Statistics',
+    totalStudents: 'Total Students',
+    classAvgRate: 'Class Avg Rate',
+    avgWeightedScore: 'Avg Weighted Score',
+    avgAttendanceByDate: 'Avg Attendance by Date',
+    medianRateByDate: 'Median Rate by Date',
   };
 
   const openMapLocation = (record: AttendanceRecord) => {
@@ -2729,12 +2743,26 @@ const AttendanceRecords = () => {
   };
 
   // Helper: Get all field definitions for a data type (flattened from categories)
-  const getAllFieldsForType = (dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics') => {
+  const getAllFieldsForType = (dataType: 'records' | 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics') => {
     // Build map of all available fields for each data type
     const allFields: { key: string; label: string; labelAr: string }[] = [];
     
-    // Get categories for specific type by parsing the function logic
-    if (dataType === 'studentAnalytics') {
+    if (dataType === 'records') {
+      allFields.push(
+        { key: 'attendance_date', label: 'Date', labelAr: 'التاريخ' },
+        { key: 'student_name', label: 'Student', labelAr: 'الطالب' },
+        { key: 'course_name', label: 'Course', labelAr: 'الدورة' },
+        { key: 'instructor_name', label: 'Instructor', labelAr: 'المدرس' },
+        { key: 'status', label: 'Status', labelAr: 'الحالة' },
+        { key: 'late_minutes', label: 'Late Duration', labelAr: 'مدة التأخير' },
+        { key: 'check_in_method', label: 'Method', labelAr: 'الطريقة' },
+        { key: 'excuse_reason', label: 'Excuse Reason', labelAr: 'سبب العذر' },
+        { key: 'session_location', label: 'Location', labelAr: 'الموقع' },
+        { key: 'gps', label: 'GPS', labelAr: 'GPS' },
+        { key: 'marked_at', label: 'Marked At', labelAr: 'وقت التسجيل' },
+        { key: 'actions', label: 'Actions', labelAr: 'الإجراءات' },
+      );
+    } else if (dataType === 'studentAnalytics') {
       // Student fields
       allFields.push(
         { key: 'rank', label: 'Rank', labelAr: 'الترتيب' },
@@ -2824,7 +2852,7 @@ const AttendanceRecords = () => {
   };
 
   // Helper: Get selected fields or default fields for a data type
-  const getSelectedFieldsForType = (dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics'): string[] => {
+  const getSelectedFieldsForType = (dataType: 'records' | 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics'): string[] => {
     const saved = savedFieldSelections[dataType];
     if (saved && saved.length > 0) {
       return saved;
@@ -2834,7 +2862,7 @@ const AttendanceRecords = () => {
   };
   
   // Helper: Get sort settings for a data type (supports multi-layer)
-  const getSortSettingsForType = (dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics'): { sortByField?: string; sortDirection: 'asc' | 'desc'; sortLayers?: Array<{field: string; direction: 'asc' | 'desc'}> } => {
+  const getSortSettingsForType = (dataType: 'records' | 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics'): { sortByField?: string; sortDirection: 'asc' | 'desc'; sortLayers?: Array<{field: string; direction: 'asc' | 'desc'}> } => {
     const settings = savedExportSettings[dataType];
     return {
       sortByField: settings?.sortByField,
@@ -2846,7 +2874,7 @@ const AttendanceRecords = () => {
   // Helper: Sort data array based on saved settings (supports multi-layer)
   const sortDataBySettings = <T extends Record<string, unknown>>(
     data: T[],
-    dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics'
+    dataType: 'records' | 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics'
   ): T[] => {
     const { sortByField, sortDirection, sortLayers } = getSortSettingsForType(dataType);
     
@@ -2902,7 +2930,7 @@ const AttendanceRecords = () => {
   };
 
   // Helper: Get conditional coloring settings for a data type
-  const getColoringSettingsForType = (dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics'): { 
+  const getColoringSettingsForType = (dataType: 'records' | 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics'): { 
     enableConditionalColoring: boolean; 
     coloringFields: string[];
     coloringTheme: 'default' | 'traffic' | 'heatmap' | 'status';
@@ -2958,7 +2986,7 @@ const AttendanceRecords = () => {
 
   // Helper: Filter headers and data based on selected fields
   const filterDataByFields = (
-    dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics',
+    dataType: 'records' | 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics',
     isArabic: boolean
   ): { headers: string[]; getData: (item: Record<string, unknown>, index: number) => unknown[] } => {
     const selectedKeys = getSelectedFieldsForType(dataType);
@@ -3350,15 +3378,15 @@ const AttendanceRecords = () => {
       {showAnalytics && (
         <div className="space-y-4 sm:space-y-6">
           {/* Summary Statistics */}
-          <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-lg shadow dark:shadow-gray-900/30">
-            <h2 className="text-base sm:text-lg font-semibold mb-4 dark:text-white">📊 Summary Statistics</h2>
+          <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-lg shadow dark:shadow-gray-900/30" dir={arabicMode ? 'rtl' : 'ltr'}>
+            <h2 className="text-base sm:text-lg font-semibold mb-4 dark:text-white">{t.summaryStatistics}</h2>
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
-              <div className="border-l-4 border-blue-500 pl-3 sm:pl-4">
-                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Total Students</div>
+              <div className={`${arabicMode ? 'border-r-4' : 'border-l-4'} border-blue-500 ${arabicMode ? 'pr-3 sm:pr-4' : 'pl-3 sm:pl-4'}`}>
+                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{t.totalStudents}</div>
                 <div className="text-xl sm:text-2xl font-bold dark:text-white">{studentAnalytics.length}</div>
               </div>
-              <div className="border-l-4 border-green-500 pl-3 sm:pl-4">
-                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Class Avg Rate</div>
+              <div className={`${arabicMode ? 'border-r-4' : 'border-l-4'} border-green-500 ${arabicMode ? 'pr-3 sm:pr-4' : 'pl-3 sm:pl-4'}`}>
+                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{t.classAvgRate}</div>
                 <div className="text-xl sm:text-2xl font-bold dark:text-white">
                   {studentAnalytics.length > 0
                     ? Math.round(
@@ -3369,8 +3397,8 @@ const AttendanceRecords = () => {
                   %
                 </div>
               </div>
-              <div className="border-l-4 border-purple-500 pl-3 sm:pl-4">
-                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Avg Weighted Score</div>
+              <div className={`${arabicMode ? 'border-r-4' : 'border-l-4'} border-purple-500 ${arabicMode ? 'pr-3 sm:pr-4' : 'pl-3 sm:pl-4'}`}>
+                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{t.avgWeightedScore}</div>
                 <div className="text-xl sm:text-2xl font-bold dark:text-white">
                   {studentAnalytics.length > 0
                     ? Math.round(
@@ -3380,8 +3408,8 @@ const AttendanceRecords = () => {
                     : 0}
                 </div>
               </div>
-              <div className="border-l-4 border-blue-500 pl-3 sm:pl-4">
-                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Avg Attendance by Date</div>
+              <div className={`${arabicMode ? 'border-r-4' : 'border-l-4'} border-blue-500 ${arabicMode ? 'pr-3 sm:pr-4' : 'pl-3 sm:pl-4'}`}>
+                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{t.avgAttendanceByDate}</div>
                 <div className="text-xl sm:text-2xl font-bold dark:text-white">
                   {dateAnalytics.length > 0
                     ? Math.round(
@@ -3392,8 +3420,8 @@ const AttendanceRecords = () => {
                   %
                 </div>
               </div>
-              <div className="border-l-4 border-indigo-500 pl-3 sm:pl-4">
-                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Median Rate by Date</div>
+              <div className={`${arabicMode ? 'border-r-4' : 'border-l-4'} border-indigo-500 ${arabicMode ? 'pr-3 sm:pr-4' : 'pl-3 sm:pl-4'}`}>
+                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{t.medianRateByDate}</div>
                 <div className="text-xl sm:text-2xl font-bold dark:text-white">
                   {(() => {
                     if (dateAnalytics.length === 0) return 0;
@@ -3483,6 +3511,19 @@ const AttendanceRecords = () => {
                   )}
                   {savedExportSettings.hostAnalytics?.enableConditionalColoring !== false && <span className="text-rose-500 text-xs">🌈</span>}
                   <button onClick={() => { setExportDataType('hostAnalytics'); setShowAdvancedExport(true); }} className="text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-300 underline text-xs ml-1">Edit</button>
+                </div>
+                <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg px-3 py-1.5 shadow-sm">
+                  <span className="text-indigo-600 dark:text-indigo-400 font-semibold">📋 Records:</span>
+                  <span className="text-green-600 dark:text-green-400">
+                    {savedFieldSelections.records.length > 0 ? `${savedFieldSelections.records.length} fields` : 'All'}
+                  </span>
+                  {(savedExportSettings.records?.sortLayers || []).length > 0 ? (
+                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.records.sortLayers!.map(l => `${l.field} ${l.direction === 'desc' ? '↓' : '↑'}`).join(', ')})</span>
+                  ) : savedExportSettings.records?.sortByField && (
+                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.records.sortByField} {savedExportSettings.records.sortDirection === 'desc' ? '↓' : '↑'})</span>
+                  )}
+                  {savedExportSettings.records?.enableConditionalColoring !== false && <span className="text-rose-500 text-xs">🌈</span>}
+                  <button onClick={() => { setExportDataType('records'); setShowAdvancedExport(true); }} className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 underline text-xs ml-1">Edit</button>
                 </div>
               </div>
             </div>
@@ -4722,59 +4763,48 @@ const AttendanceRecords = () => {
           </div>
         ) : (
         <div className={`overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto${arabicMode ? ' direction-rtl' : ''}`} dir={arabicMode ? 'rtl' : 'ltr'}>
+          {(() => {
+            // Get selected fields for records table (from export builder)
+            const selectedFields = getSelectedFieldsForType('records');
+            const allRecordFields = getAllFieldsForType('records');
+            const visibleFields = selectedFields
+              .map(key => allRecordFields.find(f => f.key === key))
+              .filter((f): f is { key: string; label: string; labelAr: string } => f !== undefined);
+            
+            // Apply sort from export builder
+            const recordsAsGeneric = filteredRecords.map(r => ({ ...r } as unknown as Record<string, unknown>));
+            const sortedGeneric = sortDataBySettings(recordsAsGeneric, 'records');
+            const displayRecords = sortedGeneric as unknown as AttendanceRecord[];
+            
+            return (
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-600 sticky top-0 z-10 shadow-sm">
               <tr>
-                <th className="px-3 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                  <div className="flex items-center gap-2">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    {t.date}
-                  </div>
-                </th>
-                <th className="px-3 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                  <div className="flex items-center gap-2">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                    {t.student}
-                  </div>
-                </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                  {t.course}
-                </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                  {t.instructor}
-                </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                  {t.status}
-                </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                  {t.lateDuration}
-                </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                  {t.method}
-                </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                  {t.excuseReason}
-                </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                  {t.location}
-                </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                  {t.gps}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                  {t.markedAt}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                  {t.actions}
-                </th>
+                {visibleFields.map(field => (
+                  <th key={field.key} className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                    {field.key === 'attendance_date' ? (
+                      <div className="flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        {arabicMode ? field.labelAr : field.label}
+                      </div>
+                    ) : field.key === 'student_name' ? (
+                      <div className="flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        {arabicMode ? field.labelAr : field.label}
+                      </div>
+                    ) : (
+                      arabicMode ? field.labelAr : field.label
+                    )}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {filteredRecords
+              {displayRecords
                 .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                 .map((record) => (
                   <tr 
@@ -4786,116 +4816,140 @@ const AttendanceRecords = () => {
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/attendance/${record.session_id}`, { state: { selectedDate: record.attendance_date } }); } }}
                     title="Click to view/edit attendance for this date"
                   >
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">
-                      {format(new Date(record.attendance_date), 'MMM dd, yyyy')}
-                    </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">
-                      {record.student_name}
-                    </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">
-                      {record.course_name}
-                    </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">
-                      {record.instructor_name}
-                    </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(record.status)}`}>
-                        {getStatusLabel(record.status)}
-                      </span>
-                    </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm">
-                      {record.status === 'late' && record.late_minutes ? (
-                        <span className={`px-2 py-1 text-xs font-medium rounded ${getLateBracketInfo(record.late_minutes).color}`}>
-                          {record.late_minutes} {t.min} ({getLateBracketInfo(record.late_minutes).name})
-                        </span>
-                      ) : record.status === 'late' ? (
-                        <span className="text-gray-400 dark:text-gray-500 text-xs">{t.notRecorded}</span>
-                      ) : record.early_minutes ? (
-                        <span className="px-2 py-1 text-xs font-medium rounded bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300">
-                          {record.early_minutes} {t.minEarly}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 dark:text-gray-500">-</span>
-                      )}
-                    </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm">
-                      {record.check_in_method ? (
-                        <span className={`px-2 py-1 text-xs font-medium rounded ${
-                          record.check_in_method === 'qr_code' ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-300' :
-                          record.check_in_method === 'photo' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300' :
-                          record.check_in_method === 'bulk' ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-300' :
-                          'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
-                        }`}>
-                          {record.check_in_method === 'qr_code' ? t.qrCode :
-                           record.check_in_method === 'photo' ? t.photo :
-                           record.check_in_method === 'bulk' ? t.bulk :
-                           record.check_in_method === 'manual' ? t.manual :
-                           record.check_in_method}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 dark:text-gray-500">-</span>
-                      )}
-                    </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">
-                      {record.status === 'excused' && record.excuse_reason ? (
-                        <span className="capitalize px-2 py-1 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded text-xs font-medium">
-                          {record.excuse_reason}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 dark:text-gray-500">-</span>
-                      )}
-                    </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">
-                      {record.session_location || '-'}
-                    </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 dark:text-gray-300">
-                      {record.gps_latitude && record.gps_longitude ? (
-                        <div className="space-y-1">
-                          <div className="text-xs">{record.gps_latitude.toFixed(4)}°, {record.gps_longitude.toFixed(4)}°</div>
-                          {record.gps_accuracy && (
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
-                              ±{record.gps_accuracy.toFixed(0)}m
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-gray-400 dark:text-gray-500 text-xs">{t.noGps}</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
-                      {record.marked_at ? (
-                        <div className="space-y-1">
-                          <div>{format(new Date(record.marked_at), 'MMM dd, HH:mm')}</div>
-                          {record.marked_by && (
-                            <div className="text-xs text-gray-500 dark:text-gray-400">{t.by} {record.marked_by}</div>
-                          )}
-                        </div>
-                      ) : (
-                        '-'
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      {record.gps_latitude && record.gps_longitude && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openMapLocation(record);
-                          }}
-                          className="px-3 py-2 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-all duration-200 flex items-center gap-2 text-xs font-medium border border-blue-200 dark:border-blue-700"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                          </svg>
-                          {t.viewMap}
-                        </button>
-                      )}
-                    </td>
+                    {visibleFields.map(field => {
+                      switch (field.key) {
+                        case 'attendance_date':
+                          return <td key={field.key} className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">{format(new Date(record.attendance_date), 'MMM dd, yyyy')}</td>;
+                        case 'student_name':
+                          return <td key={field.key} className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">{record.student_name}</td>;
+                        case 'course_name':
+                          return <td key={field.key} className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">{record.course_name}</td>;
+                        case 'instructor_name':
+                          return <td key={field.key} className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">{record.instructor_name}</td>;
+                        case 'status':
+                          return (
+                            <td key={field.key} className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
+                              <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(record.status)}`}>
+                                {getStatusLabel(record.status)}
+                              </span>
+                            </td>
+                          );
+                        case 'late_minutes':
+                          return (
+                            <td key={field.key} className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm">
+                              {record.status === 'late' && record.late_minutes ? (
+                                <span className={`px-2 py-1 text-xs font-medium rounded ${getLateBracketInfo(record.late_minutes).color}`}>
+                                  {record.late_minutes} {t.min} ({getLateBracketInfo(record.late_minutes).name})
+                                </span>
+                              ) : record.status === 'late' ? (
+                                <span className="text-gray-400 dark:text-gray-500 text-xs">{t.notRecorded}</span>
+                              ) : record.early_minutes ? (
+                                <span className="px-2 py-1 text-xs font-medium rounded bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300">
+                                  {record.early_minutes} {t.minEarly}
+                                </span>
+                              ) : (
+                                <span className="text-gray-400 dark:text-gray-500">-</span>
+                              )}
+                            </td>
+                          );
+                        case 'check_in_method':
+                          return (
+                            <td key={field.key} className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm">
+                              {record.check_in_method ? (
+                                <span className={`px-2 py-1 text-xs font-medium rounded ${
+                                  record.check_in_method === 'qr_code' ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-300' :
+                                  record.check_in_method === 'photo' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300' :
+                                  record.check_in_method === 'bulk' ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-300' :
+                                  'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
+                                }`}>
+                                  {record.check_in_method === 'qr_code' ? t.qrCode :
+                                   record.check_in_method === 'photo' ? t.photo :
+                                   record.check_in_method === 'bulk' ? t.bulk :
+                                   record.check_in_method === 'manual' ? t.manual :
+                                   record.check_in_method}
+                                </span>
+                              ) : (
+                                <span className="text-gray-400 dark:text-gray-500">-</span>
+                              )}
+                            </td>
+                          );
+                        case 'excuse_reason':
+                          return (
+                            <td key={field.key} className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">
+                              {record.status === 'excused' && record.excuse_reason ? (
+                                <span className="capitalize px-2 py-1 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded text-xs font-medium">
+                                  {record.excuse_reason}
+                                </span>
+                              ) : (
+                                <span className="text-gray-400 dark:text-gray-500">-</span>
+                              )}
+                            </td>
+                          );
+                        case 'session_location':
+                          return <td key={field.key} className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">{record.session_location || '-'}</td>;
+                        case 'gps':
+                          return (
+                            <td key={field.key} className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 dark:text-gray-300">
+                              {record.gps_latitude && record.gps_longitude ? (
+                                <div className="space-y-1">
+                                  <div className="text-xs">{record.gps_latitude.toFixed(4)}°, {record.gps_longitude.toFixed(4)}°</div>
+                                  {record.gps_accuracy && (
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                                      ±{record.gps_accuracy.toFixed(0)}m
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 dark:text-gray-500 text-xs">{t.noGps}</span>
+                              )}
+                            </td>
+                          );
+                        case 'marked_at':
+                          return (
+                            <td key={field.key} className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
+                              {record.marked_at ? (
+                                <div className="space-y-1">
+                                  <div>{format(new Date(record.marked_at), 'MMM dd, HH:mm')}</div>
+                                  {record.marked_by && (
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">{t.by} {record.marked_by}</div>
+                                  )}
+                                </div>
+                              ) : (
+                                '-'
+                              )}
+                            </td>
+                          );
+                        case 'actions':
+                          return (
+                            <td key={field.key} className="px-6 py-4 whitespace-nowrap text-sm">
+                              {record.gps_latitude && record.gps_longitude && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openMapLocation(record);
+                                  }}
+                                  className="px-3 py-2 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-all duration-200 flex items-center gap-2 text-xs font-medium border border-blue-200 dark:border-blue-700"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  </svg>
+                                  {t.viewMap}
+                                </button>
+                              )}
+                            </td>
+                          );
+                        default:
+                          return <td key={field.key} className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">{String((record as unknown as Record<string, unknown>)[field.key] ?? '-')}</td>;
+                      }
+                    })}
                   </tr>
                 ))}
             </tbody>
           </table>
+            );
+          })()}
         </div>
         )}
         
