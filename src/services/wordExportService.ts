@@ -1118,7 +1118,7 @@ export class WordExportService {
       classAvgRate: number;
       avgWeightedScore: number;
       avgAttendanceByDate: number;
-      avgAttendanceByAccruedDate: number;
+      medianRateByDate: number;
       totalPresent: number;
       totalAbsent: number;
       totalExcused: number;
@@ -1226,7 +1226,7 @@ export class WordExportService {
       ['معدل الصف', `${summaryStats.classAvgRate.toFixed(1)}%`],
       ['متوسط النقاط المرجحة', summaryStats.avgWeightedScore.toFixed(1)],
       ['متوسط الحضور حسب التاريخ', `${summaryStats.avgAttendanceByDate.toFixed(1)}%`],
-      ['متوسط الحضور للتواريخ النشطة', `${summaryStats.avgAttendanceByAccruedDate.toFixed(1)}%`],
+      ['الوسيط لمعدل الحضور حسب التاريخ', `${summaryStats.medianRateByDate.toFixed(1)}%`],
       ['إجمالي الحاضرين', summaryStats.totalPresent.toString()],
       ['إجمالي الغياب', summaryStats.totalAbsent.toString()],
       ['إجمالي الأعذار', summaryStats.totalExcused.toString()],
@@ -1237,7 +1237,7 @@ export class WordExportService {
       ['Class Avg Rate', `${summaryStats.classAvgRate.toFixed(1)}%`],
       ['Avg Weighted Score', summaryStats.avgWeightedScore.toFixed(1)],
       ['Avg Attendance by Date', `${summaryStats.avgAttendanceByDate.toFixed(1)}%`],
-      ['Avg Attendance by Accrued Date', `${summaryStats.avgAttendanceByAccruedDate.toFixed(1)}%`],
+      ['Median Rate by Date', `${summaryStats.medianRateByDate.toFixed(1)}%`],
       ['Total Present', summaryStats.totalPresent.toString()],
       ['Total Absent', summaryStats.totalAbsent.toString()],
       ['Total Excused', summaryStats.totalExcused.toString()],
@@ -1704,7 +1704,7 @@ export class WordExportService {
       classAvgRate: number;
       avgWeightedScore: number;
       avgAttendanceByDate: number;
-      avgAttendanceByAccruedDate: number;
+      medianRateByDate: number;
       totalPresent: number;
       totalAbsent: number;
       totalExcused: number;
@@ -1772,14 +1772,14 @@ export class WordExportService {
       ['معدل الصف', `${summaryStats.classAvgRate.toFixed(1)}%`],
       ['متوسط النقاط المرجحة', summaryStats.avgWeightedScore.toFixed(1)],
       ['متوسط الحضور حسب التاريخ', `${summaryStats.avgAttendanceByDate.toFixed(1)}%`],
-      ['متوسط الحضور للتواريخ النشطة', `${summaryStats.avgAttendanceByAccruedDate.toFixed(1)}%`],
+      ['الوسيط لمعدل الحضور حسب التاريخ', `${summaryStats.medianRateByDate.toFixed(1)}%`],
     ] : [
       ['Total Students', summaryStats.totalStudents.toString()],
       ['Total Sessions', summaryStats.totalSessions.toString()],
       ['Class Avg Rate', `${summaryStats.classAvgRate.toFixed(1)}%`],
       ['Avg Weighted Score', summaryStats.avgWeightedScore.toFixed(1)],
       ['Avg Attendance by Date', `${summaryStats.avgAttendanceByDate.toFixed(1)}%`],
-      ['Avg Attendance by Accrued Date', `${summaryStats.avgAttendanceByAccruedDate.toFixed(1)}%`],
+      ['Median Rate by Date', `${summaryStats.medianRateByDate.toFixed(1)}%`],
     ];
 
     sections.push(this.createTable(summaryTableHeaders, summaryRows, isArabic, theme));

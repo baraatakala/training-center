@@ -809,12 +809,13 @@ const AttendanceRecords = () => {
     const avgAttendanceByDate = dateAnalytics.length > 0
       ? Math.round(dateAnalytics.reduce((sum, d) => sum + d.attendanceRate, 0) / dateAnalytics.length)
       : 0;
-    const avgAttendanceByAccruedDate = (() => {
-      const accruedDates = dateAnalytics.filter(d => (d.presentCount + d.lateCount) > 0);
-      if (accruedDates.length === 0) return 0;
-      return Math.round(
-        accruedDates.reduce((sum, d) => sum + d.attendanceRate, 0) / accruedDates.length
-      );
+    const medianRateByDate = (() => {
+      if (dateAnalytics.length === 0) return 0;
+      const sorted = [...dateAnalytics].sort((a, b) => a.attendanceRate - b.attendanceRate);
+      const mid = Math.floor(sorted.length / 2);
+      return sorted.length % 2 === 0
+        ? Math.round((sorted[mid - 1].attendanceRate + sorted[mid].attendanceRate) / 2)
+        : Math.round(sorted[mid].attendanceRate);
     })();
 
     const summaryRows = isArabic
@@ -829,7 +830,7 @@ const AttendanceRecords = () => {
           ['متوسط النقاط المرجحة', avgWeightedScore],
           ['متوسط مؤشر الانتظام', avgConsistency],
           ['متوسط الحضور حسب التاريخ (%)', `${avgAttendanceByDate}%`],
-          ['متوسط الحضور حسب التاريخ للحصص النشطة (%)', `${avgAttendanceByAccruedDate}%`],
+          ['الوسيط لمعدل الحضور حسب التاريخ (%)', `${medianRateByDate}%`],
         ]
       : [
           ['Total Students', totalStudents],
@@ -842,7 +843,7 @@ const AttendanceRecords = () => {
           ['Avg Weighted Score', avgWeightedScore],
           ['Avg Consistency Index', avgConsistency],
           ['Avg Attendance by Date (%)', `${avgAttendanceByDate}%`],
-          ['Avg Attendance by Accrued Date (%)', `${avgAttendanceByAccruedDate}%`],
+          ['Median Rate by Date (%)', `${medianRateByDate}%`],
         ];
 
     // ========== STUDENT PERFORMANCE SHEET - Uses saved field selections ==========
@@ -1305,16 +1306,17 @@ const AttendanceRecords = () => {
     const avgAttendanceByDate = dateAnalytics.length > 0
       ? Math.round(dateAnalytics.reduce((sum, d) => sum + d.attendanceRate, 0) / dateAnalytics.length)
       : 0;
-    const avgAttendanceByAccruedDate = (() => {
-      const accruedDates = dateAnalytics.filter(d => (d.presentCount + d.lateCount) > 0);
-      if (accruedDates.length === 0) return 0;
-      return Math.round(
-        accruedDates.reduce((sum, d) => sum + d.attendanceRate, 0) / accruedDates.length
-      );
+    const medianRateByDate = (() => {
+      if (dateAnalytics.length === 0) return 0;
+      const sorted = [...dateAnalytics].sort((a, b) => a.attendanceRate - b.attendanceRate);
+      const mid = Math.floor(sorted.length / 2);
+      return sorted.length % 2 === 0
+        ? Math.round((sorted[mid - 1].attendanceRate + sorted[mid].attendanceRate) / 2)
+        : Math.round(sorted[mid].attendanceRate);
     })();
 
     // Compact inline stats display (Always English for PDF)
-    const statsText = `Total Students: ${totalStudents} Students | class Avg Rate: ${classAvgRate}% | Avg weighted Score: ${avgWeightedScore} | Avg attendance by Date: ${avgAttendanceByDate}% | Avg attendance by Accrued Date: ${avgAttendanceByAccruedDate}%`;
+    const statsText = `Total Students: ${totalStudents} Students | class Avg Rate: ${classAvgRate}% | Avg weighted Score: ${avgWeightedScore} | Avg attendance by Date: ${avgAttendanceByDate}% | Median Rate by Date: ${medianRateByDate}%`;
     doc.setFontSize(8);
     doc.text(statsText, 8, 35);
     doc.setFontSize(10); // Restore font size for following content
@@ -1718,10 +1720,13 @@ const AttendanceRecords = () => {
     const avgAttendanceByDate = dateAnalytics.length > 0
       ? dateAnalytics.reduce((sum, d) => sum + d.attendanceRate, 0) / dateAnalytics.length
       : 0;
-    const avgAttendanceByAccruedDate = (() => {
-      const accruedDates = dateAnalytics.filter(d => (d.presentCount + d.lateCount) > 0);
-      if (accruedDates.length === 0) return 0;
-      return accruedDates.reduce((sum, d) => sum + d.attendanceRate, 0) / accruedDates.length;
+    const medianRateByDate = (() => {
+      if (dateAnalytics.length === 0) return 0;
+      const sorted = [...dateAnalytics].sort((a, b) => a.attendanceRate - b.attendanceRate);
+      const mid = Math.floor(sorted.length / 2);
+      return sorted.length % 2 === 0
+        ? (sorted[mid - 1].attendanceRate + sorted[mid].attendanceRate) / 2
+        : sorted[mid].attendanceRate;
     })();
     
     const totalPresent = studentAnalytics.reduce((sum, s) => sum + s.presentCount, 0);
@@ -1735,7 +1740,7 @@ const AttendanceRecords = () => {
       classAvgRate,
       avgWeightedScore,
       avgAttendanceByDate,
-      avgAttendanceByAccruedDate,
+      medianRateByDate,
       totalPresent,
       totalAbsent,
       totalExcused,
@@ -2910,68 +2915,71 @@ const AttendanceRecords = () => {
     return getAllFieldsForType(dataType).map(f => f.key);
   };
   
-  // Helper: Get sort settings for a data type
-  const getSortSettingsForType = (dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics'): { sortByField?: string; sortDirection: 'asc' | 'desc' } => {
+  // Helper: Get sort settings for a data type (supports multi-layer)
+  const getSortSettingsForType = (dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics'): { sortByField?: string; sortDirection: 'asc' | 'desc'; sortLayers?: Array<{field: string; direction: 'asc' | 'desc'}> } => {
     const settings = savedExportSettings[dataType];
     return {
       sortByField: settings?.sortByField,
       sortDirection: settings?.sortDirection || 'asc',
+      sortLayers: settings?.sortLayers,
     };
   };
   
-  // Helper: Sort data array based on saved settings
+  // Helper: Sort data array based on saved settings (supports multi-layer)
   const sortDataBySettings = <T extends Record<string, unknown>>(
     data: T[],
     dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics'
   ): T[] => {
-    const { sortByField, sortDirection } = getSortSettingsForType(dataType);
-    if (!sortByField) return data;
+    const { sortByField, sortDirection, sortLayers } = getSortSettingsForType(dataType);
     
-    const sortDir = sortDirection === 'desc' ? -1 : 1;
+    // Build effective layers: use sortLayers if available, else fall back to single field
+    const effectiveLayers: Array<{field: string; direction: 'asc' | 'desc'}> = 
+      (sortLayers && sortLayers.length > 0) 
+        ? sortLayers 
+        : (sortByField ? [{ field: sortByField, direction: sortDirection }] : []);
     
-    // Check if this is a date field that needs special handling
-    const isDateField = sortByField.toLowerCase().includes('date') || 
-                        sortByField === 'firstHostDate' || 
-                        sortByField === 'lastHostDate';
+    if (effectiveLayers.length === 0) return data;
     
-    // For date fields, use the raw timestamp field if available
-    const getDateSortKey = (item: T): number => {
-      // Try to use raw timestamp field first
-      const rawKey = `${sortByField}Raw`;
-      if (rawKey in item && typeof item[rawKey] === 'number') {
-        return item[rawKey] as number;
-      }
-      // Otherwise parse the date string
-      const dateVal = item[sortByField];
-      if (dateVal && typeof dateVal === 'string') {
-        const parsed = new Date(dateVal);
-        if (!isNaN(parsed.getTime())) {
-          return parsed.getTime();
+    // Helper to get sort value for a field
+    const getSortValue = (item: T, field: string): number | string => {
+      const isDateField = field.toLowerCase().includes('date') || 
+                          field === 'firstHostDate' || 
+                          field === 'lastHostDate';
+      if (isDateField) {
+        const rawKey = `${field}Raw`;
+        if (rawKey in item && typeof item[rawKey] === 'number') {
+          return item[rawKey] as number;
         }
+        const dateVal = item[field];
+        if (dateVal && typeof dateVal === 'string') {
+          const parsed = new Date(dateVal);
+          if (!isNaN(parsed.getTime())) return parsed.getTime();
+        }
+        return 0;
       }
-      return 0;
+      const val = item[field];
+      if (val == null) return '';
+      return val as number | string;
     };
     
     return [...data].sort((a, b) => {
-      const aVal = a[sortByField];
-      const bVal = b[sortByField];
-      if (aVal == null) return sortDir;
-      if (bVal == null) return -sortDir;
-      
-      // Handle date fields specially
-      if (isDateField) {
-        const aTime = getDateSortKey(a);
-        const bTime = getDateSortKey(b);
-        return (aTime - bTime) * sortDir;
+      for (const layer of effectiveLayers) {
+        const dir = layer.direction === 'desc' ? -1 : 1;
+        const aVal = getSortValue(a, layer.field);
+        const bVal = getSortValue(b, layer.field);
+        
+        if (aVal == null && bVal != null) return dir;
+        if (bVal == null && aVal != null) return -dir;
+        
+        let cmp = 0;
+        if (typeof aVal === 'number' && typeof bVal === 'number') {
+          cmp = aVal - bVal;
+        } else {
+          cmp = String(aVal).localeCompare(String(bVal));
+        }
+        if (cmp !== 0) return cmp * dir;
       }
-      
-      // Handle numbers
-      if (typeof aVal === 'number' && typeof bVal === 'number') {
-        return (aVal - bVal) * sortDir;
-      }
-      
-      // Handle strings
-      return String(aVal).localeCompare(String(bVal)) * sortDir;
+      return 0;
     });
   };
 
@@ -3467,15 +3475,15 @@ const AttendanceRecords = () => {
                 </div>
               </div>
               <div className="border-l-4 border-indigo-500 pl-3 sm:pl-4">
-                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Avg Attendance by Accrued Date</div>
+                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Median Rate by Date</div>
                 <div className="text-xl sm:text-2xl font-bold dark:text-white">
                   {(() => {
-                    // Only consider dates where at least one present or late
-                    const accruedDates = dateAnalytics.filter(d => (d.presentCount + d.lateCount) > 0);
-                    if (accruedDates.length === 0) return 0;
-                    return Math.round(
-                      accruedDates.reduce((sum, d) => sum + d.attendanceRate, 0) / accruedDates.length
-                    );
+                    if (dateAnalytics.length === 0) return 0;
+                    const sorted = [...dateAnalytics].sort((a, b) => a.attendanceRate - b.attendanceRate);
+                    const mid = Math.floor(sorted.length / 2);
+                    return sorted.length % 2 === 0
+                      ? Math.round((sorted[mid - 1].attendanceRate + sorted[mid].attendanceRate) / 2)
+                      : Math.round(sorted[mid].attendanceRate);
                   })()}
                   %
                 </div>
@@ -3524,7 +3532,9 @@ const AttendanceRecords = () => {
                   <span className="text-green-600 dark:text-green-400">
                     {savedFieldSelections.studentAnalytics.length > 0 ? `${savedFieldSelections.studentAnalytics.length} fields` : 'All'}
                   </span>
-                  {savedExportSettings.studentAnalytics?.sortByField && (
+                  {(savedExportSettings.studentAnalytics?.sortLayers || []).length > 0 ? (
+                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.studentAnalytics.sortLayers!.map(l => `${l.field} ${l.direction === 'desc' ? '↓' : '↑'}`).join(', ')})</span>
+                  ) : savedExportSettings.studentAnalytics?.sortByField && (
                     <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.studentAnalytics.sortByField} {savedExportSettings.studentAnalytics.sortDirection === 'desc' ? '↓' : '↑'})</span>
                   )}
                   {savedExportSettings.studentAnalytics?.enableConditionalColoring !== false && <span className="text-rose-500 text-xs">🌈</span>}
@@ -3535,7 +3545,9 @@ const AttendanceRecords = () => {
                   <span className="text-green-600 dark:text-green-400">
                     {savedFieldSelections.dateAnalytics.length > 0 ? `${savedFieldSelections.dateAnalytics.length} fields` : 'All'}
                   </span>
-                  {savedExportSettings.dateAnalytics?.sortByField && (
+                  {(savedExportSettings.dateAnalytics?.sortLayers || []).length > 0 ? (
+                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.dateAnalytics.sortLayers!.map(l => `${l.field} ${l.direction === 'desc' ? '↓' : '↑'}`).join(', ')})</span>
+                  ) : savedExportSettings.dateAnalytics?.sortByField && (
                     <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.dateAnalytics.sortByField} {savedExportSettings.dateAnalytics.sortDirection === 'desc' ? '↓' : '↑'})</span>
                   )}
                   {savedExportSettings.dateAnalytics?.enableConditionalColoring !== false && <span className="text-rose-500 text-xs">🌈</span>}
@@ -3546,7 +3558,9 @@ const AttendanceRecords = () => {
                   <span className="text-green-600 dark:text-green-400">
                     {savedFieldSelections.hostAnalytics.length > 0 ? `${savedFieldSelections.hostAnalytics.length} fields` : 'All'}
                   </span>
-                  {savedExportSettings.hostAnalytics?.sortByField && (
+                  {(savedExportSettings.hostAnalytics?.sortLayers || []).length > 0 ? (
+                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.hostAnalytics.sortLayers!.map(l => `${l.field} ${l.direction === 'desc' ? '↓' : '↑'}`).join(', ')})</span>
+                  ) : savedExportSettings.hostAnalytics?.sortByField && (
                     <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.hostAnalytics.sortByField} {savedExportSettings.hostAnalytics.sortDirection === 'desc' ? '↓' : '↑'})</span>
                   )}
                   {savedExportSettings.hostAnalytics?.enableConditionalColoring !== false && <span className="text-rose-500 text-xs">🌈</span>}

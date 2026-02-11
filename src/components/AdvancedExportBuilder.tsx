@@ -70,8 +70,9 @@ export interface ExportConfig {
   dataValidation: DataValidationOptions;
   // Advanced options
   groupByField?: string;             // Group data by a field (for reports)
-  sortByField?: string;              // Sort data by a field
-  sortDirection?: 'asc' | 'desc';    // Sort direction
+  sortByField?: string;              // Sort data by a field (legacy single-sort)
+  sortDirection?: 'asc' | 'desc';    // Sort direction (legacy single-sort)
+  sortLayers?: Array<{field: string; direction: 'asc' | 'desc'}>;  // Multi-layer sort
   filterEmptyValues?: boolean;       // Filter out rows with empty key values
 }
 
@@ -80,6 +81,7 @@ export interface ExportSettings {
   fields: string[];
   sortByField?: string;
   sortDirection?: 'asc' | 'desc';
+  sortLayers?: Array<{field: string; direction: 'asc' | 'desc'}>;  // Multi-layer sort
   enableConditionalColoring?: boolean;
   coloringFields?: string[];
   coloringTheme?: 'default' | 'traffic' | 'heatmap' | 'status';
@@ -170,6 +172,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     fontSize: 'medium',
     dataValidation: defaultDataValidation,
     sortDirection: 'asc',
+    sortLayers: [],
     filterEmptyValues: false,
   });
 
@@ -191,6 +194,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
         // Restore saved sort settings
         sortByField: savedSettings?.sortByField || undefined,
         sortDirection: savedSettings?.sortDirection || 'asc',
+        sortLayers: savedSettings?.sortLayers || [],
         dataValidation: {
           removeEmptyRows: false,
           removeDuplicates: false,
@@ -306,29 +310,43 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
       .filter(Boolean) as ExportField[];
   };
 
-  // Get sorted preview data based on current sort settings
-  const getSortedPreviewData = (): Record<string, unknown>[] => {
-    if (!config.sortByField) return data;
-    
-    const sortDir = config.sortDirection === 'desc' ? -1 : 1;
-    return [...data].sort((a, b) => {
-      const aVal = a[config.sortByField!];
-      const bVal = b[config.sortByField!];
+  // Multi-layer compare helper
+  const multiLayerCompare = (a: Record<string, unknown>, b: Record<string, unknown>, layers: Array<{field: string; direction: 'asc' | 'desc'}>): number => {
+    for (const layer of layers) {
+      const sortDir = layer.direction === 'desc' ? -1 : 1;
+      const aVal = a[layer.field];
+      const bVal = b[layer.field];
       
-      if (aVal == null && bVal == null) return 0;
+      if (aVal == null && bVal == null) continue;
       if (aVal == null) return sortDir;
       if (bVal == null) return -sortDir;
       
-      // Try to compare as numbers
       const aNum = typeof aVal === 'string' ? parseFloat(aVal.replace(/[^0-9.-]/g, '')) : aVal;
       const bNum = typeof bVal === 'string' ? parseFloat(bVal.replace(/[^0-9.-]/g, '')) : bVal;
       
       if (typeof aNum === 'number' && typeof bNum === 'number' && !isNaN(aNum) && !isNaN(bNum)) {
-        return (aNum - bNum) * sortDir;
+        if (aNum !== bNum) return (aNum - bNum) * sortDir;
+        continue;
       }
       
-      return String(aVal).localeCompare(String(bVal)) * sortDir;
-    });
+      const cmp = String(aVal).localeCompare(String(bVal));
+      if (cmp !== 0) return cmp * sortDir;
+    }
+    return 0;
+  };
+
+  // Get effective sort layers (multi-layer or legacy single-field)
+  const getEffectiveSortLayers = (): Array<{field: string; direction: 'asc' | 'desc'}> => {
+    if (config.sortLayers && config.sortLayers.length > 0) return config.sortLayers;
+    if (config.sortByField) return [{ field: config.sortByField, direction: config.sortDirection || 'asc' }];
+    return [];
+  };
+
+  // Get sorted preview data based on current sort settings
+  const getSortedPreviewData = (): Record<string, unknown>[] => {
+    const layers = getEffectiveSortLayers();
+    if (layers.length === 0) return data;
+    return [...data].sort((a, b) => multiLayerCompare(a, b, layers));
   };
 
   // Format value for export
@@ -462,20 +480,10 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
       });
     });
     
-    // Sort data if specified
-    if (config.sortByField) {
-      const sortField = config.sortByField;
-      const sortDir = config.sortDirection === 'desc' ? -1 : 1;
-      processedData.sort((a, b) => {
-        const aVal = a[sortField];
-        const bVal = b[sortField];
-        if (aVal === null || aVal === undefined) return 1 * sortDir;
-        if (bVal === null || bVal === undefined) return -1 * sortDir;
-        if (typeof aVal === 'number' && typeof bVal === 'number') {
-          return (aVal - bVal) * sortDir;
-        }
-        return String(aVal).localeCompare(String(bVal)) * sortDir;
-      });
+    // Sort data using multi-layer sort
+    const layers = getEffectiveSortLayers();
+    if (layers.length > 0) {
+      processedData.sort((a, b) => multiLayerCompare(a, b, layers));
     }
     
     return {
@@ -880,8 +888,9 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     if (onSettingsChange) {
       onSettingsChange({
         fields: config.selectedFields,
-        sortByField: config.sortByField,
-        sortDirection: config.sortDirection,
+        sortByField: config.sortLayers?.[0]?.field || config.sortByField,
+        sortDirection: config.sortLayers?.[0]?.direction || config.sortDirection,
+        sortLayers: config.sortLayers || [],
         enableConditionalColoring: config.dataValidation.enableConditionalColoring,
         coloringFields: config.dataValidation.coloringFields,
         coloringTheme: config.dataValidation.coloringTheme,
@@ -1713,57 +1722,135 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                 </div>
               </div>
 
-              {/* Sorting Options */}
+              {/* Multi-Layer Sorting Options */}
               <div className="border rounded-xl overflow-hidden">
                 <div className="bg-indigo-50 dark:bg-indigo-900/30 p-4 border-b dark:border-indigo-800">
-                  <h3 className="font-semibold text-indigo-900 dark:text-indigo-200 flex items-center gap-2">
-                    📑 Sort Data
-                  </h3>
-                  <p className="text-sm text-indigo-700 dark:text-indigo-400 mt-1">Sort exported data by a specific field</p>
-                </div>
-                <div className="p-4 space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-center justify-between">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Sort By Field</label>
-                      <select
-                        value={config.sortByField || ''}
-                        onChange={e => setConfig(prev => ({ ...prev, sortByField: e.target.value || undefined }))}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      >
-                        <option value="">No sorting</option>
-                        {allFields.filter(f => config.selectedFields.includes(f.key)).map(field => (
-                          <option key={field.key} value={field.key}>{field.label}</option>
-                        ))}
-                      </select>
+                      <h3 className="font-semibold text-indigo-900 dark:text-indigo-200 flex items-center gap-2">
+                        📑 Sort Data
+                      </h3>
+                      <p className="text-sm text-indigo-700 dark:text-indigo-400 mt-1">
+                        Add multiple sort layers for precise ordering
+                      </p>
                     </div>
-                    {config.sortByField && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Direction</label>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => setConfig(prev => ({ ...prev, sortDirection: 'asc' }))}
-                            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${
-                              config.sortDirection === 'asc'
-                                ? 'bg-indigo-500 text-white'
-                                : 'bg-white border border-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:hover:bg-gray-600'
-                            }`}
-                          >
-                            ↑ Ascending
-                          </button>
-                          <button
-                            onClick={() => setConfig(prev => ({ ...prev, sortDirection: 'desc' }))}
-                            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${
-                              config.sortDirection === 'desc'
-                                ? 'bg-indigo-500 text-white'
-                                : 'bg-white border border-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:hover:bg-gray-600'
-                            }`}
-                          >
-                            ↓ Descending
-                          </button>
-                        </div>
-                      </div>
+                    {(config.sortLayers?.length || 0) > 0 && (
+                      <button
+                        onClick={() => setConfig(prev => ({ ...prev, sortLayers: [], sortByField: undefined, sortDirection: 'asc' }))}
+                        className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                      >
+                        Clear all
+                      </button>
                     )}
                   </div>
+                </div>
+                <div className="p-4 space-y-3">
+                  {/* Existing sort layers */}
+                  {(config.sortLayers || []).map((layer, idx) => {
+                    return (
+                      <div key={`${layer.field}-${idx}`} className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="w-6 h-6 flex items-center justify-center bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded text-xs font-bold flex-shrink-0">
+                          {idx + 1}
+                        </span>
+                        <select
+                          value={layer.field}
+                          onChange={e => {
+                            const newField = e.target.value;
+                            setConfig(prev => {
+                              const newLayers = [...(prev.sortLayers || [])];
+                              newLayers[idx] = { ...newLayers[idx], field: newField };
+                              return { ...prev, sortLayers: newLayers, sortByField: newLayers[0]?.field, sortDirection: newLayers[0]?.direction };
+                            });
+                          }}
+                          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                        >
+                          {allFields.filter(f => config.selectedFields.includes(f.key)).map(f => (
+                            <option key={f.key} value={f.key}>{f.label}</option>
+                          ))}
+                        </select>
+                        <div className="flex gap-1 flex-shrink-0">
+                          <button
+                            onClick={() => {
+                              setConfig(prev => {
+                                const newLayers = [...(prev.sortLayers || [])];
+                                newLayers[idx] = { ...newLayers[idx], direction: 'asc' };
+                                return { ...prev, sortLayers: newLayers, sortByField: newLayers[0]?.field, sortDirection: newLayers[0]?.direction };
+                              });
+                            }}
+                            className={`px-3 py-2 rounded-lg text-xs font-medium transition ${
+                              layer.direction === 'asc'
+                                ? 'bg-indigo-500 text-white'
+                                : 'bg-white border border-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-600 dark:hover:bg-gray-600 dark:text-gray-300'
+                            }`}
+                          >
+                            ↑ Asc
+                          </button>
+                          <button
+                            onClick={() => {
+                              setConfig(prev => {
+                                const newLayers = [...(prev.sortLayers || [])];
+                                newLayers[idx] = { ...newLayers[idx], direction: 'desc' };
+                                return { ...prev, sortLayers: newLayers, sortByField: newLayers[0]?.field, sortDirection: newLayers[0]?.direction };
+                              });
+                            }}
+                            className={`px-3 py-2 rounded-lg text-xs font-medium transition ${
+                              layer.direction === 'desc'
+                                ? 'bg-indigo-500 text-white'
+                                : 'bg-white border border-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-600 dark:hover:bg-gray-600 dark:text-gray-300'
+                            }`}
+                          >
+                            ↓ Desc
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setConfig(prev => {
+                              const newLayers = (prev.sortLayers || []).filter((_, i) => i !== idx);
+                              return { ...prev, sortLayers: newLayers, sortByField: newLayers[0]?.field || undefined, sortDirection: newLayers[0]?.direction || 'asc' };
+                            });
+                          }}
+                          className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition flex-shrink-0"
+                          title="Remove sort layer"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    );
+                  })}
+
+                  {/* Add sort layer button */}
+                  {(() => {
+                    const usedFields = new Set((config.sortLayers || []).map(l => l.field));
+                    const availableFields = allFields.filter(f => config.selectedFields.includes(f.key) && !usedFields.has(f.key));
+                    if (availableFields.length === 0 && (config.sortLayers?.length || 0) > 0) return null;
+                    return (
+                      <button
+                        onClick={() => {
+                          const usedF = new Set((config.sortLayers || []).map(l => l.field));
+                          const nextField = allFields.find(f => config.selectedFields.includes(f.key) && !usedF.has(f.key));
+                          if (!nextField) return;
+                          setConfig(prev => {
+                            const newLayers = [...(prev.sortLayers || []), { field: nextField.key, direction: 'asc' as const }];
+                            return { ...prev, sortLayers: newLayers, sortByField: newLayers[0]?.field, sortDirection: newLayers[0]?.direction };
+                          });
+                        }}
+                        className="w-full px-4 py-2.5 border-2 border-dashed border-indigo-300 dark:border-indigo-600 text-indigo-600 dark:text-indigo-400 rounded-lg text-sm font-medium hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition flex items-center justify-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m6-6H6" />
+                        </svg>
+                        {(config.sortLayers?.length || 0) === 0 ? 'Add Sort Layer' : 'Add Another Sort Layer'}
+                      </button>
+                    );
+                  })()}
+
+                  {(config.sortLayers?.length || 0) === 0 && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-1">
+                      No sorting applied — data will export in original order
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
