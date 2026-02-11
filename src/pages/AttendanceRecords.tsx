@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { format, subDays } from 'date-fns';
@@ -841,9 +841,87 @@ const AttendanceRecords = () => {
     dateRowsToExport: '📅 Date Rows to Export',
   };
 
+  // Sort filteredRecords based on Advanced Export Builder sort settings for records
+  const sortedRecords = useMemo(() => {
+    const settings = savedExportSettings.records;
+    const sortLayers = settings?.sortLayers && settings.sortLayers.length > 0
+      ? settings.sortLayers
+      : settings?.sortByField
+        ? [{ field: settings.sortByField, direction: settings.sortDirection || 'asc' as const }]
+        : [];
+
+    if (sortLayers.length === 0) return filteredRecords;
+
+    // Map export field keys to record property names
+    const fieldToRecordKey: Record<string, string> = {
+      date: 'attendance_date',
+      dayOfWeek: 'attendance_date',
+      student_name: 'student_name',
+      course_name: 'course_name',
+      instructor_name: 'instructor_name',
+      status: 'status',
+      late_minutes: 'late_minutes',
+      check_in_method: 'check_in_method',
+      excuse_reason: 'excuse_reason',
+      host_address: 'host_address',
+      marked_at: 'marked_at',
+      session_location: 'session_location',
+      attendance_id: 'attendance_id',
+      student_id: 'student_id',
+      course_id: 'course_id',
+      gps_latitude: 'gps_latitude',
+      gps_longitude: 'gps_longitude',
+      gps_accuracy: 'gps_accuracy',
+      gps_timestamp: 'gps_timestamp',
+    };
+
+    const dateFields = new Set(['date', 'attendance_date', 'marked_at', 'gps_timestamp', 'dayOfWeek']);
+    const numberFields = new Set(['late_minutes', 'early_minutes', 'gps_latitude', 'gps_longitude', 'gps_accuracy', 'distance_from_host']);
+
+    return [...filteredRecords].sort((a, b) => {
+      for (const layer of sortLayers) {
+        const recordKey = (fieldToRecordKey[layer.field] || layer.field) as keyof AttendanceRecord;
+        const dir = layer.direction === 'desc' ? -1 : 1;
+        const aVal = a[recordKey];
+        const bVal = b[recordKey];
+
+        if (aVal == null && bVal == null) continue;
+        if (aVal == null) return dir;
+        if (bVal == null) return -dir;
+
+        let cmp = 0;
+        if (dateFields.has(layer.field) || dateFields.has(recordKey as string)) {
+          const aDate = new Date(aVal as string).getTime();
+          const bDate = new Date(bVal as string).getTime();
+          cmp = aDate - bDate;
+        } else if (numberFields.has(layer.field) || numberFields.has(recordKey as string) || (typeof aVal === 'number' && typeof bVal === 'number')) {
+          cmp = (aVal as number) - (bVal as number);
+        } else {
+          cmp = String(aVal).localeCompare(String(bVal));
+        }
+
+        if (cmp !== 0) return cmp * dir;
+      }
+      return 0;
+    });
+  }, [filteredRecords, savedExportSettings.records]);
+
+  // Get sort indicator for a column in the records table
+  const getRecordsSortIndicator = (exportFieldKey: string): { direction: 'asc' | 'desc'; priority: number; total: number } | null => {
+    const settings = savedExportSettings.records;
+    const sortLayers = settings?.sortLayers && settings.sortLayers.length > 0
+      ? settings.sortLayers
+      : settings?.sortByField
+        ? [{ field: settings.sortByField, direction: settings.sortDirection || 'asc' as const }]
+        : [];
+    const idx = sortLayers.findIndex(l => l.field === exportFieldKey);
+    if (idx === -1) return null;
+    return { direction: sortLayers[idx].direction, priority: idx + 1, total: sortLayers.length };
+  };
+
   const openMapLocation = (record: AttendanceRecord) => {
     if (record.gps_latitude && record.gps_longitude) {
-      const url = `https://www.openstreetmap.org/#map=18/${record.gps_latitude}/${record.gps_longitude}`;
+      const url = `https://www.google.com/maps?q=${record.gps_latitude},${record.gps_longitude}`;
       window.open(url, '_blank', 'noopener,noreferrer');
     }
   };
@@ -4805,6 +4883,7 @@ const AttendanceRecords = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                     {t.date}
+                    {(() => { const si = getRecordsSortIndicator('date'); return si ? <span className="ml-1 text-blue-500 dark:text-blue-400 text-[10px] font-bold">{si.direction === 'asc' ? '↑' : '↓'}{si.total > 1 ? si.priority : ''}</span> : null; })()}
                   </div>
                 </th>
                 <th className="px-3 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
@@ -4813,34 +4892,59 @@ const AttendanceRecords = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
                     {t.student}
+                    {(() => { const si = getRecordsSortIndicator('student_name'); return si ? <span className="ml-1 text-blue-500 dark:text-blue-400 text-[10px] font-bold">{si.direction === 'asc' ? '↑' : '↓'}{si.total > 1 ? si.priority : ''}</span> : null; })()}
                   </div>
                 </th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                  {t.course}
+                  <div className="flex items-center gap-1">
+                    {t.course}
+                    {(() => { const si = getRecordsSortIndicator('course_name'); return si ? <span className="ml-1 text-blue-500 dark:text-blue-400 text-[10px] font-bold">{si.direction === 'asc' ? '↑' : '↓'}{si.total > 1 ? si.priority : ''}</span> : null; })()}
+                  </div>
                 </th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                  {t.instructor}
+                  <div className="flex items-center gap-1">
+                    {t.instructor}
+                    {(() => { const si = getRecordsSortIndicator('instructor_name'); return si ? <span className="ml-1 text-blue-500 dark:text-blue-400 text-[10px] font-bold">{si.direction === 'asc' ? '↑' : '↓'}{si.total > 1 ? si.priority : ''}</span> : null; })()}
+                  </div>
                 </th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                  {t.status}
+                  <div className="flex items-center gap-1">
+                    {t.status}
+                    {(() => { const si = getRecordsSortIndicator('status'); return si ? <span className="ml-1 text-blue-500 dark:text-blue-400 text-[10px] font-bold">{si.direction === 'asc' ? '↑' : '↓'}{si.total > 1 ? si.priority : ''}</span> : null; })()}
+                  </div>
                 </th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                  {t.lateDuration}
+                  <div className="flex items-center gap-1">
+                    {t.lateDuration}
+                    {(() => { const si = getRecordsSortIndicator('late_minutes'); return si ? <span className="ml-1 text-blue-500 dark:text-blue-400 text-[10px] font-bold">{si.direction === 'asc' ? '↑' : '↓'}{si.total > 1 ? si.priority : ''}</span> : null; })()}
+                  </div>
                 </th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                  {t.method}
+                  <div className="flex items-center gap-1">
+                    {t.method}
+                    {(() => { const si = getRecordsSortIndicator('check_in_method'); return si ? <span className="ml-1 text-blue-500 dark:text-blue-400 text-[10px] font-bold">{si.direction === 'asc' ? '↑' : '↓'}{si.total > 1 ? si.priority : ''}</span> : null; })()}
+                  </div>
                 </th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                  {t.excuseReason}
+                  <div className="flex items-center gap-1">
+                    {t.excuseReason}
+                    {(() => { const si = getRecordsSortIndicator('excuse_reason'); return si ? <span className="ml-1 text-blue-500 dark:text-blue-400 text-[10px] font-bold">{si.direction === 'asc' ? '↑' : '↓'}{si.total > 1 ? si.priority : ''}</span> : null; })()}
+                  </div>
                 </th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                  {t.location}
+                  <div className="flex items-center gap-1">
+                    {t.location}
+                    {(() => { const si = getRecordsSortIndicator('host_address'); return si ? <span className="ml-1 text-blue-500 dark:text-blue-400 text-[10px] font-bold">{si.direction === 'asc' ? '↑' : '↓'}{si.total > 1 ? si.priority : ''}</span> : null; })()}
+                  </div>
                 </th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
                   {t.gps}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                  {t.markedAt}
+                  <div className="flex items-center gap-1">
+                    {t.markedAt}
+                    {(() => { const si = getRecordsSortIndicator('marked_at'); return si ? <span className="ml-1 text-blue-500 dark:text-blue-400 text-[10px] font-bold">{si.direction === 'asc' ? '↑' : '↓'}{si.total > 1 ? si.priority : ''}</span> : null; })()}
+                  </div>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                   {t.actions}
@@ -4848,7 +4952,7 @@ const AttendanceRecords = () => {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {filteredRecords
+              {sortedRecords
                 .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                 .map((record) => (
                   <tr 
