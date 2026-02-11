@@ -123,9 +123,9 @@ interface FilterOptions {
 //   - 90 min late = 12% credit
 //
 // WEIGHTED SCORE COMPONENTS:
-//   50% Quality-Adjusted Rate (attendance with late penalties applied)
+//   55% Quality-Adjusted Rate (attendance with late penalties applied)
 //   35% Simple Attendance Rate (showed up regardless of lateness)
-//   15% Punctuality Bonus (on-time vs late ratio)
+//   10% Punctuality Bonus (on-time vs late ratio)
 // Note: Consistency Index is calculated and displayed but NOT part of the score.
 // ============================================================================
 
@@ -2547,9 +2547,9 @@ const AttendanceRecords = () => {
 
       // ==================== WEIGHTED SCORE CALCULATION ====================
       // Component weights (consistency is informational only, not in score):
-      //   50% Quality-Adjusted Rate - Main factor, includes late penalties
+      //   55% Quality-Adjusted Rate - Main factor, includes late penalties
       //   35% Simple Attendance Rate - Credit for showing up
-      //   15% Punctuality Bonus - On-time vs late ratio
+      //   10% Punctuality Bonus - On-time vs late ratio
       const punctualityPercentage = totalPresent > 0 ? (presentCount / totalPresent) * 100 : 0;
       
       // Calculate consistency (informational — NOT part of weighted score)
@@ -2562,9 +2562,9 @@ const AttendanceRecords = () => {
       const consistencyIndex = calculateConsistencyIndex(dailyPattern);
       
       const rawWeightedScore = 
-        (0.50 * qualityAdjustedRate) +    // 50% Quality (with late penalties)
+        (0.55 * qualityAdjustedRate) +    // 55% Quality (with late penalties)
         (0.35 * attendanceRate) +          // 35% Attendance (showed up)
-        (0.15 * punctualityPercentage);    // 15% Punctuality (on-time ratio)
+        (0.10 * punctualityPercentage);    // 10% Punctuality (on-time ratio)
 
       // ==================== COVERAGE FACTOR ====================
       // Penalize students with very few effective days relative to total sessions.
@@ -4301,9 +4301,9 @@ const AttendanceRecords = () => {
                     <div className="bg-white/60 dark:bg-gray-800/60 rounded-lg p-3 font-mono text-xs border border-blue-100 dark:border-blue-800">
                       <div className="text-blue-600 dark:text-blue-400 font-bold mb-1">Raw Score =</div>
                       <div className="pl-4 space-y-0.5">
-                        <div><span className="text-emerald-600 dark:text-emerald-400 font-bold">50%</span> × Quality Rate <span className="text-gray-400">(on-time = full, late = partial credit)</span></div>
+                        <div><span className="text-emerald-600 dark:text-emerald-400 font-bold">55%</span> × Quality Rate <span className="text-gray-400">(on-time = full, late = partial credit)</span></div>
                         <div><span className="text-blue-600 dark:text-blue-400 font-bold">35%</span> × Attendance Rate <span className="text-gray-400">(showed up at all)</span></div>
-                        <div><span className="text-amber-600 dark:text-amber-400 font-bold">15%</span> × Punctuality <span className="text-gray-400">(on-time ÷ total present)</span></div>
+                        <div><span className="text-amber-600 dark:text-amber-400 font-bold">10%</span> × Punctuality <span className="text-gray-400">(on-time ÷ total present)</span></div>
                       </div>
                       <div className="mt-2 pt-2 border-t border-blue-100 dark:border-blue-800">
                         <span className="text-indigo-600 dark:text-indigo-400 font-bold">Final Score</span> = Raw Score × √(Your Days ÷ Total Sessions)
@@ -4322,9 +4322,9 @@ const AttendanceRecords = () => {
                     <div className="bg-white/60 dark:bg-gray-800/60 rounded-lg p-3 font-mono text-xs border border-emerald-100 dark:border-emerald-800">
                       <div className="text-emerald-600 dark:text-emerald-400 font-bold mb-1">الدرجة الخام =</div>
                       <div className="pr-4 space-y-0.5">
-                        <div><span className="text-emerald-600 dark:text-emerald-400 font-bold">٥٠٪</span> × معدل الجودة <span className="text-gray-400">(حضور بالوقت = كامل، متأخر = رصيد جزئي)</span></div>
+                        <div><span className="text-emerald-600 dark:text-emerald-400 font-bold">٥٥٪</span> × معدل الجودة <span className="text-gray-400">(حضور بالوقت = كامل، متأخر = رصيد جزئي)</span></div>
                         <div><span className="text-blue-600 dark:text-blue-400 font-bold">٣٥٪</span> × معدل الحضور <span className="text-gray-400">(حضرت أصلاً)</span></div>
-                        <div><span className="text-amber-600 dark:text-amber-400 font-bold">١٥٪</span> × الالتزام بالوقت <span className="text-gray-400">(بالوقت ÷ مجموع الحضور)</span></div>
+                        <div><span className="text-amber-600 dark:text-amber-400 font-bold">١٠٪</span> × الالتزام بالوقت <span className="text-gray-400">(بالوقت ÷ مجموع الحضور)</span></div>
                       </div>
                       <div className="mt-2 pt-2 border-t border-emerald-100 dark:border-emerald-800">
                         <span className="text-indigo-600 dark:text-indigo-400 font-bold">الدرجة النهائية</span> = الدرجة الخام × √(أيامك ÷ إجمالي الجلسات)
@@ -4473,7 +4473,7 @@ const AttendanceRecords = () => {
                   <div className="flex items-center gap-2 mb-3">
                     <span className="text-lg">📅</span>
                     <h4 className="font-bold text-blue-800 dark:text-blue-300 text-sm">
-                      {scoreExplainerLang === 'ar' ? 'الحضور (٣٥٪) + الالتزام بالوقت (١٥٪)' : scoreExplainerLang === 'both' ? 'Attendance (35%) + Punctuality (15%) / الحضور + الالتزام' : 'Attendance (35%) + Punctuality (15%)'}
+                      {scoreExplainerLang === 'ar' ? 'الحضور (٣٥٪) + الالتزام بالوقت (١٠٪)' : scoreExplainerLang === 'both' ? 'Attendance (35%) + Punctuality (10%) / الحضور + الالتزام' : 'Attendance (35%) + Punctuality (10%)'}
                     </h4>
                   </div>
                   <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
@@ -4627,9 +4627,9 @@ const AttendanceRecords = () => {
                     const attendancePct = student.attendanceRate;
 
                     // Calculate individual component contributions (consistency is informational only)
-                    const qualityContrib = 0.50 * qualityPct;
+                    const qualityContrib = 0.55 * qualityPct;
                     const attendanceContrib = 0.35 * attendancePct;
-                    const punctualityContrib = 0.15 * punctRate;
+                    const punctualityContrib = 0.10 * punctRate;
                     const rawScore = qualityContrib + attendanceContrib + punctualityContrib;
                     const coverageF = student.coverageFactor || 0;
                     const finalScore = student.weightedScore;
@@ -4643,9 +4643,9 @@ const AttendanceRecords = () => {
 
                     // Find weakest area
                     const components = [
-                      { name: 'Quality', nameAr: 'الجودة', value: qualityPct, weight: 50 },
+                      { name: 'Quality', nameAr: 'الجودة', value: qualityPct, weight: 55 },
                       { name: 'Attendance', nameAr: 'الحضور', value: attendancePct, weight: 35 },
-                      { name: 'Punctuality', nameAr: 'الالتزام', value: punctRate, weight: 15 },
+                      { name: 'Punctuality', nameAr: 'الالتزام', value: punctRate, weight: 10 },
                     ];
                     const weakest = [...components].sort((a, b) => a.value - b.value)[0];
                     const strongest = [...components].sort((a, b) => b.value - a.value)[0];
@@ -4686,9 +4686,9 @@ const AttendanceRecords = () => {
                           {/* Component bars */}
                           <div className="space-y-2">
                             {[
-                              { label: 'Quality / الجودة', labelShort: '50%', value: qualityPct, contrib: qualityContrib, color: 'emerald', icon: '💎' },
+                              { label: 'Quality / الجودة', labelShort: '55%', value: qualityPct, contrib: qualityContrib, color: 'emerald', icon: '💎' },
                               { label: 'Attendance / الحضور', labelShort: '35%', value: attendancePct, contrib: attendanceContrib, color: 'blue', icon: '📅' },
-                              { label: 'Punctuality / الالتزام', labelShort: '15%', value: punctRate, contrib: punctualityContrib, color: 'amber', icon: '⏰' },
+                              { label: 'Punctuality / الالتزام', labelShort: '10%', value: punctRate, contrib: punctualityContrib, color: 'amber', icon: '⏰' },
                               { label: 'Consistency / الانتظام', labelShort: 'info', value: consistencyPct, contrib: 0, color: 'purple', icon: '📊' },
                             ].map((comp) => (
                               <div key={comp.label} className="group/bar">
