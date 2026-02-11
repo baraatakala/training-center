@@ -141,9 +141,6 @@ export function Announcements() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
-  // Animation state for new announcements
-  const [newAnnouncementId] = useState<string | null>(null);
-
   // Load reactions for all announcements
   const loadReactionsForAllAnnouncements = useCallback(async (announcementsList: Announcement[], userId: string | null) => {
     if (!announcementsList.length) return;
@@ -752,12 +749,6 @@ export function Announcements() {
                 if (!isTeacher) handleMarkAsRead(announcement);
               }}
             >
-              {/* Animated new indicator */}
-              {newAnnouncementId === announcement.announcement_id && (
-                <div className="absolute -top-2 -right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full animate-bounce">
-                  NEW!
-                </div>
-              )}
               
               <div className="flex items-start justify-between gap-2 mb-2">
                 <div className="flex items-center gap-2 flex-wrap">

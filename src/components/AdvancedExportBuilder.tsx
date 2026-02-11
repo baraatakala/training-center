@@ -842,6 +842,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
           fields: config.selectedFields,
           sortByField: config.sortByField,
           sortDirection: config.sortDirection,
+          sortLayers: config.sortLayers || [],
           enableConditionalColoring: config.dataValidation.enableConditionalColoring,
           coloringFields: config.dataValidation.coloringFields,
           coloringTheme: config.dataValidation.coloringTheme,

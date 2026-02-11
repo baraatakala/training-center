@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { format, subDays } from 'date-fns';
@@ -249,9 +249,6 @@ const AttendanceRecords = () => {
   const [scoreExplainerStudent, setScoreExplainerStudent] = useState<string>('');
   const [scoreExplainerLang, setScoreExplainerLang] = useState<'en' | 'ar' | 'both'>('both');
   const [showScoreDetails, setShowScoreDetails] = useState(false);
-
-  // Sorting state — multi-layer sorting
-  const [sortLayers, setSortLayers] = useState<Array<{column: string, direction: 'asc' | 'desc'}>>([]);
 
   // Arabic display mode for the table
   const [arabicMode, setArabicMode] = useState(false);
@@ -2028,85 +2025,6 @@ const AttendanceRecords = () => {
     });
   };
 
-  // Sorting function — supports multi-layer: click = primary sort, Shift+click = add sort layer
-  const handleSort = (column: string, event?: React.MouseEvent) => {
-    const isShift = event?.shiftKey;
-    
-    setSortLayers(prev => {
-      const existingIndex = prev.findIndex(l => l.column === column);
-      
-      if (isShift) {
-        // Shift+click: add as additional layer or toggle direction of existing layer
-        if (existingIndex >= 0) {
-          // Toggle direction of existing layer
-          const updated = [...prev];
-          updated[existingIndex] = {
-            ...updated[existingIndex],
-            direction: updated[existingIndex].direction === 'asc' ? 'desc' : 'asc'
-          };
-          return updated;
-        } else {
-          // Add new layer
-          return [...prev, { column, direction: 'asc' }];
-        }
-      } else {
-        // Regular click: set as only sort or toggle direction
-        if (existingIndex === 0 && prev.length === 1) {
-          // Already the only sort — toggle direction
-          return [{ column, direction: prev[0].direction === 'asc' ? 'desc' : 'asc' }];
-        } else {
-          // Set as new primary (replace all)
-          return [{ column, direction: existingIndex >= 0 ? (prev[existingIndex].direction === 'asc' ? 'desc' : 'asc') : 'asc' }];
-        }
-      }
-    });
-  };
-
-  // Remove a sort layer by column
-  const removeSortLayer = (column: string) => {
-    setSortLayers(prev => prev.filter(l => l.column !== column));
-  };
-
-  // Clear all sort layers
-  const clearAllSorts = () => setSortLayers([]);
-
-  // Helper to get sort indicator for a column header
-  const getSortIndicator = (column: string): string => {
-    const idx = sortLayers.findIndex(l => l.column === column);
-    if (idx < 0) return '↕';
-    const arrow = sortLayers[idx].direction === 'asc' ? '↑' : '↓';
-    return sortLayers.length > 1 ? `${arrow}${idx + 1}` : arrow;
-  };
-
-  // Helper to check if a column is actively sorted
-  const isColumnSorted = (column: string): boolean => {
-    return sortLayers.some(l => l.column === column);
-  };
-
-  // Get sorted records — multi-layer memoized sort
-  const sortedRecords = useMemo(() => {
-    if (sortLayers.length === 0) return filteredRecords;
-
-    return [...filteredRecords].sort((a, b) => {
-      for (const layer of sortLayers) {
-        let aVal: string | number | null | undefined = a[layer.column as keyof AttendanceRecord];
-        let bVal: string | number | null | undefined = b[layer.column as keyof AttendanceRecord];
-
-        if (aVal == null && bVal == null) continue;
-        if (aVal == null) return layer.direction === 'asc' ? 1 : -1;
-        if (bVal == null) return layer.direction === 'asc' ? -1 : 1;
-
-        if (typeof aVal === 'string') aVal = aVal.toLowerCase();
-        if (typeof bVal === 'string') bVal = bVal.toLowerCase();
-
-        if (aVal < bVal) return layer.direction === 'asc' ? -1 : 1;
-        if (aVal > bVal) return layer.direction === 'asc' ? 1 : -1;
-        // Equal on this layer — continue to next layer
-      }
-      return 0;
-    });
-  }, [filteredRecords, sortLayers]);
-
   // Calculate advanced analytics - memoized for performance
   const calculateAnalytics = useCallback(() => {
     // Filter out 'not enrolled' and cancelled session records from analytics
@@ -3641,7 +3559,7 @@ const AttendanceRecords = () => {
                         {sorted.map((data, index) => {
                           const row = config.getData(data, index);
                           return (
-                            <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <tr key={String(data.studentName || data.rank || index)} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                               {row.map((cell, ci) => (
                                 <td key={ci} className="px-4 py-3 text-sm text-gray-900 dark:text-gray-200 whitespace-nowrap">{String(cell ?? '-')}</td>
                               ))}
@@ -3729,7 +3647,7 @@ const AttendanceRecords = () => {
                         {sorted.map((data, index) => {
                           const row = config.getData(data, index);
                           return (
-                            <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <tr key={String(data.date || data.rank || index)} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                               {row.map((cell, ci) => (
                                 <td key={ci} className="px-4 py-3 text-sm text-gray-900 dark:text-gray-200 whitespace-nowrap">{String(cell ?? '-')}</td>
                               ))}
@@ -3848,7 +3766,7 @@ const AttendanceRecords = () => {
                         {sorted.map((data, index) => {
                           const row = config.getData(data, index);
                           return (
-                            <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <tr key={String(data.hostName || data.rank || index)} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                               {row.map((cell, ci) => (
                                 <td key={ci} className="px-4 py-3 text-sm text-gray-900 dark:text-gray-200 whitespace-nowrap">{String(cell ?? '-')}</td>
                               ))}
@@ -4804,165 +4722,51 @@ const AttendanceRecords = () => {
           </div>
         ) : (
         <div className={`overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto${arabicMode ? ' direction-rtl' : ''}`} dir={arabicMode ? 'rtl' : 'ltr'}>
-          {/* Multi-sort indicator chips */}
-          {sortLayers.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800">
-              <span className="text-xs font-medium text-blue-700 dark:text-blue-300">Sort:</span>
-              {sortLayers.map((layer, idx) => {
-                const colLabels: Record<string, string> = {
-                  attendance_date: t.date, student_name: t.student, course_name: t.course,
-                  instructor_name: t.instructor, status: t.status, late_minutes: t.lateDuration,
-                  check_in_method: t.method, excuse_reason: t.excuseReason, session_location: t.location,
-                  marked_at: t.markedAt,
-                };
-                return (
-                  <span key={layer.column} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-800/50 text-blue-800 dark:text-blue-200 rounded-md text-xs font-medium">
-                    {sortLayers.length > 1 && <span className="w-4 h-4 flex items-center justify-center bg-blue-600 text-white rounded-full text-[10px] font-bold">{idx + 1}</span>}
-                    {colLabels[layer.column] || layer.column}
-                    <span className="font-bold">{layer.direction === 'asc' ? '↑' : '↓'}</span>
-                    <button
-                      onClick={() => removeSortLayer(layer.column)}
-                      className="ml-0.5 hover:bg-blue-200 dark:hover:bg-blue-700 rounded-full p-0.5 transition"
-                      title="Remove sort"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </span>
-                );
-              })}
-              {sortLayers.length > 1 && (
-                <button onClick={clearAllSorts} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
-                  Clear all
-                </button>
-              )}
-              <span className="text-[10px] text-blue-500 dark:text-blue-400 ml-auto hidden sm:inline">
-                Shift+click headers to add sort layers
-              </span>
-            </div>
-          )}
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-600 sticky top-0 z-10 shadow-sm">
               <tr>
-                <th 
-                  className={`px-3 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors group ${isColumnSorted('attendance_date') ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
-                  onClick={(e) => handleSort('attendance_date', e)}
-                >
+                <th className="px-3 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
                   <div className="flex items-center gap-2">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                     {t.date}
-                    <span className={`${isColumnSorted('attendance_date') ? 'opacity-100 text-blue-600 dark:text-blue-400 font-bold' : 'opacity-50 group-hover:opacity-100'} transition-opacity`}>
-                      {getSortIndicator('attendance_date')}
-                    </span>
                   </div>
                 </th>
-                <th 
-                  className={`px-3 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors group ${isColumnSorted('student_name') ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
-                  onClick={(e) => handleSort('student_name', e)}
-                >
+                <th className="px-3 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
                   <div className="flex items-center gap-2">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
                     {t.student}
-                    <span className={`${isColumnSorted('student_name') ? 'opacity-100 text-blue-600 dark:text-blue-400 font-bold' : 'opacity-50 group-hover:opacity-100'} transition-opacity`}>
-                      {getSortIndicator('student_name')}
-                    </span>
                   </div>
                 </th>
-                <th 
-                  className={`px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors group ${isColumnSorted('course_name') ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
-                  onClick={(e) => handleSort('course_name', e)}
-                >
-                  <div className="flex items-center gap-1">
-                    {t.course}
-                    <span className={`${isColumnSorted('course_name') ? 'opacity-100 text-blue-600 dark:text-blue-400 font-bold' : 'opacity-50 group-hover:opacity-100'}`}>
-                      {getSortIndicator('course_name')}
-                    </span>
-                  </div>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                  {t.course}
                 </th>
-                <th 
-                  className={`px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors group ${isColumnSorted('instructor_name') ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
-                  onClick={(e) => handleSort('instructor_name', e)}
-                >
-                  <div className="flex items-center gap-1">
-                    {t.instructor}
-                    <span className={`${isColumnSorted('instructor_name') ? 'opacity-100 text-blue-600 dark:text-blue-400 font-bold' : 'opacity-50 group-hover:opacity-100'}`}>
-                      {getSortIndicator('instructor_name')}
-                    </span>
-                  </div>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                  {t.instructor}
                 </th>
-                <th 
-                  className={`px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors group ${isColumnSorted('status') ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
-                  onClick={(e) => handleSort('status', e)}
-                >
-                  <div className="flex items-center gap-1">
-                    {t.status}
-                    <span className={`${isColumnSorted('status') ? 'opacity-100 text-blue-600 dark:text-blue-400 font-bold' : 'opacity-50 group-hover:opacity-100'}`}>
-                      {getSortIndicator('status')}
-                    </span>
-                  </div>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                  {t.status}
                 </th>
-                <th 
-                  className={`px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors group ${isColumnSorted('late_minutes') ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
-                  onClick={(e) => handleSort('late_minutes', e)}
-                >
-                  <div className="flex items-center gap-1">
-                    {t.lateDuration}
-                    <span className={`${isColumnSorted('late_minutes') ? 'opacity-100 text-blue-600 dark:text-blue-400 font-bold' : 'opacity-50 group-hover:opacity-100'}`}>
-                      {getSortIndicator('late_minutes')}
-                    </span>
-                  </div>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                  {t.lateDuration}
                 </th>
-                <th 
-                  className={`px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors group ${isColumnSorted('check_in_method') ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
-                  onClick={(e) => handleSort('check_in_method', e)}
-                >
-                  <div className="flex items-center gap-1">
-                    {t.method}
-                    <span className={`${isColumnSorted('check_in_method') ? 'opacity-100 text-blue-600 dark:text-blue-400 font-bold' : 'opacity-50 group-hover:opacity-100'}`}>
-                      {getSortIndicator('check_in_method')}
-                    </span>
-                  </div>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                  {t.method}
                 </th>
-                <th 
-                  className={`px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors group ${isColumnSorted('excuse_reason') ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
-                  onClick={(e) => handleSort('excuse_reason', e)}
-                >
-                  <div className="flex items-center gap-1">
-                    {t.excuseReason}
-                    <span className={`${isColumnSorted('excuse_reason') ? 'opacity-100 text-blue-600 dark:text-blue-400 font-bold' : 'opacity-50 group-hover:opacity-100'}`}>
-                      {getSortIndicator('excuse_reason')}
-                    </span>
-                  </div>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                  {t.excuseReason}
                 </th>
-                <th 
-                  className={`px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors group ${isColumnSorted('session_location') ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
-                  onClick={(e) => handleSort('session_location', e)}
-                >
-                  <div className="flex items-center gap-1">
-                    {t.location}
-                    <span className={`${isColumnSorted('session_location') ? 'opacity-100 text-blue-600 dark:text-blue-400 font-bold' : 'opacity-50 group-hover:opacity-100'}`}>
-                      {getSortIndicator('session_location')}
-                    </span>
-                  </div>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                  {t.location}
                 </th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
                   {t.gps}
                 </th>
-                <th 
-                  className={`px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors group ${isColumnSorted('marked_at') ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
-                  onClick={(e) => handleSort('marked_at', e)}
-                >
-                  <div className="flex items-center gap-1">
-                    {t.markedAt}
-                    <span className={`${isColumnSorted('marked_at') ? 'opacity-100 text-blue-600 dark:text-blue-400 font-bold' : 'opacity-50 group-hover:opacity-100'}`}>
-                      {getSortIndicator('marked_at')}
-                    </span>
-                  </div>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                  {t.markedAt}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                   {t.actions}
@@ -4970,7 +4774,7 @@ const AttendanceRecords = () => {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {sortedRecords
+              {filteredRecords
                 .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                 .map((record) => (
                   <tr 
