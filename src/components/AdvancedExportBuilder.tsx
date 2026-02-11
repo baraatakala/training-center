@@ -311,6 +311,21 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
   };
 
   // Multi-layer compare helper
+  // Detect if a string looks like a formatted date (e.g., "Feb 07, 2026", "MMM dd, yyyy")
+  const tryParseDate = (val: unknown): number | null => {
+    if (val instanceof Date) return val.getTime();
+    if (typeof val !== 'string') return null;
+    const s = val.trim();
+    // Match common date formats: "MMM dd, yyyy", "MMM dd, yyyy HH:mm:ss", "yyyy-MM-dd", etc.
+    const monthNames = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/i;
+    const isoLike = /^\d{4}-\d{2}-\d{2}/;
+    if (monthNames.test(s) || isoLike.test(s)) {
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) return d.getTime();
+    }
+    return null;
+  };
+
   const multiLayerCompare = (a: Record<string, unknown>, b: Record<string, unknown>, layers: Array<{field: string; direction: 'asc' | 'desc'}>): number => {
     for (const layer of layers) {
       const sortDir = layer.direction === 'desc' ? -1 : 1;
@@ -321,6 +336,15 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
       if (aVal == null) return sortDir;
       if (bVal == null) return -sortDir;
       
+      // Try date comparison first (handles "Feb 07, 2026" etc.)
+      const aDate = tryParseDate(aVal);
+      const bDate = tryParseDate(bVal);
+      if (aDate !== null && bDate !== null) {
+        if (aDate !== bDate) return (aDate - bDate) * sortDir;
+        continue;
+      }
+      
+      // Try numeric comparison (strip non-numeric chars for values like "85%", "±10m")
       const aNum = typeof aVal === 'string' ? parseFloat(aVal.replace(/[^0-9.-]/g, '')) : aVal;
       const bNum = typeof bVal === 'string' ? parseFloat(bVal.replace(/[^0-9.-]/g, '')) : bVal;
       
@@ -329,6 +353,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
         continue;
       }
       
+      // Fallback: string comparison
       const cmp = String(aVal).localeCompare(String(bVal));
       if (cmp !== 0) return cmp * sortDir;
     }

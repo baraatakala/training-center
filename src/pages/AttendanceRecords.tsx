@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { format, subDays } from 'date-fns';
@@ -124,9 +124,9 @@ interface FilterOptions {
 //
 // WEIGHTED SCORE COMPONENTS:
 //   50% Quality-Adjusted Rate (attendance with late penalties applied)
-//   30% Simple Attendance Rate (showed up regardless of lateness)
-//   10% Consistency Index (regular attendance patterns)
-//   10% Punctuality Bonus (on-time vs late ratio)
+//   35% Simple Attendance Rate (showed up regardless of lateness)
+//   15% Punctuality Bonus (on-time vs late ratio)
+// Note: Consistency Index is calculated and displayed but NOT part of the score.
 // ============================================================================
 
 // Display brackets (for UI only - scoring uses smooth decay)
@@ -249,6 +249,7 @@ const AttendanceRecords = () => {
   const [scoreExplainerStudent, setScoreExplainerStudent] = useState<string>('');
   const [scoreExplainerLang, setScoreExplainerLang] = useState<'en' | 'ar' | 'both'>('both');
   const [showScoreDetails, setShowScoreDetails] = useState(false);
+  const [collapseFilters, setCollapseFilters] = useState(false);
 
   // Arabic display mode for the table
   const [arabicMode, setArabicMode] = useState(false);
@@ -272,6 +273,19 @@ const AttendanceRecords = () => {
 
   // Multi-select dropdown open states
   const [openFilterDropdown, setOpenFilterDropdown] = useState<string | null>(null);
+  const filterPanelRef = useRef<HTMLDivElement>(null);
+
+  // Click-outside-to-close for filter dropdowns
+  useEffect(() => {
+    if (!openFilterDropdown) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (filterPanelRef.current && !filterPanelRef.current.contains(e.target as Node)) {
+        setOpenFilterDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [openFilterDropdown]);
 
   // Dropdown options
   const [students, setStudents] = useState<{ value: string; label: string }[]>([]);
@@ -724,9 +738,27 @@ const AttendanceRecords = () => {
     minEarly: 'دقيقة مبكراً',
     min: 'دقيقة',
     loading: 'جاري تحميل سجلات الحضور...',
+    loadingSubtext: 'يرجى الانتظار بينما نحضر البيانات',
     noRecords: 'لا توجد سجلات',
     noRecordsDesc: 'حاول تعديل الفلاتر أو نطاق التاريخ لرؤية سجلات الحضور',
     resetFilters: 'إعادة تعيين الفلاتر',
+    advancedFilters: 'فلاتر متقدمة',
+    activeFilters: 'فلتر نشط',
+    hideFilters: 'إخفاء الفلاتر',
+    showFilters: 'إظهار الفلاتر',
+    lastWeek: 'الأسبوع الماضي',
+    lastMonth: 'الشهر الماضي',
+    absentOnly: 'الغائبون فقط',
+    resetAll: 'إعادة تعيين الكل',
+    statusLabel: 'الحالة',
+    allStudents: 'جميع الطلاب',
+    allCourses: 'جميع المواد',
+    allInstructors: 'جميع المعلمين',
+    allStatuses: 'جميع الحالات',
+    startDateLabel: 'تاريخ البداية',
+    endDateLabel: 'تاريخ النهاية',
+    clearAll: 'مسح الكل',
+    selected: 'محدد',
     qrCode: 'رمز QR',
     photo: 'صورة',
     bulk: 'استيراد جماعي',
@@ -795,9 +827,27 @@ const AttendanceRecords = () => {
     minEarly: 'min early',
     min: 'min',
     loading: 'Loading attendance records...',
+    loadingSubtext: 'Please wait while we fetch the data',
     noRecords: 'No Records Found',
     noRecordsDesc: 'Try adjusting your filters or date range to see attendance records',
     resetFilters: 'Reset Filters',
+    advancedFilters: 'Advanced Filters',
+    activeFilters: 'active filter',
+    hideFilters: 'Hide Filters',
+    showFilters: 'Show Filters',
+    lastWeek: 'Last Week',
+    lastMonth: 'Last Month',
+    absentOnly: 'Absent Only',
+    resetAll: 'Reset All',
+    statusLabel: 'Status',
+    allStudents: 'All Students',
+    allCourses: 'All Courses',
+    allInstructors: 'All Instructors',
+    allStatuses: 'All Statuses',
+    startDateLabel: 'Start Date',
+    endDateLabel: 'End Date',
+    clearAll: 'Clear all',
+    selected: 'selected',
     qrCode: 'QR Code',
     photo: 'Photo',
     bulk: 'Bulk',
@@ -842,6 +892,18 @@ const AttendanceRecords = () => {
   };
 
   // Sort filteredRecords based on Advanced Export Builder sort settings for records
+  // Pre-computed status counts to avoid repeated .filter() in stat cards
+  const statusCounts = useMemo(() => {
+    const counts = { onTime: 0, absent: 0, late: 0, excused: 0 };
+    for (const r of filteredRecords) {
+      if (r.status === 'on time') counts.onTime++;
+      else if (r.status === 'absent') counts.absent++;
+      else if (r.status === 'late') counts.late++;
+      else if (r.status === 'excused') counts.excused++;
+    }
+    return counts;
+  }, [filteredRecords]);
+
   const sortedRecords = useMemo(() => {
     const settings = savedExportSettings.records;
     const sortLayers = settings?.sortLayers && settings.sortLayers.length > 0
@@ -923,6 +985,250 @@ const AttendanceRecords = () => {
     if (record.gps_latitude && record.gps_longitude) {
       const url = `https://www.google.com/maps?q=${record.gps_latitude},${record.gps_longitude}`;
       window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  // ==================== DYNAMIC COLUMN ORDER FOR RECORDS TABLE ====================
+  // Default column order (used when no custom selection is saved)
+  const DEFAULT_RECORD_COLUMNS = ['date', 'student_name', 'course_name', 'instructor_name', 'status', 'late_minutes', 'check_in_method', 'excuse_reason', 'host_address', '_gps', 'marked_at'];
+
+  // GPS-related field keys that all map to the single GPS column
+  const GPS_FIELD_KEYS = new Set(['gps_latitude', 'gps_longitude', 'gps_coordinates', 'gps_accuracy', 'distance_from_host']);
+  
+  // Column definitions mapping field keys to labels and sort keys
+  const RECORD_COLUMN_DEFS: Record<string, { label: string; sortKey?: string; icon?: React.ReactNode }> = useMemo(() => ({
+    date: { label: t.date, sortKey: 'date', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg> },
+    dayOfWeek: { label: arabicMode ? 'يوم الأسبوع' : 'Day', sortKey: 'dayOfWeek' },
+    attendance_id: { label: arabicMode ? 'رقم السجل' : 'Record ID', sortKey: 'attendance_id' },
+    student_name: { label: t.student, sortKey: 'student_name', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg> },
+    student_id: { label: arabicMode ? 'رقم الطالب' : 'Student ID', sortKey: 'student_id' },
+    course_name: { label: t.course, sortKey: 'course_name' },
+    course_id: { label: arabicMode ? 'رقم الدورة' : 'Course ID', sortKey: 'course_id' },
+    instructor_name: { label: t.instructor, sortKey: 'instructor_name' },
+    session_location: { label: arabicMode ? 'موقع الجلسة' : 'Session Location', sortKey: 'session_location' },
+    book_topic: { label: arabicMode ? 'موضوع الكتاب' : 'Book Topic' },
+    book_pages: { label: arabicMode ? 'صفحات الكتاب' : 'Book Pages' },
+    book_start_page: { label: arabicMode ? 'صفحة البداية' : 'Start Page' },
+    book_end_page: { label: arabicMode ? 'صفحة النهاية' : 'End Page' },
+    status: { label: t.status, sortKey: 'status' },
+    status_display: { label: arabicMode ? 'الحالة (عرض)' : 'Status (Display)' },
+    is_present: { label: arabicMode ? 'حاضر' : 'Is Present' },
+    is_late: { label: arabicMode ? 'متأخر' : 'Is Late' },
+    is_excused: { label: arabicMode ? 'معذور' : 'Is Excused' },
+    is_absent: { label: arabicMode ? 'غائب' : 'Is Absent' },
+    late_minutes: { label: t.lateDuration, sortKey: 'late_minutes' },
+    late_bracket: { label: arabicMode ? 'فئة التأخر' : 'Late Bracket' },
+    early_minutes: { label: arabicMode ? 'مبكر' : 'Early (min)' },
+    check_in_time: { label: arabicMode ? 'وقت الدخول' : 'Check-in Time' },
+    gps_timestamp: { label: arabicMode ? 'وقت GPS' : 'GPS Timestamp' },
+    excuse_reason: { label: t.excuseReason, sortKey: 'excuse_reason' },
+    check_in_method: { label: t.method, sortKey: 'check_in_method' },
+    host_address: { label: t.location, sortKey: 'host_address' },
+    gps_latitude: { label: arabicMode ? 'خط العرض' : 'GPS Lat' },
+    gps_longitude: { label: arabicMode ? 'خط الطول' : 'GPS Lng' },
+    gps_coordinates: { label: arabicMode ? 'إحداثيات GPS' : 'GPS Coords' },
+    gps_accuracy: { label: arabicMode ? 'دقة GPS' : 'GPS Accuracy' },
+    distance_from_host: { label: arabicMode ? 'المسافة من المضيف' : 'Distance' },
+    marked_by: { label: arabicMode ? 'سجل بواسطة' : 'Marked By' },
+    marked_at: { label: t.markedAt, sortKey: 'marked_at' },
+    session_id: { label: arabicMode ? 'رقم الجلسة' : 'Session ID' },
+    teacher_id: { label: arabicMode ? 'رقم المدرب' : 'Teacher ID' },
+    _gps: { label: t.gps }, // virtual composite GPS column
+  }), [arabicMode, t]);
+
+  // Build ordered column list respecting export builder's Column Order
+  const orderedRecordColumns = useMemo((): string[] => {
+    const selected = savedFieldSelections.records;
+    if (!selected || selected.length === 0) return DEFAULT_RECORD_COLUMNS;
+
+    // Build ordered list from selected fields, collapsing GPS fields into _gps
+    const ordered: string[] = [];
+    let gpsInserted = false;
+    for (const key of selected) {
+      if (GPS_FIELD_KEYS.has(key)) {
+        if (!gpsInserted) {
+          ordered.push('_gps');
+          gpsInserted = true;
+        }
+      } else {
+        ordered.push(key);
+      }
+    }
+    return ordered;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedFieldSelections.records]);
+
+  // Render a header cell for the records table
+  const renderRecordHeader = (colKey: string) => {
+    const def = RECORD_COLUMN_DEFS[colKey];
+    if (!def) return null;
+    const si = def.sortKey ? getRecordsSortIndicator(def.sortKey) : null;
+    return (
+      <th key={colKey} className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+        <div className="flex items-center gap-1">
+          {def.icon && def.icon}
+          {def.label}
+          {si && <span className="ml-1 text-blue-500 dark:text-blue-400 text-[10px] font-bold">{si.direction === 'asc' ? '↑' : '↓'}{si.total > 1 ? si.priority : ''}</span>}
+        </div>
+      </th>
+    );
+  };
+
+  // Render a body cell for the records table
+  const renderRecordCell = (colKey: string, record: AttendanceRecord) => {
+    const tdClass = "px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm";
+    switch (colKey) {
+      case 'date':
+        return <td key={colKey} className={`${tdClass} text-gray-900 dark:text-white`}>{format(new Date(record.attendance_date), 'MMM dd, yyyy')}</td>;
+      case 'dayOfWeek':
+        return <td key={colKey} className={`${tdClass} text-gray-900 dark:text-white`}>{format(new Date(record.attendance_date), 'EEEE')}</td>;
+      case 'attendance_id':
+        return <td key={colKey} className={`${tdClass} text-gray-500 dark:text-gray-400 font-mono text-[10px]`}>{record.attendance_id}</td>;
+      case 'student_name':
+        return <td key={colKey} className={`${tdClass} text-gray-900 dark:text-white`}>{record.student_name}</td>;
+      case 'student_id':
+        return <td key={colKey} className={`${tdClass} text-gray-500 dark:text-gray-400 font-mono text-[10px]`}>{record.student_id}</td>;
+      case 'course_name':
+        return <td key={colKey} className={`${tdClass} text-gray-900 dark:text-white`}>{record.course_name}</td>;
+      case 'course_id':
+        return <td key={colKey} className={`${tdClass} text-gray-500 dark:text-gray-400 font-mono text-[10px]`}>{record.course_id}</td>;
+      case 'instructor_name':
+        return <td key={colKey} className={`${tdClass} text-gray-900 dark:text-white`}>{record.instructor_name}</td>;
+      case 'session_location':
+        return <td key={colKey} className={`${tdClass} text-gray-900 dark:text-white`}>{record.session_location || '-'}</td>;
+      case 'book_topic':
+        return <td key={colKey} className={`${tdClass} text-gray-900 dark:text-white`}>{record.book_topic || '-'}</td>;
+      case 'book_pages':
+        return <td key={colKey} className={`${tdClass} text-gray-900 dark:text-white`}>{record.book_start_page && record.book_end_page ? `${record.book_start_page}-${record.book_end_page}` : '-'}</td>;
+      case 'book_start_page':
+        return <td key={colKey} className={`${tdClass} text-gray-900 dark:text-white`}>{record.book_start_page || '-'}</td>;
+      case 'book_end_page':
+        return <td key={colKey} className={`${tdClass} text-gray-900 dark:text-white`}>{record.book_end_page || '-'}</td>;
+      case 'status':
+        return (
+          <td key={colKey} className={`${tdClass}`}>
+            <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(record.status)}`}>
+              {getStatusLabel(record.status)}
+            </span>
+          </td>
+        );
+      case 'status_display':
+        return <td key={colKey} className={`${tdClass} text-gray-900 dark:text-white`}>{record.status === 'on time' ? 'On Time' : record.status === 'late' ? 'Late' : record.status === 'excused' ? 'Excused' : record.status === 'absent' ? 'Absent' : record.status}</td>;
+      case 'is_present':
+        return <td key={colKey} className={`${tdClass}`}>{record.status === 'on time' ? <span className="text-green-600 dark:text-green-400 font-bold">Yes</span> : <span className="text-gray-400">No</span>}</td>;
+      case 'is_late':
+        return <td key={colKey} className={`${tdClass}`}>{record.status === 'late' ? <span className="text-amber-600 dark:text-amber-400 font-bold">Yes</span> : <span className="text-gray-400">No</span>}</td>;
+      case 'is_excused':
+        return <td key={colKey} className={`${tdClass}`}>{record.status === 'excused' ? <span className="text-blue-600 dark:text-blue-400 font-bold">Yes</span> : <span className="text-gray-400">No</span>}</td>;
+      case 'is_absent':
+        return <td key={colKey} className={`${tdClass}`}>{record.status === 'absent' ? <span className="text-red-600 dark:text-red-400 font-bold">Yes</span> : <span className="text-gray-400">No</span>}</td>;
+      case 'late_minutes':
+        return (
+          <td key={colKey} className={`${tdClass}`}>
+            {record.status === 'late' && record.late_minutes ? (
+              <span className={`px-2 py-1 text-xs font-medium rounded ${getLateBracketInfo(record.late_minutes).color}`}>
+                {record.late_minutes} {t.min} ({getLateBracketInfo(record.late_minutes).name})
+              </span>
+            ) : record.status === 'late' ? (
+              <span className="text-gray-400 dark:text-gray-500 text-xs">{t.notRecorded}</span>
+            ) : record.early_minutes ? (
+              <span className="px-2 py-1 text-xs font-medium rounded bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300">
+                {record.early_minutes} {t.minEarly}
+              </span>
+            ) : (
+              <span className="text-gray-400 dark:text-gray-500">-</span>
+            )}
+          </td>
+        );
+      case 'late_bracket':
+        return <td key={colKey} className={`${tdClass} text-gray-900 dark:text-white`}>{record.status === 'late' && record.late_minutes ? getLateBracketInfo(record.late_minutes).name : '-'}</td>;
+      case 'early_minutes':
+        return <td key={colKey} className={`${tdClass} text-gray-900 dark:text-white`}>{record.early_minutes || '-'}</td>;
+      case 'check_in_time':
+        return <td key={colKey} className={`${tdClass} text-gray-900 dark:text-white font-mono text-[10px]`}>{record.gps_timestamp ? format(new Date(record.gps_timestamp), 'HH:mm:ss') : '-'}</td>;
+      case 'gps_timestamp':
+        return <td key={colKey} className={`${tdClass} text-gray-900 dark:text-white font-mono text-[10px]`}>{record.gps_timestamp ? format(new Date(record.gps_timestamp), 'MMM dd, yyyy HH:mm:ss') : '-'}</td>;
+      case 'excuse_reason':
+        return (
+          <td key={colKey} className={`${tdClass} text-gray-900 dark:text-white`}>
+            {record.status === 'excused' && record.excuse_reason ? (
+              <span className="capitalize px-2 py-1 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded text-xs font-medium">
+                {record.excuse_reason}
+              </span>
+            ) : (
+              <span className="text-gray-400 dark:text-gray-500">-</span>
+            )}
+          </td>
+        );
+      case 'check_in_method':
+        return (
+          <td key={colKey} className={`${tdClass}`}>
+            {record.check_in_method ? (
+              <span className={`px-2 py-1 text-xs font-medium rounded ${
+                record.check_in_method === 'qr_code' ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-300' :
+                record.check_in_method === 'photo' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300' :
+                record.check_in_method === 'bulk' ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-300' :
+                'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
+              }`}>
+                {record.check_in_method === 'qr_code' ? t.qrCode :
+                 record.check_in_method === 'photo' ? t.photo :
+                 record.check_in_method === 'bulk' ? t.bulk :
+                 record.check_in_method === 'manual' ? t.manual :
+                 record.check_in_method}
+              </span>
+            ) : (
+              <span className="text-gray-400 dark:text-gray-500">-</span>
+            )}
+          </td>
+        );
+      case 'host_address':
+        return <td key={colKey} className={`${tdClass} text-gray-900 dark:text-white`}>{record.host_address || record.session_location || '-'}</td>;
+      case 'gps_latitude':
+        return <td key={colKey} className={`${tdClass} text-gray-600 dark:text-gray-300 font-mono text-[10px]`}>{record.gps_latitude ? record.gps_latitude.toFixed(6) : '-'}</td>;
+      case 'gps_longitude':
+        return <td key={colKey} className={`${tdClass} text-gray-600 dark:text-gray-300 font-mono text-[10px]`}>{record.gps_longitude ? record.gps_longitude.toFixed(6) : '-'}</td>;
+      case 'gps_coordinates':
+        return <td key={colKey} className={`${tdClass} text-gray-600 dark:text-gray-300 font-mono text-[10px]`}>{record.gps_latitude && record.gps_longitude ? `${record.gps_latitude.toFixed(4)}°, ${record.gps_longitude.toFixed(4)}°` : '-'}</td>;
+      case 'gps_accuracy':
+        return <td key={colKey} className={`${tdClass} text-gray-600 dark:text-gray-300`}>{record.gps_accuracy ? `±${Math.round(record.gps_accuracy)}m` : '-'}</td>;
+      case 'distance_from_host':
+        return <td key={colKey} className={`${tdClass} text-gray-600 dark:text-gray-300`}>{record.distance_from_host ? `${Math.round(record.distance_from_host)}m` : '-'}</td>;
+      case '_gps': // Composite GPS column
+        return (
+          <td key={colKey} className={`${tdClass} text-gray-600 dark:text-gray-300`}>
+            {record.gps_latitude && record.gps_longitude ? (
+              <div className="space-y-1">
+                <div className="text-xs">{record.gps_latitude.toFixed(4)}°, {record.gps_longitude.toFixed(4)}°</div>
+                {record.gps_accuracy && (
+                  <div className="text-xs text-gray-500 dark:text-gray-400">±{record.gps_accuracy.toFixed(0)}m</div>
+                )}
+              </div>
+            ) : (
+              <span className="text-gray-400 dark:text-gray-500 text-xs">{t.noGps}</span>
+            )}
+          </td>
+        );
+      case 'marked_by':
+        return <td key={colKey} className={`${tdClass} text-gray-600 dark:text-gray-300`}>{record.marked_by || '-'}</td>;
+      case 'marked_at':
+        return (
+          <td key={colKey} className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
+            {record.marked_at ? (
+              <div className="space-y-1">
+                <div>{format(new Date(record.marked_at), 'MMM dd, HH:mm')}</div>
+                {record.marked_by && (
+                  <div className="text-xs text-gray-500 dark:text-gray-400">{t.by} {record.marked_by}</div>
+                )}
+              </div>
+            ) : '-'}
+          </td>
+        );
+      case 'session_id':
+        return <td key={colKey} className={`${tdClass} text-gray-500 dark:text-gray-400 font-mono text-[10px]`}>{record.session_id}</td>;
+      case 'teacher_id':
+        return <td key={colKey} className={`${tdClass} text-gray-500 dark:text-gray-400 font-mono text-[10px]`}>{record.teacher_id}</td>;
+      default:
+        return <td key={colKey} className={`${tdClass} text-gray-400`}>-</td>;
     }
   };
 
@@ -2240,14 +2546,13 @@ const AttendanceRecords = () => {
       const qualityAdjustedRate = effectiveBase > 0 ? (qualityScore / effectiveBase) * 100 : 0;
 
       // ==================== WEIGHTED SCORE CALCULATION ====================
-      // Balanced component weights for fair, stable evaluation:
+      // Component weights (consistency is informational only, not in score):
       //   50% Quality-Adjusted Rate - Main factor, includes late penalties
-      //   30% Simple Attendance Rate - Credit for showing up
-      //   10% Consistency Index - Rewards regular attendance patterns
-      //   10% Punctuality Bonus - On-time vs late ratio
+      //   35% Simple Attendance Rate - Credit for showing up
+      //   15% Punctuality Bonus - On-time vs late ratio
       const punctualityPercentage = totalPresent > 0 ? (presentCount / totalPresent) * 100 : 0;
       
-      // Calculate consistency before using it in weighted score
+      // Calculate consistency (informational — NOT part of weighted score)
       const dailyPattern = studentUniqueDates.map(date => {
         const record = studentRecords.find(r => r.attendance_date === date);
         if (!record || record.status === 'excused') return -1; // Exclude excused
@@ -2255,13 +2560,11 @@ const AttendanceRecords = () => {
       }).filter(v => v !== -1);
       
       const consistencyIndex = calculateConsistencyIndex(dailyPattern);
-      const consistencyPercentage = consistencyIndex * 100; // Convert 0-1 to 0-100
       
       const rawWeightedScore = 
         (0.50 * qualityAdjustedRate) +    // 50% Quality (with late penalties)
-        (0.30 * attendanceRate) +          // 30% Attendance (showed up)
-        (0.10 * consistencyPercentage) +   // 10% Consistency (regular patterns)
-        (0.10 * punctualityPercentage);    // 10% Punctuality (on-time ratio)
+        (0.35 * attendanceRate) +          // 35% Attendance (showed up)
+        (0.15 * punctualityPercentage);    // 15% Punctuality (on-time ratio)
 
       // ==================== COVERAGE FACTOR ====================
       // Penalize students with very few effective days relative to total sessions.
@@ -2428,15 +2731,20 @@ const AttendanceRecords = () => {
 
   const calculateConsistencyIndex = (pattern: number[]): number => {
     // Consistency Index: measures how REGULARLY a student attends
-    // Independent from attendance rate — focuses on whether absences
-    // are scattered (consistent) or clustered in streaks (inconsistent)
+    // This is purely about the DISTRIBUTION of absences, NOT attendance rate.
+    // It answers: "Are your absences scattered or clustered together?"
+    //
+    // Two Components (averaged):
+    //   1. Scatter Ratio: Are absences fragmented into many small streaks?
+    //   2. Streak Penalty: How long is the longest consecutive absence block?
+    //
+    // Dampening: With only 1-2 absences, clustering barely matters → trends to 100%
     //
     // Examples:
-    //   [1,0,1,0,1,0,1,0] → ~1.0 (absences perfectly scattered)
-    //   [1,1,1,1,0,0,0,0] → ~0.2 (all absences clustered)
-    //   [1,1,0,1,1,0,1,1] → 1.0  (single-day absences spread out)
-    //   Perfect attendance  → 1.0
-    //   All absent          → 0.0
+    //   ✅❌✅❌✅❌✅❌ (perfectly scattered)     → ~100%
+    //   ✅✅❌✅✅❌✅✅ (spread out singles)      → ~100%
+    //   ✅✅✅❌❌✅✅✅ (2-day block)             → ~72%
+    //   ✅✅✅✅❌❌❌❌ (all clustered at end)    → ~20%
     if (pattern.length <= 1) return pattern.length === 1 ? pattern[0] : 0;
 
     const presentDays = pattern.filter(v => v === 1).length;
@@ -2463,26 +2771,27 @@ const AttendanceRecords = () => {
     const longestStreak = Math.max(...absenceStreaks);
 
     // Component 1: Scatter ratio — are absences fragmented into many small streaks?
-    // Best: each absence is its own streak (ratio = 1). Worst: one big block (ratio = 1/n).
+    // Best case: each absence is isolated (ratio = 1). Worst: one big block (ratio ≈ 0).
     const scatterRatio = absenceStreaks.length / totalAbsent;
     const normalizedScatter = totalAbsent > 1
       ? (scatterRatio - 1 / totalAbsent) / (1 - 1 / totalAbsent)
       : 1;
 
     // Component 2: Longest streak penalty — is there one dominant absence block?
+    // Missing 3 days in a row hurts more than missing 3 separate days.
     const streakPenalty = totalAbsent > 1
       ? 1 - (longestStreak - 1) / (totalAbsent - 1)
       : 1;
 
-    // Raw consistency from average of both components
+    // Average both components
     const rawConsistency = 0.5 * normalizedScatter + 0.5 * streakPenalty;
 
-    // Dampening: soften the effect when there are very few absences
-    // With only 1-2 absences, clustering matters much less
+    // Dampening: when absences are few (1-2), clustering barely matters
+    // With 5+ absences, full clustering impact applies
     const dampeningFactor = Math.min(totalAbsent / 5, 1);
     const consistency = rawConsistency * dampeningFactor + (1 - dampeningFactor);
 
-    return Math.round(Math.min(1, consistency) * 100) / 100;
+    return Math.round(Math.min(1, Math.max(0, consistency)) * 100) / 100;
   };
 
   const calculateCumulativeRates = (studentId: string, dates: string[], allRecords: AttendanceRecord[]): number[] => {
@@ -3501,29 +3810,40 @@ const AttendanceRecords = () => {
       {/* Advanced Analytics Dashboard */}
       {showAnalytics && (
         <div className="space-y-4 sm:space-y-6">
-          {/* Summary Statistics */}
-          <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-lg shadow dark:shadow-gray-900/30">
-            <h2 className="text-base sm:text-lg font-semibold mb-4 dark:text-white">{t.summaryStatistics}</h2>
+          {/* Summary Statistics - Enhanced Cards */}
+          <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-2xl shadow-lg dark:shadow-gray-900/30 border border-gray-100 dark:border-gray-700">
+            <h2 className="text-base sm:text-lg font-semibold mb-4 dark:text-white flex items-center gap-2">
+              <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+              {t.summaryStatistics}
+            </h2>
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
-              <div className="border-l-4 border-blue-500 pl-3 sm:pl-4">
-                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{t.totalStudents}</div>
-                <div className="text-xl sm:text-2xl font-bold dark:text-white">{studentAnalytics.length}</div>
+              <div className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/30 dark:to-cyan-900/30 p-3 sm:p-4 rounded-xl border border-blue-100 dark:border-blue-800/50 hover:shadow-md transition-shadow duration-200">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                  <div className="text-xs sm:text-sm text-blue-700 dark:text-blue-400 font-medium">{t.totalStudents}</div>
+                </div>
+                <div className="text-xl sm:text-2xl font-bold text-blue-900 dark:text-blue-100">{studentAnalytics.length}</div>
               </div>
-              <div className="border-l-4 border-green-500 pl-3 sm:pl-4">
-                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{t.classAvgRate}</div>
-                <div className="text-xl sm:text-2xl font-bold dark:text-white">
+              <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 p-3 sm:p-4 rounded-xl border border-green-100 dark:border-green-800/50 hover:shadow-md transition-shadow duration-200">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                  <div className="text-xs sm:text-sm text-green-700 dark:text-green-400 font-medium">{t.classAvgRate}</div>
+                </div>
+                <div className="text-xl sm:text-2xl font-bold text-green-900 dark:text-green-100">
                   {studentAnalytics.length > 0
                     ? Math.round(
                         studentAnalytics.reduce((sum, s) => sum + s.attendanceRate, 0) /
                           studentAnalytics.length
                       )
-                    : 0}
-                  %
+                    : 0}%
                 </div>
               </div>
-              <div className="border-l-4 border-purple-500 pl-3 sm:pl-4">
-                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{t.avgWeightedScore}</div>
-                <div className="text-xl sm:text-2xl font-bold dark:text-white">
+              <div className="bg-gradient-to-br from-purple-50 to-fuchsia-50 dark:from-purple-900/30 dark:to-fuchsia-900/30 p-3 sm:p-4 rounded-xl border border-purple-100 dark:border-purple-800/50 hover:shadow-md transition-shadow duration-200">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                  <div className="text-xs sm:text-sm text-purple-700 dark:text-purple-400 font-medium">{t.avgWeightedScore}</div>
+                </div>
+                <div className="text-xl sm:text-2xl font-bold text-purple-900 dark:text-purple-100">
                   {studentAnalytics.length > 0
                     ? Math.round(
                         studentAnalytics.reduce((sum, s) => sum + s.weightedScore, 0) /
@@ -3532,21 +3852,26 @@ const AttendanceRecords = () => {
                     : 0}
                 </div>
               </div>
-              <div className="border-l-4 border-blue-500 pl-3 sm:pl-4">
-                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{t.avgAttendanceByDate}</div>
-                <div className="text-xl sm:text-2xl font-bold dark:text-white">
+              <div className="bg-gradient-to-br from-sky-50 to-blue-50 dark:from-sky-900/30 dark:to-blue-900/30 p-3 sm:p-4 rounded-xl border border-sky-100 dark:border-sky-800/50 hover:shadow-md transition-shadow duration-200">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-2 h-2 rounded-full bg-sky-500"></div>
+                  <div className="text-xs sm:text-sm text-sky-700 dark:text-sky-400 font-medium">{t.avgAttendanceByDate}</div>
+                </div>
+                <div className="text-xl sm:text-2xl font-bold text-sky-900 dark:text-sky-100">
                   {dateAnalytics.length > 0
                     ? Math.round(
                         dateAnalytics.reduce((sum, d) => sum + d.attendanceRate, 0) /
                           dateAnalytics.length
                       )
-                    : 0}
-                  %
+                    : 0}%
                 </div>
               </div>
-              <div className="border-l-4 border-indigo-500 pl-3 sm:pl-4">
-                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{t.medianRateByDate}</div>
-                <div className="text-xl sm:text-2xl font-bold dark:text-white">
+              <div className="bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-900/30 dark:to-violet-900/30 p-3 sm:p-4 rounded-xl border border-indigo-100 dark:border-indigo-800/50 hover:shadow-md transition-shadow duration-200">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
+                  <div className="text-xs sm:text-sm text-indigo-700 dark:text-indigo-400 font-medium">{t.medianRateByDate}</div>
+                </div>
+                <div className="text-xl sm:text-2xl font-bold text-indigo-900 dark:text-indigo-100">
                   {(() => {
                     if (dateAnalytics.length === 0) return 0;
                     const sorted = [...dateAnalytics].sort((a, b) => a.attendanceRate - b.attendanceRate);
@@ -3554,8 +3879,7 @@ const AttendanceRecords = () => {
                     return sorted.length % 2 === 0
                       ? Math.round((sorted[mid - 1].attendanceRate + sorted[mid].attendanceRate) / 2)
                       : Math.round(sorted[mid].attendanceRate);
-                  })()}
-                  %
+                  })()}%
                 </div>
               </div>
             </div>
@@ -3576,19 +3900,19 @@ const AttendanceRecords = () => {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 items-center">
-                <button onClick={exportAnalyticsToExcel} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md">
+                <button onClick={exportAnalyticsToExcel} aria-label="Export to Excel" className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                   Excel
                 </button>
-                <button onClick={() => exportAnalyticsToPDF()} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md">
+                <button onClick={() => exportAnalyticsToPDF()} aria-label="Export to PDF" className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
                   PDF
                 </button>
-                <button onClick={exportAnalyticsToWord} disabled={exportingWord} className={`px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md ${exportingWord ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                <button onClick={exportAnalyticsToWord} disabled={exportingWord} aria-label="Export to Word" className={`px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md ${exportingWord ? 'opacity-50 cursor-not-allowed' : ''}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                   {exportingWord ? t.exporting : 'Word'}
                 </button>
-                <button onClick={exportAnalyticsToCSV} className="px-4 py-2 bg-gray-700 hover:bg-gray-800 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md">
+                <button onClick={exportAnalyticsToCSV} aria-label="Export to CSV" className="px-4 py-2 bg-gray-700 hover:bg-gray-800 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                   CSV
                 </button>
@@ -3978,9 +4302,8 @@ const AttendanceRecords = () => {
                       <div className="text-blue-600 dark:text-blue-400 font-bold mb-1">Raw Score =</div>
                       <div className="pl-4 space-y-0.5">
                         <div><span className="text-emerald-600 dark:text-emerald-400 font-bold">50%</span> × Quality Rate <span className="text-gray-400">(on-time = full, late = partial credit)</span></div>
-                        <div><span className="text-blue-600 dark:text-blue-400 font-bold">30%</span> × Attendance Rate <span className="text-gray-400">(showed up at all)</span></div>
-                        <div><span className="text-purple-600 dark:text-purple-400 font-bold">10%</span> × Consistency <span className="text-gray-400">(regular patterns, not clustered absences)</span></div>
-                        <div><span className="text-amber-600 dark:text-amber-400 font-bold">10%</span> × Punctuality <span className="text-gray-400">(on-time ÷ total present)</span></div>
+                        <div><span className="text-blue-600 dark:text-blue-400 font-bold">35%</span> × Attendance Rate <span className="text-gray-400">(showed up at all)</span></div>
+                        <div><span className="text-amber-600 dark:text-amber-400 font-bold">15%</span> × Punctuality <span className="text-gray-400">(on-time ÷ total present)</span></div>
                       </div>
                       <div className="mt-2 pt-2 border-t border-blue-100 dark:border-blue-800">
                         <span className="text-indigo-600 dark:text-indigo-400 font-bold">Final Score</span> = Raw Score × √(Your Days ÷ Total Sessions)
@@ -4000,9 +4323,8 @@ const AttendanceRecords = () => {
                       <div className="text-emerald-600 dark:text-emerald-400 font-bold mb-1">الدرجة الخام =</div>
                       <div className="pr-4 space-y-0.5">
                         <div><span className="text-emerald-600 dark:text-emerald-400 font-bold">٥٠٪</span> × معدل الجودة <span className="text-gray-400">(حضور بالوقت = كامل، متأخر = رصيد جزئي)</span></div>
-                        <div><span className="text-blue-600 dark:text-blue-400 font-bold">٣٠٪</span> × معدل الحضور <span className="text-gray-400">(حضرت أصلاً)</span></div>
-                        <div><span className="text-purple-600 dark:text-purple-400 font-bold">١٠٪</span> × الانتظام <span className="text-gray-400">(نمط منتظم، ليس غياب متتالي)</span></div>
-                        <div><span className="text-amber-600 dark:text-amber-400 font-bold">١٠٪</span> × الالتزام بالوقت <span className="text-gray-400">(بالوقت ÷ مجموع الحضور)</span></div>
+                        <div><span className="text-blue-600 dark:text-blue-400 font-bold">٣٥٪</span> × معدل الحضور <span className="text-gray-400">(حضرت أصلاً)</span></div>
+                        <div><span className="text-amber-600 dark:text-amber-400 font-bold">١٥٪</span> × الالتزام بالوقت <span className="text-gray-400">(بالوقت ÷ مجموع الحضور)</span></div>
                       </div>
                       <div className="mt-2 pt-2 border-t border-emerald-100 dark:border-emerald-800">
                         <span className="text-indigo-600 dark:text-indigo-400 font-bold">الدرجة النهائية</span> = الدرجة الخام × √(أيامك ÷ إجمالي الجلسات)
@@ -4082,18 +4404,18 @@ const AttendanceRecords = () => {
                   </div>
                 </div>
 
-                {/* === CONSISTENCY INDEX (10%) === */}
+                {/* === CONSISTENCY INDEX (Informational — not part of score) === */}
                 <div className="rounded-xl border border-purple-200 dark:border-purple-800 bg-gradient-to-br from-purple-50/50 to-indigo-50/50 dark:from-purple-900/10 dark:to-indigo-900/10 p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <span className="text-lg">📊</span>
                     <h4 className="font-bold text-purple-800 dark:text-purple-300 text-sm">
-                      {scoreExplainerLang === 'ar' ? 'مؤشر الانتظام (١٠٪)' : scoreExplainerLang === 'both' ? 'Consistency Index / مؤشر الانتظام (10%)' : 'Consistency Index (10%)'}
+                      {scoreExplainerLang === 'ar' ? 'مؤشر الانتظام (معلوماتي فقط)' : scoreExplainerLang === 'both' ? 'Consistency Index (Info Only) / مؤشر الانتظام' : 'Consistency Index (Info Only)'}
                     </h4>
                   </div>
                   <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
                     {(scoreExplainerLang === 'en' || scoreExplainerLang === 'both') && (
                     <div className="space-y-2">
-                      <p><strong className="text-gray-800 dark:text-gray-200">This is NOT the same as attendance rate.</strong> It measures how your absences are distributed — scattered single absences are better than big blocks of missing days.</p>
+                      <p><strong className="text-gray-800 dark:text-gray-200">This is NOT part of the weighted score.</strong> It's an informational metric that measures how your absences are distributed — scattered single absences are better than big blocks of missing days.</p>
                       <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-2.5 border border-purple-100 dark:border-purple-800 text-[11px] space-y-1.5">
                         <div className="font-bold text-purple-600 dark:text-purple-400">Two Components (averaged):</div>
                         <div className="pl-2 space-y-1">
@@ -4126,7 +4448,7 @@ const AttendanceRecords = () => {
                     )}
                     {(scoreExplainerLang === 'ar' || scoreExplainerLang === 'both') && (
                     <div dir="rtl" className="space-y-2">
-                      <p><strong className="text-gray-800 dark:text-gray-200">هذا ليس نفس معدل الحضور.</strong> يقيس كيف توزّع غيابك — غياب يوم هنا ويوم هناك أفضل من غياب أيام متتالية.</p>
+                      <p><strong className="text-gray-800 dark:text-gray-200">هذا ليس جزءاً من الدرجة المرجحة.</strong> هو مقياس معلوماتي يقيس كيف توزّع غيابك — غياب يوم هنا ويوم هناك أفضل من غياب أيام متتالية.</p>
                       <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-2.5 border border-purple-100 dark:border-purple-800 text-[11px] space-y-1.5">
                         <div className="font-bold text-purple-600 dark:text-purple-400">مكوّنان (يتم حساب متوسطهما):</div>
                         <div className="pr-2 space-y-1">
@@ -4151,7 +4473,7 @@ const AttendanceRecords = () => {
                   <div className="flex items-center gap-2 mb-3">
                     <span className="text-lg">📅</span>
                     <h4 className="font-bold text-blue-800 dark:text-blue-300 text-sm">
-                      {scoreExplainerLang === 'ar' ? 'الحضور (٣٠٪) + الالتزام بالوقت (١٠٪)' : scoreExplainerLang === 'both' ? 'Attendance (30%) + Punctuality (10%) / الحضور + الالتزام' : 'Attendance (30%) + Punctuality (10%)'}
+                      {scoreExplainerLang === 'ar' ? 'الحضور (٣٥٪) + الالتزام بالوقت (١٥٪)' : scoreExplainerLang === 'both' ? 'Attendance (35%) + Punctuality (15%) / الحضور + الالتزام' : 'Attendance (35%) + Punctuality (15%)'}
                     </h4>
                   </div>
                   <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
@@ -4304,12 +4626,11 @@ const AttendanceRecords = () => {
                     const qualityPct = student.qualityAdjustedRate;
                     const attendancePct = student.attendanceRate;
 
-                    // Calculate individual component contributions
+                    // Calculate individual component contributions (consistency is informational only)
                     const qualityContrib = 0.50 * qualityPct;
-                    const attendanceContrib = 0.30 * attendancePct;
-                    const consistencyContrib = 0.10 * consistencyPct;
-                    const punctualityContrib = 0.10 * punctRate;
-                    const rawScore = qualityContrib + attendanceContrib + consistencyContrib + punctualityContrib;
+                    const attendanceContrib = 0.35 * attendancePct;
+                    const punctualityContrib = 0.15 * punctRate;
+                    const rawScore = qualityContrib + attendanceContrib + punctualityContrib;
                     const coverageF = student.coverageFactor || 0;
                     const finalScore = student.weightedScore;
 
@@ -4323,9 +4644,8 @@ const AttendanceRecords = () => {
                     // Find weakest area
                     const components = [
                       { name: 'Quality', nameAr: 'الجودة', value: qualityPct, weight: 50 },
-                      { name: 'Attendance', nameAr: 'الحضور', value: attendancePct, weight: 25 },
-                      { name: 'Consistency', nameAr: 'الانتظام', value: consistencyPct, weight: 15 },
-                      { name: 'Punctuality', nameAr: 'الالتزام', value: punctRate, weight: 10 },
+                      { name: 'Attendance', nameAr: 'الحضور', value: attendancePct, weight: 35 },
+                      { name: 'Punctuality', nameAr: 'الالتزام', value: punctRate, weight: 15 },
                     ];
                     const weakest = [...components].sort((a, b) => a.value - b.value)[0];
                     const strongest = [...components].sort((a, b) => b.value - a.value)[0];
@@ -4367,9 +4687,9 @@ const AttendanceRecords = () => {
                           <div className="space-y-2">
                             {[
                               { label: 'Quality / الجودة', labelShort: '50%', value: qualityPct, contrib: qualityContrib, color: 'emerald', icon: '💎' },
-                              { label: 'Attendance / الحضور', labelShort: '30%', value: attendancePct, contrib: attendanceContrib, color: 'blue', icon: '📅' },
-                              { label: 'Consistency / الانتظام', labelShort: '10%', value: consistencyPct, contrib: consistencyContrib, color: 'purple', icon: '📊' },
-                              { label: 'Punctuality / الالتزام', labelShort: '10%', value: punctRate, contrib: punctualityContrib, color: 'amber', icon: '⏰' },
+                              { label: 'Attendance / الحضور', labelShort: '35%', value: attendancePct, contrib: attendanceContrib, color: 'blue', icon: '📅' },
+                              { label: 'Punctuality / الالتزام', labelShort: '15%', value: punctRate, contrib: punctualityContrib, color: 'amber', icon: '⏰' },
+                              { label: 'Consistency / الانتظام', labelShort: 'info', value: consistencyPct, contrib: 0, color: 'purple', icon: '📊' },
                             ].map((comp) => (
                               <div key={comp.label} className="group/bar">
                                 <div className="flex items-center justify-between text-xs mb-0.5">
@@ -4380,7 +4700,11 @@ const AttendanceRecords = () => {
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <span className="font-bold text-gray-800 dark:text-gray-200">{comp.value.toFixed(1)}%</span>
-                                    <span className="text-gray-400 dark:text-gray-500 text-[10px] font-mono">→ +{comp.contrib.toFixed(1)}</span>
+                                    {comp.labelShort === 'info' ? (
+                                      <span className="text-purple-400 dark:text-purple-500 text-[10px] font-mono italic">info only</span>
+                                    ) : (
+                                      <span className="text-gray-400 dark:text-gray-500 text-[10px] font-mono">→ +{comp.contrib.toFixed(1)}</span>
+                                    )}
                                   </div>
                                 </div>
                                 <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
@@ -4488,10 +4812,10 @@ const AttendanceRecords = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-green-700 dark:text-green-400 mb-1">{t.onTime}</p>
-              <p className="text-3xl font-bold text-green-900 dark:text-green-100">{filteredRecords.filter(r => r.status === 'on time').length}</p>
+              <p className="text-3xl font-bold text-green-900 dark:text-green-100">{statusCounts.onTime}</p>
               <p className="text-xs text-green-600 dark:text-green-400 mt-2">
                 {filteredRecords.length > 0 
-                  ? `${Math.round((filteredRecords.filter(r => r.status === 'on time').length / filteredRecords.length) * 100)}%` 
+                  ? `${Math.round((statusCounts.onTime / filteredRecords.length) * 100)}%` 
                   : '0%'} {t.ofTotal}
               </p>
             </div>
@@ -4507,10 +4831,10 @@ const AttendanceRecords = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-red-700 dark:text-red-400 mb-1">{t.absent}</p>
-              <p className="text-3xl font-bold text-red-900 dark:text-red-100">{filteredRecords.filter(r => r.status === 'absent').length}</p>
+              <p className="text-3xl font-bold text-red-900 dark:text-red-100">{statusCounts.absent}</p>
               <p className="text-xs text-red-600 dark:text-red-400 mt-2">
                 {filteredRecords.length > 0 
-                  ? `${Math.round((filteredRecords.filter(r => r.status === 'absent').length / filteredRecords.length) * 100)}%` 
+                  ? `${Math.round((statusCounts.absent / filteredRecords.length) * 100)}%` 
                   : '0%'} {t.ofTotal}
               </p>
             </div>
@@ -4526,10 +4850,10 @@ const AttendanceRecords = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-yellow-700 dark:text-yellow-400 mb-1">{t.late}</p>
-              <p className="text-3xl font-bold text-yellow-900 dark:text-yellow-100">{filteredRecords.filter(r => r.status === 'late').length}</p>
+              <p className="text-3xl font-bold text-yellow-900 dark:text-yellow-100">{statusCounts.late}</p>
               <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">
                 {filteredRecords.length > 0 
-                  ? `${Math.round((filteredRecords.filter(r => r.status === 'late').length / filteredRecords.length) * 100)}%` 
+                  ? `${Math.round((statusCounts.late / filteredRecords.length) * 100)}%` 
                   : '0%'} {t.ofTotal}
               </p>
             </div>
@@ -4545,10 +4869,10 @@ const AttendanceRecords = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">{t.excused}</p>
-              <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">{filteredRecords.filter(r => r.status === 'excused').length}</p>
+              <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">{statusCounts.excused}</p>
               <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
                 {filteredRecords.length > 0 
-                  ? `${Math.round((filteredRecords.filter(r => r.status === 'excused').length / filteredRecords.length) * 100)}%` 
+                  ? `${Math.round((statusCounts.excused / filteredRecords.length) * 100)}%` 
                   : '0%'} {t.ofTotal}
               </p>
             </div>
@@ -4563,62 +4887,84 @@ const AttendanceRecords = () => {
 
       {/* Filters - Modern Card Design */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg dark:shadow-gray-900/30 p-6 border border-gray-100 dark:border-gray-700">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <div className="bg-blue-100 dark:bg-blue-900/40 p-2 rounded-lg">
+        {/* Filter Header - Collapsible */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+          <button
+            onClick={() => setCollapseFilters(!collapseFilters)}
+            className="flex items-center gap-3 group cursor-pointer"
+            aria-label={collapseFilters ? t.showFilters : t.hideFilters}
+          >
+            <div className="bg-blue-100 dark:bg-blue-900/40 p-2 rounded-lg group-hover:bg-blue-200 dark:group-hover:bg-blue-800/50 transition-colors">
               <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
               </svg>
             </div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Advanced Filters</h2>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={quickFilterLastWeek}
-              className="px-4 py-2 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-lg text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-all duration-200 flex items-center gap-2 border border-blue-100 dark:border-blue-700"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              Last Week
-            </button>
-            <button
-              onClick={quickFilterLastMonth}
-              className="px-4 py-2 bg-purple-50 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded-lg text-sm font-medium hover:bg-purple-100 dark:hover:bg-purple-900/60 transition-all duration-200 flex items-center gap-2 border border-purple-100 dark:border-purple-700"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              Last Month
-            </button>
-            <button
-              onClick={quickFilterAbsentOnly}
-              className="px-4 py-2 bg-red-50 dark:bg-red-900/40 text-red-700 dark:text-red-300 rounded-lg text-sm font-medium hover:bg-red-100 dark:hover:bg-red-900/60 transition-all duration-200 flex items-center gap-2 border border-red-100 dark:border-red-700"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              Absent Only
-            </button>
-            <button
-              onClick={resetFilters}
-              className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Reset All
-            </button>
-          </div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t.advancedFilters}</h2>
+            {(filters.student_ids.length + filters.course_ids.length + filters.teacher_ids.length + filters.statuses.length) > 0 && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-xs font-bold rounded-full animate-pulse">
+                {filters.student_ids.length + filters.course_ids.length + filters.teacher_ids.length + filters.statuses.length} {t.activeFilters}
+              </span>
+            )}
+            <svg className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${collapseFilters ? (arabicMode ? 'rotate-90' : '-rotate-90') : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+          </button>
+          {!collapseFilters && (
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={quickFilterLastWeek}
+                className="px-4 py-2 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-lg text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-all duration-200 flex items-center gap-2 border border-blue-100 dark:border-blue-700"
+                aria-label={t.lastWeek}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                {t.lastWeek}
+              </button>
+              <button
+                onClick={quickFilterLastMonth}
+                className="px-4 py-2 bg-purple-50 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded-lg text-sm font-medium hover:bg-purple-100 dark:hover:bg-purple-900/60 transition-all duration-200 flex items-center gap-2 border border-purple-100 dark:border-purple-700"
+                aria-label={t.lastMonth}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                {t.lastMonth}
+              </button>
+              <button
+                onClick={quickFilterAbsentOnly}
+                className="px-4 py-2 bg-red-50 dark:bg-red-900/40 text-red-700 dark:text-red-300 rounded-lg text-sm font-medium hover:bg-red-100 dark:hover:bg-red-900/60 transition-all duration-200 flex items-center gap-2 border border-red-100 dark:border-red-700"
+                aria-label={t.absentOnly}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                {t.absentOnly}
+              </button>
+              <button
+                onClick={resetFilters}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+                  (filters.student_ids.length + filters.course_ids.length + filters.teacher_ids.length + filters.statuses.length) > 0
+                    ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-700 hover:bg-red-200 dark:hover:bg-red-900/60'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+                aria-label={t.resetAll}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                {t.resetAll}
+              </button>
+            </div>
+          )}
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        {/* Filter Grid - Collapsible */}
+        <div ref={filterPanelRef} className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 transition-all duration-300 ${collapseFilters ? 'hidden' : ''}`}>
           {/* Multi-select: Student */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
               <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
-              Student
+              {t.student}
               {filters.student_ids.length > 0 && <span className="ml-auto bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{filters.student_ids.length}</span>}
             </label>
             <div className="relative">
@@ -4627,12 +4973,12 @@ const AttendanceRecords = () => {
                 onClick={() => setOpenFilterDropdown(openFilterDropdown === 'student' ? null : 'student')}
                 className="w-full px-3 py-2 border-2 rounded-xl bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400 text-left text-sm flex items-center justify-between"
               >
-                <span className="truncate">{filters.student_ids.length === 0 ? 'All Students' : `${filters.student_ids.length} selected`}</span>
+                <span className="truncate">{filters.student_ids.length === 0 ? t.allStudents : `${filters.student_ids.length} ${t.selected}`}</span>
                 <svg className={`w-4 h-4 text-gray-400 transition-transform ${openFilterDropdown === 'student' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
               </button>
               {openFilterDropdown === 'student' && (
                 <div className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg max-h-60 overflow-y-auto">
-                  <button type="button" onClick={() => setFilters(f => ({ ...f, student_ids: [] }))} className="w-full px-3 py-2 text-left text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 font-medium border-b border-gray-100 dark:border-gray-700">Clear all</button>
+                  <button type="button" onClick={() => setFilters(f => ({ ...f, student_ids: [] }))} className="w-full px-3 py-2 text-left text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 font-medium border-b border-gray-100 dark:border-gray-700">{t.clearAll}</button>
                   {students.map(opt => (
                     <label key={opt.value} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-800 dark:text-gray-200">
                       <input type="checkbox" checked={filters.student_ids.includes(opt.value)} onChange={() => setFilters(f => ({ ...f, student_ids: f.student_ids.includes(opt.value) ? f.student_ids.filter(v => v !== opt.value) : [...f.student_ids, opt.value] }))} className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500" />
@@ -4650,7 +4996,7 @@ const AttendanceRecords = () => {
               <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
               </svg>
-              Course
+              {t.course}
               {filters.course_ids.length > 0 && <span className="ml-auto bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{filters.course_ids.length}</span>}
             </label>
             <div className="relative">
@@ -4659,12 +5005,12 @@ const AttendanceRecords = () => {
                 onClick={() => setOpenFilterDropdown(openFilterDropdown === 'course' ? null : 'course')}
                 className="w-full px-3 py-2 border-2 rounded-xl bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400 text-left text-sm flex items-center justify-between"
               >
-                <span className="truncate">{filters.course_ids.length === 0 ? 'All Courses' : `${filters.course_ids.length} selected`}</span>
+                <span className="truncate">{filters.course_ids.length === 0 ? t.allCourses : `${filters.course_ids.length} ${t.selected}`}</span>
                 <svg className={`w-4 h-4 text-gray-400 transition-transform ${openFilterDropdown === 'course' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
               </button>
               {openFilterDropdown === 'course' && (
                 <div className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg max-h-60 overflow-y-auto">
-                  <button type="button" onClick={() => setFilters(f => ({ ...f, course_ids: [] }))} className="w-full px-3 py-2 text-left text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 font-medium border-b border-gray-100 dark:border-gray-700">Clear all</button>
+                  <button type="button" onClick={() => setFilters(f => ({ ...f, course_ids: [] }))} className="w-full px-3 py-2 text-left text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 font-medium border-b border-gray-100 dark:border-gray-700">{t.clearAll}</button>
                   {courses.map(opt => (
                     <label key={opt.value} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-800 dark:text-gray-200">
                       <input type="checkbox" checked={filters.course_ids.includes(opt.value)} onChange={() => setFilters(f => ({ ...f, course_ids: f.course_ids.includes(opt.value) ? f.course_ids.filter(v => v !== opt.value) : [...f.course_ids, opt.value] }))} className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500" />
@@ -4682,7 +5028,7 @@ const AttendanceRecords = () => {
               <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
-              Instructor
+              {t.instructor}
               {filters.teacher_ids.length > 0 && <span className="ml-auto bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{filters.teacher_ids.length}</span>}
             </label>
             <div className="relative">
@@ -4691,12 +5037,12 @@ const AttendanceRecords = () => {
                 onClick={() => setOpenFilterDropdown(openFilterDropdown === 'instructor' ? null : 'instructor')}
                 className="w-full px-3 py-2 border-2 rounded-xl bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400 text-left text-sm flex items-center justify-between"
               >
-                <span className="truncate">{filters.teacher_ids.length === 0 ? 'All Instructors' : `${filters.teacher_ids.length} selected`}</span>
+                <span className="truncate">{filters.teacher_ids.length === 0 ? t.allInstructors : `${filters.teacher_ids.length} ${t.selected}`}</span>
                 <svg className={`w-4 h-4 text-gray-400 transition-transform ${openFilterDropdown === 'instructor' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
               </button>
               {openFilterDropdown === 'instructor' && (
                 <div className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg max-h-60 overflow-y-auto">
-                  <button type="button" onClick={() => setFilters(f => ({ ...f, teacher_ids: [] }))} className="w-full px-3 py-2 text-left text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 font-medium border-b border-gray-100 dark:border-gray-700">Clear all</button>
+                  <button type="button" onClick={() => setFilters(f => ({ ...f, teacher_ids: [] }))} className="w-full px-3 py-2 text-left text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 font-medium border-b border-gray-100 dark:border-gray-700">{t.clearAll}</button>
                   {instructors.map(opt => (
                     <label key={opt.value} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-800 dark:text-gray-200">
                       <input type="checkbox" checked={filters.teacher_ids.includes(opt.value)} onChange={() => setFilters(f => ({ ...f, teacher_ids: f.teacher_ids.includes(opt.value) ? f.teacher_ids.filter(v => v !== opt.value) : [...f.teacher_ids, opt.value] }))} className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500" />
@@ -4714,7 +5060,7 @@ const AttendanceRecords = () => {
               <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              Status
+              {t.statusLabel}
               {filters.statuses.length > 0 && <span className="ml-auto bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{filters.statuses.length}</span>}
             </label>
             <div className="relative">
@@ -4723,12 +5069,12 @@ const AttendanceRecords = () => {
                 onClick={() => setOpenFilterDropdown(openFilterDropdown === 'status' ? null : 'status')}
                 className="w-full px-3 py-2 border-2 rounded-xl bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400 text-left text-sm flex items-center justify-between"
               >
-                <span className="truncate">{filters.statuses.length === 0 ? 'All Statuses' : filters.statuses.map(s => s === 'on time' ? 'On Time' : s.charAt(0).toUpperCase() + s.slice(1)).join(', ')}</span>
+                <span className="truncate">{filters.statuses.length === 0 ? t.allStatuses : filters.statuses.map(s => s === 'on time' ? 'On Time' : s.charAt(0).toUpperCase() + s.slice(1)).join(', ')}</span>
                 <svg className={`w-4 h-4 text-gray-400 transition-transform ${openFilterDropdown === 'status' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
               </button>
               {openFilterDropdown === 'status' && (
                 <div className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg max-h-60 overflow-y-auto">
-                  <button type="button" onClick={() => setFilters(f => ({ ...f, statuses: [] }))} className="w-full px-3 py-2 text-left text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 font-medium border-b border-gray-100 dark:border-gray-700">Clear all</button>
+                  <button type="button" onClick={() => setFilters(f => ({ ...f, statuses: [] }))} className="w-full px-3 py-2 text-left text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 font-medium border-b border-gray-100 dark:border-gray-700">{t.clearAll}</button>
                   {[{ value: 'on time', label: 'On Time' }, { value: 'absent', label: 'Absent' }, { value: 'late', label: 'Late' }, { value: 'excused', label: 'Excused' }].map(opt => (
                     <label key={opt.value} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-800 dark:text-gray-200">
                       <input type="checkbox" checked={filters.statuses.includes(opt.value)} onChange={() => setFilters(f => ({ ...f, statuses: f.statuses.includes(opt.value) ? f.statuses.filter(v => v !== opt.value) : [...f.statuses, opt.value] }))} className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500" />
@@ -4745,7 +5091,7 @@ const AttendanceRecords = () => {
               <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-              Start Date
+              {t.startDateLabel}
             </label>
             <input
               type="date"
@@ -4760,7 +5106,7 @@ const AttendanceRecords = () => {
               <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-              End Date
+              {t.endDateLabel}
             </label>
             <input
               type="date"
@@ -4812,28 +5158,18 @@ const AttendanceRecords = () => {
                   setExportDataType('records');
                   setShowAdvancedExport(true);
                 }}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg text-sm font-medium"
+                className="relative flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg text-sm font-medium"
                 title="Export Attendance Records"
               >
                 <span>📤</span>
                 <span>{t.advancedExport}</span>
+                {savedFieldSelections.records.length > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-orange-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow">
+                    {savedFieldSelections.records.length}
+                  </span>
+                )}
               </button>
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-gray-600 dark:text-gray-400">{t.itemsPerPage}</span>
-                <select
-                  value={itemsPerPage}
-                  onChange={(e) => {
-                    setItemsPerPage(Number(e.target.value));
-                    setCurrentPage(1);
-                  }}
-                  className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value={10}>10</option>
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
-              </div>
+
             </div>
           </div>
         </div>
@@ -4849,7 +5185,7 @@ const AttendanceRecords = () => {
               </div>
             </div>
             <p className="text-gray-600 dark:text-gray-300 font-medium">{t.loading}</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Please wait while we fetch the data</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{t.loadingSubtext}</p>
           </div>
         ) : filteredRecords.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 space-y-4">
@@ -4869,83 +5205,17 @@ const AttendanceRecords = () => {
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              Reset Filters
+              {t.resetFilters}
             </button>
           </div>
         ) : (
-        <div className={`overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto${arabicMode ? ' direction-rtl' : ''}`} dir={arabicMode ? 'rtl' : 'ltr'}>
+        <div className="overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto" dir={arabicMode ? 'rtl' : 'ltr'}>
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-600 sticky top-0 z-10 shadow-sm">
               <tr>
-                <th className="px-3 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                  <div className="flex items-center gap-2">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    {t.date}
-                    {(() => { const si = getRecordsSortIndicator('date'); return si ? <span className="ml-1 text-blue-500 dark:text-blue-400 text-[10px] font-bold">{si.direction === 'asc' ? '↑' : '↓'}{si.total > 1 ? si.priority : ''}</span> : null; })()}
-                  </div>
-                </th>
-                <th className="px-3 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                  <div className="flex items-center gap-2">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                    {t.student}
-                    {(() => { const si = getRecordsSortIndicator('student_name'); return si ? <span className="ml-1 text-blue-500 dark:text-blue-400 text-[10px] font-bold">{si.direction === 'asc' ? '↑' : '↓'}{si.total > 1 ? si.priority : ''}</span> : null; })()}
-                  </div>
-                </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                  <div className="flex items-center gap-1">
-                    {t.course}
-                    {(() => { const si = getRecordsSortIndicator('course_name'); return si ? <span className="ml-1 text-blue-500 dark:text-blue-400 text-[10px] font-bold">{si.direction === 'asc' ? '↑' : '↓'}{si.total > 1 ? si.priority : ''}</span> : null; })()}
-                  </div>
-                </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                  <div className="flex items-center gap-1">
-                    {t.instructor}
-                    {(() => { const si = getRecordsSortIndicator('instructor_name'); return si ? <span className="ml-1 text-blue-500 dark:text-blue-400 text-[10px] font-bold">{si.direction === 'asc' ? '↑' : '↓'}{si.total > 1 ? si.priority : ''}</span> : null; })()}
-                  </div>
-                </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                  <div className="flex items-center gap-1">
-                    {t.status}
-                    {(() => { const si = getRecordsSortIndicator('status'); return si ? <span className="ml-1 text-blue-500 dark:text-blue-400 text-[10px] font-bold">{si.direction === 'asc' ? '↑' : '↓'}{si.total > 1 ? si.priority : ''}</span> : null; })()}
-                  </div>
-                </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                  <div className="flex items-center gap-1">
-                    {t.lateDuration}
-                    {(() => { const si = getRecordsSortIndicator('late_minutes'); return si ? <span className="ml-1 text-blue-500 dark:text-blue-400 text-[10px] font-bold">{si.direction === 'asc' ? '↑' : '↓'}{si.total > 1 ? si.priority : ''}</span> : null; })()}
-                  </div>
-                </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                  <div className="flex items-center gap-1">
-                    {t.method}
-                    {(() => { const si = getRecordsSortIndicator('check_in_method'); return si ? <span className="ml-1 text-blue-500 dark:text-blue-400 text-[10px] font-bold">{si.direction === 'asc' ? '↑' : '↓'}{si.total > 1 ? si.priority : ''}</span> : null; })()}
-                  </div>
-                </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                  <div className="flex items-center gap-1">
-                    {t.excuseReason}
-                    {(() => { const si = getRecordsSortIndicator('excuse_reason'); return si ? <span className="ml-1 text-blue-500 dark:text-blue-400 text-[10px] font-bold">{si.direction === 'asc' ? '↑' : '↓'}{si.total > 1 ? si.priority : ''}</span> : null; })()}
-                  </div>
-                </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                  <div className="flex items-center gap-1">
-                    {t.location}
-                    {(() => { const si = getRecordsSortIndicator('host_address'); return si ? <span className="ml-1 text-blue-500 dark:text-blue-400 text-[10px] font-bold">{si.direction === 'asc' ? '↑' : '↓'}{si.total > 1 ? si.priority : ''}</span> : null; })()}
-                  </div>
-                </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                  {t.gps}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                  <div className="flex items-center gap-1">
-                    {t.markedAt}
-                    {(() => { const si = getRecordsSortIndicator('marked_at'); return si ? <span className="ml-1 text-blue-500 dark:text-blue-400 text-[10px] font-bold">{si.direction === 'asc' ? '↑' : '↓'}{si.total > 1 ? si.priority : ''}</span> : null; })()}
-                  </div>
-                </th>
+                {/* Dynamic columns in the order from export builder */}
+                {orderedRecordColumns.map(colKey => renderRecordHeader(colKey))}
+                {/* Actions column always at the end */}
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                   {t.actions}
                 </th>
@@ -4957,101 +5227,17 @@ const AttendanceRecords = () => {
                 .map((record) => (
                   <tr 
                     key={record.attendance_id} 
-                    className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
+                    className="hover:bg-blue-50/60 dark:hover:bg-blue-900/20 cursor-pointer transition-all duration-150 group/row border-l-2 border-transparent hover:border-blue-500"
                     onClick={() => navigate(`/attendance/${record.session_id}`, { state: { selectedDate: record.attendance_date } })}
                     role="link"
                     tabIndex={0}
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/attendance/${record.session_id}`, { state: { selectedDate: record.attendance_date } }); } }}
+                    aria-label={`View attendance for ${record.student_name} on ${record.attendance_date}`}
                     title="Click to view/edit attendance for this date"
                   >
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">
-                      {format(new Date(record.attendance_date), 'MMM dd, yyyy')}
-                    </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">
-                      {record.student_name}
-                    </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">
-                      {record.course_name}
-                    </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">
-                      {record.instructor_name}
-                    </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(record.status)}`}>
-                        {getStatusLabel(record.status)}
-                      </span>
-                    </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm">
-                      {record.status === 'late' && record.late_minutes ? (
-                        <span className={`px-2 py-1 text-xs font-medium rounded ${getLateBracketInfo(record.late_minutes).color}`}>
-                          {record.late_minutes} {t.min} ({getLateBracketInfo(record.late_minutes).name})
-                        </span>
-                      ) : record.status === 'late' ? (
-                        <span className="text-gray-400 dark:text-gray-500 text-xs">{t.notRecorded}</span>
-                      ) : record.early_minutes ? (
-                        <span className="px-2 py-1 text-xs font-medium rounded bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300">
-                          {record.early_minutes} {t.minEarly}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 dark:text-gray-500">-</span>
-                      )}
-                    </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm">
-                      {record.check_in_method ? (
-                        <span className={`px-2 py-1 text-xs font-medium rounded ${
-                          record.check_in_method === 'qr_code' ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-300' :
-                          record.check_in_method === 'photo' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300' :
-                          record.check_in_method === 'bulk' ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-300' :
-                          'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
-                        }`}>
-                          {record.check_in_method === 'qr_code' ? t.qrCode :
-                           record.check_in_method === 'photo' ? t.photo :
-                           record.check_in_method === 'bulk' ? t.bulk :
-                           record.check_in_method === 'manual' ? t.manual :
-                           record.check_in_method}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 dark:text-gray-500">-</span>
-                      )}
-                    </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">
-                      {record.status === 'excused' && record.excuse_reason ? (
-                        <span className="capitalize px-2 py-1 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded text-xs font-medium">
-                          {record.excuse_reason}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 dark:text-gray-500">-</span>
-                      )}
-                    </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">
-                      {record.session_location || '-'}
-                    </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 dark:text-gray-300">
-                      {record.gps_latitude && record.gps_longitude ? (
-                        <div className="space-y-1">
-                          <div className="text-xs">{record.gps_latitude.toFixed(4)}°, {record.gps_longitude.toFixed(4)}°</div>
-                          {record.gps_accuracy && (
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
-                              ±{record.gps_accuracy.toFixed(0)}m
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-gray-400 dark:text-gray-500 text-xs">{t.noGps}</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
-                      {record.marked_at ? (
-                        <div className="space-y-1">
-                          <div>{format(new Date(record.marked_at), 'MMM dd, HH:mm')}</div>
-                          {record.marked_by && (
-                            <div className="text-xs text-gray-500 dark:text-gray-400">{t.by} {record.marked_by}</div>
-                          )}
-                        </div>
-                      ) : (
-                        '-'
-                      )}
-                    </td>
+                    {/* Dynamic cells in the same order */}
+                    {orderedRecordColumns.map(colKey => renderRecordCell(colKey, record))}
+                    {/* Actions cell always at the end */}
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       {record.gps_latitude && record.gps_longitude && (
                         <button
@@ -5061,6 +5247,7 @@ const AttendanceRecords = () => {
                             openMapLocation(record);
                           }}
                           className="px-3 py-2 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-all duration-200 flex items-center gap-2 text-xs font-medium border border-blue-200 dark:border-blue-700"
+                          aria-label={t.viewMap}
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
