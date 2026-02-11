@@ -699,6 +699,7 @@ const AttendanceRecords = () => {
   // Arabic translations for table headers and values
   const t = arabicMode ? {
     attendanceRecords: 'سجلات الحضور',
+    subtitle: '📍 حضور مُتتبع بالـ GPS مع تحليلات متقدمة',
     showing: 'عرض',
     records: 'سجلات',
     filteredFrom: 'مصفاة من',
@@ -731,8 +732,45 @@ const AttendanceRecords = () => {
     bulk: 'استيراد جماعي',
     manual: 'يدوي',
     by: 'بواسطة',
+    // Analytics & Summary
+    hideAnalytics: 'إخفاء التحليلات',
+    showAnalytics: 'عرض التحليلات',
+    refresh: 'تحديث',
+    hideImport: 'إخفاء',
+    import: 'استيراد',
+    summaryStatistics: '📊 إحصائيات ملخصة',
+    totalStudents: 'إجمالي الطلاب',
+    classAvgRate: 'متوسط معدل الصف',
+    avgWeightedScore: 'متوسط الدرجة الموزونة',
+    avgAttendanceByDate: 'متوسط الحضور حسب التاريخ',
+    medianRateByDate: 'الوسيط لمعدل الحضور حسب التاريخ',
+    exportAnalytics: 'تصدير التحليلات',
+    exportAnalyticsDesc: 'تنزيل التقارير أو تهيئة الحقول المعروضة في الجداول أدناه',
+    exporting: 'جاري التصدير...',
+    studentPerformance: '🎓 تحليلات أداء الطلاب',
+    attendanceByDate: '📅 الحضور حسب التاريخ',
+    hostAnalyticsTitle: '🏠 تحليلات المضيف',
+    students: 'طلاب',
+    sessions: 'جلسات',
+    hosts: 'مضيفين',
+    fields: 'حقول',
+    all: 'الكل',
+    edit: 'تعديل',
+    totalRecords: 'إجمالي السجلات',
+    allEntries: 'جميع سجلات الحضور',
+    onTime: 'في الوقت',
+    absent: 'غياب',
+    late: 'متأخر',
+    excused: 'معذور',
+    ofTotal: 'من الإجمالي',
+    filters: 'التصفية',
+    studentPerformanceReport: 'تقرير أداء الطلاب',
+    attendanceByDateReport: 'تقرير الحضور حسب التاريخ',
+    hostRankingsReport: 'تقرير ترتيب المضيفين',
+    dateRowsToExport: '📅 صفوف التاريخ للتصدير',
   } : {
     attendanceRecords: 'Attendance Records',
+    subtitle: '📍 GPS-Tracked Attendance with Advanced Analytics',
     showing: 'Showing',
     records: 'records',
     filteredFrom: 'filtered from',
@@ -765,6 +803,42 @@ const AttendanceRecords = () => {
     bulk: 'Bulk',
     manual: 'Manual',
     by: 'by',
+    // Analytics & Summary
+    hideAnalytics: 'Hide Analytics',
+    showAnalytics: 'Show Analytics',
+    refresh: 'Refresh',
+    hideImport: 'Hide',
+    import: 'Import',
+    summaryStatistics: '📊 Summary Statistics',
+    totalStudents: 'Total Students',
+    classAvgRate: 'Class Avg Rate',
+    avgWeightedScore: 'Avg Weighted Score',
+    avgAttendanceByDate: 'Avg Attendance by Date',
+    medianRateByDate: 'Median Rate by Date',
+    exportAnalytics: 'Export Analytics',
+    exportAnalyticsDesc: 'Download reports or configure fields shown in tables below',
+    exporting: 'Exporting...',
+    studentPerformance: '🎓 Student Performance Analytics',
+    attendanceByDate: '📅 Attendance by Date',
+    hostAnalyticsTitle: '🏠 Host Analytics',
+    students: 'students',
+    sessions: 'sessions',
+    hosts: 'hosts',
+    fields: 'fields',
+    all: 'All',
+    edit: 'Edit',
+    totalRecords: 'Total Records',
+    allEntries: 'All attendance entries',
+    onTime: 'On Time',
+    absent: 'Absent',
+    late: 'Late',
+    excused: 'Excused',
+    ofTotal: 'of total',
+    filters: 'Filters',
+    studentPerformanceReport: 'Student Performance Report',
+    attendanceByDateReport: 'Attendance by Date Report',
+    hostRankingsReport: 'Host Rankings Report',
+    dateRowsToExport: '📅 Date Rows to Export',
   };
 
   const openMapLocation = (record: AttendanceRecord) => {
@@ -3229,10 +3303,10 @@ const AttendanceRecords = () => {
         categories={getExportCategories()}
         data={getExportData()}
         defaultTitle={
-          exportDataType === 'studentAnalytics' ? 'Student Performance Report' :
-          exportDataType === 'dateAnalytics' ? 'Attendance by Date Report' :
-          exportDataType === 'hostAnalytics' ? 'Host Rankings Report' :
-          'Attendance Records'
+          exportDataType === 'studentAnalytics' ? t.studentPerformanceReport :
+          exportDataType === 'dateAnalytics' ? t.attendanceByDateReport :
+          exportDataType === 'hostAnalytics' ? t.hostRankingsReport :
+          t.attendanceRecords
         }
         savedFields={savedFieldSelections[exportDataType]}
         savedSettings={savedExportSettings[exportDataType]}
@@ -3249,7 +3323,7 @@ const AttendanceRecords = () => {
           }));
         }}
         rowFilterKey={exportDataType === 'dateAnalytics' ? 'date' : undefined}
-        rowFilterLabel={exportDataType === 'dateAnalytics' ? '📅 Date Rows to Export' : undefined}
+        rowFilterLabel={exportDataType === 'dateAnalytics' ? t.dateRowsToExport : undefined}
       />
       
       {/* Modern Header with Gradient */}
@@ -3264,9 +3338,9 @@ const AttendanceRecords = () => {
                   </svg>
                 </div>
                 <div>
-                  <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Attendance Records</h1>
+                  <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t.attendanceRecords}</h1>
                   <p className="text-blue-100 text-sm sm:text-base mt-1">
-                    📍 GPS-Tracked Attendance with Advanced Analytics
+                    {t.subtitle}
                   </p>
                 </div>
               </div>
@@ -3281,13 +3355,13 @@ const AttendanceRecords = () => {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
-                {showAnalytics ? 'Hide' : 'Show'} Analytics
+                {showAnalytics ? t.hideAnalytics : t.showAnalytics}
               </button>
               
               {showAnalytics && (
                 <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg p-1 border border-white/20">
                   <button
-                    onClick={() => setReportLanguage('en')}
+                    onClick={() => { setReportLanguage('en'); setArabicMode(false); }}
                     className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
                       reportLanguage === 'en' 
                         ? 'bg-white text-blue-700 shadow-md' 
@@ -3297,7 +3371,7 @@ const AttendanceRecords = () => {
                     EN
                   </button>
                   <button
-                    onClick={() => setReportLanguage('ar')}
+                    onClick={() => { setReportLanguage('ar'); setArabicMode(true); }}
                     className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
                       reportLanguage === 'ar' 
                         ? 'bg-white text-blue-700 shadow-md' 
@@ -3317,7 +3391,7 @@ const AttendanceRecords = () => {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
-                {showBulkImport ? 'Hide' : 'Import'}
+                {showBulkImport ? t.hideImport : t.import}
               </button>
               )}
               
@@ -3328,7 +3402,7 @@ const AttendanceRecords = () => {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                Refresh
+                {t.refresh}
               </button>
             </div>
           </div>
@@ -3351,14 +3425,14 @@ const AttendanceRecords = () => {
         <div className="space-y-4 sm:space-y-6">
           {/* Summary Statistics */}
           <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-lg shadow dark:shadow-gray-900/30">
-            <h2 className="text-base sm:text-lg font-semibold mb-4 dark:text-white">📊 Summary Statistics</h2>
+            <h2 className="text-base sm:text-lg font-semibold mb-4 dark:text-white">{t.summaryStatistics}</h2>
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
               <div className="border-l-4 border-blue-500 pl-3 sm:pl-4">
-                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Total Students</div>
+                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{t.totalStudents}</div>
                 <div className="text-xl sm:text-2xl font-bold dark:text-white">{studentAnalytics.length}</div>
               </div>
               <div className="border-l-4 border-green-500 pl-3 sm:pl-4">
-                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Class Avg Rate</div>
+                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{t.classAvgRate}</div>
                 <div className="text-xl sm:text-2xl font-bold dark:text-white">
                   {studentAnalytics.length > 0
                     ? Math.round(
@@ -3370,7 +3444,7 @@ const AttendanceRecords = () => {
                 </div>
               </div>
               <div className="border-l-4 border-purple-500 pl-3 sm:pl-4">
-                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Avg Weighted Score</div>
+                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{t.avgWeightedScore}</div>
                 <div className="text-xl sm:text-2xl font-bold dark:text-white">
                   {studentAnalytics.length > 0
                     ? Math.round(
@@ -3381,7 +3455,7 @@ const AttendanceRecords = () => {
                 </div>
               </div>
               <div className="border-l-4 border-blue-500 pl-3 sm:pl-4">
-                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Avg Attendance by Date</div>
+                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{t.avgAttendanceByDate}</div>
                 <div className="text-xl sm:text-2xl font-bold dark:text-white">
                   {dateAnalytics.length > 0
                     ? Math.round(
@@ -3393,7 +3467,7 @@ const AttendanceRecords = () => {
                 </div>
               </div>
               <div className="border-l-4 border-indigo-500 pl-3 sm:pl-4">
-                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Median Rate by Date</div>
+                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{t.medianRateByDate}</div>
                 <div className="text-xl sm:text-2xl font-bold dark:text-white">
                   {(() => {
                     if (dateAnalytics.length === 0) return 0;
@@ -3419,8 +3493,8 @@ const AttendanceRecords = () => {
                   </svg>
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900 dark:text-white">Export Analytics</h3>
-                  <p className="text-xs text-gray-600 dark:text-gray-400">Download reports or configure fields shown in tables below</p>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">{t.exportAnalytics}</h3>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">{t.exportAnalyticsDesc}</p>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 items-center">
@@ -3434,7 +3508,7 @@ const AttendanceRecords = () => {
                 </button>
                 <button onClick={exportAnalyticsToWord} disabled={exportingWord} className={`px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md ${exportingWord ? 'opacity-50 cursor-not-allowed' : ''}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                  {exportingWord ? 'Exporting...' : 'Word'}
+                  {exportingWord ? t.exporting : 'Word'}
                 </button>
                 <button onClick={exportAnalyticsToCSV} className="px-4 py-2 bg-gray-700 hover:bg-gray-800 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
@@ -3446,9 +3520,9 @@ const AttendanceRecords = () => {
             <div className="mt-3 pt-3 border-t border-indigo-200 dark:border-indigo-700">
               <div className="flex flex-wrap gap-3 text-sm">
                 <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg px-3 py-1.5 shadow-sm">
-                  <span className="text-blue-600 dark:text-blue-400 font-semibold">📊 Student:</span>
+                  <span className="text-blue-600 dark:text-blue-400 font-semibold">📊 {t.student}:</span>
                   <span className="text-green-600 dark:text-green-400">
-                    {savedFieldSelections.studentAnalytics.length > 0 ? `${savedFieldSelections.studentAnalytics.length} fields` : 'All'}
+                    {savedFieldSelections.studentAnalytics.length > 0 ? `${savedFieldSelections.studentAnalytics.length} ${t.fields}` : t.all}
                   </span>
                   {(savedExportSettings.studentAnalytics?.sortLayers || []).length > 0 ? (
                     <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.studentAnalytics.sortLayers!.map(l => `${l.field} ${l.direction === 'desc' ? '↓' : '↑'}`).join(', ')})</span>
@@ -3456,12 +3530,12 @@ const AttendanceRecords = () => {
                     <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.studentAnalytics.sortByField} {savedExportSettings.studentAnalytics.sortDirection === 'desc' ? '↓' : '↑'})</span>
                   )}
                   {savedExportSettings.studentAnalytics?.enableConditionalColoring !== false && <span className="text-rose-500 text-xs">🌈</span>}
-                  <button onClick={() => { setExportDataType('studentAnalytics'); setShowAdvancedExport(true); }} className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline text-xs ml-1">Edit</button>
+                  <button onClick={() => { setExportDataType('studentAnalytics'); setShowAdvancedExport(true); }} className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline text-xs ml-1">{t.edit}</button>
                 </div>
                 <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg px-3 py-1.5 shadow-sm">
-                  <span className="text-green-600 dark:text-green-400 font-semibold">📅 Date:</span>
+                  <span className="text-green-600 dark:text-green-400 font-semibold">📅 {t.date}:</span>
                   <span className="text-green-600 dark:text-green-400">
-                    {savedFieldSelections.dateAnalytics.length > 0 ? `${savedFieldSelections.dateAnalytics.length} fields` : 'All'}
+                    {savedFieldSelections.dateAnalytics.length > 0 ? `${savedFieldSelections.dateAnalytics.length} ${t.fields}` : t.all}
                   </span>
                   {(savedExportSettings.dateAnalytics?.sortLayers || []).length > 0 ? (
                     <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.dateAnalytics.sortLayers!.map(l => `${l.field} ${l.direction === 'desc' ? '↓' : '↑'}`).join(', ')})</span>
@@ -3469,12 +3543,12 @@ const AttendanceRecords = () => {
                     <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.dateAnalytics.sortByField} {savedExportSettings.dateAnalytics.sortDirection === 'desc' ? '↓' : '↑'})</span>
                   )}
                   {savedExportSettings.dateAnalytics?.enableConditionalColoring !== false && <span className="text-rose-500 text-xs">🌈</span>}
-                  <button onClick={() => { setExportDataType('dateAnalytics'); setShowAdvancedExport(true); }} className="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 underline text-xs ml-1">Edit</button>
+                  <button onClick={() => { setExportDataType('dateAnalytics'); setShowAdvancedExport(true); }} className="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 underline text-xs ml-1">{t.edit}</button>
                 </div>
                 <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg px-3 py-1.5 shadow-sm">
-                  <span className="text-orange-600 dark:text-orange-400 font-semibold">🏠 Host:</span>
+                  <span className="text-orange-600 dark:text-orange-400 font-semibold">🏠 {t.location}:</span>
                   <span className="text-green-600 dark:text-green-400">
-                    {savedFieldSelections.hostAnalytics.length > 0 ? `${savedFieldSelections.hostAnalytics.length} fields` : 'All'}
+                    {savedFieldSelections.hostAnalytics.length > 0 ? `${savedFieldSelections.hostAnalytics.length} ${t.fields}` : t.all}
                   </span>
                   {(savedExportSettings.hostAnalytics?.sortLayers || []).length > 0 ? (
                     <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.hostAnalytics.sortLayers!.map(l => `${l.field} ${l.direction === 'desc' ? '↓' : '↑'}`).join(', ')})</span>
@@ -3482,7 +3556,7 @@ const AttendanceRecords = () => {
                     <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.hostAnalytics.sortByField} {savedExportSettings.hostAnalytics.sortDirection === 'desc' ? '↓' : '↑'})</span>
                   )}
                   {savedExportSettings.hostAnalytics?.enableConditionalColoring !== false && <span className="text-rose-500 text-xs">🌈</span>}
-                  <button onClick={() => { setExportDataType('hostAnalytics'); setShowAdvancedExport(true); }} className="text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-300 underline text-xs ml-1">Edit</button>
+                  <button onClick={() => { setExportDataType('hostAnalytics'); setShowAdvancedExport(true); }} className="text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-300 underline text-xs ml-1">{t.edit}</button>
                 </div>
               </div>
             </div>
@@ -3494,9 +3568,9 @@ const AttendanceRecords = () => {
               onClick={() => setCollapseStudentTable(prev => !prev)}
               className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer"
             >
-              <h2 className="text-base sm:text-lg font-semibold dark:text-white">🎓 Student Performance Analytics</h2>
+              <h2 className="text-base sm:text-lg font-semibold dark:text-white">{t.studentPerformance}</h2>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 dark:text-gray-400">{studentAnalytics.length} students</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">{studentAnalytics.length} {t.students}</span>
                 <svg className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${collapseStudentTable ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
@@ -3580,9 +3654,9 @@ const AttendanceRecords = () => {
               onClick={() => setCollapseDateTable(prev => !prev)}
               className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer"
             >
-              <h2 className="text-base sm:text-lg font-semibold dark:text-white">📅 Attendance by Date</h2>
+              <h2 className="text-base sm:text-lg font-semibold dark:text-white">{t.attendanceByDate}</h2>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 dark:text-gray-400">{dateAnalytics.length} sessions</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">{dateAnalytics.length} {t.sessions}</span>
                 <svg className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${collapseDateTable ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
@@ -3668,7 +3742,7 @@ const AttendanceRecords = () => {
               onClick={() => setCollapseHostTable(prev => !prev)}
               className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer"
             >
-              <h2 className="text-base sm:text-lg font-semibold dark:text-white">🏠 Host Analytics</h2>
+              <h2 className="text-base sm:text-lg font-semibold dark:text-white">{t.hostAnalyticsTitle}</h2>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-500 dark:text-gray-400">
                   {(() => {
@@ -3678,7 +3752,7 @@ const AttendanceRecords = () => {
                         hostMap.set(d.hostAddress, (hostMap.get(d.hostAddress) || 0) + 1);
                       }
                     });
-                    return `${hostMap.size} hosts`;
+                    return `${hostMap.size} ${t.hosts}`;
                   })()}
                 </span>
                 <svg className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${collapseHostTable ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -4320,9 +4394,9 @@ const AttendanceRecords = () => {
         <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-800 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 dark:border-gray-700 group">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Total Records</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">{t.totalRecords}</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-white">{filteredRecords.length}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">All attendance entries</p>
+              <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">{t.allEntries}</p>
             </div>
             <div className="bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
               <svg className="w-8 h-8 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -4335,12 +4409,12 @@ const AttendanceRecords = () => {
         <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-green-100 dark:border-green-800/50 group">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-green-700 dark:text-green-400 mb-1">On Time</p>
+              <p className="text-sm font-medium text-green-700 dark:text-green-400 mb-1">{t.onTime}</p>
               <p className="text-3xl font-bold text-green-900 dark:text-green-100">{filteredRecords.filter(r => r.status === 'on time').length}</p>
               <p className="text-xs text-green-600 dark:text-green-400 mt-2">
                 {filteredRecords.length > 0 
                   ? `${Math.round((filteredRecords.filter(r => r.status === 'on time').length / filteredRecords.length) * 100)}%` 
-                  : '0%'} of total
+                  : '0%'} {t.ofTotal}
               </p>
             </div>
             <div className="bg-gradient-to-br from-green-200 to-emerald-300 dark:from-green-700 dark:to-emerald-600 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
@@ -4354,12 +4428,12 @@ const AttendanceRecords = () => {
         <div className="bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-900/30 dark:to-rose-900/30 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-red-100 dark:border-red-800/50 group">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-red-700 dark:text-red-400 mb-1">Absent</p>
+              <p className="text-sm font-medium text-red-700 dark:text-red-400 mb-1">{t.absent}</p>
               <p className="text-3xl font-bold text-red-900 dark:text-red-100">{filteredRecords.filter(r => r.status === 'absent').length}</p>
               <p className="text-xs text-red-600 dark:text-red-400 mt-2">
                 {filteredRecords.length > 0 
                   ? `${Math.round((filteredRecords.filter(r => r.status === 'absent').length / filteredRecords.length) * 100)}%` 
-                  : '0%'} of total
+                  : '0%'} {t.ofTotal}
               </p>
             </div>
             <div className="bg-gradient-to-br from-red-200 to-rose-300 dark:from-red-700 dark:to-rose-600 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
@@ -4373,12 +4447,12 @@ const AttendanceRecords = () => {
         <div className="bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/30 dark:to-amber-900/30 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-yellow-100 dark:border-yellow-800/50 group">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-yellow-700 dark:text-yellow-400 mb-1">Late</p>
+              <p className="text-sm font-medium text-yellow-700 dark:text-yellow-400 mb-1">{t.late}</p>
               <p className="text-3xl font-bold text-yellow-900 dark:text-yellow-100">{filteredRecords.filter(r => r.status === 'late').length}</p>
               <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">
                 {filteredRecords.length > 0 
                   ? `${Math.round((filteredRecords.filter(r => r.status === 'late').length / filteredRecords.length) * 100)}%` 
-                  : '0%'} of total
+                  : '0%'} {t.ofTotal}
               </p>
             </div>
             <div className="bg-gradient-to-br from-yellow-200 to-amber-300 dark:from-yellow-700 dark:to-amber-600 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
@@ -4392,12 +4466,12 @@ const AttendanceRecords = () => {
         <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-blue-100 dark:border-blue-800/50 group">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">Excused</p>
+              <p className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">{t.excused}</p>
               <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">{filteredRecords.filter(r => r.status === 'excused').length}</p>
               <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
                 {filteredRecords.length > 0 
                   ? `${Math.round((filteredRecords.filter(r => r.status === 'excused').length / filteredRecords.length) * 100)}%` 
-                  : '0%'} of total
+                  : '0%'} {t.ofTotal}
               </p>
             </div>
             <div className="bg-gradient-to-br from-blue-200 to-indigo-300 dark:from-blue-700 dark:to-indigo-600 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
@@ -4644,7 +4718,7 @@ const AttendanceRecords = () => {
             <div className="flex items-center gap-3">
               {/* Arabic Toggle */}
               <button
-                onClick={() => setArabicMode(!arabicMode)}
+                onClick={() => { setArabicMode(!arabicMode); setReportLanguage(arabicMode ? 'en' : 'ar'); }}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all border ${
                   arabicMode
                     ? 'bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-600'
@@ -4664,7 +4738,7 @@ const AttendanceRecords = () => {
                 title="Export Attendance Records"
               >
                 <span>📤</span>
-                <span>Advanced Export</span>
+                <span>{t.advancedExport}</span>
               </button>
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-gray-600 dark:text-gray-400">{t.itemsPerPage}</span>
