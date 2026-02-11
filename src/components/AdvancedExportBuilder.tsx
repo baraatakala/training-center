@@ -261,6 +261,44 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     }));
   };
 
+  // Reorder field: move up
+  const moveFieldUp = (fieldKey: string) => {
+    setConfig(prev => {
+      const idx = prev.selectedFields.indexOf(fieldKey);
+      if (idx <= 0) return prev;
+      const newFields = [...prev.selectedFields];
+      [newFields[idx - 1], newFields[idx]] = [newFields[idx], newFields[idx - 1]];
+      return { ...prev, selectedFields: newFields };
+    });
+  };
+
+  // Reorder field: move down
+  const moveFieldDown = (fieldKey: string) => {
+    setConfig(prev => {
+      const idx = prev.selectedFields.indexOf(fieldKey);
+      if (idx < 0 || idx >= prev.selectedFields.length - 1) return prev;
+      const newFields = [...prev.selectedFields];
+      [newFields[idx], newFields[idx + 1]] = [newFields[idx + 1], newFields[idx]];
+      return { ...prev, selectedFields: newFields };
+    });
+  };
+
+  // Reorder field: move to specific position
+  const moveFieldToPosition = (fieldKey: string, newIndex: number) => {
+    setConfig(prev => {
+      const oldIndex = prev.selectedFields.indexOf(fieldKey);
+      if (oldIndex < 0) return prev;
+      const newFields = [...prev.selectedFields];
+      newFields.splice(oldIndex, 1);
+      newFields.splice(newIndex, 0, fieldKey);
+      return { ...prev, selectedFields: newFields };
+    });
+  };
+
+  // State for drag-and-drop reordering
+  const [draggedField, setDraggedField] = useState<string | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
   // Get selected fields in order
   const getSelectedFieldsOrdered = () => {
     return config.selectedFields
@@ -986,6 +1024,95 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                   </div>
                 );
               })}
+
+              {/* Field Order Section — drag-and-drop + arrows to reorder selected fields */}
+              {config.selectedFields.length > 1 && (
+                <div className="border dark:border-gray-700 rounded-xl overflow-hidden">
+                  <div className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/30 dark:to-blue-900/30 p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">↕️</span>
+                        <div>
+                          <h3 className="font-semibold text-gray-900 dark:text-white">Column Order</h3>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Drag or use arrows to reorder export columns ({config.selectedFields.length} fields)
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-3 dark:bg-gray-800 max-h-72 overflow-y-auto space-y-1">
+                    {config.selectedFields.map((key, index) => {
+                      const field = allFields.find(f => f.key === key);
+                      if (!field) return null;
+                      const isFirst = index === 0;
+                      const isLast = index === config.selectedFields.length - 1;
+                      return (
+                        <div
+                          key={key}
+                          draggable
+                          onDragStart={() => setDraggedField(key)}
+                          onDragEnd={() => { setDraggedField(null); setDragOverIndex(null); }}
+                          onDragOver={(e) => { e.preventDefault(); setDragOverIndex(index); }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            if (draggedField && draggedField !== key) {
+                              moveFieldToPosition(draggedField, index);
+                            }
+                            setDraggedField(null);
+                            setDragOverIndex(null);
+                          }}
+                          className={`flex items-center gap-2 p-2.5 rounded-lg transition-all ${
+                            draggedField === key
+                              ? 'opacity-50 bg-blue-100 dark:bg-blue-900/40'
+                              : dragOverIndex === index
+                                ? 'bg-blue-50 dark:bg-blue-900/20 border-t-2 border-blue-400'
+                                : 'bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600'
+                          } cursor-grab active:cursor-grabbing`}
+                        >
+                          {/* Drag handle */}
+                          <span className="text-gray-400 dark:text-gray-500 select-none" title="Drag to reorder">
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M7 2a2 2 0 10.001 4.001A2 2 0 007 2zm0 6a2 2 0 10.001 4.001A2 2 0 007 8zm0 6a2 2 0 10.001 4.001A2 2 0 007 14zm6-12a2 2 0 10-.001 4.001A2 2 0 0013 2zm0 6a2 2 0 10-.001 4.001A2 2 0 0013 8zm0 6a2 2 0 10-.001 4.001A2 2 0 0013 14z" />
+                            </svg>
+                          </span>
+                          {/* Position number */}
+                          <span className="w-6 h-6 flex items-center justify-center bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded text-xs font-bold flex-shrink-0">
+                            {index + 1}
+                          </span>
+                          {/* Field name */}
+                          <span className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-200 truncate">
+                            {field.label}
+                          </span>
+                          {/* Up/Down arrows */}
+                          <div className="flex items-center gap-0.5 flex-shrink-0">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); moveFieldUp(key); }}
+                              disabled={isFirst}
+                              className={`p-1 rounded transition ${isFirst ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 hover:text-gray-700 dark:hover:text-gray-200'}`}
+                              title="Move up"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); moveFieldDown(key); }}
+                              disabled={isLast}
+                              className={`p-1 rounded transition ${isLast ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 hover:text-gray-700 dark:hover:text-gray-200'}`}
+                              title="Move down"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Row Filter Section - only shown when rowFilterKey is set */}
               {rowFilterKey && data.length > 0 && (() => {

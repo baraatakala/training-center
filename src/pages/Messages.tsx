@@ -180,20 +180,27 @@ export function Messages() {
         setUserType('teacher');
         setCurrentUserId(teacher.teacher_id);
       } else {
-        // Check if student
-        const { data: student } = await supabase
-          .from('student')
-          .select('student_id')
-          .ilike('email', user.email)
-          .single();
-
-        if (student) {
-          setUserType('student');
-          setCurrentUserId(student.student_id);
+        // Check if admin (admin without teacher entry)
+        const isAdminUser = user.email.toLowerCase() === 'baraatakala2004@gmail.com';
+        if (isAdminUser) {
+          setUserType('teacher');
+          setCurrentUserId(user.id); // Use auth UUID for admin
         } else {
-          setError('User not found in system');
-          setLoading(false);
-          return;
+          // Check if student
+          const { data: student } = await supabase
+            .from('student')
+            .select('student_id')
+            .ilike('email', user.email)
+            .single();
+
+          if (student) {
+            setUserType('student');
+            setCurrentUserId(student.student_id);
+          } else {
+            setError('User not found in system');
+            setLoading(false);
+            return;
+          }
         }
       }
 

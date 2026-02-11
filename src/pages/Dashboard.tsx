@@ -171,12 +171,18 @@ Please contact the training center urgently.`;
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user?.email) {
-          const { data: teacher } = await supabase
-            .from('teacher')
-            .select('teacher_id')
-            .ilike('email', user.email)
-            .single();
-          setIsTeacher(!!teacher);
+          // Check if admin first
+          const isAdminUser = user.email.toLowerCase() === 'baraatakala2004@gmail.com';
+          if (isAdminUser) {
+            setIsTeacher(true);
+          } else {
+            const { data: teacher } = await supabase
+              .from('teacher')
+              .select('teacher_id')
+              .ilike('email', user.email)
+              .single();
+            setIsTeacher(!!teacher);
+          }
         } else {
           setIsTeacher(false);
         }

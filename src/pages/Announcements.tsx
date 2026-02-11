@@ -218,19 +218,28 @@ export function Announcements() {
         await loadAnnouncementsForTeacher(teacher.teacher_id);
         await loadCourses();
       } else {
-        // Check if student
-        const { data: student } = await supabase
-          .from('student')
-          .select('student_id')
-          .ilike('email', user.email)
-          .single();
-
-        if (student) {
-          setIsTeacher(false);
-          setCurrentUserId(student.student_id);
-          await loadAnnouncementsForStudent(student.student_id);
+        // Check if admin (admin without teacher entry)
+        const isAdminUser = user.email.toLowerCase() === 'baraatakala2004@gmail.com';
+        if (isAdminUser) {
+          setIsTeacher(true);
+          setCurrentUserId(user.id); // Use auth UUID for admin
+          await loadAnnouncementsForTeacher(user.id);
+          await loadCourses();
         } else {
-          setError('User not found in system');
+          // Check if student
+          const { data: student } = await supabase
+            .from('student')
+            .select('student_id')
+            .ilike('email', user.email)
+            .single();
+
+          if (student) {
+            setIsTeacher(false);
+            setCurrentUserId(student.student_id);
+            await loadAnnouncementsForStudent(student.student_id);
+          } else {
+            setError('User not found in system');
+          }
         }
       }
     } catch (err) {
