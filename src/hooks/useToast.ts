@@ -11,15 +11,20 @@ interface Toast {
 export function useToast() {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const addToast = useCallback((message: string, type: ToastType = 'info', duration?: number) => {
-    const id = `toast-${Date.now()}-${Math.random()}`;
-    setToasts((prev) => [...prev, { id, message, type, duration }]);
-    return id;
-  }, []);
-
   const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
   }, []);
+
+  const addToast = useCallback((message: string, type: ToastType = 'info', duration?: number) => {
+    const id = `toast-${Date.now()}-${Math.random()}`;
+    setToasts((prev) => [...prev, { id, message, type, duration }]);
+    // Auto-dismiss: errors 6s, warnings 5s, success/info 4s
+    const autoDismiss = duration ?? (type === 'error' ? 6000 : type === 'warning' ? 5000 : 4000);
+    if (autoDismiss > 0) {
+      setTimeout(() => removeToast(id), autoDismiss);
+    }
+    return id;
+  }, [removeToast]);
 
   const success = useCallback((message: string, duration?: number) => {
     return addToast(message, 'success', duration);

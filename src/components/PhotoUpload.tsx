@@ -31,9 +31,9 @@ async function validatePhotoQuality(imageFile: File | Blob): Promise<PhotoQualit
         const issues: string[] = [];
         const warnings: string[] = [];
 
-        // Detect face
+        // Detect face with lower min confidence for better detection rate
         const detection = await faceapi
-          .detectSingleFace(img, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.3 }))
+          .detectSingleFace(img, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.2 }))
           .withFaceLandmarks();
 
         // Check 1: Face detected

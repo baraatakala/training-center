@@ -5,6 +5,7 @@
 
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
+import { loadConfigSync } from './scoringConfigService';
 
 export interface AttendanceExportData {
   date: string;
@@ -26,18 +27,11 @@ export interface AttendanceExportData {
   gps_accuracy: number | null;
 }
 
-// Late display brackets (for categorization only - scoring uses smooth decay)
-const LATE_DISPLAY_BRACKETS = [
-  { maxMinutes: 5, name: 'Minor' },
-  { maxMinutes: 15, name: 'Moderate' },
-  { maxMinutes: 30, name: 'Significant' },
-  { maxMinutes: 60, name: 'Severe' },
-  { maxMinutes: Infinity, name: 'Very Late' }
-];
-
+// Late display brackets — reads from saved scoring config (dynamic)
 const getLateBracketName = (lateMinutes: number | null | undefined): string => {
   if (!lateMinutes || lateMinutes <= 0) return '-';
-  const bracket = LATE_DISPLAY_BRACKETS.find(b => lateMinutes <= b.maxMinutes);
+  const config = loadConfigSync();
+  const bracket = config.late_brackets.find(b => lateMinutes >= b.min && lateMinutes <= b.max);
   return bracket?.name || 'Very Late';
 };
 

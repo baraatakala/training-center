@@ -13,6 +13,7 @@ import { wordExportService } from '../services/wordExportService';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/ui/ToastContainer';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { loadConfigSync, calcLateScore as calcLateScoreFromConfig, calcCoverageFactor as calcCoverageFromConfig } from '../services/scoringConfigService';
 
 interface AttendanceRecord {
   attendance_id: string;
@@ -76,6 +77,7 @@ interface StudentAnalytics {
   avgLateMinutes: number;
   maxLateMinutes: number;
   lateScoreAvg: number;  // Average late score weight (0-1)
+  sessionNotHeldCount: number;  // Sessions cancelled (excuse_reason = 'session not held')
 }
 
 interface DateAnalytics {
@@ -110,58 +112,45 @@ interface FilterOptions {
 // ==================== TIERED LATE SCORING ====================
 // Default late brackets (matching database defaults)
 // ============================================================================
-// WEIGHTED SCORE SYSTEM - STABLE IMPLEMENTATION
+// WEIGHTED SCORE SYSTEM - DYNAMIC CONFIGURATION
 // ============================================================================
-// This uses smooth exponential decay for late scoring (no cliff edges)
-// and balanced component weights for fair evaluation.
-//
-// LATE SCORING: Exponential decay with half-life of ~30 minutes
-//   - 5 min late  = 90% credit
-//   - 15 min late = 72% credit  
-//   - 30 min late = 50% credit
-//   - 60 min late = 25% credit
-//   - 90 min late = 12% credit
-//
-// WEIGHTED SCORE COMPONENTS:
-//   55% Quality-Adjusted Rate (attendance with late penalties applied)
-//   35% Simple Attendance Rate (showed up regardless of lateness)
-//   10% Punctuality Bonus (on-time vs late ratio)
-// Note: Consistency Index is calculated and displayed but NOT part of the score.
+// All scoring parameters are read from scoringConfigService (loadConfigSync).
+// Config is set via the Score Configuration page and stored in localStorage + Supabase.
+// Components: Weight %, Late Decay τ, Coverage method, Display Brackets, Bonuses.
 // ============================================================================
 
 // Display brackets (for UI only - scoring uses smooth decay)
-const LATE_DISPLAY_BRACKETS = [
-  { min: 1, max: 5, name: 'Minor', color: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' },
-  { min: 6, max: 15, name: 'Moderate', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300' },
-  { min: 16, max: 30, name: 'Significant', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300' },
-  { min: 31, max: 60, name: 'Severe', color: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300' },
-  { min: 61, max: Infinity, name: 'Very Late', color: 'bg-red-200 text-red-900 dark:bg-red-900/50 dark:text-red-200' },
-];
+// Now reads from dynamic config; falls back to hardcoded defaults only if config has none
+const getLateBrackets = () => {
+  const cfg = loadConfigSync();
+  if (cfg.late_brackets && cfg.late_brackets.length > 0) {
+    return cfg.late_brackets.map(b => ({
+      min: b.min,
+      max: b.max === 999 ? Infinity : b.max,
+      name: b.name,
+      color: b.color,
+    }));
+  }
+  return [
+    { min: 1, max: 5, name: 'Minor', color: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' },
+    { min: 6, max: 15, name: 'Moderate', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300' },
+    { min: 16, max: 30, name: 'Significant', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300' },
+    { min: 31, max: 60, name: 'Severe', color: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300' },
+    { min: 61, max: Infinity, name: 'Very Late', color: 'bg-red-200 text-red-900 dark:bg-red-900/50 dark:text-red-200' },
+  ];
+};
 
 /**
  * Calculate late score using smooth exponential decay
- * Formula: e^(-lateMinutes / 43.3) gives 50% credit at 30 minutes
- * This avoids "cliff edges" between brackets and provides fair, continuous penalties
+ * Now reads from dynamic scoring configuration (localStorage-backed)
+ * Falls back to default config if none saved.
  * 
  * @param lateMinutes - Number of minutes late
  * @returns Score between 0 and 1
  */
 const getLateScoreWeight = (lateMinutes: number | null | undefined): number => {
-  // If late_minutes not tracked, use conservative middle estimate (~20 min late equivalent)
-  if (lateMinutes === null || lateMinutes === undefined) {
-    return 0.60; // ~20 min late equivalent
-  }
-  
-  // If not actually late (edge case)
-  if (lateMinutes <= 0) {
-    return 1.0;
-  }
-  
-  // Exponential decay: score = e^(-t/τ) where τ = 43.3 gives 50% at 30 min
-  // Minimum score is 0.05 (5%) to give some credit for showing up
-  const decayConstant = 43.3;
-  const score = Math.exp(-lateMinutes / decayConstant);
-  return Math.max(0.05, score);
+  const config = loadConfigSync();
+  return calcLateScoreFromConfig(lateMinutes, config);
 };
 
 /**
@@ -175,7 +164,8 @@ const getLateBracketInfo = (lateMinutes: number | null | undefined): { name: str
     return { name: 'On Time', color: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' };
   }
   
-  const bracket = LATE_DISPLAY_BRACKETS.find(b => lateMinutes >= b.min && lateMinutes <= b.max);
+  const brackets = getLateBrackets();
+  const bracket = brackets.find(b => lateMinutes >= b.min && lateMinutes <= b.max);
   return bracket 
     ? { name: bracket.name, color: bracket.color }
     : { name: 'Very Late', color: 'bg-red-200 text-red-900 dark:bg-red-900/50 dark:text-red-200' };
@@ -253,6 +243,32 @@ const AttendanceRecords = () => {
 
   // Arabic display mode for the table
   const [arabicMode, setArabicMode] = useState(false);
+
+  // Scoring config key — a serialized snapshot of the config from localStorage.
+  // Changes when the user saves new scoring config. Used as a dependency to
+  // force analytics recalculation with updated weights.
+  const [scoringConfigKey, setScoringConfigKey] = useState(() => JSON.stringify(loadConfigSync()));
+  
+  // Re-read scoring config whenever this page becomes visible (covers SPA navigation,
+  // tab switching, and returning from Score Config page)
+  useEffect(() => {
+    const checkConfigChange = () => {
+      const fresh = JSON.stringify(loadConfigSync());
+      setScoringConfigKey(prev => prev !== fresh ? fresh : prev);
+    };
+    // Fires when tab becomes visible again OR when SPA navigates back to this page
+    document.addEventListener('visibilitychange', checkConfigChange);
+    window.addEventListener('focus', checkConfigChange);
+    // Also check every time this component mounts (SPA route change)
+    checkConfigChange();
+    // Also listen for custom event dispatched by scoring config save
+    window.addEventListener('scoring-config-changed', checkConfigChange);
+    return () => {
+      document.removeEventListener('visibilitychange', checkConfigChange);
+      window.removeEventListener('focus', checkConfigChange);
+      window.removeEventListener('scoring-config-changed', checkConfigChange);
+    };
+  }, []);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -434,14 +450,14 @@ const AttendanceRecords = () => {
 
   useEffect(() => {
     if (filteredRecords.length > 0 && showAnalytics) {
-      // Only calculate analytics when explicitly shown
+      // Recalculates when data, visibility, or scoring config changes
       calculateAnalytics();
     } else {
       setStudentAnalytics([]);
       setDateAnalytics([]);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredRecords, showAnalytics]);
+  }, [filteredRecords, showAnalytics, scoringConfigKey]);
 
   const loadFilterOptions = async () => {
     try {
@@ -711,7 +727,7 @@ const AttendanceRecords = () => {
   };
 
   // Arabic translations for table headers and values
-  const t = arabicMode ? {
+  const t = useMemo(() => arabicMode ? {
     attendanceRecords: 'سجلات الحضور',
     subtitle: '📍 حضور مُتتبع بالـ GPS مع تحليلات متقدمة',
     showing: 'عرض',
@@ -889,7 +905,7 @@ const AttendanceRecords = () => {
     attendanceByDateReport: 'Attendance by Date Report',
     hostRankingsReport: 'Host Rankings Report',
     dateRowsToExport: '📅 Date Rows to Export',
-  };
+  }, [arabicMode]);
 
   // Sort filteredRecords based on Advanced Export Builder sort settings for records
   // Pre-computed status counts to avoid repeated .filter() in stat cards
@@ -1573,6 +1589,7 @@ const AttendanceRecords = () => {
         avgLateMinutes: Math.round((student.avgLateMinutes || 0) * 10) / 10,
         maxLateMinutes: Math.round((student.maxLateMinutes || 0) * 10) / 10,
         lateScoreAvg: Math.round((student.lateScoreAvg || 0) * 1000) / 1000,
+        sessionNotHeldCount: student.sessionNotHeldCount || 0,
       };
     });
     const studentDataObjects = sortDataBySettings(studentDataObjectsUnsorted, 'studentAnalytics');
@@ -1819,12 +1836,14 @@ const AttendanceRecords = () => {
         avgLateMinutes: Math.round((student.avgLateMinutes || 0) * 10) / 10,
         maxLateMinutes: Math.round((student.maxLateMinutes || 0) * 10) / 10,
         lateScoreAvg: (student.lateScoreAvg || 0).toFixed(3),
+        sessionNotHeldCount: student.sessionNotHeldCount || 0,
       };
     });
     
     // Apply sorting from saved settings
     const studentDataObjects = sortDataBySettings(studentDataObjectsUnsorted, 'studentAnalytics');
     studentDataObjects.forEach((obj, idx) => { obj.rank = idx + 1; });
+
 
     // Student Performance Table using saved fields
     doc.setFontSize(12);
@@ -2241,6 +2260,7 @@ const AttendanceRecords = () => {
         avgLateMinutes: Math.round((s.avgLateMinutes || 0) * 10) / 10,
         maxLateMinutes: Math.round((s.maxLateMinutes || 0) * 10) / 10,
         lateScoreAvg: (s.lateScoreAvg || 0).toFixed(3),
+        sessionNotHeldCount: s.sessionNotHeldCount || 0,
       };
     });
     
@@ -2485,6 +2505,14 @@ const AttendanceRecords = () => {
 
   // Calculate advanced analytics - memoized for performance
   const calculateAnalytics = useCallback(() => {
+    // Count "session not held" per student BEFORE filtering them out
+    const notHeldByStudent = new Map<string, number>();
+    for (const r of filteredRecords) {
+      if (r.excuse_reason === 'session not held') {
+        notHeldByStudent.set(r.student_id, (notHeldByStudent.get(r.student_id) || 0) + 1);
+      }
+    }
+
     // Filter out 'not enrolled' and cancelled session records from analytics
     const analyticsRecords = filteredRecords.filter(r => 
       r.status !== 'not enrolled' && 
@@ -2498,7 +2526,7 @@ const AttendanceRecords = () => {
     const uniqueStudents = [...new Set(analyticsRecords.map(r => r.student_id))];
 
     // Calculate student analytics
-    const studentStats: StudentAnalytics[] = uniqueStudents.map(studentId => {
+    const studentStats: StudentAnalytics[] = uniqueStudents.map((studentId, _idx) => {
       const studentRecords = analyticsRecords.filter(r => r.student_id === studentId);
       const studentName = studentRecords[0]?.student_name || 'Unknown';
 
@@ -2546,10 +2574,8 @@ const AttendanceRecords = () => {
       const qualityAdjustedRate = effectiveBase > 0 ? (qualityScore / effectiveBase) * 100 : 0;
 
       // ==================== WEIGHTED SCORE CALCULATION ====================
-      // Component weights (consistency is informational only, not in score):
-      //   55% Quality-Adjusted Rate - Main factor, includes late penalties
-      //   35% Simple Attendance Rate - Credit for showing up
-      //   10% Punctuality Bonus - On-time vs late ratio
+      // Now uses dynamic config from scoringConfigService
+      const scoringConfig = loadConfigSync();
       const punctualityPercentage = totalPresent > 0 ? (presentCount / totalPresent) * 100 : 0;
       
       // Calculate consistency (informational — NOT part of weighted score)
@@ -2561,29 +2587,81 @@ const AttendanceRecords = () => {
       
       const consistencyIndex = calculateConsistencyIndex(dailyPattern);
       
+      const w1 = scoringConfig.weight_quality / 100;
+      const w2 = scoringConfig.weight_attendance / 100;
+      const w3 = scoringConfig.weight_punctuality / 100;
+      
       const rawWeightedScore = 
-        (0.55 * qualityAdjustedRate) +    // 55% Quality (with late penalties)
-        (0.35 * attendanceRate) +          // 35% Attendance (showed up)
-        (0.10 * punctualityPercentage);    // 10% Punctuality (on-time ratio)
+        (w1 * qualityAdjustedRate) +    // Quality (with late penalties)
+        (w2 * attendanceRate) +          // Attendance (showed up)
+        (w3 * punctualityPercentage);    // Punctuality (on-time ratio)
+      
+      // Debug: log first student's score breakdown to verify config integration
+      // Debug: log first student's score breakdown to verify config integration
+      if (_idx === 0) {
+        console.log(`[ScoreCalc] ${studentName}: w=${scoringConfig.weight_quality}/${scoringConfig.weight_attendance}/${scoringConfig.weight_punctuality} | Q=${qualityAdjustedRate.toFixed(1)} A=${attendanceRate.toFixed(1)} P=${punctualityPercentage.toFixed(1)} | raw=${rawWeightedScore.toFixed(2)}`);
+      }
 
       // ==================== COVERAGE FACTOR ====================
-      // Penalize students with very few effective days relative to total sessions.
-      // Uses square root scaling: coverageFactor = sqrt(effectiveDays / totalSessionDays)
-      // This ensures students who only attended 1-2 days don't outrank
-      // students who maintained good attendance over 20+ sessions.
-      //
-      // Examples (with 27 total sessions):
-      //   1 day  → factor = 0.19  (heavy penalty)
-      //   2 days → factor = 0.27  (heavy penalty)
-      //   8 days → factor = 0.54  (moderate penalty)
-      //  15 days → factor = 0.75  (mild penalty)
-      //  24 days → factor = 0.94  (almost full credit)
-      //  27 days → factor = 1.00  (full credit)
+      // Now uses dynamic config from scoringConfigService
       const totalSessionDays = uniqueDates.length;
-      const coverageFactor = totalSessionDays > 0 
-        ? Math.sqrt(effectiveBase / totalSessionDays) 
-        : 1;
-      const weightedScore = rawWeightedScore * Math.min(coverageFactor, 1);
+      const coverageFactor = calcCoverageFromConfig(effectiveBase, totalSessionDays, scoringConfig);
+      let weightedScore = rawWeightedScore * Math.min(coverageFactor, 1);
+      
+      // ==================== BONUSES & PENALTIES ====================
+      // Apply configurable bonus/penalty modifiers from scoring config
+      // Perfect attendance bonus: awarded if attendanceRate === 100
+      if (attendanceRate >= 100 && scoringConfig.perfect_attendance_bonus > 0) {
+        weightedScore += scoringConfig.perfect_attendance_bonus;
+      }
+      
+      // Absence penalty multiplier: amplifies the impact of unexcused absences
+      if (scoringConfig.absence_penalty_multiplier > 1.0 && unexcusedAbsent > 0) {
+        // Each unexcused absence reduces score by (multiplier - 1) * base_deduction
+        const baseDeduction = (unexcusedAbsent / effectiveBase) * 100;
+        const extraPenalty = baseDeduction * (scoringConfig.absence_penalty_multiplier - 1);
+        weightedScore = Math.max(0, weightedScore - extraPenalty);
+      }
+      
+      // Streak bonus: reward consecutive weeks of attendance
+      if (scoringConfig.streak_bonus_per_week > 0) {
+        // Count consecutive attendance weeks (7-day windows with at least one present day)
+        let consecutiveWeeks = 0;
+        let maxConsecutiveWeeks = 0;
+        const sortedDates = studentUniqueDates.sort();
+        if (sortedDates.length > 0) {
+          const weekStart = new Date(sortedDates[0]);
+          let currentWeek = 0;
+          let hadPresenceThisWeek = false;
+          for (const dateStr of sortedDates) {
+            const d = new Date(dateStr);
+            const daysSinceStart = Math.floor((d.getTime() - weekStart.getTime()) / 86400000);
+            const weekNum = Math.floor(daysSinceStart / 7);
+            if (weekNum > currentWeek) {
+              if (hadPresenceThisWeek) {
+                consecutiveWeeks++;
+                maxConsecutiveWeeks = Math.max(maxConsecutiveWeeks, consecutiveWeeks);
+              } else {
+                consecutiveWeeks = 0;
+              }
+              currentWeek = weekNum;
+              hadPresenceThisWeek = false;
+            }
+            const rec = studentRecords.find(r => r.attendance_date === dateStr);
+            if (rec && (rec.status === 'on time' || rec.status === 'late')) {
+              hadPresenceThisWeek = true;
+            }
+          }
+          if (hadPresenceThisWeek) {
+            consecutiveWeeks++;
+            maxConsecutiveWeeks = Math.max(maxConsecutiveWeeks, consecutiveWeeks);
+          }
+        }
+        weightedScore += maxConsecutiveWeeks * scoringConfig.streak_bonus_per_week;
+      }
+      
+      // Cap weighted score at 100 max
+      weightedScore = Math.min(100, Math.max(0, weightedScore));
       // Calculate trend using student-specific dates (not all session dates)
       const cumulativeRates = calculateCumulativeRates(studentId, studentUniqueDates, analyticsRecords);
       const trend = calculateTrend(cumulativeRates.slice(-6)); // Last 6 samples
@@ -2642,6 +2720,7 @@ const AttendanceRecords = () => {
         avgLateMinutes: Math.round(avgLateMinutes * 10) / 10,
         maxLateMinutes: Math.round(maxLateMinutes),
         lateScoreAvg: lateRecords.length > 0 ? Math.round((lateScoreSum / lateRecords.length) * 100) / 100 : 0,
+        sessionNotHeldCount: notHeldByStudent.get(studentId) || 0,
       };
     }).sort((a, b) => b.weightedScore - a.weightedScore);
 
@@ -2727,7 +2806,7 @@ const AttendanceRecords = () => {
     }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     setDateAnalytics(dateStats);
-  }, [filteredRecords]); // Memoize with filteredRecords dependency
+  }, [filteredRecords]); // Recompute when data changes
 
   const calculateConsistencyIndex = (pattern: number[]): number => {
     // Consistency Index: measures how REGULARLY a student attends
@@ -2885,6 +2964,7 @@ const AttendanceRecords = () => {
             { key: 'absentCount', label: 'Total Absent', labelAr: 'إجمالي الغياب', category: 'attendance', defaultSelected: false },
             { key: 'unexcusedAbsent', label: 'Unexcused Absent', labelAr: 'غياب بدون عذر', category: 'attendance', defaultSelected: true },
             { key: 'excusedCount', label: 'Excused', labelAr: 'معذور', category: 'attendance', defaultSelected: true },
+            { key: 'sessionNotHeldCount', label: 'Not Held', labelAr: 'جلسات لم تعقد', category: 'attendance', defaultSelected: false },
             { key: 'totalRecords', label: 'Total Records', labelAr: 'إجمالي السجلات', category: 'attendance', defaultSelected: false },
           ]
         },
@@ -3207,6 +3287,7 @@ const AttendanceRecords = () => {
         { key: 'absentCount', label: 'Total Absent', labelAr: 'إجمالي الغياب' },
         { key: 'unexcusedAbsent', label: 'Unexcused Absent', labelAr: 'غائب بدون عذر' },
         { key: 'excusedCount', label: 'Excused', labelAr: 'غائب بعذر' },
+        { key: 'sessionNotHeldCount', label: 'Not Held', labelAr: 'جلسات لم تعقد' },
         { key: 'totalRecords', label: 'Total Records', labelAr: 'إجمالي السجلات' },
         { key: 'effectiveDays', label: 'Effective Days', labelAr: 'الأيام الفعلية' },
         { key: 'daysCovered', label: 'Days Covered', labelAr: 'الأيام المغطاة' },
@@ -3489,6 +3570,7 @@ const AttendanceRecords = () => {
           avgLateMinutes: Math.round((student.avgLateMinutes || 0) * 10) / 10,
           maxLateMinutes: Math.round((student.maxLateMinutes || 0) * 10) / 10,
           lateScoreAvg: Math.round((student.lateScoreAvg || 0) * 1000) / 1000,
+          sessionNotHeldCount: student.sessionNotHeldCount || 0,
         };
       });
     } else if (exportDataType === 'dateAnalytics') {
@@ -3970,7 +4052,17 @@ const AttendanceRecords = () => {
               onClick={() => setCollapseStudentTable(prev => !prev)}
               className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer"
             >
-              <h2 className="text-base sm:text-lg font-semibold dark:text-white">{t.studentPerformance}</h2>
+              <div>
+                <h2 className="text-base sm:text-lg font-semibold dark:text-white">{t.studentPerformance}</h2>
+                {(() => {
+                  const _cfg = loadConfigSync();
+                  return (
+                    <span className="text-[10px] text-gray-400 dark:text-gray-500 font-normal">
+                      Weights: Q{_cfg.weight_quality}% / A{_cfg.weight_attendance}% / P{_cfg.weight_punctuality}%
+                    </span>
+                  );
+                })()}
+              </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-500 dark:text-gray-400">{studentAnalytics.length} {t.students}</span>
                 <svg className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${collapseStudentTable ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -4018,6 +4110,7 @@ const AttendanceRecords = () => {
                       avgLateMinutes: Math.round((student.avgLateMinutes || 0) * 10) / 10,
                       maxLateMinutes: Math.round((student.maxLateMinutes || 0) * 10) / 10,
                       lateScoreAvg: (student.lateScoreAvg || 0).toFixed(3),
+                      sessionNotHeldCount: student.sessionNotHeldCount || 0,
                     } as Record<string, unknown>;
                   });
                   const sorted = sortDataBySettings(dataObjects, 'studentAnalytics');
@@ -4301,12 +4394,19 @@ const AttendanceRecords = () => {
                     <div className="bg-white/60 dark:bg-gray-800/60 rounded-lg p-3 font-mono text-xs border border-blue-100 dark:border-blue-800">
                       <div className="text-blue-600 dark:text-blue-400 font-bold mb-1">Raw Score =</div>
                       <div className="pl-4 space-y-0.5">
-                        <div><span className="text-emerald-600 dark:text-emerald-400 font-bold">55%</span> × Quality Rate <span className="text-gray-400">(on-time = full, late = partial credit)</span></div>
-                        <div><span className="text-blue-600 dark:text-blue-400 font-bold">35%</span> × Attendance Rate <span className="text-gray-400">(showed up at all)</span></div>
-                        <div><span className="text-amber-600 dark:text-amber-400 font-bold">10%</span> × Punctuality <span className="text-gray-400">(on-time ÷ total present)</span></div>
+                        <div><span className="text-emerald-600 dark:text-emerald-400 font-bold">{loadConfigSync().weight_quality}%</span> × Quality Rate <span className="text-gray-400">(on-time = full, late = partial credit)</span></div>
+                        <div><span className="text-blue-600 dark:text-blue-400 font-bold">{loadConfigSync().weight_attendance}%</span> × Attendance Rate <span className="text-gray-400">(showed up at all)</span></div>
+                        <div><span className="text-amber-600 dark:text-amber-400 font-bold">{loadConfigSync().weight_punctuality}%</span> × Punctuality <span className="text-gray-400">(on-time ÷ total present)</span></div>
                       </div>
                       <div className="mt-2 pt-2 border-t border-blue-100 dark:border-blue-800">
-                        <span className="text-indigo-600 dark:text-indigo-400 font-bold">Final Score</span> = Raw Score × √(Your Days ÷ Total Sessions)
+                        {(() => {
+                          const _cov = loadConfigSync();
+                          if (!_cov.coverage_enabled || _cov.coverage_method === 'none') {
+                            return <><span className="text-indigo-600 dark:text-indigo-400 font-bold">Final Score</span> = Raw Score <span className="text-gray-400">(coverage disabled)</span></>;
+                          }
+                          const methodLabel = _cov.coverage_method === 'sqrt' ? '√' : _cov.coverage_method === 'log' ? 'log' : '';
+                          return <><span className="text-indigo-600 dark:text-indigo-400 font-bold">Final Score</span> = Raw Score × {methodLabel}(Your Days ÷ Total Sessions)</>;
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -4322,12 +4422,19 @@ const AttendanceRecords = () => {
                     <div className="bg-white/60 dark:bg-gray-800/60 rounded-lg p-3 font-mono text-xs border border-emerald-100 dark:border-emerald-800">
                       <div className="text-emerald-600 dark:text-emerald-400 font-bold mb-1">الدرجة الخام =</div>
                       <div className="pr-4 space-y-0.5">
-                        <div><span className="text-emerald-600 dark:text-emerald-400 font-bold">٥٥٪</span> × معدل الجودة <span className="text-gray-400">(حضور بالوقت = كامل، متأخر = رصيد جزئي)</span></div>
-                        <div><span className="text-blue-600 dark:text-blue-400 font-bold">٣٥٪</span> × معدل الحضور <span className="text-gray-400">(حضرت أصلاً)</span></div>
-                        <div><span className="text-amber-600 dark:text-amber-400 font-bold">١٠٪</span> × الالتزام بالوقت <span className="text-gray-400">(بالوقت ÷ مجموع الحضور)</span></div>
+                        <div><span className="text-emerald-600 dark:text-emerald-400 font-bold">{(() => { const c = loadConfigSync(); const arabicNum = String(c.weight_quality).replace(/[0-9]/g, d => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]); return arabicNum; })()}٪</span> × معدل الجودة <span className="text-gray-400">(حضور بالوقت = كامل، متأخر = رصيد جزئي)</span></div>
+                        <div><span className="text-blue-600 dark:text-blue-400 font-bold">{(() => { const c = loadConfigSync(); const arabicNum = String(c.weight_attendance).replace(/[0-9]/g, d => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]); return arabicNum; })()}٪</span> × معدل الحضور <span className="text-gray-400">(حضرت أصلاً)</span></div>
+                        <div><span className="text-amber-600 dark:text-amber-400 font-bold">{(() => { const c = loadConfigSync(); const arabicNum = String(c.weight_punctuality).replace(/[0-9]/g, d => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]); return arabicNum; })()}٪</span> × الالتزام بالوقت <span className="text-gray-400">(بالوقت ÷ مجموع الحضور)</span></div>
                       </div>
                       <div className="mt-2 pt-2 border-t border-emerald-100 dark:border-emerald-800">
-                        <span className="text-indigo-600 dark:text-indigo-400 font-bold">الدرجة النهائية</span> = الدرجة الخام × √(أيامك ÷ إجمالي الجلسات)
+                        {(() => {
+                          const _cov = loadConfigSync();
+                          if (!_cov.coverage_enabled || _cov.coverage_method === 'none') {
+                            return <><span className="text-indigo-600 dark:text-indigo-400 font-bold">الدرجة النهائية</span> = الدرجة الخام <span className="text-gray-400">(التغطية معطلة)</span></>;
+                          }
+                          const methodLabel = _cov.coverage_method === 'sqrt' ? '√' : _cov.coverage_method === 'log' ? 'log' : '';
+                          return <><span className="text-indigo-600 dark:text-indigo-400 font-bold">الدرجة النهائية</span> = الدرجة الخام × {methodLabel}(أيامك ÷ إجمالي الجلسات)</>;
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -4357,7 +4464,7 @@ const AttendanceRecords = () => {
                   <div className="flex items-center gap-2 mb-3">
                     <span className="text-lg">💎</span>
                     <h4 className="font-bold text-emerald-800 dark:text-emerald-300 text-sm">
-                      {scoreExplainerLang === 'ar' ? 'معدل الجودة (٥٠٪)' : scoreExplainerLang === 'both' ? 'Quality Rate / معدل الجودة (50%)' : 'Quality Rate (50%)'}
+                      {scoreExplainerLang === 'ar' ? `معدل الجودة (${loadConfigSync().weight_quality}٪)` : scoreExplainerLang === 'both' ? `Quality Rate / معدل الجودة (${loadConfigSync().weight_quality}%)` : `Quality Rate (${loadConfigSync().weight_quality}%)`}
                     </h4>
                   </div>
                   <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
@@ -4365,20 +4472,18 @@ const AttendanceRecords = () => {
                     <div className="space-y-2">
                       <p>Not all "present" days are equal. <strong className="text-gray-800 dark:text-gray-200">On-time = 100% credit, but late arrivals get partial credit</strong> based on how late they were.</p>
                       <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-2.5 border border-emerald-100 dark:border-emerald-800 font-mono text-[11px]">
-                        <div className="text-emerald-600 dark:text-emerald-400 font-bold mb-1">Late Credit = e<sup>−(minutes / 43.3)</sup></div>
+                        <div className="text-emerald-600 dark:text-emerald-400 font-bold mb-1">Late Credit = e<sup>−(minutes / {loadConfigSync().late_decay_constant})</sup></div>
                         <div className="text-gray-500 dark:text-gray-400">This is a smooth exponential decay curve — no sudden drops.</div>
                       </div>
                       <div className="grid grid-cols-2 gap-1">
-                        {[
-                          { min: 5, pct: 89, bar: 'w-[89%]', clr: 'bg-emerald-400' },
-                          { min: 10, pct: 79, bar: 'w-[79%]', clr: 'bg-emerald-400' },
-                          { min: 15, pct: 71, bar: 'w-[71%]', clr: 'bg-yellow-400' },
-                          { min: 20, pct: 63, bar: 'w-[63%]', clr: 'bg-yellow-400' },
-                          { min: 30, pct: 50, bar: 'w-[50%]', clr: 'bg-orange-400' },
-                          { min: 45, pct: 35, bar: 'w-[35%]', clr: 'bg-orange-400' },
-                          { min: 60, pct: 25, bar: 'w-[25%]', clr: 'bg-red-400' },
-                          { min: 90, pct: 13, bar: 'w-[13%]', clr: 'bg-red-500' },
-                        ].map(r => (
+                        {(() => {
+                          const _dc = loadConfigSync();
+                          return [5, 10, 15, 20, 30, 45, 60, 90].map(min => {
+                            const pct = Math.round(Math.max(_dc.late_minimum_credit, Math.exp(-min / _dc.late_decay_constant)) * 100);
+                            const clr = pct >= 70 ? 'bg-emerald-400' : pct >= 50 ? 'bg-yellow-400' : pct >= 30 ? 'bg-orange-400' : 'bg-red-400';
+                            return { min, pct, clr };
+                          });
+                        })().map(r => (
                           <div key={r.min} className="flex items-center gap-1.5">
                             <span className="text-[10px] text-gray-500 dark:text-gray-400 w-8 text-right font-mono">{r.min}m</span>
                             <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-1.5">
@@ -4388,17 +4493,21 @@ const AttendanceRecords = () => {
                           </div>
                         ))}
                       </div>
-                      <p className="text-[10px] text-gray-400 dark:text-gray-500 italic">Formula: Quality = (OnTimeDays + Σ late credits) / EffectiveDays × 100. If late_minutes is unknown, a default 60% credit is used (~20 min estimate). Minimum credit is 5% — you always get something for showing up.</p>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500 italic">Formula: Quality = (OnTimeDays + Σ late credits) / EffectiveDays × 100. If late_minutes is unknown, {Math.round(loadConfigSync().late_null_estimate * 100)}% credit is used. Minimum credit is {Math.round(loadConfigSync().late_minimum_credit * 100)}% — you always get something for showing up.</p>
                     </div>
                     )}
                     {(scoreExplainerLang === 'ar' || scoreExplainerLang === 'both') && (
                     <div dir="rtl" className="space-y-2">
                       <p>ليست كل أيام الحضور متساوية. <strong className="text-gray-800 dark:text-gray-200">بالوقت = رصيد كامل ١٠٠٪، لكن المتأخر يحصل على رصيد جزئي</strong> حسب مدة التأخر.</p>
                       <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-2.5 border border-emerald-100 dark:border-emerald-800 font-mono text-[11px]">
-                        <div className="text-emerald-600 dark:text-emerald-400 font-bold mb-1">رصيد التأخر = e<sup>−(الدقائق / ٤٣.٣)</sup></div>
+                        <div className="text-emerald-600 dark:text-emerald-400 font-bold mb-1">رصيد التأخر = e<sup>−(الدقائق / {loadConfigSync().late_decay_constant})</sup></div>
                         <div className="text-gray-500 dark:text-gray-400">هذا منحنى تناقص انسيابي — بلا قفزات مفاجئة.</div>
                       </div>
-                      <p className="text-[10px] text-gray-400 dark:text-gray-500 italic">الحساب: الجودة = (أيام بالوقت + مجموع أرصدة التأخر) / الأيام الفعلية × ١٠٠. تأخر ٥ دقائق = ٨٩٪، ١٥ دقيقة = ٧١٪، ٣٠ دقيقة = ٥٠٪، ٦٠ دقيقة = ٢٥٪. الحد الأدنى ٥٪ دائماً.</p>
+                      {(() => {
+                        const _dc2 = loadConfigSync();
+                        const pcts = [5, 15, 30, 60].map(m => Math.round(Math.max(_dc2.late_minimum_credit, Math.exp(-m / _dc2.late_decay_constant)) * 100));
+                        return <p className="text-[10px] text-gray-400 dark:text-gray-500 italic">الحساب: الجودة = (أيام بالوقت + مجموع أرصدة التأخر) / الأيام الفعلية × ١٠٠. تأخر ٥ دقائق = {pcts[0]}٪، ١٥ دقيقة = {pcts[1]}٪، ٣٠ دقيقة = {pcts[2]}٪، ٦٠ دقيقة = {pcts[3]}٪. الحد الأدنى {Math.round(_dc2.late_minimum_credit * 100)}٪ دائماً.</p>;
+                      })()}
                     </div>
                     )}
                   </div>
@@ -4473,7 +4582,7 @@ const AttendanceRecords = () => {
                   <div className="flex items-center gap-2 mb-3">
                     <span className="text-lg">📅</span>
                     <h4 className="font-bold text-blue-800 dark:text-blue-300 text-sm">
-                      {scoreExplainerLang === 'ar' ? 'الحضور (٣٥٪) + الالتزام بالوقت (١٠٪)' : scoreExplainerLang === 'both' ? 'Attendance (35%) + Punctuality (10%) / الحضور + الالتزام' : 'Attendance (35%) + Punctuality (10%)'}
+                      {scoreExplainerLang === 'ar' ? `الحضور (${loadConfigSync().weight_attendance}٪) + الالتزام بالوقت (${loadConfigSync().weight_punctuality}٪)` : scoreExplainerLang === 'both' ? `Attendance (${loadConfigSync().weight_attendance}%) + Punctuality (${loadConfigSync().weight_punctuality}%) / الحضور + الالتزام` : `Attendance (${loadConfigSync().weight_attendance}%) + Punctuality (${loadConfigSync().weight_punctuality}%)`}
                     </h4>
                   </div>
                   <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
@@ -4521,41 +4630,72 @@ const AttendanceRecords = () => {
                   <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
                     {(scoreExplainerLang === 'en' || scoreExplainerLang === 'both') && (
                     <div className="space-y-2">
-                      <p><strong className="text-gray-800 dark:text-gray-200">Prevents inflated scores for students with few days.</strong> A student who attended 2/2 sessions with 100% quality shouldn't outrank someone with 95% quality over 25 sessions.</p>
-                      <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-2.5 border border-indigo-100 dark:border-indigo-800 font-mono text-[11px]">
-                        <div className="text-indigo-600 dark:text-indigo-400 font-bold">Coverage = √(EffectiveDays / TotalSessions)</div>
-                        <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">Square root scaling: gentle penalty that grows as the gap widens. Capped at 1.0 (no bonus).</div>
-                      </div>
-                      <div className="space-y-0.5">
-                        <div className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">With 27 total sessions:</div>
-                        {[
-                          { days: 1, factor: 0.19, label: 'Heavy penalty', color: 'text-red-600 dark:text-red-400', bar: 'w-[19%] bg-red-400' },
-                          { days: 3, factor: 0.33, label: 'Heavy penalty', color: 'text-red-600 dark:text-red-400', bar: 'w-[33%] bg-red-400' },
-                          { days: 8, factor: 0.54, label: 'Moderate', color: 'text-orange-600 dark:text-orange-400', bar: 'w-[54%] bg-orange-400' },
-                          { days: 15, factor: 0.75, label: 'Mild', color: 'text-amber-600 dark:text-amber-400', bar: 'w-[75%] bg-amber-400' },
-                          { days: 22, factor: 0.90, label: 'Minimal', color: 'text-emerald-600 dark:text-emerald-400', bar: 'w-[90%] bg-emerald-400' },
-                          { days: 27, factor: 1.00, label: 'Full credit', color: 'text-emerald-600 dark:text-emerald-400', bar: 'w-full bg-emerald-500' },
-                        ].map(r => (
-                          <div key={r.days} className="flex items-center gap-1.5">
-                            <span className="text-[10px] text-gray-500 dark:text-gray-400 w-8 text-right font-mono">{r.days}d</span>
-                            <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-1.5">
-                              <div className={`h-full rounded-full ${r.bar}`} />
+                      {(() => {
+                        const _cc = loadConfigSync();
+                        if (!_cc.coverage_enabled || _cc.coverage_method === 'none') {
+                          return <p className="text-yellow-600 dark:text-yellow-400 font-bold">Coverage Factor is currently DISABLED in your scoring config. All students get coverage = 1.0.</p>;
+                        }
+                        const methodName = _cc.coverage_method === 'sqrt' ? 'Square root' : _cc.coverage_method === 'log' ? 'Logarithmic' : 'Linear';
+                        const formulaSymbol = _cc.coverage_method === 'sqrt' ? '√' : _cc.coverage_method === 'log' ? 'log(1 + r·(e-1))' : '';
+                        const totalSessions = 27;
+                        const computeFactor = (days: number) => {
+                          const ratio = days / totalSessions;
+                          let f: number;
+                          if (_cc.coverage_method === 'sqrt') f = Math.sqrt(ratio);
+                          else if (_cc.coverage_method === 'log') f = Math.log(1 + ratio * (Math.E - 1));
+                          else f = ratio;
+                          return Math.max(_cc.coverage_minimum, Math.min(f, 1));
+                        };
+                        const exampleDays = [1, 3, 8, 15, 22, totalSessions];
+                        return (
+                          <>
+                            <p><strong className="text-gray-800 dark:text-gray-200">Prevents inflated scores for students with few days.</strong> A student who attended 2/2 sessions with 100% quality shouldn't outrank someone with 95% quality over 25 sessions.</p>
+                            <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-2.5 border border-indigo-100 dark:border-indigo-800 font-mono text-[11px]">
+                              <div className="text-indigo-600 dark:text-indigo-400 font-bold">Coverage = {formulaSymbol}(EffectiveDays / TotalSessions)</div>
+                              <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">{methodName} scaling. Min: {_cc.coverage_minimum}. Capped at 1.0.</div>
                             </div>
-                            <span className={`text-[10px] font-bold w-8 ${r.color}`}>{r.factor.toFixed(2)}</span>
-                          </div>
-                        ))}
-                      </div>
-                      <p className="text-[10px] text-gray-400 dark:text-gray-500 italic">Example: Raw score 85 × coverage 0.54 (8 days) = Final 45.9. Same raw score × coverage 0.90 (22 days) = Final 76.5.</p>
+                            <div className="space-y-0.5">
+                              <div className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">With {totalSessions} total sessions:</div>
+                              {exampleDays.map(days => {
+                                const factor = computeFactor(days);
+                                const pct = Math.round(factor * 100);
+                                const color = pct < 40 ? 'text-red-600 dark:text-red-400' : pct < 70 ? 'text-orange-600 dark:text-orange-400' : pct < 85 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400';
+                                const barColor = pct < 40 ? 'bg-red-400' : pct < 70 ? 'bg-orange-400' : pct < 85 ? 'bg-amber-400' : 'bg-emerald-400';
+                                return (
+                                  <div key={days} className="flex items-center gap-1.5">
+                                    <span className="text-[10px] text-gray-500 dark:text-gray-400 w-8 text-right font-mono">{days}d</span>
+                                    <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-1.5">
+                                      <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+                                    </div>
+                                    <span className={`text-[10px] font-bold w-8 ${color}`}>{factor.toFixed(2)}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                     )}
                     {(scoreExplainerLang === 'ar' || scoreExplainerLang === 'both') && (
                     <div dir="rtl" className="space-y-2">
-                      <p><strong className="text-gray-800 dark:text-gray-200">يمنع تضخم الدرجات لمن حضر أيام قليلة.</strong> طالب حضر ٢ من ٢ بنسبة ١٠٠٪ لا يجب أن يتفوق على طالب بنسبة ٩٥٪ على ٢٥ جلسة.</p>
-                      <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-2.5 border border-indigo-100 dark:border-indigo-800 font-mono text-[11px]">
-                        <div className="text-indigo-600 dark:text-indigo-400 font-bold">التغطية = √(أيامك الفعلية / إجمالي الجلسات)</div>
-                        <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">جذر تربيعي: عقوبة لطيفة تزداد كلما زادت الفجوة. الحد الأقصى ١.٠</div>
-                      </div>
-                      <p className="text-[10px] text-gray-400 dark:text-gray-500 italic">مثال: درجة خام ٨٥ × تغطية ٠.٥٤ (٨ أيام) = نهائي ٤٥.٩. نفس الدرجة × تغطية ٠.٩٠ (٢٢ يوم) = نهائي ٧٦.٥.</p>
+                      {(() => {
+                        const _cc2 = loadConfigSync();
+                        if (!_cc2.coverage_enabled || _cc2.coverage_method === 'none') {
+                          return <p className="text-yellow-600 dark:text-yellow-400 font-bold">معامل التغطية معطل حالياً. جميع الطلاب يحصلون على تغطية = ١.٠</p>;
+                        }
+                        const methodName = _cc2.coverage_method === 'sqrt' ? 'جذر تربيعي' : _cc2.coverage_method === 'log' ? 'لوغاريتمي' : 'خطي';
+                        const formulaSymbol = _cc2.coverage_method === 'sqrt' ? '√' : _cc2.coverage_method === 'log' ? 'log' : '';
+                        return (
+                          <>
+                            <p><strong className="text-gray-800 dark:text-gray-200">يمنع تضخم الدرجات لمن حضر أيام قليلة.</strong></p>
+                            <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-2.5 border border-indigo-100 dark:border-indigo-800 font-mono text-[11px]">
+                              <div className="text-indigo-600 dark:text-indigo-400 font-bold">التغطية = {formulaSymbol}(أيامك الفعلية / إجمالي الجلسات)</div>
+                              <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">طريقة: {methodName}. الحد الأدنى: {_cc2.coverage_minimum}. الحد الأقصى ١.٠</div>
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                     )}
                   </div>
@@ -4563,12 +4703,20 @@ const AttendanceRecords = () => {
 
               </div>
 
-              {/* Late Credit Quick Reference */}
+              {/* Late Credit Quick Reference - dynamically computed */}
               <div className="flex gap-2 flex-wrap justify-center">
                 <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs">✨ On time = 100% credit</span>
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs">⏰ 15 min late ≈ 71%</span>
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-xs">🕐 30 min late ≈ 50%</span>
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs">📉 60 min late ≈ 25%</span>
+                {(() => {
+                  const _qr = loadConfigSync();
+                  const calc = (m: number) => Math.round(Math.max(_qr.late_minimum_credit, Math.exp(-m / _qr.late_decay_constant)) * 100);
+                  return (
+                    <>
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs">⏰ 15 min late ≈ {calc(15)}%</span>
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-xs">🕐 30 min late ≈ {calc(30)}%</span>
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs">📉 60 min late ≈ {calc(60)}%</span>
+                    </>
+                  );
+                })()}
               </div>
               </>
               )}
@@ -4626,10 +4774,11 @@ const AttendanceRecords = () => {
                     const qualityPct = student.qualityAdjustedRate;
                     const attendancePct = student.attendanceRate;
 
-                    // Calculate individual component contributions (consistency is informational only)
-                    const qualityContrib = 0.55 * qualityPct;
-                    const attendanceContrib = 0.35 * attendancePct;
-                    const punctualityContrib = 0.10 * punctRate;
+                    // Calculate individual component contributions using dynamic config
+                    const _sc = loadConfigSync();
+                    const qualityContrib = (_sc.weight_quality / 100) * qualityPct;
+                    const attendanceContrib = (_sc.weight_attendance / 100) * attendancePct;
+                    const punctualityContrib = (_sc.weight_punctuality / 100) * punctRate;
                     const rawScore = qualityContrib + attendanceContrib + punctualityContrib;
                     const coverageF = student.coverageFactor || 0;
                     const finalScore = student.weightedScore;
@@ -4643,9 +4792,9 @@ const AttendanceRecords = () => {
 
                     // Find weakest area
                     const components = [
-                      { name: 'Quality', nameAr: 'الجودة', value: qualityPct, weight: 55 },
-                      { name: 'Attendance', nameAr: 'الحضور', value: attendancePct, weight: 35 },
-                      { name: 'Punctuality', nameAr: 'الالتزام', value: punctRate, weight: 10 },
+                      { name: 'Quality', nameAr: 'الجودة', value: qualityPct, weight: _sc.weight_quality },
+                      { name: 'Attendance', nameAr: 'الحضور', value: attendancePct, weight: _sc.weight_attendance },
+                      { name: 'Punctuality', nameAr: 'الالتزام', value: punctRate, weight: _sc.weight_punctuality },
                     ];
                     const weakest = [...components].sort((a, b) => a.value - b.value)[0];
                     const strongest = [...components].sort((a, b) => b.value - a.value)[0];
@@ -4686,9 +4835,9 @@ const AttendanceRecords = () => {
                           {/* Component bars */}
                           <div className="space-y-2">
                             {[
-                              { label: 'Quality / الجودة', labelShort: '55%', value: qualityPct, contrib: qualityContrib, color: 'emerald', icon: '💎' },
-                              { label: 'Attendance / الحضور', labelShort: '35%', value: attendancePct, contrib: attendanceContrib, color: 'blue', icon: '📅' },
-                              { label: 'Punctuality / الالتزام', labelShort: '10%', value: punctRate, contrib: punctualityContrib, color: 'amber', icon: '⏰' },
+                              { label: 'Quality / الجودة', labelShort: `${_sc.weight_quality}%`, value: qualityPct, contrib: qualityContrib, color: 'emerald', icon: '💎' },
+                              { label: 'Attendance / الحضور', labelShort: `${_sc.weight_attendance}%`, value: attendancePct, contrib: attendanceContrib, color: 'blue', icon: '📅' },
+                              { label: 'Punctuality / الالتزام', labelShort: `${_sc.weight_punctuality}%`, value: punctRate, contrib: punctualityContrib, color: 'amber', icon: '⏰' },
                               { label: 'Consistency / الانتظام', labelShort: 'info', value: consistencyPct, contrib: 0, color: 'purple', icon: '📊' },
                             ].map((comp) => (
                               <div key={comp.label} className="group/bar">

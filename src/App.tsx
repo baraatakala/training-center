@@ -23,6 +23,7 @@ const StudentCheckIn = lazy(() => import('./pages/StudentCheckIn').then(m => ({ 
 const PhotoCheckIn = lazy(() => import('./pages/PhotoCheckIn').then(m => ({ default: m.PhotoCheckIn })));
 const Announcements = lazy(() => import('./pages/Announcements').then(m => ({ default: m.Announcements })));
 const Messages = lazy(() => import('./pages/Messages').then(m => ({ default: m.Messages })));
+const ScoringConfiguration = lazy(() => import('./pages/ScoringConfiguration'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 function PageLoader() {
@@ -87,6 +88,7 @@ function App() {
                     <Route path="/audit-logs" element={<SafePage><AuditLogs /></SafePage>} />
                     <Route path="/announcements" element={<SafePage><Announcements /></SafePage>} />
                     <Route path="/messages" element={<SafePage><Messages /></SafePage>} />
+                    <Route path="/scoring-config" element={<SafePage><ScoringConfiguration /></SafePage>} />
                     <Route path="*" element={<SafePage><NotFound /></SafePage>} />
                   </Routes>
                 </Layout>

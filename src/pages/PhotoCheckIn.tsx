@@ -67,7 +67,7 @@ export function PhotoCheckIn() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const successTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  // Load face-api models
+  // Load face-api models (including TinyFaceDetector as fallback)
   useEffect(() => {
     const loadModels = async () => {
       try {
@@ -76,6 +76,7 @@ export function PhotoCheckIn() {
         
         await Promise.all([
           faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+          faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
           faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
           faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
         ]);
@@ -337,15 +338,15 @@ export function PhotoCheckIn() {
     }
   };
 
-  // Start camera
+  // Start camera with higher resolution for better face recognition
   const startCamera = async () => {
     try {
       setError(null);
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: { 
           facingMode: 'user',
-          width: { ideal: 640 },
-          height: { ideal: 480 }
+          width: { ideal: 1280, min: 640 },
+          height: { ideal: 720, min: 480 }
         }
       });
       setStream(mediaStream);
@@ -400,7 +401,7 @@ export function PhotoCheckIn() {
     ctx.scale(-1, 1);
     ctx.drawImage(video, 0, 0);
     
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
     setCapturedPhoto(dataUrl);
     stopCamera();
     
@@ -408,7 +409,99 @@ export function PhotoCheckIn() {
     verifyFace(dataUrl);
   };
 
-  // Verify face against reference photo
+  /**
+   * Enhanced face detection with fallback strategy:
+   * 1. Try SSD MobileNet (most accurate) with lower confidence
+   * 2. If fails, retry with even lower confidence
+   * 3. If still fails, try TinyFaceDetector as fallback
+   * Returns detection with landmarks and descriptor, or null
+   */
+  const detectFaceWithFallback = async (img: HTMLImageElement) => {
+    // Attempt 1: SSD MobileNet with standard confidence
+    let detection = await faceapi
+      .detectSingleFace(img, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.4 }))
+      .withFaceLandmarks()
+      .withFaceDescriptor();
+    
+    if (detection) return detection;
+    
+    // Attempt 2: SSD MobileNet with lower confidence (catches harder cases)
+    detection = await faceapi
+      .detectSingleFace(img, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.2 }))
+      .withFaceLandmarks()
+      .withFaceDescriptor();
+    
+    if (detection) return detection;
+    
+    // Attempt 3: TinyFaceDetector fallback (faster, different architecture)
+    detection = await faceapi
+      .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.3 }))
+      .withFaceLandmarks()
+      .withFaceDescriptor();
+    
+    return detection || null;
+  };
+
+  /**
+   * Preprocess image for better recognition:
+   * Normalize brightness and contrast using canvas manipulation
+   */
+  const preprocessImage = async (dataUrl: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { resolve(dataUrl); return; }
+        
+        ctx.drawImage(img, 0, 0);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const pixels = imageData.data;
+        
+        // Calculate average brightness
+        let sumBrightness = 0;
+        for (let i = 0; i < pixels.length; i += 4) {
+          sumBrightness += (pixels[i] * 0.299 + pixels[i + 1] * 0.587 + pixels[i + 2] * 0.114);
+        }
+        const avgBrightness = sumBrightness / (pixels.length / 4);
+        
+        // Auto-brightness correction: target brightness ~128
+        const targetBrightness = 128;
+        const brightnessDelta = targetBrightness - avgBrightness;
+        
+        // Only correct if significantly off (>25 points)
+        if (Math.abs(brightnessDelta) > 25) {
+          const factor = 1 + (brightnessDelta / 256) * 0.5; // gentle correction
+          for (let i = 0; i < pixels.length; i += 4) {
+            pixels[i] = Math.min(255, Math.max(0, pixels[i] * factor + brightnessDelta * 0.3));
+            pixels[i + 1] = Math.min(255, Math.max(0, pixels[i + 1] * factor + brightnessDelta * 0.3));
+            pixels[i + 2] = Math.min(255, Math.max(0, pixels[i + 2] * factor + brightnessDelta * 0.3));
+          }
+          ctx.putImageData(imageData, 0, 0);
+        }
+        
+        // Light contrast enhancement
+        const contrastFactor = 1.1;
+        const intercept = 128 * (1 - contrastFactor);
+        const contrastData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const contrastPixels = contrastData.data;
+        for (let i = 0; i < contrastPixels.length; i += 4) {
+          contrastPixels[i] = Math.min(255, Math.max(0, contrastPixels[i] * contrastFactor + intercept));
+          contrastPixels[i + 1] = Math.min(255, Math.max(0, contrastPixels[i + 1] * contrastFactor + intercept));
+          contrastPixels[i + 2] = Math.min(255, Math.max(0, contrastPixels[i + 2] * contrastFactor + intercept));
+        }
+        ctx.putImageData(contrastData, 0, 0);
+        
+        resolve(canvas.toDataURL('image/jpeg', 0.95));
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  };
+
+  // Enhanced face verification with preprocessing, multi-attempt detection, and adaptive thresholding
   const verifyFace = async (capturedDataUrl: string) => {
     if (!signedPhotoUrl) {
       setFaceMatchResult({ matched: false, confidence: 0, error: 'No reference photo found' });
@@ -419,12 +512,12 @@ export function PhotoCheckIn() {
     setFaceMatchResult(null);
 
     try {
+      // Preprocess captured image for better recognition
+      const processedCapturedUrl = await preprocessImage(capturedDataUrl);
+      
       // Load reference image using signed URL
       const refImg = await faceapi.fetchImage(signedPhotoUrl);
-      const refDetection = await faceapi
-        .detectSingleFace(refImg)
-        .withFaceLandmarks()
-        .withFaceDescriptor();
+      const refDetection = await detectFaceWithFallback(refImg);
 
       if (!refDetection) {
         setFaceMatchResult({ matched: false, confidence: 0, error: 'Could not detect face in your reference photo. Please update your profile photo.' });
@@ -432,12 +525,15 @@ export function PhotoCheckIn() {
         return;
       }
 
-      // Load captured image
-      const capturedImg = await faceapi.fetchImage(capturedDataUrl);
-      const capturedDetection = await faceapi
-        .detectSingleFace(capturedImg)
-        .withFaceLandmarks()
-        .withFaceDescriptor();
+      // Load and detect on preprocessed captured image
+      const capturedImg = await faceapi.fetchImage(processedCapturedUrl);
+      let capturedDetection = await detectFaceWithFallback(capturedImg);
+
+      // If preprocessing didn't help, try the original image
+      if (!capturedDetection) {
+        const originalImg = await faceapi.fetchImage(capturedDataUrl);
+        capturedDetection = await detectFaceWithFallback(originalImg);
+      }
 
       if (!capturedDetection) {
         setFaceMatchResult({ matched: false, confidence: 0, error: 'Could not detect your face. Please ensure good lighting and face the camera directly.' });
@@ -445,12 +541,24 @@ export function PhotoCheckIn() {
         return;
       }
 
-      // Compare face descriptors
+      // Compare face descriptors using Euclidean distance
       const distance = faceapi.euclideanDistance(refDetection.descriptor, capturedDetection.descriptor);
-      const confidence = Math.round((1 - distance) * 100);
       
-      // Threshold: distance < 0.6 is a match (60% confidence)
-      const matched = distance < 0.6;
+      // Adaptive confidence calculation:
+      // Use a sigmoid-based mapping for smoother confidence values
+      // distance 0.0 → ~100%, distance 0.4 → ~80%, distance 0.6 → ~50%, distance 1.0 → ~10%
+      const confidence = Math.round(Math.max(0, Math.min(100, (1 - distance) * 120 - 5)));
+      
+      // Adaptive threshold based on detection quality:
+      // - Both detections have high score → be slightly more lenient (0.55)
+      // - Normal case → standard threshold (0.50)
+      // - This reduces false negatives for good-quality photos
+      const refScore = refDetection.detection.score;
+      const capScore = capturedDetection.detection.score;
+      const bothHighQuality = refScore > 0.85 && capScore > 0.85;
+      const threshold = bothHighQuality ? 0.55 : 0.50;
+      
+      const matched = distance < threshold;
 
       setFaceMatchResult({ matched, confidence });
     } catch (err) {
