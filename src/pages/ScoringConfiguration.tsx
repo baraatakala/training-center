@@ -255,7 +255,7 @@ function LabeledSlider({
 
 const SIM_STORAGE_KEY = 'scoring_sim_values';
 
-function loadSimValues(): { present: number; late: number; absent: number; excused: number; notHeld: number; avgLateMin: number } {
+function loadSimValues(): { present: number; late: number; absent: number; excused: number; notHeld: number; avgLateMin: number; totalClassSessions: number } {
   try {
     const raw = localStorage.getItem(SIM_STORAGE_KEY);
     if (raw) {
@@ -267,10 +267,11 @@ function loadSimValues(): { present: number; late: number; absent: number; excus
         excused: typeof parsed.excused === 'number' ? parsed.excused : 2,
         notHeld: typeof parsed.notHeld === 'number' ? parsed.notHeld : 3,
         avgLateMin: typeof parsed.avgLateMin === 'number' ? parsed.avgLateMin : 15,
+        totalClassSessions: typeof parsed.totalClassSessions === 'number' ? parsed.totalClassSessions : 27,
       };
     }
   } catch { /* ignore */ }
-  return { present: 18, late: 3, absent: 4, excused: 2, notHeld: 3, avgLateMin: 15 };
+  return { present: 18, late: 3, absent: 4, excused: 2, notHeld: 3, avgLateMin: 15, totalClassSessions: 27 };
 }
 
 function SimulationPanel({ config }: { config: Omit<ScoringConfig, 'id' | 'teacher_id' | 'created_at' | 'updated_at'> }) {
@@ -278,9 +279,9 @@ function SimulationPanel({ config }: { config: Omit<ScoringConfig, 'id' | 'teach
   const [simPresent, setSimPresent] = useState(saved.present);
   const [simLate, setSimLate] = useState(saved.late);
   const [simAbsent, setSimAbsent] = useState(saved.absent);
-  const [simExcused, setSimExcused] = useState(saved.excused);
   const [simNotHeld, setSimNotHeld] = useState(saved.notHeld);
   const [simAvgLateMin, setSimAvgLateMin] = useState(saved.avgLateMin);
+  const [simTotalClassSessions, setSimTotalClassSessions] = useState(saved.totalClassSessions);
   
   // Effective = present + late + absent (what the student is accountable for)
   const simEffectiveSessions = simPresent + simLate + simAbsent;
@@ -289,9 +290,10 @@ function SimulationPanel({ config }: { config: Omit<ScoringConfig, 'id' | 'teach
   useEffect(() => {
     localStorage.setItem(SIM_STORAGE_KEY, JSON.stringify({
       present: simPresent, late: simLate, absent: simAbsent,
-      excused: simExcused, notHeld: simNotHeld, avgLateMin: simAvgLateMin,
+      notHeld: simNotHeld, avgLateMin: simAvgLateMin,
+      totalClassSessions: simTotalClassSessions,
     }));
-  }, [simPresent, simLate, simAbsent, simExcused, simNotHeld, simAvgLateMin]);
+  }, [simPresent, simLate, simAbsent, simNotHeld, simAvgLateMin, simTotalClassSessions]);
   
   const results = useMemo(() => {
     const effective = simPresent + simLate + simAbsent;
@@ -303,8 +305,9 @@ function SimulationPanel({ config }: { config: Omit<ScoringConfig, 'id' | 'teach
     const qualityScore = simPresent + (simLate * lateCredit);
     const qualityRate = effective > 0 ? (qualityScore / effective) * 100 : 0;
     
-    // Coverage uses totalSessions (effective + excused other) — NOT including "session not held"
-    const totalForCoverage = effective + simExcused;
+    // Coverage denominator = Total Class Sessions minus Not Held (matches AttendanceRecords)
+    // This is the global class-wide count, NOT just this student's sessions
+    const totalForCoverage = simTotalClassSessions - simNotHeld;
     const { rawScore, coverageFactor, finalScore } = calcWeightedScore(
       qualityRate, attendanceRate, punctualityPct, effective, totalForCoverage, config
     );
@@ -348,7 +351,7 @@ function SimulationPanel({ config }: { config: Omit<ScoringConfig, 'id' | 'teach
       effective,
       totalForCoverage,
     };
-  }, [simPresent, simLate, simAbsent, simExcused, simAvgLateMin, config]);
+  }, [simPresent, simLate, simAbsent, simNotHeld, simTotalClassSessions, simAvgLateMin, config]);
   
   const scoreColor = results.finalScore >= 80 ? 'text-green-600 dark:text-green-400' :
     results.finalScore >= 60 ? 'text-yellow-600 dark:text-yellow-400' :
@@ -379,14 +382,6 @@ function SimulationPanel({ config }: { config: Omit<ScoringConfig, 'id' | 'teach
               border-red-200 dark:border-red-800 text-red-800 dark:text-red-300 font-medium" />
         </div>
         <div>
-          <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Excused</label>
-          <input type="number" value={simExcused} min={0} max={100} step={1}
-            onChange={(e) => setSimExcused(Math.floor(Number(e.target.value)) || 0)}
-            className="w-full mt-1 px-2 py-1.5 text-sm border rounded-lg bg-blue-50 dark:bg-blue-900/20 
-              border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300 font-medium" />
-          <span className="text-[10px] text-blue-400 dark:text-blue-500">Counts in coverage</span>
-        </div>
-        <div>
           <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Not Held</label>
           <input type="number" value={simNotHeld} min={0} max={100} step={1}
             onChange={(e) => setSimNotHeld(Math.floor(Number(e.target.value)) || 0)}
@@ -401,15 +396,23 @@ function SimulationPanel({ config }: { config: Omit<ScoringConfig, 'id' | 'teach
             className="w-full mt-1 px-2 py-1.5 text-sm border rounded-lg bg-gray-50 dark:bg-gray-700 
               border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-300 font-medium" />
         </div>
+        <div>
+          <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Total Sessions</label>
+          <input type="number" value={simTotalClassSessions} min={1} max={500} step={1}
+            onChange={(e) => setSimTotalClassSessions(Math.floor(Number(e.target.value)) || 1)}
+            className="w-full mt-1 px-2 py-1.5 text-sm border rounded-lg bg-purple-50 dark:bg-purple-900/20 
+              border-purple-200 dark:border-purple-800 text-purple-800 dark:text-purple-300 font-medium" />
+          <span className="text-[10px] text-purple-400 dark:text-purple-500">All class sessions</span>
+        </div>
       </div>
       
       {/* Auto-calculated summary */}
-      <div className="flex gap-2 text-[10px]">
+      <div className="flex flex-wrap gap-2 text-[10px]">
         <span className="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-medium">
           Effective: {simEffectiveSessions}
         </span>
-        <span className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 font-medium">
-          Coverage Total: {results.totalForCoverage}
+        <span className="px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 font-medium">
+          Coverage: {simEffectiveSessions}/{results.totalForCoverage}
         </span>
       </div>
       

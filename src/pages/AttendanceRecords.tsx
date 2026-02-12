@@ -2522,6 +2522,18 @@ const AttendanceRecords = () => {
     // Get unique dates for session-wide analytics (attendance by date)
     const uniqueDates = [...new Set(analyticsRecords.map(r => r.attendance_date))].sort();
     
+    // Compute GLOBAL total session days from ALL records (unfiltered).
+    // Exclude dates where sessions were cancelled ("session not held") so they
+    // don't inflate the denominator and unfairly penalize coverage.
+    const notHeldDates = new Set(
+      records.filter(r => r.excuse_reason === 'session not held').map(r => r.attendance_date)
+    );
+    const globalTotalSessionDays = new Set(
+      records.filter(r => r.status !== 'not enrolled' && r.excuse_reason !== 'session not held')
+        .map(r => r.attendance_date)
+        .filter(d => !notHeldDates.has(d))
+    ).size;
+    
     // Get unique students from filtered records
     const uniqueStudents = [...new Set(analyticsRecords.map(r => r.student_id))];
 
@@ -2604,7 +2616,9 @@ const AttendanceRecords = () => {
 
       // ==================== COVERAGE FACTOR ====================
       // Now uses dynamic config from scoringConfigService
-      const totalSessionDays = uniqueDates.length;
+      // Global denominator: total session days excluding "session not held" dates.
+      // Uses unfiltered records so score is stable regardless of UI filters.
+      const totalSessionDays = globalTotalSessionDays;
       const coverageFactor = calcCoverageFromConfig(effectiveBase, totalSessionDays, scoringConfig);
       let weightedScore = rawWeightedScore * Math.min(coverageFactor, 1);
       
@@ -2806,7 +2820,7 @@ const AttendanceRecords = () => {
     }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     setDateAnalytics(dateStats);
-  }, [filteredRecords]); // Recompute when data changes
+  }, [filteredRecords, records]); // Recompute when data changes
 
   const calculateConsistencyIndex = (pattern: number[]): number => {
     // Consistency Index: measures how REGULARLY a student attends
