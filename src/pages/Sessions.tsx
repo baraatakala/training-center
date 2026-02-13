@@ -487,14 +487,14 @@ export function Sessions() {
                         </div>
 
                         {/* Action Buttons */}
-                        <div className="grid grid-cols-2 gap-2 pt-1">
+                        <div className="flex flex-wrap gap-2 pt-1">
                           {isTeacher && (
                             <>
                               <Button
                                 size="sm"
                                 variant="success"
                                 onClick={() => navigate(`/attendance/${session.session_id}`)}
-                                className="w-full text-xs"
+                                className="flex-1 min-w-0"
                               >
                                 📋 Attendance
                               </Button>
@@ -502,9 +502,9 @@ export function Sessions() {
                                 size="sm"
                                 variant="outline"
                                 onClick={() => { setSelectedSessionForSchedule(session); setIsScheduleModalOpen(true); }}
-                                className="w-full text-xs"
+                                className="flex-1 min-w-0"
                               >
-                                📅 Schedule
+                                📅 Host Schedule
                               </Button>
                             </>
                           )}
@@ -514,13 +514,12 @@ export function Sessions() {
                                 size="sm"
                                 variant="outline"
                                 onClick={() => openEditModal(session)}
-                                className="w-full text-xs"
                               >
                                 ✏️ Edit
                               </Button>
                               <button
                                 onClick={() => setDeletingSession(session)}
-                                className="w-full px-2 py-1 text-xs rounded border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
+                                className="px-3 py-1 text-sm rounded border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
                                 title="Delete session"
                               >
                                 🗑️ Delete
@@ -528,7 +527,7 @@ export function Sessions() {
                             </>
                           )}
                           {!isTeacher && (
-                            <span className="text-xs text-gray-400 px-2 py-1 col-span-2 text-center">View only</span>
+                            <span className="text-xs text-gray-400 px-2 py-1">View only</span>
                           )}
                         </div>
                       </div>

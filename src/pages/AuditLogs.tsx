@@ -11,97 +11,29 @@ import { TableSkeleton } from '../components/ui/Skeleton';
 // HELPERS
 // =====================================================
 
-/** Convert snake_case to Title Case for display */
-const humanizeField = (key: string): string => {
-  return key
-    .replace(/_id$/, '')
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-};
-
-/** Fields to hide from expanded detail views (noisy internal fields) */
-const HIDDEN_FIELDS = new Set([
-  'created_at', 'updated_at', 'deleted_at', 'changed_at',
-  'changed_by', 'deleted_by',
-]);
-
 /** Turn a table + operation + data into a human-readable sentence */
 const describeAction = (log: AuditLogEntry): string => {
   const data = log.old_data || log.new_data || {};
-  const d = data as Record<string, unknown>;
-
-  // Try to extract a meaningful name for the record
   const name =
-    d.name || d.course_name || d.student_name || d.teacher_name ||
-    d.title || d.subject || d.config_name || '';
+    (data as Record<string, unknown>).name ||
+    (data as Record<string, unknown>).course_name ||
+    (data as Record<string, unknown>).student_name ||
+    (data as Record<string, unknown>).teacher_name ||
+    (data as Record<string, unknown>).title ||
+    '';
 
-  // Friendly entity names
-  const entityMap: Record<string, string> = {
-    student: 'Student',
-    teacher: 'Teacher',
-    course: 'Course',
-    session: 'Session',
-    enrollment: 'Enrollment',
-    attendance: 'Attendance',
-    announcement: 'Announcement',
-    message: 'Message',
-    scoring_config: 'Scoring Config',
-  };
-  const entity = entityMap[log.table_name] || log.table_name.charAt(0).toUpperCase() + log.table_name.slice(1);
+  const entity = log.table_name.charAt(0).toUpperCase() + log.table_name.slice(1);
 
-  // Build context-specific descriptions
-  const buildDesc = (): string => {
-    switch (log.table_name) {
-      case 'enrollment': {
-        const status = d.status || d.enrollment_status || '';
-        if (log.operation === 'INSERT') return `New enrollment created${status ? ` (${status})` : ''}`;
-        if (log.operation === 'DELETE') return `An enrollment was removed`;
-        if (log.operation === 'UPDATE') return `Enrollment updated${status ? ` → ${status}` : ''}`;
-        break;
-      }
-      case 'attendance': {
-        const status = d.status || d.attendance_status || '';
-        if (log.operation === 'INSERT') return `Attendance recorded${status ? ` as "${status}"` : ''}`;
-        if (log.operation === 'DELETE') return `Attendance record was cleared`;
-        if (log.operation === 'UPDATE') {
-          const oldStatus = (log.old_data as Record<string, unknown>)?.status;
-          const newStatus = (log.new_data as Record<string, unknown>)?.status;
-          if (oldStatus && newStatus && oldStatus !== newStatus) return `Attendance changed from "${oldStatus}" → "${newStatus}"`;
-          return `Attendance record was updated`;
-        }
-        break;
-      }
-      case 'message': {
-        const subject = d.subject || '';
-        if (log.operation === 'INSERT') return subject ? `Message sent: "${subject}"` : 'A message was sent';
-        if (log.operation === 'DELETE') return subject ? `Message deleted: "${subject}"` : 'A message was deleted';
-        break;
-      }
-      case 'announcement': {
-        const title = d.title || '';
-        if (log.operation === 'INSERT') return title ? `Announcement posted: "${title}"` : 'An announcement was posted';
-        if (log.operation === 'DELETE') return title ? `Announcement deleted: "${title}"` : 'An announcement was deleted';
-        if (log.operation === 'UPDATE') return title ? `Announcement updated: "${title}"` : 'An announcement was updated';
-        break;
-      }
-      default:
-        break;
-    }
-
-    // Generic fallback
-    switch (log.operation) {
-      case 'DELETE':
-        return name ? `${entity} "${name}" was deleted` : `A ${entity.toLowerCase()} record was deleted`;
-      case 'UPDATE':
-        return name ? `${entity} "${name}" was updated` : `A ${entity.toLowerCase()} record was updated`;
-      case 'INSERT':
-        return name ? `${entity} "${name}" was created` : `A new ${entity.toLowerCase()} record was created`;
-      default:
-        return `${log.operation} on ${log.table_name}`;
-    }
-  };
-
-  return buildDesc();
+  switch (log.operation) {
+    case 'DELETE':
+      return name ? `${entity} "${name}" was deleted` : `A ${log.table_name} record was deleted`;
+    case 'UPDATE':
+      return name ? `${entity} "${name}" was updated` : `A ${log.table_name} record was updated`;
+    case 'INSERT':
+      return name ? `${entity} "${name}" was created` : `A new ${log.table_name} record was created`;
+    default:
+      return `${log.operation} on ${log.table_name}`;
+  }
 };
 
 /** Return keys that differ between old and new data objects */
@@ -613,7 +545,7 @@ export function AuditLogs() {
                                 {/* Quick change preview for updates */}
                                 {log.operation === 'UPDATE' && changes.length > 0 && !isExpanded && (
                                   <p className="text-xs text-gray-500 dark:text-gray-500 mt-1 truncate">
-                                    Changed: {changes.map(c => humanizeField(c.key)).join(', ')}
+                                    Changed: {changes.map(c => c.key).join(', ')}
                                   </p>
                                 )}
                               </div>
@@ -642,7 +574,7 @@ export function AuditLogs() {
                                   <div className="space-y-2">
                                     {changes.map(({ key, old: oldVal, new: newVal }) => (
                                       <div key={key} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-                                        <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{humanizeField(key)}</p>
+                                        <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{key}</p>
                                         <div className="flex flex-col sm:flex-row gap-2">
                                           <div className="flex-1 text-xs bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 px-2 py-1 rounded border border-red-200 dark:border-red-800/50">
                                             <span className="font-medium mr-1">−</span>{formatValue(oldVal)}
@@ -663,9 +595,9 @@ export function AuditLogs() {
                                 <div>
                                   <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wider">Deleted Record</p>
                                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    {Object.entries(log.old_data).filter(([key]) => !HIDDEN_FIELDS.has(key)).map(([key, value]) => (
+                                    {Object.entries(log.old_data).map(([key, value]) => (
                                       <div key={key} className="bg-red-50 dark:bg-red-900/10 rounded-lg px-3 py-2 border border-red-100 dark:border-red-900/30">
-                                        <p className="text-[10px] uppercase text-gray-500 dark:text-gray-500 tracking-wider">{humanizeField(key)}</p>
+                                        <p className="text-[10px] uppercase text-gray-500 dark:text-gray-500 tracking-wider">{key}</p>
                                         <p className="text-xs text-gray-800 dark:text-gray-300 break-all">{formatValue(value)}</p>
                                       </div>
                                     ))}
@@ -678,9 +610,9 @@ export function AuditLogs() {
                                 <div>
                                   <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wider">Created Record</p>
                                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    {Object.entries(log.new_data).filter(([key]) => !HIDDEN_FIELDS.has(key)).map(([key, value]) => (
+                                    {Object.entries(log.new_data).map(([key, value]) => (
                                       <div key={key} className="bg-green-50 dark:bg-green-900/10 rounded-lg px-3 py-2 border border-green-100 dark:border-green-900/30">
-                                        <p className="text-[10px] uppercase text-gray-500 dark:text-gray-500 tracking-wider">{humanizeField(key)}</p>
+                                        <p className="text-[10px] uppercase text-gray-500 dark:text-gray-500 tracking-wider">{key}</p>
                                         <p className="text-xs text-gray-800 dark:text-gray-300 break-all">{formatValue(value)}</p>
                                       </div>
                                     ))}
@@ -769,7 +701,7 @@ export function AuditLogs() {
                                   <div className="space-y-2">
                                     {changes.map(({ key, old: oldVal, new: newVal }) => (
                                       <div key={key} className="flex flex-wrap items-center gap-2 text-xs">
-                                        <span className="font-medium text-gray-700 dark:text-gray-300 w-28">{humanizeField(key)}:</span>
+                                        <span className="font-medium text-gray-700 dark:text-gray-300 w-24">{key}:</span>
                                         <span className="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 px-2 py-0.5 rounded line-through">{formatValue(oldVal)}</span>
                                         <span className="text-gray-400">→</span>
                                         <span className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-0.5 rounded">{formatValue(newVal)}</span>

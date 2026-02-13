@@ -488,7 +488,6 @@ export async function resetScoringConfig(): Promise<{ error: Error | null }> {
         .from('scoring_config')
         .delete()
         .eq('is_default', true);
-      
     } catch { /* table may not exist */ }
     
     return { error: null };
