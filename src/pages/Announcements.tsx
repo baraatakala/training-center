@@ -93,6 +93,7 @@ export function Announcements() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isTeacher, setIsTeacher] = useState<boolean | null>(null);
+  const [isAdminUser, setIsAdminUser] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   // Modal states
@@ -211,6 +212,7 @@ export function Announcements() {
 
       if (teacher) {
         setIsTeacher(true);
+        setIsAdminUser(false);
         setCurrentUserId(teacher.teacher_id);
         await loadAnnouncementsForTeacher(teacher.teacher_id);
         await loadCourses();
@@ -221,23 +223,12 @@ export function Announcements() {
           .select('admin_id')
           .ilike('email', user.email)
           .single();
-        const isAdminUser = !!adminRecord;
-        if (isAdminUser) {
-          // Admin needs a teacher record for FK constraints (e.g. announcement.created_by)
-          // The admin table trigger should auto-sync, but upsert as safety net
-          const { data: adminTeacher } = await supabase
-            .from('teacher')
-            .upsert(
-              { name: 'Admin', email: user.email },
-              { onConflict: 'email' }
-            )
-            .select('teacher_id')
-            .single();
-
-          const adminId = adminTeacher?.teacher_id || user.id;
+        if (adminRecord) {
+          // Admin uses admin_id directly — no fake teacher record needed
           setIsTeacher(true);
-          setCurrentUserId(adminId);
-          await loadAnnouncementsForTeacher(adminId);
+          setIsAdminUser(true);
+          setCurrentUserId(adminRecord.admin_id);
+          await loadAnnouncementsForTeacher(adminRecord.admin_id);
           await loadCourses();
         } else {
           // Check if student
@@ -361,7 +352,7 @@ export function Announcements() {
         const { error: err } = await announcementService.update(editingAnnouncement.announcement_id, data);
         if (err) throw err;
       } else {
-        const { error: err } = await announcementService.create(currentUserId, data);
+        const { error: err } = await announcementService.create(currentUserId, data, isAdminUser ? 'admin' : 'teacher');
         if (err) throw err;
       }
 
@@ -836,9 +827,9 @@ export function Announcements() {
               <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-500">
                 <span className="inline-flex items-center gap-1">
                   <span className="w-5 h-5 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-[10px] font-bold">
-                    {announcement.teacher?.name?.charAt(0).toUpperCase() || '?'}
+                    {announcement.teacher?.name?.charAt(0).toUpperCase() || announcement.creator?.name?.charAt(0).toUpperCase() || '?'}
                   </span>
-                  {announcement.teacher?.name || 'Unknown'}
+                  {announcement.teacher?.name || announcement.creator?.name || 'Unknown'}
                 </span>
                 <span>•</span>
                 <span title={format(new Date(announcement.created_at), 'PPpp')}>{formatTimeAgo(announcement.created_at)}</span>
@@ -1079,10 +1070,10 @@ export function Announcements() {
               {getPriorityBadge(viewingAnnouncement.priority)}
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                  {viewingAnnouncement.teacher?.name?.charAt(0).toUpperCase() || '?'}
+                  {viewingAnnouncement.teacher?.name?.charAt(0).toUpperCase() || viewingAnnouncement.creator?.name?.charAt(0).toUpperCase() || '?'}
                 </div>
                 <div>
-                  <p className="text-sm font-medium dark:text-white">{viewingAnnouncement.teacher?.name}</p>
+                  <p className="text-sm font-medium dark:text-white">{viewingAnnouncement.teacher?.name || viewingAnnouncement.creator?.name || 'Unknown'}</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">{formatTimeAgo(viewingAnnouncement.created_at)}</p>
                 </div>
               </div>

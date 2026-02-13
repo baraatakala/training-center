@@ -43,7 +43,7 @@ export function Messages() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [userType, setUserType] = useState<'teacher' | 'student' | null>(null);
+  const [userType, setUserType] = useState<'teacher' | 'student' | 'admin' | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('inbox');
   const [starredCount, setStarredCount] = useState(0);
 
@@ -53,7 +53,7 @@ export function Messages() {
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
 
   // Form states
-  const [formRecipientType, setFormRecipientType] = useState<'teacher' | 'student'>('teacher');
+  const [formRecipientType, setFormRecipientType] = useState<'teacher' | 'student' | 'admin'>('teacher');
   const [formRecipientId, setFormRecipientId] = useState('');
   const [formSubject, setFormSubject] = useState('');
   const [formContent, setFormContent] = useState('');
@@ -186,22 +186,10 @@ export function Messages() {
           .select('admin_id')
           .ilike('email', user.email)
           .single();
-        const isAdminUser = !!adminRecord;
-        if (isAdminUser) {
-          // Admin needs a teacher record for FK constraints and name resolution
-          // The admin table trigger should auto-sync, but upsert as safety net
-          const { data: adminTeacher } = await supabase
-            .from('teacher')
-            .upsert(
-              { name: 'Admin', email: user.email },
-              { onConflict: 'email' }
-            )
-            .select('teacher_id')
-            .single();
-
-          const adminId = adminTeacher?.teacher_id || user.id;
-          setUserType('teacher');
-          setCurrentUserId(adminId);
+        if (adminRecord) {
+          // Admin uses admin_id directly — no fake teacher record needed
+          setUserType('admin');
+          setCurrentUserId(adminRecord.admin_id);
         } else {
           // Check if student
           const { data: student } = await supabase
@@ -499,7 +487,7 @@ export function Messages() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold dark:text-white">💬 Messages</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Communicate with {userType === 'teacher' ? 'students and other teachers' : 'your teachers'}
+            Communicate with {userType === 'teacher' || userType === 'admin' ? 'students and other teachers' : 'your teachers'}
           </p>
         </div>
         <Button onClick={() => openComposeModal()} className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
@@ -765,7 +753,7 @@ export function Messages() {
                   <Select
                     value={formRecipientType}
                     onChange={(v) => {
-                      setFormRecipientType(v as 'teacher' | 'student');
+                      setFormRecipientType(v as 'teacher' | 'student' | 'admin');
                       setFormRecipientId('');
                     }}
                     options={[

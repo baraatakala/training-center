@@ -93,16 +93,9 @@ export function Attendance() {
           .single();
 
         if (adminRecord) {
-          // Admin user — ensure teacher record exists for FK compatibility
-          const { data: adminTeacher } = await supabase
-            .from('teacher')
-            .upsert({ name: 'Admin', email: user.email }, { onConflict: 'email' })
-            .select('teacher_id')
-            .single();
-          if (adminTeacher) {
-            setIsTeacher(true);
-            return;
-          }
+          // Admin user — no fake teacher record needed
+          setIsTeacher(true);
+          return;
         }
 
         // Not a teacher or admin - redirect to dashboard

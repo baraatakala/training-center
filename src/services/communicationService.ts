@@ -13,6 +13,7 @@ export interface Announcement {
   content: string;
   priority: AnnouncementPriority;
   created_by: string;
+  creator_type?: 'teacher' | 'admin';
   course_id: string | null;
   is_pinned: boolean;
   expires_at: string | null;
@@ -20,7 +21,12 @@ export interface Announcement {
   updated_at: string;
   category?: string;
   image_url?: string | null;
-  // Joined data
+  // Resolved creator info (not from FK join)
+  creator?: {
+    name: string;
+    email: string;
+  };
+  /** @deprecated Use creator instead */
   teacher?: {
     name: string;
     email: string;
@@ -34,9 +40,9 @@ export interface Announcement {
 
 export interface Message {
   message_id: string;
-  sender_type: 'teacher' | 'student';
+  sender_type: 'teacher' | 'student' | 'admin';
   sender_id: string;
-  recipient_type: 'teacher' | 'student';
+  recipient_type: 'teacher' | 'student' | 'admin';
   recipient_id: string;
   subject: string | null;
   content: string;
@@ -67,11 +73,85 @@ export interface CreateAnnouncementData {
 }
 
 export interface CreateMessageData {
-  recipient_type: 'teacher' | 'student';
+  recipient_type: 'teacher' | 'student' | 'admin';
   recipient_id: string;
   subject?: string;
   content: string;
   parent_message_id?: string;
+}
+
+// =====================================================
+// HELPERS
+// =====================================================
+
+/** Resolve creator name for an announcement by checking teacher or admin table */
+async function resolveAnnouncementCreators(announcements: Announcement[]): Promise<Announcement[]> {
+  if (!announcements.length) return announcements;
+
+  // Collect unique creator IDs grouped by type
+  const teacherIds = new Set<string>();
+  const adminIds = new Set<string>();
+  const unknownIds = new Set<string>(); // creator_type missing or null
+
+  for (const a of announcements) {
+    if (a.creator_type === 'admin') adminIds.add(a.created_by);
+    else if (a.creator_type === 'teacher') teacherIds.add(a.created_by);
+    else unknownIds.add(a.created_by); // legacy records
+  }
+
+  // Batch fetch from both tables
+  const nameMap = new Map<string, { name: string; email: string }>();
+
+  if (teacherIds.size > 0 || unknownIds.size > 0) {
+    const allTeacherIds = [...teacherIds, ...unknownIds];
+    const { data: teachers } = await supabase
+      .from('teacher')
+      .select('teacher_id, name, email')
+      .in('teacher_id', allTeacherIds);
+    teachers?.forEach(t => nameMap.set(t.teacher_id, { name: t.name, email: t.email }));
+  }
+
+  if (adminIds.size > 0) {
+    const { data: admins } = await supabase
+      .from('admin')
+      .select('admin_id, name, email')
+      .in('admin_id', [...adminIds]);
+    admins?.forEach(a => nameMap.set(a.admin_id, { name: a.name, email: a.email }));
+  }
+
+  // For unknown IDs not found in teacher, check admin
+  const stillUnknown = [...unknownIds].filter(id => !nameMap.has(id));
+  if (stillUnknown.length > 0) {
+    const { data: admins } = await supabase
+      .from('admin')
+      .select('admin_id, name, email')
+      .in('admin_id', stillUnknown);
+    admins?.forEach(a => nameMap.set(a.admin_id, { name: a.name, email: a.email }));
+  }
+
+  return announcements.map(a => ({
+    ...a,
+    creator: nameMap.get(a.created_by) || undefined,
+    teacher: nameMap.get(a.created_by) || undefined, // backwards compat
+  }));
+}
+
+/** Resolve a single user's name from the correct table */
+async function resolveUserName(
+  userType: string,
+  userId: string
+): Promise<{ name: string; email: string } | null> {
+  if (userType === 'teacher') {
+    const { data } = await supabase.from('teacher').select('name, email').eq('teacher_id', userId).single();
+    return data;
+  } else if (userType === 'student') {
+    const { data } = await supabase.from('student').select('name, email').eq('student_id', userId).single();
+    return data;
+  } else if (userType === 'admin') {
+    const { data } = await supabase.from('admin').select('name, email').eq('admin_id', userId).single();
+    return data;
+  }
+  return null;
 }
 
 // =====================================================
@@ -80,7 +160,7 @@ export interface CreateMessageData {
 
 export const announcementService = {
   /**
-   * Get all announcements (for teachers)
+   * Get all announcements (for teachers/admin)
    */
   async getAll(): Promise<{ data: Announcement[] | null; error: Error | null }> {
     try {
@@ -88,14 +168,14 @@ export const announcementService = {
         .from('announcement')
         .select(`
           *,
-          teacher:created_by (name, email),
           course:course_id (course_name)
         `)
         .order('is_pinned', { ascending: false })
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return { data, error: null };
+      const resolved = await resolveAnnouncementCreators(data || []);
+      return { data: resolved, error: null };
     } catch (error) {
       console.error('Error fetching announcements:', error);
       return { data: null, error: error as Error };
@@ -132,7 +212,6 @@ export const announcementService = {
         .from('announcement')
         .select(`
           *,
-          teacher:created_by (name, email),
           course:course_id (course_name)
         `)
         .or(`course_id.is.null,course_id.in.(${uniqueCourseIds.join(',')})`)
@@ -142,6 +221,9 @@ export const announcementService = {
 
       if (error) throw error;
 
+      // Resolve creator names
+      const resolved = await resolveAnnouncementCreators(data || []);
+
       // Check which ones are read
       const { data: readStatus } = await supabase
         .from('announcement_read')
@@ -150,7 +232,7 @@ export const announcementService = {
 
       const readIds = new Set(readStatus?.map(r => r.announcement_id) || []);
 
-      const announcementsWithReadStatus = data?.map(a => ({
+      const announcementsWithReadStatus = resolved?.map(a => ({
         ...a,
         is_read: readIds.has(a.announcement_id)
       })) || [];
@@ -165,17 +247,17 @@ export const announcementService = {
   /**
    * Create a new announcement
    */
-  async create(teacherId: string, data: CreateAnnouncementData): Promise<{ data: Announcement | null; error: Error | null }> {
+  async create(creatorId: string, data: CreateAnnouncementData, creatorType: 'teacher' | 'admin' = 'teacher'): Promise<{ data: Announcement | null; error: Error | null }> {
     try {
       const { data: announcement, error } = await supabase
         .from('announcement')
         .insert({
           ...data,
-          created_by: teacherId
+          created_by: creatorId,
+          creator_type: creatorType
         })
         .select(`
           *,
-          teacher:created_by (name, email),
           course:course_id (course_name)
         `)
         .single();
@@ -183,7 +265,10 @@ export const announcementService = {
       if (error) throw error;
 
       if (announcement) {
+        // Resolve creator name for the returned object
+        const [resolved] = await resolveAnnouncementCreators([announcement]);
         await logInsert('announcement', announcement.announcement_id, announcement as Record<string, unknown>);
+        return { data: resolved, error: null };
       }
 
       return { data: announcement, error: null };
@@ -211,18 +296,22 @@ export const announcementService = {
         .eq('announcement_id', announcementId)
         .select(`
           *,
-          teacher:created_by (name, email),
           course:course_id (course_name)
         `)
         .single();
 
       if (error) throw error;
 
+      let resolved = announcement;
+      if (announcement) {
+        [resolved] = await resolveAnnouncementCreators([announcement]);
+      }
+
       if (oldAnn && announcement) {
         await logUpdate('announcement', announcementId, oldAnn as Record<string, unknown>, announcement as Record<string, unknown>);
       }
 
-      return { data: announcement, error: null };
+      return { data: resolved, error: null };
     } catch (error) {
       console.error('Error updating announcement:', error);
       return { data: null, error: error as Error };
@@ -305,7 +394,7 @@ export const messageService = {
   /**
    * Get all messages for a user (inbox + sent)
    */
-  async getAll(userType: 'teacher' | 'student', userId: string): Promise<{ data: Message[] | null; error: Error | null }> {
+  async getAll(userType: 'teacher' | 'student' | 'admin', userId: string): Promise<{ data: Message[] | null; error: Error | null }> {
     try {
       const { data, error } = await supabase
         .from('message')
@@ -318,42 +407,8 @@ export const messageService = {
       // Fetch sender and recipient details
       const messagesWithDetails = await Promise.all(
         (data || []).map(async (msg) => {
-          // Get sender info
-          let sender = null;
-          if (msg.sender_type === 'teacher') {
-            const { data: t } = await supabase
-              .from('teacher')
-              .select('name, email')
-              .eq('teacher_id', msg.sender_id)
-              .single();
-            sender = t;
-          } else {
-            const { data: s } = await supabase
-              .from('student')
-              .select('name, email')
-              .eq('student_id', msg.sender_id)
-              .single();
-            sender = s;
-          }
-
-          // Get recipient info
-          let recipient = null;
-          if (msg.recipient_type === 'teacher') {
-            const { data: t } = await supabase
-              .from('teacher')
-              .select('name, email')
-              .eq('teacher_id', msg.recipient_id)
-              .single();
-            recipient = t;
-          } else {
-            const { data: s } = await supabase
-              .from('student')
-              .select('name, email')
-              .eq('student_id', msg.recipient_id)
-              .single();
-            recipient = s;
-          }
-
+          const sender = await resolveUserName(msg.sender_type, msg.sender_id);
+          const recipient = await resolveUserName(msg.recipient_type, msg.recipient_id);
           return { ...msg, sender, recipient };
         })
       );
@@ -368,7 +423,7 @@ export const messageService = {
   /**
    * Get inbox messages
    */
-  async getInbox(userType: 'teacher' | 'student', userId: string): Promise<{ data: Message[] | null; error: Error | null }> {
+  async getInbox(userType: 'teacher' | 'student' | 'admin', userId: string): Promise<{ data: Message[] | null; error: Error | null }> {
     try {
       const { data, error } = await supabase
         .from('message')
@@ -382,22 +437,7 @@ export const messageService = {
       // Fetch sender details
       const messagesWithSender = await Promise.all(
         (data || []).map(async (msg) => {
-          let sender = null;
-          if (msg.sender_type === 'teacher') {
-            const { data: t } = await supabase
-              .from('teacher')
-              .select('name, email')
-              .eq('teacher_id', msg.sender_id)
-              .single();
-            sender = t;
-          } else {
-            const { data: s } = await supabase
-              .from('student')
-              .select('name, email')
-              .eq('student_id', msg.sender_id)
-              .single();
-            sender = s;
-          }
+          const sender = await resolveUserName(msg.sender_type, msg.sender_id);
           return { ...msg, sender };
         })
       );
@@ -412,7 +452,7 @@ export const messageService = {
   /**
    * Get sent messages
    */
-  async getSent(userType: 'teacher' | 'student', userId: string): Promise<{ data: Message[] | null; error: Error | null }> {
+  async getSent(userType: 'teacher' | 'student' | 'admin', userId: string): Promise<{ data: Message[] | null; error: Error | null }> {
     try {
       const { data, error } = await supabase
         .from('message')
@@ -426,22 +466,7 @@ export const messageService = {
       // Fetch recipient details
       const messagesWithRecipient = await Promise.all(
         (data || []).map(async (msg) => {
-          let recipient = null;
-          if (msg.recipient_type === 'teacher') {
-            const { data: t } = await supabase
-              .from('teacher')
-              .select('name, email')
-              .eq('teacher_id', msg.recipient_id)
-              .single();
-            recipient = t;
-          } else {
-            const { data: s } = await supabase
-              .from('student')
-              .select('name, email')
-              .eq('student_id', msg.recipient_id)
-              .single();
-            recipient = s;
-          }
+          const recipient = await resolveUserName(msg.recipient_type, msg.recipient_id);
           return { ...msg, recipient };
         })
       );
@@ -456,7 +481,7 @@ export const messageService = {
   /**
    * Send a message
    */
-  async send(senderType: 'teacher' | 'student', senderId: string, data: CreateMessageData): Promise<{ data: Message | null; error: Error | null }> {
+  async send(senderType: 'teacher' | 'student' | 'admin', senderId: string, data: CreateMessageData): Promise<{ data: Message | null; error: Error | null }> {
     try {
       const { data: message, error } = await supabase
         .from('message')
@@ -501,7 +526,7 @@ export const messageService = {
   /**
    * Get unread count
    */
-  async getUnreadCount(userType: 'teacher' | 'student', userId: string): Promise<{ count: number; error: Error | null }> {
+  async getUnreadCount(userType: 'teacher' | 'student' | 'admin', userId: string): Promise<{ count: number; error: Error | null }> {
     try {
       const { count, error } = await supabase
         .from('message')
@@ -549,7 +574,7 @@ export const messageService = {
   /**
    * Get starred messages for a user
    */
-  async getStarred(userType: 'teacher' | 'student', userId: string): Promise<{ data: Message[] | null; error: Error | null }> {
+  async getStarred(userType: 'teacher' | 'student' | 'admin', userId: string): Promise<{ data: Message[] | null; error: Error | null }> {
     try {
       // Get starred message IDs
       const { data: starredData, error: starredError } = await supabase
@@ -578,43 +603,8 @@ export const messageService = {
       // Fetch sender/recipient details
       const messagesWithDetails = await Promise.all(
         (messages || []).map(async (msg) => {
-          let sender = null;
-          let recipient = null;
-          
-          // Get sender
-          if (msg.sender_type === 'teacher') {
-            const { data: t } = await supabase
-              .from('teacher')
-              .select('name, email')
-              .eq('teacher_id', msg.sender_id)
-              .single();
-            sender = t;
-          } else {
-            const { data: s } = await supabase
-              .from('student')
-              .select('name, email')
-              .eq('student_id', msg.sender_id)
-              .single();
-            sender = s;
-          }
-          
-          // Get recipient
-          if (msg.recipient_type === 'teacher') {
-            const { data: t } = await supabase
-              .from('teacher')
-              .select('name, email')
-              .eq('teacher_id', msg.recipient_id)
-              .single();
-            recipient = t;
-          } else {
-            const { data: s } = await supabase
-              .from('student')
-              .select('name, email')
-              .eq('student_id', msg.recipient_id)
-              .single();
-            recipient = s;
-          }
-          
+          const sender = await resolveUserName(msg.sender_type, msg.sender_id);
+          const recipient = await resolveUserName(msg.recipient_type, msg.recipient_id);
           return { ...msg, sender, recipient, isStarred: true };
         })
       );
@@ -629,7 +619,7 @@ export const messageService = {
   /**
    * Toggle starred status for a message
    */
-  async toggleStarred(messageId: string, userType: 'teacher' | 'student', userId: string): Promise<{ isStarred: boolean; error: Error | null }> {
+  async toggleStarred(messageId: string, userType: 'teacher' | 'student' | 'admin', userId: string): Promise<{ isStarred: boolean; error: Error | null }> {
     try {
       // Check if already starred
       const { data: existing } = await supabase
@@ -663,7 +653,7 @@ export const messageService = {
   /**
    * Add reaction to a message
    */
-  async addReaction(messageId: string, reactorType: 'teacher' | 'student', reactorId: string, emoji: string): Promise<{ error: Error | null }> {
+  async addReaction(messageId: string, reactorType: 'teacher' | 'student' | 'admin', reactorId: string, emoji: string): Promise<{ error: Error | null }> {
     try {
       const { error } = await supabase
         .from('message_reaction')
@@ -685,7 +675,7 @@ export const messageService = {
   /**
    * Remove reaction from a message
    */
-  async removeReaction(messageId: string, reactorType: 'teacher' | 'student', reactorId: string): Promise<{ error: Error | null }> {
+  async removeReaction(messageId: string, reactorType: 'teacher' | 'student' | 'admin', reactorId: string): Promise<{ error: Error | null }> {
     try {
       const { error } = await supabase
         .from('message_reaction')
