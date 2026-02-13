@@ -7,7 +7,6 @@
  */
 
 import { supabase } from '../lib/supabase';
-import { logUpdate, logInsert, logDelete } from './auditService';
 
 // =====================================================
 // TYPES
@@ -391,7 +390,6 @@ export async function saveScoringConfig(config: Partial<ScoringConfig>): Promise
         } else if (updateData) {
           const normalized = normalizeScoringConfig(updateData as Record<string, unknown>);
           localStorage.setItem('scoring_config_current', JSON.stringify(normalized));
-          try { await logUpdate('scoring_config', existingRow.id, existingRow as Record<string, unknown>, updateData as Record<string, unknown>); } catch { /* audit non-critical */ }
           return { data: { ...updateData, ...normalized } as ScoringConfig, error: null };
         }
       } else {
@@ -413,7 +411,6 @@ export async function saveScoringConfig(config: Partial<ScoringConfig>): Promise
         } else if (insertData) {
           const normalized = normalizeScoringConfig(insertData as Record<string, unknown>);
           localStorage.setItem('scoring_config_current', JSON.stringify(normalized));
-          try { await logInsert('scoring_config', insertData.id || 'new', insertData as Record<string, unknown>); } catch { /* audit non-critical */ }
           return { data: { ...insertData, ...normalized } as ScoringConfig, error: null };
         }
       }
@@ -487,19 +484,11 @@ export async function resetScoringConfig(): Promise<{ error: Error | null }> {
     
     try {
       // Delete the global config row (is_default=true, any teacher_id)
-      const { data: existing } = await supabase
-        .from('scoring_config')
-        .select('*')
-        .eq('is_default', true);
-      
       await supabase
         .from('scoring_config')
         .delete()
         .eq('is_default', true);
       
-      if (existing && existing.length > 0) {
-        try { await logDelete('scoring_config', existing[0].id || 'global', existing[0] as Record<string, unknown>, 'Reset scoring config to defaults'); } catch { /* audit non-critical */ }
-      }
     } catch { /* table may not exist */ }
     
     return { error: null };
