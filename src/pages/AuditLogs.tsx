@@ -16,24 +16,32 @@ import { toast } from '../components/ui/toastUtils';
 
 /** Turn a table + operation + data into a human-readable sentence */
 const describeAction = (log: AuditLogEntry): string => {
-  const data = log.old_data || log.new_data || {};
-  const name =
-    (data as Record<string, unknown>).name ||
-    (data as Record<string, unknown>).course_name ||
-    (data as Record<string, unknown>).student_name ||
-    (data as Record<string, unknown>).teacher_name ||
-    (data as Record<string, unknown>).title ||
-    '';
-
+  const data = (log.old_data || log.new_data || {}) as Record<string, unknown>;
+  const name = data.name || data.course_name || data.student_name || data.teacher_name || data.title || '';
   const entity = log.table_name.charAt(0).toUpperCase() + log.table_name.slice(1);
+  const article = /^[aeiou]/i.test(log.table_name) ? 'An' : 'A';
+
+  // Attendance-specific descriptions
+  if (log.table_name === 'attendance') {
+    const status = (data.status as string) || '';
+    const method = (data.check_in_method as string) || '';
+    const date = (data.attendance_date as string) || '';
+    const datePart = date ? ` on ${date}` : '';
+    const methodPart = method ? ` (${method})` : '';
+    switch (log.operation) {
+      case 'INSERT': return `Attendance marked as ${status || 'present'}${datePart}${methodPart}`;
+      case 'UPDATE': return `Attendance updated to ${status || '?'}${datePart}`;
+      case 'DELETE': return `Attendance record${status ? ` (${status})` : ''} deleted${datePart}`;
+    }
+  }
 
   switch (log.operation) {
     case 'DELETE':
-      return name ? `${entity} "${name}" was deleted` : `A ${log.table_name} record was deleted`;
+      return name ? `${entity} "${name}" was deleted` : `${article} ${log.table_name} record was deleted`;
     case 'UPDATE':
-      return name ? `${entity} "${name}" was updated` : `A ${log.table_name} record was updated`;
+      return name ? `${entity} "${name}" was updated` : `${article} ${log.table_name} record was updated`;
     case 'INSERT':
-      return name ? `${entity} "${name}" was created` : `A new ${log.table_name} record was created`;
+      return name ? `${entity} "${name}" was created` : `${article} new ${log.table_name} record was created`;
     default:
       return `${log.operation} on ${log.table_name}`;
   }
@@ -80,6 +88,128 @@ const OP_ICONS: Record<string, string> = {
   INSERT: '➕',
 };
 
+/** Key fields to show per table in expanded view (only non-empty values shown) */
+const TABLE_SUMMARY_FIELDS: Record<string, { field: string; label: string }[]> = {
+  attendance: [
+    { field: 'status', label: 'Status' },
+    { field: 'attendance_date', label: 'Date' },
+    { field: 'check_in_method', label: 'Method' },
+    { field: 'late_minutes', label: 'Late (min)' },
+    { field: 'early_minutes', label: 'Early (min)' },
+    { field: 'host_address', label: 'Location' },
+    { field: 'excuse_reason', label: 'Excuse' },
+    { field: 'notes', label: 'Notes' },
+  ],
+  student: [
+    { field: 'name', label: 'Name' },
+    { field: 'email', label: 'Email' },
+    { field: 'phone', label: 'Phone' },
+    { field: 'nationality', label: 'Nationality' },
+    { field: 'date_of_birth', label: 'Date of Birth' },
+  ],
+  teacher: [
+    { field: 'name', label: 'Name' },
+    { field: 'email', label: 'Email' },
+    { field: 'phone', label: 'Phone' },
+    { field: 'specialization', label: 'Specialization' },
+  ],
+  course: [
+    { field: 'name', label: 'Name' },
+    { field: 'course_name', label: 'Course' },
+    { field: 'description', label: 'Description' },
+    { field: 'start_date', label: 'Start' },
+    { field: 'end_date', label: 'End' },
+  ],
+  session: [
+    { field: 'session_date', label: 'Date' },
+    { field: 'start_time', label: 'Start' },
+    { field: 'end_time', label: 'End' },
+    { field: 'location', label: 'Location' },
+    { field: 'status', label: 'Status' },
+    { field: 'notes', label: 'Notes' },
+  ],
+  enrollment: [
+    { field: 'status', label: 'Status' },
+    { field: 'can_host', label: 'Can Host' },
+    { field: 'enrollment_date', label: 'Enrolled' },
+  ],
+  announcement: [
+    { field: 'title', label: 'Title' },
+    { field: 'content', label: 'Content' },
+    { field: 'priority', label: 'Priority' },
+  ],
+  message: [
+    { field: 'subject', label: 'Subject' },
+    { field: 'content', label: 'Content' },
+  ],
+};
+
+/** Fields to skip in UPDATE diffs (technical noise) */
+const NOISE_FIELDS = new Set(['updated_at', 'created_at', 'marked_at']);
+
+/** Get key summary entries for a record based on its table */
+const getSummaryEntries = (
+  tableName: string,
+  data: Record<string, unknown>
+): { label: string; value: string }[] => {
+  const config = TABLE_SUMMARY_FIELDS[tableName];
+  if (!config) {
+    // Fallback: show non-ID/timestamp/GPS fields, max 6
+    return Object.entries(data)
+      .filter(([k, v]) => v != null && v !== '' && !k.endsWith('_id') && !k.endsWith('_at') && !k.startsWith('gps_'))
+      .slice(0, 6)
+      .map(([k, v]) => ({ label: k.replace(/_/g, ' '), value: formatValue(v) }));
+  }
+  return config
+    .filter(({ field }) => data[field] != null && data[field] !== '')
+    .map(({ field, label }) => ({ label, value: formatValue(data[field]) }));
+};
+
+/** Compact grid for showing record key fields with optional "show all" */
+function DataSummaryGrid({ tableName, data, auditId, color, showAllFields, onToggle }: {
+  tableName: string;
+  data: Record<string, unknown>;
+  auditId: string;
+  color: 'red' | 'green';
+  showAllFields: Set<string>;
+  onToggle: (id: string) => void;
+}) {
+  const summary = getSummaryEntries(tableName, data);
+  const isShowAll = showAllFields.has(auditId);
+  const allEntries = Object.entries(data).map(([k, v]) => ({
+    label: k.replace(/_/g, ' '),
+    value: formatValue(v),
+  }));
+  const entries = isShowAll ? allEntries : summary;
+  const totalFields = Object.keys(data).length;
+  const bg = color === 'red'
+    ? 'bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30'
+    : 'bg-green-50 dark:bg-green-900/10 border-green-100 dark:border-green-900/30';
+
+  if (entries.length === 0) return <p className="text-xs text-gray-500 italic">No data recorded</p>;
+
+  return (
+    <div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {entries.map(({ label, value }) => (
+          <div key={label} className={`rounded-lg px-3 py-2 border ${bg}`}>
+            <p className="text-[10px] uppercase text-gray-500 dark:text-gray-500 tracking-wider">{label}</p>
+            <p className="text-xs text-gray-800 dark:text-gray-300 break-all">{value}</p>
+          </div>
+        ))}
+      </div>
+      {totalFields > summary.length && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggle(auditId); }}
+          className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+        >
+          {isShowAll ? '▲ Show less' : `▼ Show all ${totalFields} fields`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // =====================================================
 // COMPONENT
 // =====================================================
@@ -89,6 +219,10 @@ export function AuditLogs() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedLog, setExpandedLog] = useState<string | null>(null);
+  const [showAllFields, setShowAllFields] = useState<Set<string>>(new Set());
+  const toggleShowAll = (auditId: string) => setShowAllFields(prev => {
+    const n = new Set(prev); if (n.has(auditId)) n.delete(auditId); else n.add(auditId); return n;
+  });
   const [viewMode, setViewMode] = useState<'timeline' | 'table'>('timeline');
   const { isAdmin } = useIsTeacher();
   const [deletingLog, setDeletingLog] = useState<AuditLogEntry | null>(null);
@@ -553,7 +687,9 @@ export function AuditLogs() {
               <div className="relative ml-4 pl-6 border-l-2 border-gray-200 dark:border-gray-700 space-y-3">
                 {dayLogs.map((log) => {
                   const isExpanded = expandedLog === log.audit_id;
-                  const changes = log.operation === 'UPDATE' ? getChangedFields(log.old_data, log.new_data) : [];
+                  const changes = log.operation === 'UPDATE'
+                    ? getChangedFields(log.old_data, log.new_data).filter(c => !NOISE_FIELDS.has(c.key))
+                    : [];
 
                   return (
                     <div key={log.audit_id} className="relative">
@@ -640,33 +776,33 @@ export function AuditLogs() {
                                 </div>
                               )}
 
-                              {/* DELETE: show deleted data as key-value */}
+                              {/* DELETE: show key fields from deleted record */}
                               {log.operation === 'DELETE' && log.old_data && (
                                 <div>
                                   <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wider">Deleted Record</p>
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    {Object.entries(log.old_data).map(([key, value]) => (
-                                      <div key={key} className="bg-red-50 dark:bg-red-900/10 rounded-lg px-3 py-2 border border-red-100 dark:border-red-900/30">
-                                        <p className="text-[10px] uppercase text-gray-500 dark:text-gray-500 tracking-wider">{key}</p>
-                                        <p className="text-xs text-gray-800 dark:text-gray-300 break-all">{formatValue(value)}</p>
-                                      </div>
-                                    ))}
-                                  </div>
+                                  <DataSummaryGrid
+                                    tableName={log.table_name}
+                                    data={log.old_data as Record<string, unknown>}
+                                    auditId={log.audit_id || ''}
+                                    color="red"
+                                    showAllFields={showAllFields}
+                                    onToggle={toggleShowAll}
+                                  />
                                 </div>
                               )}
 
-                              {/* INSERT: show created data */}
+                              {/* INSERT: show key fields from created record */}
                               {log.operation === 'INSERT' && log.new_data && (
                                 <div>
                                   <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wider">Created Record</p>
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    {Object.entries(log.new_data).map(([key, value]) => (
-                                      <div key={key} className="bg-green-50 dark:bg-green-900/10 rounded-lg px-3 py-2 border border-green-100 dark:border-green-900/30">
-                                        <p className="text-[10px] uppercase text-gray-500 dark:text-gray-500 tracking-wider">{key}</p>
-                                        <p className="text-xs text-gray-800 dark:text-gray-300 break-all">{formatValue(value)}</p>
-                                      </div>
-                                    ))}
-                                  </div>
+                                  <DataSummaryGrid
+                                    tableName={log.table_name}
+                                    data={log.new_data as Record<string, unknown>}
+                                    auditId={log.audit_id || ''}
+                                    color="green"
+                                    showAllFields={showAllFields}
+                                    onToggle={toggleShowAll}
+                                  />
                                 </div>
                               )}
 
@@ -727,7 +863,9 @@ export function AuditLogs() {
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {pagedLogs.map((log) => {
                     const isExpanded = expandedLog === log.audit_id;
-                    const changes = log.operation === 'UPDATE' ? getChangedFields(log.old_data, log.new_data) : [];
+                    const changes = log.operation === 'UPDATE'
+                      ? getChangedFields(log.old_data, log.new_data).filter(c => !NOISE_FIELDS.has(c.key))
+                      : [];
 
                     return (
                       <React.Fragment key={log.audit_id}>
@@ -803,14 +941,24 @@ export function AuditLogs() {
                                   </div>
                                 )}
                                 {log.operation === 'DELETE' && log.old_data && (
-                                  <pre className="bg-white dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-600 text-xs overflow-x-auto text-gray-700 dark:text-gray-300">
-                                    {JSON.stringify(log.old_data, null, 2)}
-                                  </pre>
+                                  <DataSummaryGrid
+                                    tableName={log.table_name}
+                                    data={log.old_data as Record<string, unknown>}
+                                    auditId={log.audit_id || ''}
+                                    color="red"
+                                    showAllFields={showAllFields}
+                                    onToggle={toggleShowAll}
+                                  />
                                 )}
                                 {log.operation === 'INSERT' && log.new_data && (
-                                  <pre className="bg-white dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-600 text-xs overflow-x-auto text-gray-700 dark:text-gray-300">
-                                    {JSON.stringify(log.new_data, null, 2)}
-                                  </pre>
+                                  <DataSummaryGrid
+                                    tableName={log.table_name}
+                                    data={log.new_data as Record<string, unknown>}
+                                    auditId={log.audit_id || ''}
+                                    color="green"
+                                    showAllFields={showAllFields}
+                                    onToggle={toggleShowAll}
+                                  />
                                 )}
                                 <p className="text-[10px] text-gray-400 dark:text-gray-600 font-mono">ID: {log.record_id}</p>
                               </div>
