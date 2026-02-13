@@ -478,6 +478,227 @@ function SimulationPanel({ config }: { config: Omit<ScoringConfig, 'id' | 'teach
 }
 
 // =====================================================
+// TRANSLATIONS
+// =====================================================
+
+const translations = {
+  en: {
+    title: 'Scoring Configuration',
+    subtitle: 'Dynamically control how weighted scores are calculated for attendance records',
+    resetToDefault: 'Reset to Default',
+    saving: 'Saving...',
+    saveChanges: '💾 Save Changes',
+    saved: 'Saved',
+    quickPresets: 'Quick Presets',
+    presetsHint: '— Click to apply a pre-configured template',
+    // Section tabs
+    sectionWeights: 'Score Weights',
+    sectionDecay: 'Late Decay',
+    sectionCoverage: 'Coverage Factor',
+    sectionBrackets: 'Display Brackets',
+    sectionBonuses: 'Bonuses & Penalties',
+    // Weights
+    weightsTitle: 'Score Component Weights',
+    sum: 'Sum',
+    qualityLabel: 'Quality-Adjusted Rate',
+    qualityDesc: 'Attendance rate with late penalty applied (e^(-t/τ) decay)',
+    attendanceLabel: 'Simple Attendance Rate',
+    attendanceDesc: 'Credit for showing up (on time + late both count as present)',
+    punctualityLabel: 'Punctuality Bonus',
+    punctualityDesc: 'Ratio of on-time arrivals vs total present sessions',
+    quality: 'Quality',
+    attendance: 'Attendance',
+    punctuality: 'Punctuality',
+    formula: 'FORMULA',
+    // Late Decay
+    decayTitle: 'Late Arrival Scoring Curve',
+    decaySubtitle: 'Controls how much credit a student gets based on how late they arrive. Uses exponential decay:',
+    decayConstant: 'Decay Constant (τ)',
+    decayConstantDesc: 'Higher = more lenient. 43.3 gives 50% credit at 30 min',
+    minimumCredit: 'Minimum Credit',
+    minimumCreditDesc: 'Floor credit for any late arrival (0 = no credit, 0.5 = 50%)',
+    unknownLate: 'Unknown Late Estimate',
+    unknownLateDesc: 'Credit when late_minutes is not tracked (~20 min equivalent)',
+    decayCurvePreview: 'DECAY CURVE PREVIEW',
+    referencePoints: 'REFERENCE POINTS',
+    minutesLate: 'Minutes Late',
+    creditPercent: 'Credit %',
+    // Coverage
+    coverageTitle: 'Coverage Factor',
+    coverageSubtitle: 'Penalizes students who attended very few sessions, so they don\'t outrank students with consistent full-course attendance.',
+    enableCoverage: 'Enable Coverage Factor',
+    enableCoverageDesc: 'When disabled, all students are scored equally regardless of how many sessions they attended',
+    scalingMethod: 'Scaling Method',
+    sqrtName: '√ Square Root',
+    sqrtDesc: 'Gentle curve (default)',
+    linearName: '— Linear',
+    linearDesc: 'Proportional',
+    logName: 'ln Logarithmic',
+    logDesc: 'Harsh for low attendance',
+    noneName: '∅ None',
+    noneDesc: 'No coverage penalty',
+    minFactor: 'Minimum Factor',
+    minFactorDesc: 'Floor for coverage factor (prevents scores going to near-zero)',
+    coverageCurve: 'COVERAGE CURVE (30 sessions total)',
+    daysAttended: 'Days Attended',
+    factorPercent: 'Factor %',
+    // Brackets
+    bracketsTitle: 'Late Display Brackets',
+    bracketsSubtitle: 'Visual categorization only — scoring uses the smooth decay curve, not these brackets.',
+    bracketName: 'Bracket name',
+    preview: 'Preview',
+    addBracket: '+ Add Bracket',
+    // Bonuses
+    bonusesTitle: 'Bonuses & Penalties',
+    bonusesSubtitle: 'Optional modifiers that add extra scoring dimensions.',
+    perfectBonus: 'Perfect Attendance Bonus',
+    perfectBonusDesc: 'Extra points added when student has 100% attendance (0 = disabled)',
+    streakBonus: 'Streak Bonus (per week)',
+    streakBonusDesc: 'Bonus per consecutive week of perfect attendance',
+    absenceMultiplier: 'Unexcused Absence Multiplier',
+    absenceMultiplierDesc: '1.0 = normal, 2.0 = double penalty for unexcused absences',
+    // Simulation
+    liveSimulation: 'Live Simulation',
+    // How It Works
+    howItWorks: 'How It Works',
+    howQuality: 'Each "on time" session = 100% credit. Each "late" session gets partial credit based on the decay curve.',
+    howAttendance: 'Simple present/total. Both "on time" and "late" count as present.',
+    howPunctuality: 'Ratio of on-time sessions to total present sessions.',
+    howCoverage: 'Penalizes new students or those enrolled in few sessions.',
+    howBonuses: 'Perfect attendance bonus, streak bonus per week, and absence penalty multiplier are applied after the base score.',
+    howFormula: 'Final = (W₁×Quality + W₂×Attendance + W₃×Punctuality) × Coverage + Bonuses − Penalties',
+    // Reset dialog
+    resetTitle: 'Reset Scoring Configuration',
+    resetMessage: 'This will revert all settings to the factory defaults. Your current configuration will be lost. Continue?',
+    resetConfirm: 'Reset to Defaults',
+    // Access
+    adminRequired: 'Admin Access Required',
+    adminRequiredDesc: 'Only the admin can configure scoring parameters.',
+    backToDashboard: 'Back to Dashboard',
+    // Presets
+    presetBalanced: 'Balanced (Default)',
+    presetBalancedDesc: 'Equal emphasis on quality, attendance, and timeliness',
+    presetStrict: 'Strict Punctuality',
+    presetStrictDesc: 'Heavy penalty for lateness, low tolerance',
+    presetLenient: 'Lenient',
+    presetLenientDesc: 'Forgiving — focus on showing up, mild late penalties',
+    presetQuality: 'Quality First',
+    presetQualityDesc: 'Maximum weight on quality-adjusted rate',
+    presetAttendance: 'Attendance Only',
+    presetAttendanceDesc: 'Pure attendance tracking — lateness barely affects score',
+    presetMilitary: 'Military Precision',
+    presetMilitaryDesc: 'Zero tolerance — late is almost as bad as absent',
+  },
+  ar: {
+    title: 'إعدادات التقييم',
+    subtitle: 'التحكم الديناميكي في كيفية حساب الدرجات المرجّحة لسجلات الحضور',
+    resetToDefault: 'إعادة للافتراضي',
+    saving: 'جارٍ الحفظ...',
+    saveChanges: '💾 حفظ التغييرات',
+    saved: 'تم الحفظ',
+    quickPresets: 'قوالب سريعة',
+    presetsHint: '— انقر لتطبيق قالب مُعد مسبقاً',
+    // Section tabs
+    sectionWeights: 'أوزان الدرجات',
+    sectionDecay: 'تناقص التأخير',
+    sectionCoverage: 'عامل التغطية',
+    sectionBrackets: 'فئات العرض',
+    sectionBonuses: 'المكافآت والعقوبات',
+    // Weights
+    weightsTitle: 'أوزان مكونات الدرجة',
+    sum: 'المجموع',
+    qualityLabel: 'معدل الجودة المعدّل',
+    qualityDesc: 'معدل الحضور مع تطبيق عقوبة التأخير (تناقص أسي)',
+    attendanceLabel: 'معدل الحضور البسيط',
+    attendanceDesc: 'الفضل في الحضور (في الوقت والمتأخر كلاهما يُحسب حاضراً)',
+    punctualityLabel: 'مكافأة الانضباط',
+    punctualityDesc: 'نسبة الحضور في الوقت مقابل إجمالي الجلسات الحاضرة',
+    quality: 'الجودة',
+    attendance: 'الحضور',
+    punctuality: 'الانضباط',
+    formula: 'المعادلة',
+    // Late Decay
+    decayTitle: 'منحنى تقييم التأخير',
+    decaySubtitle: 'يتحكم في مقدار الائتمان الذي يحصل عليه الطالب بناءً على تأخره. يستخدم التناقص الأسي:',
+    decayConstant: 'ثابت التناقص (τ)',
+    decayConstantDesc: 'أعلى = أكثر تسامحاً. 43.3 يعطي 50% ائتمان عند 30 دقيقة',
+    minimumCredit: 'الحد الأدنى للائتمان',
+    minimumCreditDesc: 'أدنى ائتمان لأي تأخير (0 = بدون، 0.5 = 50%)',
+    unknownLate: 'تقدير التأخر غير المعروف',
+    unknownLateDesc: 'الائتمان عندما لا يتم تتبع دقائق التأخير (~ما يعادل 20 دقيقة)',
+    decayCurvePreview: 'معاينة منحنى التناقص',
+    referencePoints: 'نقاط مرجعية',
+    minutesLate: 'دقائق التأخير',
+    creditPercent: 'الائتمان %',
+    // Coverage
+    coverageTitle: 'عامل التغطية',
+    coverageSubtitle: 'يعاقب الطلاب الذين حضروا جلسات قليلة جداً، حتى لا يتفوقوا على الطلاب ذوي الحضور المنتظم.',
+    enableCoverage: 'تفعيل عامل التغطية',
+    enableCoverageDesc: 'عند التعطيل، يتم تقييم جميع الطلاب بالتساوي بغض النظر عن عدد الجلسات',
+    scalingMethod: 'طريقة القياس',
+    sqrtName: '√ جذر تربيعي',
+    sqrtDesc: 'منحنى لطيف (افتراضي)',
+    linearName: '— خطي',
+    linearDesc: 'متناسب',
+    logName: 'ln لوغاريتمي',
+    logDesc: 'صارم للحضور المنخفض',
+    noneName: '∅ بدون',
+    noneDesc: 'بدون عقوبة تغطية',
+    minFactor: 'الحد الأدنى للعامل',
+    minFactorDesc: 'أرضية عامل التغطية (يمنع الدرجات من الانخفاض للصفر)',
+    coverageCurve: 'منحنى التغطية (30 جلسة إجمالي)',
+    daysAttended: 'أيام الحضور',
+    factorPercent: 'العامل %',
+    // Brackets
+    bracketsTitle: 'فئات عرض التأخير',
+    bracketsSubtitle: 'تصنيف بصري فقط — التقييم يستخدم منحنى التناقص السلس وليس هذه الفئات.',
+    bracketName: 'اسم الفئة',
+    preview: 'معاينة',
+    addBracket: '+ إضافة فئة',
+    // Bonuses
+    bonusesTitle: 'المكافآت والعقوبات',
+    bonusesSubtitle: 'معدّلات اختيارية تضيف أبعاد تقييم إضافية.',
+    perfectBonus: 'مكافأة الحضور الكامل',
+    perfectBonusDesc: 'نقاط إضافية عند حضور 100% (0 = معطل)',
+    streakBonus: 'مكافأة التتابع (أسبوعياً)',
+    streakBonusDesc: 'مكافأة لكل أسبوع متتالي من الحضور الكامل',
+    absenceMultiplier: 'مضاعف الغياب بدون عذر',
+    absenceMultiplierDesc: '1.0 = عادي، 2.0 = عقوبة مضاعفة للغياب بدون عذر',
+    // Simulation
+    liveSimulation: 'المحاكاة الحية',
+    // How It Works
+    howItWorks: 'كيف يعمل',
+    howQuality: 'كل جلسة "في الوقت" = 100% ائتمان. كل جلسة "متأخرة" تحصل على ائتمان جزئي بناءً على منحنى التناقص.',
+    howAttendance: 'حاضر/إجمالي بسيط. كلا "في الوقت" و "متأخر" يُحسب كحاضر.',
+    howPunctuality: 'نسبة الجلسات في الوقت إلى إجمالي الجلسات الحاضرة.',
+    howCoverage: 'يعاقب الطلاب الجدد أو المسجلين في عدد قليل من الجلسات.',
+    howBonuses: 'مكافأة الحضور الكامل ومكافأة التتابع الأسبوعية ومضاعف عقوبة الغياب تُطبق بعد الدرجة الأساسية.',
+    howFormula: 'النهائي = (و₁×الجودة + و₂×الحضور + و₃×الانضباط) × التغطية + المكافآت − العقوبات',
+    // Reset dialog
+    resetTitle: 'إعادة تعيين إعدادات التقييم',
+    resetMessage: 'سيؤدي هذا إلى إرجاع جميع الإعدادات إلى الافتراضي. سيتم فقدان الإعدادات الحالية. متابعة؟',
+    resetConfirm: 'إعادة للافتراضي',
+    // Access
+    adminRequired: 'مطلوب صلاحية المشرف',
+    adminRequiredDesc: 'فقط المشرف يمكنه تعديل إعدادات التقييم.',
+    backToDashboard: 'العودة للوحة التحكم',
+    // Presets
+    presetBalanced: 'متوازن (افتراضي)',
+    presetBalancedDesc: 'تركيز متساوي على الجودة والحضور والانضباط',
+    presetStrict: 'انضباط صارم',
+    presetStrictDesc: 'عقوبة شديدة للتأخير، تسامح منخفض',
+    presetLenient: 'متسامح',
+    presetLenientDesc: 'متسامح — التركيز على الحضور، عقوبات تأخير خفيفة',
+    presetQuality: 'الجودة أولاً',
+    presetQualityDesc: 'أقصى وزن لمعدل الجودة المعدّل',
+    presetAttendance: 'الحضور فقط',
+    presetAttendanceDesc: 'تتبع حضور بحت — التأخير بالكاد يؤثر على الدرجة',
+    presetMilitary: 'دقة عسكرية',
+    presetMilitaryDesc: 'عدم تسامح — التأخير تقريباً مثل الغياب',
+  },
+};
+
+// =====================================================
 // PRESET TEMPLATES
 // =====================================================
 
@@ -527,7 +748,7 @@ const PRESETS: { name: string; emoji: string; description: string; config: Parti
 export function ScoringConfiguration() {
   const navigate = useNavigate();
   const { toasts, success, error: showError, removeToast } = useToast();
-  const { isTeacher, loading: authLoading } = useIsTeacher();
+  const { isAdmin, loading: authLoading } = useIsTeacher();
   
   const [config, setConfig] = useState<Omit<ScoringConfig, 'id' | 'teacher_id' | 'created_at' | 'updated_at'>>(DEFAULT_SCORING_CONFIG);
   const [loading, setLoading] = useState(true);
@@ -535,6 +756,9 @@ export function ScoringConfiguration() {
   const [hasChanges, setHasChanges] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [activeSection, setActiveSection] = useState<'weights' | 'decay' | 'coverage' | 'brackets' | 'bonuses'>('weights');
+  const [lang, setLang] = useState<'en' | 'ar'>('en');
+  const t = translations[lang];
+  const isArabic = lang === 'ar';
   
   // Load existing config
   useEffect(() => {
@@ -679,27 +903,30 @@ export function ScoringConfiguration() {
     );
   }
   
-  if (!isTeacher) {
+  if (!isAdmin) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
         <div className="text-6xl">🔒</div>
-        <h2 className="text-xl font-bold text-gray-700 dark:text-gray-300">Teacher Access Required</h2>
-        <p className="text-gray-500 dark:text-gray-400">Only teachers can configure scoring parameters.</p>
-        <Button onClick={() => navigate('/')}>Back to Dashboard</Button>
+        <h2 className="text-xl font-bold text-gray-700 dark:text-gray-300">{t.adminRequired}</h2>
+        <p className="text-gray-500 dark:text-gray-400">{t.adminRequiredDesc}</p>
+        <Button onClick={() => navigate('/')}>{t.backToDashboard}</Button>
       </div>
     );
   }
   
   const sections = [
-    { id: 'weights' as const, label: 'Score Weights', icon: '⚖️' },
-    { id: 'decay' as const, label: 'Late Decay', icon: '📉' },
-    { id: 'coverage' as const, label: 'Coverage Factor', icon: '📊' },
-    { id: 'brackets' as const, label: 'Display Brackets', icon: '🏷️' },
-    { id: 'bonuses' as const, label: 'Bonuses & Penalties', icon: '🎯' },
+    { id: 'weights' as const, label: t.sectionWeights, icon: '⚖️' },
+    { id: 'decay' as const, label: t.sectionDecay, icon: '📉' },
+    { id: 'coverage' as const, label: t.sectionCoverage, icon: '📊' },
+    { id: 'brackets' as const, label: t.sectionBrackets, icon: '🏷️' },
+    { id: 'bonuses' as const, label: t.sectionBonuses, icon: '🎯' },
   ];
   
+  const presetNames = [t.presetBalanced, t.presetStrict, t.presetLenient, t.presetQuality, t.presetAttendance, t.presetMilitary];
+  const presetDescs = [t.presetBalancedDesc, t.presetStrictDesc, t.presetLenientDesc, t.presetQualityDesc, t.presetAttendanceDesc, t.presetMilitaryDesc];
+  
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 ${isArabic ? 'direction-rtl' : ''}`} dir={isArabic ? 'rtl' : 'ltr'}>
       <ToastContainer toasts={toasts} onClose={removeToast} />
       
       {/* Header */}
@@ -707,22 +934,45 @@ export function ScoringConfiguration() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 
             bg-clip-text text-transparent dark:from-indigo-400 dark:to-purple-400">
-            Scoring Configuration
+            {t.title}
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Dynamically control how weighted scores are calculated for attendance records
+            {t.subtitle}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {/* Language Toggle */}
+          <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+            <button
+              onClick={() => setLang('en')}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
+                lang === 'en'
+                  ? 'bg-white dark:bg-gray-700 shadow-sm text-indigo-700 dark:text-indigo-300'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              EN
+            </button>
+            <button
+              onClick={() => setLang('ar')}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
+                lang === 'ar'
+                  ? 'bg-white dark:bg-gray-700 shadow-sm text-indigo-700 dark:text-indigo-300'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              ع
+            </button>
+          </div>
           <Button variant="outline" onClick={() => setShowResetConfirm(true)} disabled={saving}>
-            Reset to Default
+            {t.resetToDefault}
           </Button>
           <Button 
             onClick={handleSave} 
             disabled={saving || !hasChanges}
             className={hasChanges ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/25' : ''}
           >
-            {saving ? 'Saving...' : hasChanges ? '💾 Save Changes' : 'Saved'}
+            {saving ? t.saving : hasChanges ? t.saveChanges : t.saved}
           </Button>
         </div>
       </div>
@@ -730,8 +980,8 @@ export function ScoringConfiguration() {
       {/* Presets Bar */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Quick Presets</span>
-          <span className="text-xs text-gray-400">— Click to apply a pre-configured template</span>
+          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t.quickPresets}</span>
+          <span className="text-xs text-gray-400">{t.presetsHint}</span>
         </div>
         <div className="flex flex-wrap gap-2">
           {PRESETS.map((preset, i) => (
@@ -742,11 +992,11 @@ export function ScoringConfiguration() {
                 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600
                 hover:bg-indigo-50 hover:border-indigo-300 dark:hover:bg-indigo-900/30 dark:hover:border-indigo-600
                 transition-all duration-200"
-              title={preset.description}
+              title={presetDescs[i]}
             >
               <span>{preset.emoji}</span>
               <span className="text-gray-700 dark:text-gray-300 group-hover:text-indigo-700 dark:group-hover:text-indigo-300">
-                {preset.name}
+                {presetNames[i]}
               </span>
             </button>
           ))}
@@ -784,43 +1034,43 @@ export function ScoringConfiguration() {
                   <div className="flex items-start gap-4">
                     <div className="flex-1 space-y-4">
                       <div className="flex items-center gap-2 mb-2">
-                        <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Score Component Weights</h3>
+                        <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{t.weightsTitle}</h3>
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                           Math.abs(config.weight_quality + config.weight_attendance + config.weight_punctuality - 100) < 0.1
                             ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
                             : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
                         }`}>
-                          Sum: {config.weight_quality + config.weight_attendance + config.weight_punctuality}%
+                          {t.sum}: {config.weight_quality + config.weight_attendance + config.weight_punctuality}%
                         </span>
                       </div>
                       
                       <LabeledSlider
-                        label="Quality-Adjusted Rate"
+                        label={t.qualityLabel}
                         value={config.weight_quality}
                         min={0} max={100} step={5}
                         unit="%"
                         color="indigo"
-                        description="Attendance rate with late penalty applied (e^(-t/τ) decay)"
+                        description={t.qualityDesc}
                         onChange={(v) => balanceWeights('quality', v)}
                       />
                       
                       <LabeledSlider
-                        label="Simple Attendance Rate"
+                        label={t.attendanceLabel}
                         value={config.weight_attendance}
                         min={0} max={100} step={5}
                         unit="%"
                         color="green"
-                        description="Credit for showing up (on time + late both count as present)"
+                        description={t.attendanceDesc}
                         onChange={(v) => balanceWeights('attendance', v)}
                       />
                       
                       <LabeledSlider
-                        label="Punctuality Bonus"
+                        label={t.punctualityLabel}
                         value={config.weight_punctuality}
                         min={0} max={100} step={5}
                         unit="%"
                         color="amber"
-                        description="Ratio of on-time arrivals vs total present sessions"
+                        description={t.punctualityDesc}
                         onChange={(v) => balanceWeights('punctuality', v)}
                       />
                     </div>
@@ -834,13 +1084,13 @@ export function ScoringConfiguration() {
                       />
                       <div className="text-xs space-y-1">
                         <div className="flex items-center gap-1">
-                          <div className="w-2.5 h-2.5 rounded-full bg-indigo-500" /> Quality
+                          <div className="w-2.5 h-2.5 rounded-full bg-indigo-500" /> {t.quality}
                         </div>
                         <div className="flex items-center gap-1">
-                          <div className="w-2.5 h-2.5 rounded-full bg-green-500" /> Attendance
+                          <div className="w-2.5 h-2.5 rounded-full bg-green-500" /> {t.attendance}
                         </div>
                         <div className="flex items-center gap-1">
-                          <div className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Punctuality
+                          <div className="w-2.5 h-2.5 rounded-full bg-amber-500" /> {t.punctuality}
                         </div>
                       </div>
                     </div>
@@ -849,7 +1099,7 @@ export function ScoringConfiguration() {
                   {/* Formula display */}
                   <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 
                     rounded-xl p-4 border border-indigo-100 dark:border-indigo-800/50">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 font-medium">FORMULA</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 font-medium">{t.formula}</p>
                     <p className="text-sm font-mono text-indigo-800 dark:text-indigo-300">
                       WeightedScore = ({config.weight_quality}% × QualityRate + {config.weight_attendance}% × AttendanceRate + {config.weight_punctuality}% × Punctuality) × CoverageFactor
                     </p>
@@ -860,43 +1110,43 @@ export function ScoringConfiguration() {
               {/* LATE DECAY SECTION */}
               {activeSection === 'decay' && (
                 <div className="space-y-6">
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Late Arrival Scoring Curve</h3>
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{t.decayTitle}</h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Controls how much credit a student gets based on how late they arrive. Uses exponential decay: <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">score = e^(-minutes/τ)</code>
+                    {t.decaySubtitle} <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">score = e^(-minutes/τ)</code>
                   </p>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-4">
                       <LabeledSlider
-                        label="Decay Constant (τ)"
+                        label={t.decayConstant}
                         value={config.late_decay_constant}
                         min={5} max={200} step={1}
                         color="purple"
-                        description="Higher = more lenient. 43.3 gives 50% credit at 30 min"
+                        description={t.decayConstantDesc}
                         onChange={(v) => updateField('late_decay_constant', v)}
                       />
                       
                       <LabeledSlider
-                        label="Minimum Credit"
+                        label={t.minimumCredit}
                         value={config.late_minimum_credit}
                         min={0} max={0.5} step={0.01}
                         color="red"
-                        description="Floor credit for any late arrival (0 = no credit, 0.5 = 50%)"
+                        description={t.minimumCreditDesc}
                         onChange={(v) => updateField('late_minimum_credit', v)}
                       />
                       
                       <LabeledSlider
-                        label="Unknown Late Estimate"
+                        label={t.unknownLate}
                         value={config.late_null_estimate}
                         min={0} max={1} step={0.05}
                         color="blue"
-                        description="Credit when late_minutes is not tracked (~20 min equivalent)"
+                        description={t.unknownLateDesc}
                         onChange={(v) => updateField('late_null_estimate', v)}
                       />
                     </div>
                     
                     <div>
-                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">DECAY CURVE PREVIEW</p>
+                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">{t.decayCurvePreview}</p>
                       <MiniChart
                         data={decayCurve}
                         xKey="minutes"
@@ -904,8 +1154,8 @@ export function ScoringConfiguration() {
                         color="#8b5cf6"
                         width={340}
                         height={160}
-                        xLabel="Minutes Late"
-                        yLabel="Credit %"
+                        xLabel={t.minutesLate}
+                        yLabel={t.creditPercent}
                         referenceLines={[
                           { value: 50, label: '50%', color: '#ef4444' },
                           { value: config.late_minimum_credit * 100, label: `Floor ${config.late_minimum_credit * 100}%`, color: '#f59e0b' },
@@ -916,7 +1166,7 @@ export function ScoringConfiguration() {
                   
                   {/* Reference points table */}
                   <div>
-                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">REFERENCE POINTS</p>
+                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">{t.referencePoints}</p>
                     <div className="flex flex-wrap gap-2">
                       {decayRefPoints.map(p => (
                         <div key={p.min} className="flex flex-col items-center px-3 py-2 rounded-lg border 
@@ -937,9 +1187,9 @@ export function ScoringConfiguration() {
               {/* COVERAGE SECTION */}
               {activeSection === 'coverage' && (
                 <div className="space-y-6">
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Coverage Factor</h3>
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{t.coverageTitle}</h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Penalizes students who attended very few sessions, so they don&apos;t outrank students with consistent full-course attendance.
+                    {t.coverageSubtitle}
                   </p>
                   
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50">
@@ -958,8 +1208,8 @@ export function ScoringConfiguration() {
                         after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600" />
                     </label>
                     <div>
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Enable Coverage Factor</span>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">When disabled, all students are scored equally regardless of how many sessions they attended</p>
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t.enableCoverage}</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{t.enableCoverageDesc}</p>
                     </div>
                   </div>
                   
@@ -967,13 +1217,13 @@ export function ScoringConfiguration() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-4">
                         <div>
-                          <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">Scaling Method</label>
+                          <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">{t.scalingMethod}</label>
                           <div className="grid grid-cols-2 gap-2">
                             {[
-                              { value: 'sqrt' as const, name: '√ Square Root', desc: 'Gentle curve (default)' },
-                              { value: 'linear' as const, name: '— Linear', desc: 'Proportional' },
-                              { value: 'log' as const, name: 'ln Logarithmic', desc: 'Harsh for low attendance' },
-                              { value: 'none' as const, name: '∅ None', desc: 'No coverage penalty' },
+                              { value: 'sqrt' as const, name: t.sqrtName, desc: t.sqrtDesc },
+                              { value: 'linear' as const, name: t.linearName, desc: t.linearDesc },
+                              { value: 'log' as const, name: t.logName, desc: t.logDesc },
+                              { value: 'none' as const, name: t.noneName, desc: t.noneDesc },
                             ].map(opt => (
                               <button
                                 key={opt.value}
@@ -992,17 +1242,17 @@ export function ScoringConfiguration() {
                         </div>
                         
                         <LabeledSlider
-                          label="Minimum Factor"
+                          label={t.minFactor}
                           value={config.coverage_minimum}
                           min={0} max={0.5} step={0.05}
                           color="blue"
-                          description="Floor for coverage factor (prevents scores going to near-zero)"
+                          description={t.minFactorDesc}
                           onChange={(v) => updateField('coverage_minimum', v)}
                         />
                       </div>
                       
                       <div>
-                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">COVERAGE CURVE (30 sessions total)</p>
+                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">{t.coverageCurve}</p>
                         <MiniChart
                           data={coverageCurve}
                           xKey="days"
@@ -1010,8 +1260,8 @@ export function ScoringConfiguration() {
                           color="#3b82f6"
                           width={340}
                           height={160}
-                          xLabel="Days Attended"
-                          yLabel="Factor %"
+                          xLabel={t.daysAttended}
+                          yLabel={t.factorPercent}
                         />
                         <div className="mt-2 flex flex-wrap gap-2 text-xs">
                           {[1, 5, 10, 20, 30].map(d => (
@@ -1029,9 +1279,9 @@ export function ScoringConfiguration() {
               {/* BRACKETS SECTION */}
               {activeSection === 'brackets' && (
                 <div className="space-y-6">
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Late Display Brackets</h3>
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{t.bracketsTitle}</h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Visual categorization only — scoring uses the smooth decay curve, not these brackets.
+                    {t.bracketsSubtitle}
                   </p>
                   
                   <div className="space-y-3">
@@ -1048,7 +1298,7 @@ export function ScoringConfiguration() {
                           }}
                           className="flex-1 px-2 py-1 text-sm border rounded-md bg-gray-50 dark:bg-gray-700 
                             border-gray-200 dark:border-gray-600 text-gray-900 dark:text-gray-100"
-                          placeholder="Bracket name"
+                          placeholder={t.bracketName}
                         />
                         <div className="flex items-center gap-1 text-xs">
                           <input
@@ -1077,7 +1327,7 @@ export function ScoringConfiguration() {
                           <span className="text-gray-400">min</span>
                         </div>
                         <span className={`px-2 py-1 rounded text-xs font-medium ${bracket.color.split(' ').slice(0, 2).join(' ')}`}>
-                          Preview
+                          {t.preview}
                         </span>
                         <button
                           onClick={() => {
@@ -1102,12 +1352,12 @@ export function ScoringConfiguration() {
                         id: String(Date.now()),
                         min: lastMax,
                         max: lastMax + 30,
-                        name: 'New Bracket',
+                        name: isArabic ? 'فئة جديدة' : 'New Bracket',
                         color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
                       }]);
                     }}
                   >
-                    + Add Bracket
+                    {t.addBracket}
                   </Button>
                 </div>
               )}
@@ -1115,37 +1365,37 @@ export function ScoringConfiguration() {
               {/* BONUSES SECTION */}
               {activeSection === 'bonuses' && (
                 <div className="space-y-6">
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Bonuses & Penalties</h3>
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{t.bonusesTitle}</h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Optional modifiers that add extra scoring dimensions.
+                    {t.bonusesSubtitle}
                   </p>
                   
                   <LabeledSlider
-                    label="Perfect Attendance Bonus"
+                    label={t.perfectBonus}
                     value={config.perfect_attendance_bonus}
                     min={0} max={20} step={1}
                     unit="pts"
                     color="green"
-                    description="Extra points added when student has 100% attendance (0 = disabled)"
+                    description={t.perfectBonusDesc}
                     onChange={(v) => updateField('perfect_attendance_bonus', v)}
                   />
                   
                   <LabeledSlider
-                    label="Streak Bonus (per week)"
+                    label={t.streakBonus}
                     value={config.streak_bonus_per_week}
                     min={0} max={5} step={0.5}
                     unit="pts"
                     color="blue"
-                    description="Bonus per consecutive week of perfect attendance"
+                    description={t.streakBonusDesc}
                     onChange={(v) => updateField('streak_bonus_per_week', v)}
                   />
                   
                   <LabeledSlider
-                    label="Unexcused Absence Multiplier"
+                    label={t.absenceMultiplier}
                     value={config.absence_penalty_multiplier}
                     min={0.5} max={3} step={0.1}
                     color="red"
-                    description="1.0 = normal, 2.0 = double penalty for unexcused absences"
+                    description={t.absenceMultiplierDesc}
                     onChange={(v) => updateField('absence_penalty_multiplier', v)}
                   />
                 </div>
@@ -1159,7 +1409,7 @@ export function ScoringConfiguration() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <span>🧪</span> Live Simulation
+                <span>🧪</span> {t.liveSimulation}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -1171,17 +1421,17 @@ export function ScoringConfiguration() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <span>📖</span> How It Works
+                <span>📖</span> {t.howItWorks}
               </CardTitle>
             </CardHeader>
             <CardContent className="text-xs text-gray-500 dark:text-gray-400 space-y-2">
-              <p><strong className="text-gray-700 dark:text-gray-300">Quality Rate:</strong> Each &quot;on time&quot; session = 100% credit. Each &quot;late&quot; session gets partial credit based on the decay curve.</p>
-              <p><strong className="text-gray-700 dark:text-gray-300">Attendance Rate:</strong> Simple present/total. Both &quot;on time&quot; and &quot;late&quot; count as present.</p>
-              <p><strong className="text-gray-700 dark:text-gray-300">Punctuality:</strong> Ratio of on-time sessions to total present sessions.</p>
-              <p><strong className="text-gray-700 dark:text-gray-300">Coverage Factor:</strong> Penalizes new students or those enrolled in few sessions.</p>
-              <p><strong className="text-gray-700 dark:text-gray-300">Bonuses &amp; Penalties:</strong> Perfect attendance bonus, streak bonus per week, and absence penalty multiplier are applied after the base score.</p>
+              <p><strong className="text-gray-700 dark:text-gray-300">{t.qualityLabel}:</strong> {t.howQuality}</p>
+              <p><strong className="text-gray-700 dark:text-gray-300">{t.attendanceLabel}:</strong> {t.howAttendance}</p>
+              <p><strong className="text-gray-700 dark:text-gray-300">{t.punctualityLabel}:</strong> {t.howPunctuality}</p>
+              <p><strong className="text-gray-700 dark:text-gray-300">{t.coverageTitle}:</strong> {t.howCoverage}</p>
+              <p><strong className="text-gray-700 dark:text-gray-300">{t.bonusesTitle}:</strong> {t.howBonuses}</p>
               <p className="pt-2 border-t border-gray-200 dark:border-gray-700 font-medium text-gray-600 dark:text-gray-300">
-                Final = (W₁×Quality + W₂×Attendance + W₃×Punctuality) × Coverage + Bonuses − Penalties
+                {t.howFormula}
               </p>
             </CardContent>
           </Card>
@@ -1193,9 +1443,9 @@ export function ScoringConfiguration() {
         isOpen={showResetConfirm}
         onCancel={() => setShowResetConfirm(false)}
         onConfirm={handleReset}
-        title="Reset Scoring Configuration"
-        message="This will revert all settings to the factory defaults. Your current configuration will be lost. Continue?"
-        confirmText="Reset to Defaults"
+        title={t.resetTitle}
+        message={t.resetMessage}
+        confirmText={t.resetConfirm}
         type="danger"
       />
     </div>

@@ -183,8 +183,20 @@ export function Messages() {
         // Check if admin (admin without teacher entry)
         const isAdminUser = user.email.toLowerCase() === 'baraatakala2004@gmail.com';
         if (isAdminUser) {
+          // Admin needs a teacher record for FK constraints and name resolution
+          // Upsert to create one if it doesn't exist (same pattern as Announcements)
+          const { data: adminTeacher } = await supabase
+            .from('teacher')
+            .upsert(
+              { name: 'Admin', email: user.email },
+              { onConflict: 'email' }
+            )
+            .select('teacher_id')
+            .single();
+
+          const adminId = adminTeacher?.teacher_id || user.id;
           setUserType('teacher');
-          setCurrentUserId(user.id); // Use auth UUID for admin
+          setCurrentUserId(adminId);
         } else {
           // Check if student
           const { data: student } = await supabase

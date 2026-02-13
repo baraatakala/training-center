@@ -250,7 +250,8 @@ export function generateCoverageCurve(
 // =====================================================
 
 /**
- * Get scoring config for the current teacher.
+ * Get the GLOBAL scoring config (admin's config).
+ * Scoring config is global — only admin can write, everyone reads the same config.
  * Tries Supabase first (source of truth), then localStorage cache, then defaults.
  */
 export async function getScoringConfig(): Promise<{ data: ScoringConfig | null; error: Error | null }> {
@@ -259,26 +260,29 @@ export async function getScoringConfig(): Promise<{ data: ScoringConfig | null; 
     if (!user) return { data: null, error: new Error('Not authenticated') };
     
     // Try Supabase first (source of truth)
+    // NOTE: No teacher_id filter — scoring config is global.
+    // After the RLS migration only admin's row exists.
     try {
       const { data, error } = await supabase
         .from('scoring_config')
         .select('*')
-        .eq('teacher_id', user.id)
         .eq('is_default', true)
-        .maybeSingle();
+        .order('created_at', { ascending: true })
+        .limit(1);
       
-      if (!error && data) {
+      const row = data?.[0] ?? null;
+      
+      if (!error && row) {
         // Parse late_brackets from JSON if stored as string
-        if (typeof data.late_brackets === 'string') {
-          data.late_brackets = JSON.parse(data.late_brackets);
+        if (typeof row.late_brackets === 'string') {
+          row.late_brackets = JSON.parse(row.late_brackets);
         }
         // Normalize numeric fields (PostgREST returns NUMERIC as strings)
-        const normalized = normalizeScoringConfig(data as Record<string, unknown>);
-        // Cache the NORMALIZED version to BOTH localStorage keys for sync access
+        const normalized = normalizeScoringConfig(row as Record<string, unknown>);
+        // Cache the NORMALIZED version for sync access (global — not user-specific)
         const normalizedJson = JSON.stringify(normalized);
-        localStorage.setItem(`scoring_config_${user.id}`, normalizedJson);
         localStorage.setItem('scoring_config_current', normalizedJson);
-        return { data: { ...data, ...normalized }, error: null };
+        return { data: { ...row, ...normalized }, error: null };
       }
       
       if (error) {
@@ -296,8 +300,8 @@ export async function getScoringConfig(): Promise<{ data: ScoringConfig | null; 
       // Fall through to localStorage
     }
     
-    // Try localStorage as fallback — also normalize in case it has string numbers
-    const cached = localStorage.getItem(`scoring_config_${user.id}`);
+    // Try localStorage as fallback — use global key
+    const cached = localStorage.getItem('scoring_config_current');
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
@@ -318,6 +322,7 @@ export async function getScoringConfig(): Promise<{ data: ScoringConfig | null; 
 
 /**
  * Save scoring config to Supabase + localStorage.
+ * Only admin can write (enforced by RLS). Config is GLOBAL — not per-user.
  * Reports actual errors instead of silently falling back.
  */
 export async function saveScoringConfig(config: Partial<ScoringConfig>): Promise<{ data: ScoringConfig | null; error: Error | null }> {
@@ -351,11 +356,9 @@ export async function saveScoringConfig(config: Partial<ScoringConfig>): Promise
     };
     
     // Save to localStorage immediately (for loadConfigSync)
-    // Write to BOTH the user-specific key AND the canonical "current" key.
-    // loadConfigSync checks "scoring_config_current" first for fast synchronous access.
+    // Write to the canonical global key — config is NOT per-user.
     const normalizedPayload = normalizeScoringConfig(dbPayload as Record<string, unknown>);
     const payloadJson = JSON.stringify(normalizedPayload);
-    localStorage.setItem(`scoring_config_${user.id}`, payloadJson);
     localStorage.setItem('scoring_config_current', payloadJson);
     
     // Dispatch custom event so any open AttendanceRecords page can react immediately
@@ -390,7 +393,6 @@ export async function saveScoringConfig(config: Partial<ScoringConfig>): Promise
           } else if (updateData) {
             const normalizedUpdate = normalizeScoringConfig(updateData as Record<string, unknown>);
             const updateJson = JSON.stringify(normalizedUpdate);
-            localStorage.setItem(`scoring_config_${user.id}`, updateJson);
             localStorage.setItem('scoring_config_current', updateJson);
             return { data: { ...updateData, ...normalizedUpdate } as ScoringConfig, error: null };
           }
@@ -405,7 +407,6 @@ export async function saveScoringConfig(config: Partial<ScoringConfig>): Promise
         // then update localStorage with properly typed values
         const normalizedUpsert = normalizeScoringConfig(upsertData as Record<string, unknown>);
         const upsertJson = JSON.stringify(normalizedUpsert);
-        localStorage.setItem(`scoring_config_${user.id}`, upsertJson);
         localStorage.setItem('scoring_config_current', upsertJson);
         return { data: { ...upsertData, ...normalizedUpsert } as ScoringConfig, error: null };
       }
@@ -428,12 +429,11 @@ export async function saveScoringConfig(config: Partial<ScoringConfig>): Promise
 
 /**
  * Load config from localStorage (synchronous, for use in calculations).
- * Searches for the scoring config key by checking all localStorage keys.
+ * Scoring config is GLOBAL — reads from the canonical "scoring_config_current" key.
  */
 export function loadConfigSync(): Omit<ScoringConfig, 'id' | 'teacher_id' | 'created_at' | 'updated_at'> {
   try {
-    // Priority 1: Check the canonical "scoring_config_current" key.
-    // This is always written by saveScoringConfig and is the most reliable source.
+    // Read the canonical global key (written by getScoringConfig and saveScoringConfig)
     const currentRaw = localStorage.getItem('scoring_config_current');
     if (currentRaw) {
       try {
@@ -446,31 +446,7 @@ export function loadConfigSync(): Omit<ScoringConfig, 'id' | 'teacher_id' | 'cre
       } catch { /* corrupt — continue */ }
     }
 
-    // Priority 2: Find the user-specific key via Supabase auth
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && (key.includes('supabase') || key.includes('sb-'))) {
-        try {
-          const val = JSON.parse(localStorage.getItem(key) || '');
-          const userId = val?.user?.id || val?.currentSession?.user?.id;
-          if (userId) {
-            const cached = localStorage.getItem(`scoring_config_${userId}`);
-            if (cached) {
-              const parsed = JSON.parse(cached);
-              if (parsed && (typeof parsed.weight_quality === 'number' || typeof parsed.weight_quality === 'string')) {
-                const normalized = normalizeScoringConfig(parsed);
-                // Promote to canonical key for faster future reads
-                localStorage.setItem('scoring_config_current', JSON.stringify(normalized));
-                console.log('[ScoringConfig] loadConfigSync → scoring_config_' + userId.slice(0,8) + ':', normalized.weight_quality, '/', normalized.weight_attendance, '/', normalized.weight_punctuality);
-                return normalized;
-              }
-            }
-          }
-        } catch { /* skip */ }
-      }
-    }
-
-    // Priority 3: Any scoring_config_* key (last resort)
+    // Fallback: Any scoring_config_* key (legacy migration path)
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key && key.startsWith('scoring_config_') && key !== 'scoring_config_current') {
@@ -478,6 +454,7 @@ export function loadConfigSync(): Omit<ScoringConfig, 'id' | 'teacher_id' | 'cre
           const val = JSON.parse(localStorage.getItem(key) || '');
           if (val && (typeof val.weight_quality === 'number' || (typeof val.weight_quality === 'string' && !isNaN(parseFloat(val.weight_quality))))) {
             const normalized = normalizeScoringConfig(val);
+            // Promote to canonical key
             localStorage.setItem('scoring_config_current', JSON.stringify(normalized));
             console.log('[ScoringConfig] loadConfigSync → fallback key', key, ':', normalized.weight_quality, '/', normalized.weight_attendance, '/', normalized.weight_punctuality);
             return normalized;
@@ -491,14 +468,14 @@ export function loadConfigSync(): Omit<ScoringConfig, 'id' | 'teacher_id' | 'cre
 }
 
 /**
- * Reset config to defaults
+ * Reset config to defaults (admin only — RLS enforced)
  */
 export async function resetScoringConfig(): Promise<{ error: Error | null }> {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: new Error('Not authenticated') };
     
-    localStorage.removeItem(`scoring_config_${user.id}`);
+    localStorage.removeItem('scoring_config_current');
     
     try {
       await supabase
