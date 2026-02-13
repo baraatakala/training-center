@@ -469,6 +469,7 @@ export const messageService = {
         .single();
 
       if (error) throw error;
+      try { await logInsert('message', message.message_id, message as Record<string, unknown>); } catch { /* audit non-critical */ }
       return { data: message, error: null };
     } catch (error) {
       console.error('Error sending message:', error);
@@ -522,12 +523,22 @@ export const messageService = {
    */
   async delete(messageId: string): Promise<{ error: Error | null }> {
     try {
+      // Fetch message data before deleting for audit
+      const { data: msgData } = await supabase
+        .from('message')
+        .select('*')
+        .eq('message_id', messageId)
+        .single();
+
       const { error } = await supabase
         .from('message')
         .delete()
         .eq('message_id', messageId);
 
       if (error) throw error;
+      if (msgData) {
+        try { await logDelete('message', messageId, msgData as Record<string, unknown>); } catch { /* audit non-critical */ }
+      }
       return { error: null };
     } catch (error) {
       console.error('Error deleting message:', error);

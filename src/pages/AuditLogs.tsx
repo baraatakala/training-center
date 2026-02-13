@@ -68,6 +68,8 @@ const TABLE_ICONS: Record<string, string> = {
   enrollment: '📋',
   attendance: '✅',
   announcement: '📢',
+  message: '💬',
+  scoring_config: '⚙️',
 };
 
 const OP_ICONS: Record<string, string> = {
@@ -374,6 +376,9 @@ export function AuditLogs() {
                   { value: 'session', label: '📅 Session' },
                   { value: 'enrollment', label: '📋 Enrollment' },
                   { value: 'attendance', label: '✅ Attendance' },
+                  { value: 'announcement', label: '📢 Announcement' },
+                  { value: 'message', label: '💬 Message' },
+                  { value: 'scoring_config', label: '⚙️ Scoring Config' },
                 ]}
               />
             </div>
