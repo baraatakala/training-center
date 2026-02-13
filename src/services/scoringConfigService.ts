@@ -322,8 +322,9 @@ export async function getScoringConfig(): Promise<{ data: ScoringConfig | null; 
 
 /**
  * Save scoring config to Supabase + localStorage.
- * Only admin can write (enforced by RLS). Config is GLOBAL — not per-user.
- * Reports actual errors instead of silently falling back.
+ * Admin and teachers can write (enforced by RLS). Config is GLOBAL — one row.
+ * The save logic finds the existing row and UPDATEs it rather than inserting
+ * a new row per user, keeping the config truly global.
  */
 export async function saveScoringConfig(config: Partial<ScoringConfig>): Promise<{ data: ScoringConfig | null; error: Error | null }> {
   try {
@@ -334,10 +335,8 @@ export async function saveScoringConfig(config: Partial<ScoringConfig>): Promise
     const merged = { ...DEFAULT_SCORING_CONFIG, ...config };
     
     // IMPORTANT: Whitelist only the columns that exist in the scoring_config table.
-    // This prevents stale/extra fields from localStorage or frontend state from
-    // being sent to Supabase, which would cause PGRST204 "column not found" errors.
-    const dbPayload = {
-      teacher_id: user.id,
+    // Do NOT include teacher_id in dataFields — we never change ownership of the global row.
+    const dataFields = {
       config_name: merged.config_name,
       is_default: true as const,
       weight_quality: merged.weight_quality,
@@ -356,59 +355,64 @@ export async function saveScoringConfig(config: Partial<ScoringConfig>): Promise
     };
     
     // Save to localStorage immediately (for loadConfigSync)
-    // Write to the canonical global key — config is NOT per-user.
-    const normalizedPayload = normalizeScoringConfig(dbPayload as Record<string, unknown>);
+    const normalizedPayload = normalizeScoringConfig(dataFields as Record<string, unknown>);
     const payloadJson = JSON.stringify(normalizedPayload);
     localStorage.setItem('scoring_config_current', payloadJson);
     
     // Dispatch custom event so any open AttendanceRecords page can react immediately
     window.dispatchEvent(new Event('scoring-config-changed'));
     
-    // Try Supabase upsert
+    // Try Supabase — update existing global row or insert if none exists
     let dbError: Error | null = null;
     try {
-      // First try: upsert with conflict on the unique constraint
-      const { data: upsertData, error } = await supabase
+      // Step 1: Find the existing global config row (any teacher_id, is_default=true)
+      const { data: existing } = await supabase
         .from('scoring_config')
-        .upsert(dbPayload, { onConflict: 'teacher_id,is_default' })
-        .select()
-        .single();
+        .select('id, teacher_id')
+        .eq('is_default', true)
+        .order('created_at', { ascending: true })
+        .limit(1);
       
-      if (error) {
-        console.error('Scoring config save error:', error.code, error.message, error.details);
+      const existingRow = existing?.[0];
+      
+      if (existingRow) {
+        // Step 2a: UPDATE the existing row (preserve its teacher_id / primary key)
+        const { data: updateData, error: updateError } = await supabase
+          .from('scoring_config')
+          .update(dataFields)
+          .eq('id', existingRow.id)
+          .select()
+          .single();
         
-        // If upsert failed, try insert (for first-time saves)
-        if (error.code === '23505') {
-          // Duplicate key — try update instead
-          const { data: updateData, error: updateError } = await supabase
-            .from('scoring_config')
-            .update(dbPayload)
-            .eq('teacher_id', user.id)
-            .eq('is_default', true)
-            .select()
-            .single();
-          
-          if (updateError) {
-            dbError = new Error(`DB update failed: ${updateError.message}`);
-          } else if (updateData) {
-            const normalizedUpdate = normalizeScoringConfig(updateData as Record<string, unknown>);
-            const updateJson = JSON.stringify(normalizedUpdate);
-            localStorage.setItem('scoring_config_current', updateJson);
-            return { data: { ...updateData, ...normalizedUpdate } as ScoringConfig, error: null };
-          }
-        } else if (error.code === '42P01') {
-          // Table doesn't exist — saved to localStorage only
-          dbError = new Error('Scoring config table does not exist in database. Run the SQL migration. Config is saved locally only.');
-        } else {
-          dbError = new Error(`DB save failed: ${error.message}`);
+        if (updateError) {
+          console.error('Scoring config update error:', updateError.code, updateError.message);
+          dbError = new Error(`DB update failed: ${updateError.message}`);
+        } else if (updateData) {
+          const normalized = normalizeScoringConfig(updateData as Record<string, unknown>);
+          localStorage.setItem('scoring_config_current', JSON.stringify(normalized));
+          return { data: { ...updateData, ...normalized } as ScoringConfig, error: null };
         }
-      } else if (upsertData) {
-        // Success — normalize DB response (PostgREST returns NUMERIC as strings)
-        // then update localStorage with properly typed values
-        const normalizedUpsert = normalizeScoringConfig(upsertData as Record<string, unknown>);
-        const upsertJson = JSON.stringify(normalizedUpsert);
-        localStorage.setItem('scoring_config_current', upsertJson);
-        return { data: { ...upsertData, ...normalizedUpsert } as ScoringConfig, error: null };
+      } else {
+        // Step 2b: No row exists yet — INSERT a new one with current user as owner
+        const insertPayload = { ...dataFields, teacher_id: user.id };
+        const { data: insertData, error: insertError } = await supabase
+          .from('scoring_config')
+          .insert(insertPayload)
+          .select()
+          .single();
+        
+        if (insertError) {
+          console.error('Scoring config insert error:', insertError.code, insertError.message);
+          if (insertError.code === '42P01') {
+            dbError = new Error('Scoring config table does not exist. Run the SQL migration. Config saved locally only.');
+          } else {
+            dbError = new Error(`DB insert failed: ${insertError.message}`);
+          }
+        } else if (insertData) {
+          const normalized = normalizeScoringConfig(insertData as Record<string, unknown>);
+          localStorage.setItem('scoring_config_current', JSON.stringify(normalized));
+          return { data: { ...insertData, ...normalized } as ScoringConfig, error: null };
+        }
       }
     } catch (err) {
       console.error('Scoring config save exception:', err);
@@ -418,10 +422,10 @@ export async function saveScoringConfig(config: Partial<ScoringConfig>): Promise
     // If DB failed but localStorage succeeded, return partial success
     if (dbError) {
       console.warn('Scoring config saved to localStorage only:', dbError.message);
-      return { data: dbPayload as ScoringConfig, error: dbError };
+      return { data: { ...dataFields, teacher_id: user.id } as ScoringConfig, error: dbError };
     }
     
-    return { data: dbPayload as ScoringConfig, error: null };
+    return { data: { ...dataFields, teacher_id: user.id } as ScoringConfig, error: null };
   } catch (err) {
     return { data: null, error: err instanceof Error ? err : new Error('Save failed') };
   }
@@ -468,7 +472,8 @@ export function loadConfigSync(): Omit<ScoringConfig, 'id' | 'teacher_id' | 'cre
 }
 
 /**
- * Reset config to defaults (admin only — RLS enforced)
+ * Reset config to defaults (admin/teacher — RLS enforced).
+ * Deletes the global config row so next load returns defaults.
  */
 export async function resetScoringConfig(): Promise<{ error: Error | null }> {
   try {
@@ -478,10 +483,11 @@ export async function resetScoringConfig(): Promise<{ error: Error | null }> {
     localStorage.removeItem('scoring_config_current');
     
     try {
+      // Delete the global config row (is_default=true, any teacher_id)
       await supabase
         .from('scoring_config')
         .delete()
-        .eq('teacher_id', user.id);
+        .eq('is_default', true);
     } catch { /* table may not exist */ }
     
     return { error: null };

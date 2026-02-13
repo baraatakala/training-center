@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -195,6 +194,7 @@ function LabeledSlider({
   description,
   color = 'blue',
   onChange,
+  disabled = false,
 }: {
   label: string;
   value: number;
@@ -205,6 +205,7 @@ function LabeledSlider({
   description?: string;
   color?: string;
   onChange: (v: number) => void;
+  disabled?: boolean;
 }) {
   const colorMap: Record<string, string> = {
     blue: 'accent-blue-600',
@@ -227,8 +228,9 @@ function LabeledSlider({
             max={max}
             step={step}
             onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-            className="w-20 text-right px-2 py-0.5 text-sm border rounded-md bg-white dark:bg-gray-700 
-              border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+            disabled={disabled}
+            className={`w-20 text-right px-2 py-0.5 text-sm border rounded-md bg-white dark:bg-gray-700 
+              border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}
           />
           {unit && <span className="text-xs text-gray-500 dark:text-gray-400 w-6">{unit}</span>}
         </div>
@@ -240,7 +242,8 @@ function LabeledSlider({
         step={step}
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
-        className={`w-full h-2 rounded-lg cursor-pointer ${colorMap[color] || colorMap.blue}`}
+        disabled={disabled}
+        className={`w-full h-2 rounded-lg ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'} ${colorMap[color] || colorMap.blue}`}
       />
       {description && (
         <p className="text-xs text-gray-500 dark:text-gray-400">{description}</p>
@@ -575,6 +578,8 @@ const translations = {
     adminRequired: 'Admin Access Required',
     adminRequiredDesc: 'Only the admin can configure scoring parameters.',
     backToDashboard: 'Back to Dashboard',
+    readOnlyBanner: 'You are viewing scoring configuration in read-only mode.',
+    readOnlyBannerStudent: 'Students can view but not modify scoring settings.',
     // Presets
     presetBalanced: 'Balanced (Default)',
     presetBalancedDesc: 'Equal emphasis on quality, attendance, and timeliness',
@@ -682,6 +687,8 @@ const translations = {
     adminRequired: 'مطلوب صلاحية المشرف',
     adminRequiredDesc: 'فقط المشرف يمكنه تعديل إعدادات التقييم.',
     backToDashboard: 'العودة للوحة التحكم',
+    readOnlyBanner: 'أنت تشاهد إعدادات التقييم في وضع القراءة فقط.',
+    readOnlyBannerStudent: 'يمكن للطلاب المشاهدة فقط وليس التعديل.',
     // Presets
     presetBalanced: 'متوازن (افتراضي)',
     presetBalancedDesc: 'تركيز متساوي على الجودة والحضور والانضباط',
@@ -746,9 +753,9 @@ const PRESETS: { name: string; emoji: string; description: string; config: Parti
 // =====================================================
 
 export function ScoringConfiguration() {
-  const navigate = useNavigate();
   const { toasts, success, error: showError, removeToast } = useToast();
-  const { isAdmin, loading: authLoading } = useIsTeacher();
+  const { isTeacher, isAdmin, loading: authLoading } = useIsTeacher();
+  const canEdit = isAdmin || isTeacher;
   
   const [config, setConfig] = useState<Omit<ScoringConfig, 'id' | 'teacher_id' | 'created_at' | 'updated_at'>>(DEFAULT_SCORING_CONFIG);
   const [loading, setLoading] = useState(true);
@@ -903,16 +910,8 @@ export function ScoringConfiguration() {
     );
   }
   
-  if (!isAdmin) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
-        <div className="text-6xl">🔒</div>
-        <h2 className="text-xl font-bold text-gray-700 dark:text-gray-300">{t.adminRequired}</h2>
-        <p className="text-gray-500 dark:text-gray-400">{t.adminRequiredDesc}</p>
-        <Button onClick={() => navigate('/')}>{t.backToDashboard}</Button>
-      </div>
-    );
-  }
+  // No access-denied block — everyone can view the page.
+  // canEdit (admin/teacher) can modify; students see read-only.
   
   const sections = [
     { id: 'weights' as const, label: t.sectionWeights, icon: '⚖️' },
@@ -964,20 +963,36 @@ export function ScoringConfiguration() {
               ع
             </button>
           </div>
-          <Button variant="outline" onClick={() => setShowResetConfirm(true)} disabled={saving}>
-            {t.resetToDefault}
-          </Button>
-          <Button 
-            onClick={handleSave} 
-            disabled={saving || !hasChanges}
-            className={hasChanges ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/25' : ''}
-          >
-            {saving ? t.saving : hasChanges ? t.saveChanges : t.saved}
-          </Button>
+          {canEdit && (
+            <>
+              <Button variant="outline" onClick={() => setShowResetConfirm(true)} disabled={saving}>
+                {t.resetToDefault}
+              </Button>
+              <Button 
+                onClick={handleSave} 
+                disabled={saving || !hasChanges}
+                className={hasChanges ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/25' : ''}
+              >
+                {saving ? t.saving : hasChanges ? t.saveChanges : t.saved}
+              </Button>
+            </>
+          )}
         </div>
       </div>
       
-      {/* Presets Bar */}
+      {/* Read-only banner for students */}
+      {!canEdit && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 flex items-center gap-3">
+          <span className="text-2xl">👁️</span>
+          <div>
+            <p className="text-sm font-medium text-blue-700 dark:text-blue-300">{t.readOnlyBanner}</p>
+            <p className="text-xs text-blue-500 dark:text-blue-400">{t.readOnlyBannerStudent}</p>
+          </div>
+        </div>
+      )}
+      
+      {/* Presets Bar — only for editors */}
+      {canEdit && (
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
         <div className="flex items-center gap-2 mb-3">
           <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t.quickPresets}</span>
@@ -1002,6 +1017,7 @@ export function ScoringConfiguration() {
           ))}
         </div>
       </div>
+      )}
       
       {/* Main Content - Section Nav + Editor + Simulation */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -1052,6 +1068,7 @@ export function ScoringConfiguration() {
                         color="indigo"
                         description={t.qualityDesc}
                         onChange={(v) => balanceWeights('quality', v)}
+                        disabled={!canEdit}
                       />
                       
                       <LabeledSlider
@@ -1062,6 +1079,7 @@ export function ScoringConfiguration() {
                         color="green"
                         description={t.attendanceDesc}
                         onChange={(v) => balanceWeights('attendance', v)}
+                        disabled={!canEdit}
                       />
                       
                       <LabeledSlider
@@ -1072,6 +1090,7 @@ export function ScoringConfiguration() {
                         color="amber"
                         description={t.punctualityDesc}
                         onChange={(v) => balanceWeights('punctuality', v)}
+                        disabled={!canEdit}
                       />
                     </div>
                     
@@ -1124,6 +1143,7 @@ export function ScoringConfiguration() {
                         color="purple"
                         description={t.decayConstantDesc}
                         onChange={(v) => updateField('late_decay_constant', v)}
+                        disabled={!canEdit}
                       />
                       
                       <LabeledSlider
@@ -1133,6 +1153,7 @@ export function ScoringConfiguration() {
                         color="red"
                         description={t.minimumCreditDesc}
                         onChange={(v) => updateField('late_minimum_credit', v)}
+                        disabled={!canEdit}
                       />
                       
                       <LabeledSlider
@@ -1142,6 +1163,7 @@ export function ScoringConfiguration() {
                         color="blue"
                         description={t.unknownLateDesc}
                         onChange={(v) => updateField('late_null_estimate', v)}
+                        disabled={!canEdit}
                       />
                     </div>
                     
@@ -1193,11 +1215,12 @@ export function ScoringConfiguration() {
                   </p>
                   
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50">
-                    <label className="relative inline-flex items-center cursor-pointer">
+                    <label className={`relative inline-flex items-center ${canEdit ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
                       <input
                         type="checkbox"
                         checked={config.coverage_enabled}
                         onChange={(e) => updateField('coverage_enabled', e.target.checked)}
+                        disabled={!canEdit}
                         className="sr-only peer"
                       />
                       <div className="w-11 h-6 bg-gray-200 peer-focus:ring-4 peer-focus:ring-indigo-300 
@@ -1227,8 +1250,9 @@ export function ScoringConfiguration() {
                             ].map(opt => (
                               <button
                                 key={opt.value}
-                                onClick={() => updateField('coverage_method', opt.value)}
-                                className={`p-2 rounded-lg border text-left text-sm transition-all ${
+                                onClick={() => canEdit && updateField('coverage_method', opt.value)}
+                                disabled={!canEdit}
+                                className={`p-2 rounded-lg border text-left text-sm transition-all ${!canEdit ? 'opacity-60 cursor-not-allowed' : ''} ${
                                   config.coverage_method === opt.value
                                     ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 dark:border-indigo-600'
                                     : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
@@ -1248,6 +1272,7 @@ export function ScoringConfiguration() {
                           color="blue"
                           description={t.minFactorDesc}
                           onChange={(v) => updateField('coverage_minimum', v)}
+                          disabled={!canEdit}
                         />
                       </div>
                       
@@ -1296,8 +1321,9 @@ export function ScoringConfiguration() {
                             newBrackets[idx] = { ...bracket, name: e.target.value };
                             updateField('late_brackets', newBrackets);
                           }}
-                          className="flex-1 px-2 py-1 text-sm border rounded-md bg-gray-50 dark:bg-gray-700 
-                            border-gray-200 dark:border-gray-600 text-gray-900 dark:text-gray-100"
+                          disabled={!canEdit}
+                          className={`flex-1 px-2 py-1 text-sm border rounded-md bg-gray-50 dark:bg-gray-700 
+                            border-gray-200 dark:border-gray-600 text-gray-900 dark:text-gray-100 ${!canEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
                           placeholder={t.bracketName}
                         />
                         <div className="flex items-center gap-1 text-xs">
@@ -1309,8 +1335,9 @@ export function ScoringConfiguration() {
                               newBrackets[idx] = { ...bracket, min: parseInt(e.target.value) || 0 };
                               updateField('late_brackets', newBrackets);
                             }}
-                            className="w-14 px-1 py-1 text-center border rounded-md bg-gray-50 dark:bg-gray-700 
-                              border-gray-200 dark:border-gray-600"
+                            disabled={!canEdit}
+                            className={`w-14 px-1 py-1 text-center border rounded-md bg-gray-50 dark:bg-gray-700 
+                              border-gray-200 dark:border-gray-600 ${!canEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
                           />
                           <span className="text-gray-400">-</span>
                           <input
@@ -1321,14 +1348,16 @@ export function ScoringConfiguration() {
                               newBrackets[idx] = { ...bracket, max: parseInt(e.target.value) || 999 };
                               updateField('late_brackets', newBrackets);
                             }}
-                            className="w-14 px-1 py-1 text-center border rounded-md bg-gray-50 dark:bg-gray-700 
-                              border-gray-200 dark:border-gray-600"
+                            disabled={!canEdit}
+                            className={`w-14 px-1 py-1 text-center border rounded-md bg-gray-50 dark:bg-gray-700 
+                              border-gray-200 dark:border-gray-600 ${!canEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
                           />
                           <span className="text-gray-400">min</span>
                         </div>
                         <span className={`px-2 py-1 rounded text-xs font-medium ${bracket.color.split(' ').slice(0, 2).join(' ')}`}>
                           {t.preview}
                         </span>
+                        {canEdit && (
                         <button
                           onClick={() => {
                             const newBrackets = config.late_brackets.filter((_, i) => i !== idx);
@@ -1338,10 +1367,12 @@ export function ScoringConfiguration() {
                         >
                           ✕
                         </button>
+                        )}
                       </div>
                     ))}
                   </div>
                   
+                  {canEdit && (
                   <Button
                     variant="outline"
                     onClick={() => {
@@ -1359,6 +1390,7 @@ export function ScoringConfiguration() {
                   >
                     {t.addBracket}
                   </Button>
+                  )}
                 </div>
               )}
               
@@ -1378,6 +1410,7 @@ export function ScoringConfiguration() {
                     color="green"
                     description={t.perfectBonusDesc}
                     onChange={(v) => updateField('perfect_attendance_bonus', v)}
+                    disabled={!canEdit}
                   />
                   
                   <LabeledSlider
@@ -1388,6 +1421,7 @@ export function ScoringConfiguration() {
                     color="blue"
                     description={t.streakBonusDesc}
                     onChange={(v) => updateField('streak_bonus_per_week', v)}
+                    disabled={!canEdit}
                   />
                   
                   <LabeledSlider
@@ -1397,6 +1431,7 @@ export function ScoringConfiguration() {
                     color="red"
                     description={t.absenceMultiplierDesc}
                     onChange={(v) => updateField('absence_penalty_multiplier', v)}
+                    disabled={!canEdit}
                   />
                 </div>
               )}
