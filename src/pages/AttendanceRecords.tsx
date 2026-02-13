@@ -345,7 +345,7 @@ const AttendanceRecords = () => {
       await loadFilterOptions();
       await loadRecords();
 
-      // Check if current user is a teacher
+      // Check if current user is a teacher or admin
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user?.email) {
@@ -354,7 +354,17 @@ const AttendanceRecords = () => {
             .select('teacher_id')
             .ilike('email', user.email)
             .single();
-          setIsTeacher(!!teacher);
+          if (teacher) {
+            setIsTeacher(true);
+          } else {
+            // Fallback: check admin table
+            const { data: adminRecord } = await supabase
+              .from('admin')
+              .select('admin_id')
+              .ilike('email', user.email)
+              .single();
+            setIsTeacher(!!adminRecord);
+          }
         }
       } catch {
         setIsTeacher(false);

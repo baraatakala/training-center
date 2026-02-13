@@ -63,7 +63,7 @@ export function Attendance() {
   const [session, setSession] = useState<Session | null>(null);
   const [isTeacher, setIsTeacher] = useState<boolean | null>(null);
 
-  // Check if user is a teacher (TEACHERS ONLY can access this page)
+  // Check if user is a teacher or admin (TEACHERS + ADMINS can access this page)
   useEffect(() => {
     const checkTeacherAccess = async () => {
       try {
@@ -74,19 +74,39 @@ export function Attendance() {
         }
 
         // Check if user's email exists in teacher table
-        const { data: teacher, error } = await supabase
+        const { data: teacher } = await supabase
           .from('teacher')
           .select('teacher_id')
           .ilike('email', user.email)
           .single();
 
-        if (error || !teacher) {
-          // Not a teacher - redirect to dashboard
-          navigate('/');
+        if (teacher) {
+          setIsTeacher(true);
           return;
         }
 
-        setIsTeacher(true);
+        // Fallback: check admin table (admin should be synced to teacher, but safety net)
+        const { data: adminRecord } = await supabase
+          .from('admin')
+          .select('admin_id')
+          .ilike('email', user.email)
+          .single();
+
+        if (adminRecord) {
+          // Admin user — ensure teacher record exists for FK compatibility
+          const { data: adminTeacher } = await supabase
+            .from('teacher')
+            .upsert({ name: 'Admin', email: user.email }, { onConflict: 'email' })
+            .select('teacher_id')
+            .single();
+          if (adminTeacher) {
+            setIsTeacher(true);
+            return;
+          }
+        }
+
+        // Not a teacher or admin - redirect to dashboard
+        navigate('/');
       } catch (err) {
         console.error('Teacher check failed:', err);
         navigate('/');
