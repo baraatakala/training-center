@@ -3,7 +3,7 @@ import type {
   CreateAttendance, 
   UpdateAttendance
 } from '../types/database.types';
-import { logDelete, logUpdate } from './auditService';
+import { logDelete, logUpdate, logInsert } from './auditService';
 import { Tables } from '../types/database.types';
 
 export const attendanceService = {
@@ -67,7 +67,7 @@ export const attendanceService = {
 
   // Create or update attendance record (upsert to prevent duplicate key errors)
   async create(attendance: CreateAttendance) {
-    return await supabase
+    const result = await supabase
       .from(Tables.ATTENDANCE)
       .upsert(attendance, {
         onConflict: 'enrollment_id,attendance_date',
@@ -75,17 +75,33 @@ export const attendanceService = {
       })
       .select()
       .single();
+
+    if (result.data) {
+      try { await logInsert('attendance', result.data.attendance_id, result.data as Record<string, unknown>); } catch { /* audit non-critical */ }
+    }
+    return result;
   },
 
   // Bulk create/update attendance records (upsert to prevent duplicate key errors)
   async createBulk(attendanceRecords: CreateAttendance[]) {
-    return await supabase
+    const result = await supabase
       .from(Tables.ATTENDANCE)
       .upsert(attendanceRecords, {
         onConflict: 'enrollment_id,attendance_date',
         ignoreDuplicates: false
       })
       .select();
+
+    if (result.data && result.data.length > 0) {
+      try {
+        await Promise.allSettled(
+          result.data.map(record =>
+            logInsert('attendance', record.attendance_id, record as Record<string, unknown>)
+          )
+        );
+      } catch { /* audit non-critical */ }
+    }
+    return result;
   },
 
   // Update attendance record

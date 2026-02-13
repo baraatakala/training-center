@@ -180,11 +180,16 @@ export function Messages() {
         setUserType('teacher');
         setCurrentUserId(teacher.teacher_id);
       } else {
-        // Check if admin (admin without teacher entry)
-        const isAdminUser = user.email.toLowerCase() === 'baraatakala2004@gmail.com';
+        // Check if admin via admin table
+        const { data: adminRecord } = await supabase
+          .from('admin')
+          .select('admin_id')
+          .ilike('email', user.email)
+          .single();
+        const isAdminUser = !!adminRecord;
         if (isAdminUser) {
           // Admin needs a teacher record for FK constraints and name resolution
-          // Upsert to create one if it doesn't exist (same pattern as Announcements)
+          // The admin table trigger should auto-sync, but upsert as safety net
           const { data: adminTeacher } = await supabase
             .from('teacher')
             .upsert(

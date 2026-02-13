@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
-const ADMIN_EMAIL = 'baraatakala2004@gmail.com';
-
 /**
  * Custom hook to check if the current authenticated user is a teacher or admin.
- * Admin = baraatakala2004@gmail.com (full access incl. update/delete)
+ * Admin = user whose email exists in the admin table (scalable, no hardcoded emails)
  * Teacher = email in teacher table (read + insert only at DB level)
  * 
  * @returns {{ isTeacher: boolean, isAdmin: boolean, loading: boolean }} 
@@ -24,10 +22,17 @@ export function useIsTeacher() {
         if (cancelled) return;
 
         if (user?.email) {
-          // Check admin
-          const admin = user.email.toLowerCase() === ADMIN_EMAIL;
+          // Check admin table (scalable — no hardcoded emails)
+          const { data: adminRecord } = await supabase
+            .from('admin')
+            .select('admin_id')
+            .ilike('email', user.email)
+            .single();
+          
+          const admin = !!adminRecord;
           if (!cancelled) setIsAdmin(admin);
 
+          // Check teacher table
           const { data: teacher } = await supabase
             .from('teacher')
             .select('teacher_id')

@@ -161,3 +161,27 @@ export const getAuditLogs = async (filters?: {
     throw error;
   }
 };
+
+/**
+ * Delete a specific audit log entry (admin only)
+ */
+export const deleteAuditLog = async (auditId: string): Promise<void> => {
+  const { error } = await supabase
+    .from('audit_log')
+    .delete()
+    .eq('audit_id', auditId);
+
+  if (error) throw error;
+};
+
+/**
+ * Delete multiple audit log entries (admin only)
+ */
+export const deleteAuditLogs = async (auditIds: string[]): Promise<void> => {
+  const { error } = await supabase
+    .from('audit_log')
+    .delete()
+    .in('audit_id', auditIds);
+
+  if (error) throw error;
+};

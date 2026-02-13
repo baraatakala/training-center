@@ -4,8 +4,11 @@ import { Button } from '../components/ui/Button';
 import { useDebounce } from '../hooks/useDebounce';
 import { Select } from '../components/ui/Select';
 import { format, subDays, subMonths, isAfter, isBefore, parseISO } from 'date-fns';
-import { getAuditLogs, type AuditLogEntry } from '../services/auditService';
+import { getAuditLogs, deleteAuditLog, deleteAuditLogs, type AuditLogEntry } from '../services/auditService';
 import { TableSkeleton } from '../components/ui/Skeleton';
+import { useIsTeacher } from '../hooks/useIsTeacher';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { toast } from '../components/ui/toastUtils';
 
 // =====================================================
 // HELPERS
@@ -87,6 +90,10 @@ export function AuditLogs() {
   const [error, setError] = useState<string | null>(null);
   const [expandedLog, setExpandedLog] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'timeline' | 'table'>('timeline');
+  const { isAdmin } = useIsTeacher();
+  const [deletingLog, setDeletingLog] = useState<AuditLogEntry | null>(null);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [selectedLogs, setSelectedLogs] = useState<Set<string>>(new Set());
 
   // Filters
   const [filterTable, setFilterTable] = useState('');
@@ -121,6 +128,49 @@ export function AuditLogs() {
   useEffect(() => {
     loadLogs();
   }, [loadLogs]);
+
+  const handleDeleteLog = async () => {
+    if (!deletingLog?.audit_id) return;
+    try {
+      await deleteAuditLog(deletingLog.audit_id);
+      setLogs(prev => prev.filter(l => l.audit_id !== deletingLog.audit_id));
+      toast.success('Audit log entry deleted');
+    } catch (err) {
+      console.error('Error deleting audit log:', err);
+      toast.error('Failed to delete audit log entry');
+    }
+    setDeletingLog(null);
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedLogs.size === 0) return;
+    try {
+      await deleteAuditLogs(Array.from(selectedLogs));
+      setLogs(prev => prev.filter(l => !selectedLogs.has(l.audit_id || '')));
+      toast.success(`${selectedLogs.size} audit log entries deleted`);
+      setSelectedLogs(new Set());
+    } catch (err) {
+      console.error('Error deleting audit logs:', err);
+      toast.error('Failed to delete audit log entries');
+    }
+  };
+
+  const toggleSelectLog = (auditId: string) => {
+    setSelectedLogs(prev => {
+      const next = new Set(prev);
+      if (next.has(auditId)) next.delete(auditId);
+      else next.add(auditId);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedLogs.size === pagedLogs.length) {
+      setSelectedLogs(new Set());
+    } else {
+      setSelectedLogs(new Set(pagedLogs.map(l => l.audit_id || '').filter(Boolean)));
+    }
+  };
 
   // Client-side date range and search filter
   const filteredLogs = useMemo(() => {
@@ -620,8 +670,19 @@ export function AuditLogs() {
                                 </div>
                               )}
 
-                              <div className="text-[10px] text-gray-400 dark:text-gray-600 font-mono">
-                                ID: {log.record_id}
+                              <div className="flex items-center justify-between">
+                                <div className="text-[10px] text-gray-400 dark:text-gray-600 font-mono">
+                                  ID: {log.record_id}
+                                </div>
+                                {isAdmin && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setDeletingLog(log); }}
+                                    className="px-2 py-1 text-xs rounded border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
+                                    title="Delete this log entry"
+                                  >
+                                    🗑️ Delete
+                                  </button>
+                                )}
                               </div>
                             </div>
                           )}
@@ -645,11 +706,22 @@ export function AuditLogs() {
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead className="bg-gray-50 dark:bg-gray-700">
                   <tr>
+                    {isAdmin && (
+                      <th className="px-4 py-3 w-10">
+                        <input
+                          type="checkbox"
+                          checked={selectedLogs.size === pagedLogs.length && pagedLogs.length > 0}
+                          onChange={toggleSelectAll}
+                          className="rounded"
+                          aria-label="Select all"
+                        />
+                      </th>
+                    )}
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date & Time</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Action</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Description</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">User</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Details</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -667,6 +739,17 @@ export function AuditLogs() {
                           aria-expanded={isExpanded}
                           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedLog(isExpanded ? null : log.audit_id || null); } }}
                         >
+                          {isAdmin && (
+                            <td className="px-4 py-3 w-10" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={selectedLogs.has(log.audit_id || '')}
+                                onChange={() => toggleSelectLog(log.audit_id || '')}
+                                className="rounded"
+                                aria-label={`Select log ${log.audit_id}`}
+                              />
+                            </td>
+                          )}
                           <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                             {log.deleted_at ? format(new Date(log.deleted_at), 'MMM dd, HH:mm') : '—'}
                           </td>
@@ -683,14 +766,24 @@ export function AuditLogs() {
                             {log.deleted_by || 'system'}
                           </td>
                           <td className="px-4 py-3">
-                            <button className="text-blue-600 dark:text-blue-400 text-xs hover:underline">
-                              {isExpanded ? 'Hide' : 'View'}
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button className="text-blue-600 dark:text-blue-400 text-xs hover:underline">
+                                {isExpanded ? 'Hide' : 'View'}
+                              </button>
+                              {isAdmin && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setDeletingLog(log); }}
+                                  className="text-red-600 dark:text-red-400 text-xs hover:underline"
+                                >
+                                  Delete
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                         {isExpanded && (
                           <tr>
-                            <td colSpan={5} className="px-4 py-4 bg-gray-50 dark:bg-gray-700/50">
+                            <td colSpan={isAdmin ? 6 : 5} className="px-4 py-4 bg-gray-50 dark:bg-gray-700/50">
                               <div className="space-y-3">
                                 {log.reason && (
                                   <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
@@ -774,6 +867,49 @@ export function AuditLogs() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Bulk Delete Bar (admin only) */}
+      {isAdmin && selectedLogs.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-900 dark:bg-gray-700 text-white px-6 py-3 rounded-xl shadow-2xl flex items-center gap-4">
+          <span className="text-sm font-medium">{selectedLogs.size} selected</span>
+          <button
+            onClick={() => setConfirmBulkDelete(true)}
+            className="px-4 py-1.5 text-sm bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+          >
+            🗑️ Delete Selected
+          </button>
+          <button
+            onClick={() => setSelectedLogs(new Set())}
+            className="px-3 py-1.5 text-sm bg-gray-700 dark:bg-gray-600 hover:bg-gray-600 dark:hover:bg-gray-500 rounded-lg transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {/* Delete Single Confirmation */}
+      <ConfirmDialog
+        isOpen={!!deletingLog}
+        title="Delete Audit Log Entry"
+        message={`Are you sure you want to delete this audit log entry? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="danger"
+        onConfirm={handleDeleteLog}
+        onCancel={() => setDeletingLog(null)}
+      />
+
+      {/* Delete Bulk Confirmation */}
+      <ConfirmDialog
+        isOpen={confirmBulkDelete}
+        title="Delete Selected Audit Logs"
+        message={`Are you sure you want to delete ${selectedLogs.size} selected audit log entries? This action cannot be undone.`}
+        confirmText={`Delete ${selectedLogs.size} Entries`}
+        cancelText="Cancel"
+        type="danger"
+        onConfirm={() => { setConfirmBulkDelete(false); handleDeleteSelected(); }}
+        onCancel={() => setConfirmBulkDelete(false)}
+      />
     </div>
   );
 }

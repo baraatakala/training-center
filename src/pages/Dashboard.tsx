@@ -171,17 +171,22 @@ Please contact the training center urgently.`;
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user?.email) {
-          // Check if admin first
-          const isAdminUser = user.email.toLowerCase() === 'baraatakala2004@gmail.com';
-          if (isAdminUser) {
+          // Check if teacher or admin
+          const { data: teacher } = await supabase
+            .from('teacher')
+            .select('teacher_id')
+            .ilike('email', user.email)
+            .single();
+          if (teacher) {
             setIsTeacher(true);
           } else {
-            const { data: teacher } = await supabase
-              .from('teacher')
-              .select('teacher_id')
+            // Fallback: check admin table (admin should be synced to teacher, but just in case)
+            const { data: adminRecord } = await supabase
+              .from('admin')
+              .select('admin_id')
               .ilike('email', user.email)
               .single();
-            setIsTeacher(!!teacher);
+            setIsTeacher(!!adminRecord);
           }
         } else {
           setIsTeacher(false);

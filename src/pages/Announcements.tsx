@@ -215,11 +215,16 @@ export function Announcements() {
         await loadAnnouncementsForTeacher(teacher.teacher_id);
         await loadCourses();
       } else {
-        // Check if admin (admin without teacher entry)
-        const isAdminUser = user.email.toLowerCase() === 'baraatakala2004@gmail.com';
+        // Check if admin via admin table
+        const { data: adminRecord } = await supabase
+          .from('admin')
+          .select('admin_id')
+          .ilike('email', user.email)
+          .single();
+        const isAdminUser = !!adminRecord;
         if (isAdminUser) {
           // Admin needs a teacher record for FK constraints (e.g. announcement.created_by)
-          // Try to create one if it doesn't exist, then use the teacher_id
+          // The admin table trigger should auto-sync, but upsert as safety net
           const { data: adminTeacher } = await supabase
             .from('teacher')
             .upsert(
