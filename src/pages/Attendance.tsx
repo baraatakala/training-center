@@ -11,7 +11,7 @@ import { format } from 'date-fns';
 import { getAttendanceDateOptions } from '../utils/attendanceGenerator';
 import { QRCodeModal } from '../components/QRCodeModal';
 import { PhotoCheckInModal } from '../components/PhotoCheckInModal';
-import { logDelete } from '../services/auditService';
+import { logDelete, logInsert, logUpdate } from '../services/auditService';
 import { toast } from '../components/ui/toastUtils';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
@@ -653,6 +653,8 @@ export function Attendance() {
           onConflict: 'enrollment_id,attendance_date',
           ignoreDuplicates: false
         });
+        // Audit log: bulk auto-excuse for session not held (newly enrolled)
+        try { for (const r of newRecords) { await logInsert('attendance', r.enrollment_id, r as Record<string, unknown>, 'Auto-excused: session not held (newly enrolled)'); } } catch { /* audit non-critical */ }
         // Reload to show saved records instead of temp placeholders
         const { data: refreshedAttendance } = await supabase
           .from(Tables.ATTENDANCE)
@@ -902,6 +904,7 @@ export function Attendance() {
       console.error('Error updating late_minutes:', error);
       toast.error(error.message);
     } else {
+      try { await logUpdate('attendance', attendanceId, {} as Record<string, unknown>, { late_minutes: newValue } as Record<string, unknown>, 'Late minutes updated'); } catch { /* audit non-critical */ }
       // Update local state immediately
       setAttendance(prev => prev.map(a =>
         a.attendance_id === attendanceId ? { ...a, late_minutes: newValue } : a
@@ -989,6 +992,7 @@ export function Attendance() {
           console.error('Error updating existing attendance:', error);
           toast.error(error.message);
         } else {
+          try { await logUpdate('attendance', existingRecord.attendance_id, {} as Record<string, unknown>, updates as Record<string, unknown>, 'Manual attendance update'); } catch { /* audit non-critical */ }
           setExcuseReason(prev => {
             const updated = { ...prev };
             delete updated[attendanceId];
@@ -1031,6 +1035,7 @@ export function Attendance() {
           console.error('Error creating attendance:', error);
           toast.error(error.message);
         } else {
+          try { await logInsert('attendance', record.enrollment_id, newRecord, 'Manual attendance insert'); } catch { /* audit non-critical */ }
           setExcuseReason(prev => {
             const updated = { ...prev };
             delete updated[attendanceId];
@@ -1075,6 +1080,7 @@ export function Attendance() {
         console.error('Error updating attendance:', error);
         toast.error(error.message);
       } else {
+        try { await logUpdate('attendance', attendanceId, {} as Record<string, unknown>, updates as Record<string, unknown>, 'Manual attendance update'); } catch { /* audit non-critical */ }
         setExcuseReason(prev => {
           const updated = { ...prev };
           delete updated[attendanceId];
@@ -1194,6 +1200,8 @@ export function Attendance() {
         toast.error(insertError.message);
         return;
       }
+      // Audit log: bulk insert
+      try { for (const r of newRecords) { await logInsert('attendance', r.enrollment_id as string, r as Record<string, unknown>, `Bulk mark: ${status}`); } } catch { /* audit non-critical */ }
     }
 
     // Update existing records
@@ -1241,6 +1249,8 @@ export function Attendance() {
         toast.error(updateError.message);
         return;
       }
+      // Audit log: bulk update
+      try { for (const id of realIds) { await logUpdate('attendance', id, {} as Record<string, unknown>, updates as Record<string, unknown>, `Bulk mark: ${status}`); } } catch { /* audit non-critical */ }
     }
 
     setSelectedStudents(new Set());
@@ -1308,6 +1318,8 @@ export function Attendance() {
           onConflict: 'enrollment_id,attendance_date',
           ignoreDuplicates: false
         });
+        // Audit log: session not held insert
+        try { for (const r of newRecords) { await logInsert('attendance', r.enrollment_id, r as Record<string, unknown>, 'Session marked not held'); } } catch { /* audit non-critical */ }
       }
       
       // Update existing records
@@ -1327,6 +1339,8 @@ export function Attendance() {
             marked_at: new Date().toISOString()
           })
           .in('attendance_id', realIds.map(r => r.attendance_id));
+        // Audit log: session not held update
+        try { for (const r of realIds) { await logUpdate('attendance', r.attendance_id, {} as Record<string, unknown>, { status: 'excused', excuse_reason: 'session not held' } as Record<string, unknown>, 'Session marked not held'); } } catch { /* audit non-critical */ }
       }
       
       // Also save to session_date_host table (single source of truth)

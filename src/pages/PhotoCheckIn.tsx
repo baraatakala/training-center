@@ -8,6 +8,7 @@ import { getSignedPhotoUrl } from '../utils/photoUtils';
 import { format } from 'date-fns';
 import * as faceapi from 'face-api.js';
 import { isWithinProximity, formatDistance } from '../services/geocodingService';
+import { logInsert } from '../services/auditService';
 
 type CheckInData = {
   session_id: string;
@@ -849,6 +850,9 @@ export function PhotoCheckIn() {
       if (attendanceError) {
         throw attendanceError;
       }
+
+      // Audit log the photo check-in
+      try { await logInsert('attendance', `${enrollment.enrollment_id}_${checkInData.attendance_date}`, attendanceData as Record<string, unknown>, 'Face recognition check-in'); } catch { /* audit non-critical */ }
 
       setWasLate(attendanceStatus === 'late');
       setCheckedInAfterSession(checkInAfterSession);

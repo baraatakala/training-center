@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { Button } from '../components/ui/Button';
 import { format } from 'date-fns';
 import { isWithinProximity, formatDistance } from '../services/geocodingService';
+import { logInsert } from '../services/auditService';
 
 type CheckInData = {
   session_id: string;
@@ -582,6 +583,9 @@ export function StudentCheckIn() {
       if (attendanceError) {
         throw attendanceError;
       }
+
+      // Audit log the QR check-in
+      try { await logInsert('attendance', `${enrollment.enrollment_id}_${checkInData.attendance_date}`, attendanceData as Record<string, unknown>, 'QR code check-in'); } catch { /* audit non-critical */ }
 
       setWasLate(attendanceStatus === 'late');
       setCheckedInAfterSession(checkInAfterSession);
