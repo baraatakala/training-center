@@ -1686,7 +1686,7 @@ const AttendanceRecords = () => {
           totalOnTime: host.present,
           totalLate: host.late,
           totalPresent,
-          totalAbsent: host.absent,
+          totalAbsent: host.absent + host.excused,
           totalExcused: host.excused,
           totalStudents,
           dates: host.dates.join(', '),
@@ -2558,8 +2558,9 @@ const AttendanceRecords = () => {
       const studentDaysCovered = studentUniqueDates.length;
 
       const presentCount = studentRecords.filter(r => r.status === 'on time').length;
-      const absentCount = studentRecords.filter(r => r.status === 'absent').length;
       const excusedCount = studentRecords.filter(r => r.status === 'excused').length;
+      const unexcusedAbsentCount = studentRecords.filter(r => r.status === 'absent').length;
+      const absentCount = excusedCount + unexcusedAbsentCount; // Total absent: excused + unexcused
       const lateCount = studentRecords.filter(r => r.status === 'late').length;
       const lateRecords = studentRecords.filter(r => r.status === 'late');
 
@@ -3609,8 +3610,8 @@ const AttendanceRecords = () => {
         const totalStudents = totalPresent + dateData.excusedAbsentCount + dateData.unexcusedAbsentCount;
         // Attendance Rate: (Total Present / Total Students) * 100
         const attendanceRate = totalStudents > 0 ? Math.round((totalPresent / totalStudents) * 100) : 0;
-        // Absence Rate: (Unexcused Absent / Total Students) * 100
-        const absentRate = totalStudents > 0 ? Math.round((dateData.unexcusedAbsentCount / totalStudents) * 100) : 0;
+        // Absence Rate: (Unexcused Absent / (Unexcused Absent + Present)) * 100
+        const absentRate = (dateData.unexcusedAbsentCount + totalPresent) > 0 ? Math.round((dateData.unexcusedAbsentCount / (dateData.unexcusedAbsentCount + totalPresent)) * 100) : 0;
         const punctualityRate = totalPresent > 0 
           ? Math.round(dateData.presentCount / totalPresent * 100)
           : 0;
@@ -4191,7 +4192,7 @@ const AttendanceRecords = () => {
                     const totalAbs = d.excusedAbsentCount + d.unexcusedAbsentCount;
                     const totalStud = totalPres + totalAbs;
                     const punctRate = totalPres > 0 ? Math.round(d.presentCount / totalPres * 100) : 0;
-                    const absRate = totalStud > 0 ? Math.round(totalAbs / totalStud * 100) : 0;
+                    const absRate = (d.unexcusedAbsentCount + totalPres) > 0 ? Math.round((d.unexcusedAbsentCount / (d.unexcusedAbsentCount + totalPres)) * 100) : 0;
                     const bookPages = d.bookStartPage && d.bookEndPage ? `${d.bookStartPage}-${d.bookEndPage}` : '-';
                     const pagesCount = d.bookStartPage && d.bookEndPage ? d.bookEndPage - d.bookStartPage + 1 : 0;
                     const dateObj = new Date(d.date);
