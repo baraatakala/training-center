@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
-import { Select } from '../components/ui/Select';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { toast } from '../components/ui/toastUtils';
 import { TableSkeleton } from '../components/ui/Skeleton';
@@ -55,7 +54,7 @@ const STATUS_COLORS = {
 
 export function Certificates() {
   const { user } = useAuth();
-  const { isTeacher, isAdmin, loading: roleLoading } = useIsTeacher();
+  const { isTeacher, loading: roleLoading } = useIsTeacher();
 
   // Active tab
   const [tab, setTab] = useState<'certificates' | 'templates' | 'verify'>('certificates');
@@ -255,8 +254,8 @@ export function Certificates() {
           isOpen={true}
           title="Revoke Certificate"
           message={`Revoke certificate ${revokeConfirm.certificate_number} for ${(revokeConfirm as any).student?.name || 'this student'}?`}
-          confirmLabel="Revoke"
-          variant="danger"
+          confirmText="Revoke"
+          type="danger"
           onConfirm={handleRevoke}
           onCancel={() => setRevokeConfirm(null)}
         />
@@ -267,8 +266,8 @@ export function Certificates() {
           isOpen={true}
           title="Delete Template"
           message={`Delete template "${deleteConfirm.name}"? This will also delete all certificates using this template.`}
-          confirmLabel="Delete"
-          variant="danger"
+          confirmText="Delete"
+          type="danger"
           onConfirm={handleDeleteTemplate}
           onCancel={() => setDeleteConfirm(null)}
         />

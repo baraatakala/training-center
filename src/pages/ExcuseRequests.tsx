@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Select } from '../components/ui/Select';
@@ -234,7 +234,7 @@ export function ExcuseRequests() {
             </div>
             <Select
               value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
+              onChange={value => setStatusFilter(value)}
               options={[
                 { value: 'all', label: 'All Statuses' },
                 { value: 'pending', label: '⏳ Pending' },
@@ -245,7 +245,7 @@ export function ExcuseRequests() {
             />
             <Select
               value={dateRange}
-              onChange={e => setDateRange(e.target.value as typeof dateRange)}
+              onChange={value => setDateRange(value as typeof dateRange)}
               options={[
                 { value: 'all', label: 'All Time' },
                 { value: '7d', label: 'Last 7 Days' },
@@ -325,8 +325,8 @@ export function ExcuseRequests() {
           isOpen={true}
           title="Delete Request"
           message={`Are you sure you want to permanently delete this excuse request from ${deleteConfirm.student?.name || 'unknown student'}?`}
-          confirmLabel="Delete"
-          variant="danger"
+          confirmText="Delete"
+          type="danger"
           onConfirm={() => handleDelete(deleteConfirm.request_id)}
           onCancel={() => setDeleteConfirm(null)}
         />
