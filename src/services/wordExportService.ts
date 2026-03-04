@@ -22,6 +22,7 @@ import {
   Footer,
   PageNumber,
   ShadingType,
+  PageOrientation,
 } from 'docx';
 import { saveAs } from 'file-saver';
 import { format } from 'date-fns';
@@ -154,6 +155,11 @@ export interface ExportOptions {
     studentAnalytics?: { enabled: boolean; theme: 'default' | 'traffic' | 'heatmap' | 'status'; colorColumns?: number[] };
     dateAnalytics?: { enabled: boolean; theme: 'default' | 'traffic' | 'heatmap' | 'status'; colorColumns?: number[] };
     hostAnalytics?: { enabled: boolean; theme: 'default' | 'traffic' | 'heatmap' | 'status'; colorColumns?: number[] };
+  };
+  // Cross-tab matrix data for Student × Date table
+  crosstabData?: {
+    headers: string[];
+    rows: string[][];
   };
 }
 
@@ -1757,7 +1763,8 @@ export class WordExportService {
     }
     sections.push(new Paragraph({ text: '', spacing: { after: 400 } }));
 
-    // Summary Statistics Section
+    // Summary Statistics Section - only render if summary data is non-zero (excluded = zeroed-out stats)
+    if (summaryStats.totalStudents > 0 || summaryStats.totalSessions > 0) {
     const summaryTitle = isArabic ? '📊 الإحصائيات العامة' : '📊 Summary Statistics';
     sections.push(
       this.createHeading(summaryTitle, HeadingLevel.HEADING_2, isArabic, theme)
@@ -1784,6 +1791,7 @@ export class WordExportService {
 
     sections.push(this.createTable(summaryTableHeaders, summaryRows, isArabic, theme));
     sections.push(new Paragraph({ text: '', spacing: { after: 400 } }));
+    }
 
     // Helper function to detect percentage columns for conditional coloring
     const detectPercentageColumns = (headers: string[]): number[] => {
@@ -1911,67 +1919,195 @@ export class WordExportService {
       sections.push(this.createTable(hostHeaders, hostRows, isArabic, theme, hostColorColumns));
     }
 
-    // Create document with header and footer
-    const doc = new Document({
-      sections: [
-        {
-          properties: {
-            page: {
-              margin: {
-                top: convertInchesToTwip(1.25),
-                right: convertInchesToTwip(0.5),
-                bottom: convertInchesToTwip(1),
-                left: convertInchesToTwip(0.5),
-              },
+    // Cross-Tab Matrix is rendered as a separate landscape section below
+    // (crosstab data is passed through to the document builder)
+
+    // Build document sections array
+    const docSections: Array<{
+      properties: Record<string, unknown>;
+      headers?: Record<string, unknown>;
+      footers?: Record<string, unknown>;
+      children: (Paragraph | Table)[];
+    }> = [
+      {
+        properties: {
+          page: {
+            margin: {
+              top: convertInchesToTwip(1.25),
+              right: convertInchesToTwip(0.5),
+              bottom: convertInchesToTwip(1),
+              left: convertInchesToTwip(0.5),
             },
           },
-          headers: {
-            default: new Header({
-              children: [
-                new Paragraph({
-                  children: [
-                    new TextRun({
-                      text: isArabic 
-                        ? '📊 تقرير تحليل الحضور' 
-                        : '📊 Attendance Analytics Report',
-                      bold: true,
-                      size: 24,
-                      color: theme.primary,
-                    }),
-                  ],
-                  alignment: isArabic ? AlignmentType.RIGHT : AlignmentType.LEFT,
-                  border: {
-                    bottom: { 
-                      style: BorderStyle.SINGLE, 
-                      size: 6, 
-                      color: theme.secondary 
-                    },
-                  },
-                  spacing: { after: 100 },
-                  bidirectional: isArabic,
-                }),
-              ],
-            }),
-          },
-          footers: {
-            default: new Footer({
-              children: [
-                new Paragraph({
-                  children: [
-                    new TextRun({
-                      children: [isArabic ? 'صفحة ' : 'Page ', PageNumber.CURRENT, isArabic ? ' من ' : ' of ', PageNumber.TOTAL_PAGES],
-                      size: 20,
-                    }),
-                  ],
-                  alignment: AlignmentType.CENTER,
-                }),
-              ],
-            }),
-          },
-          children: sections,
         },
-      ],
-    });
+        headers: {
+          default: new Header({
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: isArabic 
+                      ? '📊 تقرير تحليل الحضور' 
+                      : '📊 Attendance Analytics Report',
+                    bold: true,
+                    size: 24,
+                    color: theme.primary,
+                  }),
+                ],
+                alignment: isArabic ? AlignmentType.RIGHT : AlignmentType.LEFT,
+                border: {
+                  bottom: { 
+                    style: BorderStyle.SINGLE, 
+                    size: 6, 
+                    color: theme.secondary 
+                  },
+                },
+                spacing: { after: 100 },
+                bidirectional: isArabic,
+              }),
+            ],
+          }),
+        },
+        footers: {
+          default: new Footer({
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    children: [isArabic ? 'صفحة ' : 'Page ', PageNumber.CURRENT, isArabic ? ' من ' : ' of ', PageNumber.TOTAL_PAGES],
+                    size: 20,
+                  }),
+                ],
+                alignment: AlignmentType.CENTER,
+              }),
+            ],
+          }),
+        },
+        children: sections,
+      },
+    ];
+
+    // Cross-Tab Matrix — separate landscape section with compact formatting
+    if (options?.crosstabData && options.crosstabData.headers.length > 0 && options.crosstabData.rows.length > 0) {
+      const ctHeaders = options.crosstabData.headers;
+      const ctRows = options.crosstabData.rows;
+      const numCols = ctHeaders.length;
+      const useLandscape = numCols > 8;
+
+      // Compact font size for many columns
+      const fontSize = numCols <= 10 ? 16 : numCols <= 18 ? 14 : numCols <= 25 ? 12 : 10;
+      const headerFontSize = fontSize + 2;
+
+      // Status-based cell color map
+      const getStatusColor = (cell: string): string | null => {
+        const c = cell.trim().toLowerCase();
+        if (c === '✓' || c === 'حاضر') return '6EE7B7'; // emerald-300
+        if (c.startsWith('l') || c.startsWith('متأخر')) return 'FDE68A'; // yellow-200
+        if (c === '✗' || c === 'غائب') return 'FECACA'; // red-200
+        if (c === 'e' || c === 'معذور') return 'BFDBFE'; // blue-200
+        return null;
+      };
+
+      const thinBorder = { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' };
+
+      // Build compact cross-tab table with color-coded cells
+      const ctHeaderRow = new TableRow({
+        cantSplit: true,
+        tableHeader: true,
+        children: ctHeaders.map((h: string) =>
+          new TableCell({
+            children: [new Paragraph({
+              children: [new TextRun({ text: h, bold: true, font: isArabic ? 'Arial' : 'Calibri', size: headerFontSize, color: 'FFFFFF' })],
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 20, after: 20 },
+            })],
+            shading: { type: ShadingType.CLEAR, fill: '7C3AED', color: '7C3AED' },
+            borders: { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder },
+          })
+        ),
+      });
+
+      const ctDataRows = ctRows.map((row: string[], rowIdx: number) =>
+        new TableRow({
+          cantSplit: true,
+          children: row.map((cell: string, colIdx: number) => {
+            const statusColor = colIdx > 0 ? getStatusColor(cell) : null;
+            const bgColor = statusColor || (rowIdx % 2 === 0 ? 'FFFFFF' : 'F5F5F5');
+            const textColor = statusColor ? '1F2937' : '000000';
+            return new TableCell({
+              children: [new Paragraph({
+                children: [new TextRun({
+                  text: cell,
+                  font: isArabic ? 'Arial' : 'Calibri',
+                  size: fontSize,
+                  color: textColor,
+                  bold: colIdx === 0,
+                })],
+                alignment: colIdx === 0 ? (isArabic ? AlignmentType.RIGHT : AlignmentType.LEFT) : AlignmentType.CENTER,
+                spacing: { before: 10, after: 10 },
+              })],
+              shading: { type: ShadingType.CLEAR, fill: bgColor, color: bgColor },
+              borders: { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder },
+            });
+          }),
+        })
+      );
+
+      const ctTable = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [ctHeaderRow, ...ctDataRows],
+      });
+
+      const ctTitle = isArabic ? '🗓️ مصفوفة الطلاب × التواريخ' : '🗓️ Student × Date Matrix';
+      const ctSubtitle = isArabic
+        ? `${ctRows.length} طالب × ${ctHeaders.length - 1} تاريخ`
+        : `${ctRows.length} students × ${ctHeaders.length - 1} dates`;
+
+      docSections.push({
+        properties: {
+          page: {
+            size: useLandscape ? { orientation: PageOrientation.LANDSCAPE } : undefined,
+            margin: {
+              top: convertInchesToTwip(0.5),
+              right: convertInchesToTwip(0.3),
+              bottom: convertInchesToTwip(0.5),
+              left: convertInchesToTwip(0.3),
+            },
+          },
+        },
+        children: [
+          new Paragraph({
+            children: [new TextRun({ text: ctTitle, bold: true, size: 28, color: theme.primary, font: isArabic ? 'Arial' : 'Calibri' })],
+            alignment: isArabic ? AlignmentType.RIGHT : AlignmentType.LEFT,
+            spacing: { after: 60 },
+            bidirectional: isArabic,
+          }),
+          new Paragraph({
+            children: [new TextRun({ text: ctSubtitle, size: 18, color: '6B7280', font: isArabic ? 'Arial' : 'Calibri' })],
+            alignment: isArabic ? AlignmentType.RIGHT : AlignmentType.LEFT,
+            spacing: { after: 120 },
+            bidirectional: isArabic,
+          }),
+          ctTable,
+          // Legend
+          new Paragraph({
+            children: [
+              new TextRun({ text: isArabic ? 'المفتاح: ' : 'Legend: ', bold: true, size: 16, font: isArabic ? 'Arial' : 'Calibri' }),
+              new TextRun({ text: isArabic ? '  ■ حاضر  ' : '  ■ On Time  ', size: 16, color: '059669' }),
+              new TextRun({ text: isArabic ? '  ■ متأخر  ' : '  ■ Late  ', size: 16, color: 'D97706' }),
+              new TextRun({ text: isArabic ? '  ■ غائب  ' : '  ■ Absent  ', size: 16, color: 'DC2626' }),
+              new TextRun({ text: isArabic ? '  ■ معذور  ' : '  ■ Excused  ', size: 16, color: '2563EB' }),
+            ],
+            spacing: { before: 120 },
+            alignment: isArabic ? AlignmentType.RIGHT : AlignmentType.LEFT,
+            bidirectional: isArabic,
+          }),
+        ],
+      });
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const doc = new Document({ sections: docSections as any });
 
     const blob = await Packer.toBlob(doc);
     const fileName = filename || (isArabic

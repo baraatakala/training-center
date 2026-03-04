@@ -248,6 +248,30 @@ export function Sessions() {
     return end < today;
   }).length;
 
+  const exportToCSV = useCallback(() => {
+    const headers = ['Course', 'Category', 'Teacher', 'Start Date', 'End Date', 'Day', 'Time', 'Location', 'Enrolled'];
+    const rows = filteredSessions.map(s => [
+      s.course?.course_name || '',
+      s.course?.category || '',
+      s.teacher?.name || '',
+      s.start_date,
+      s.end_date,
+      s.day || '',
+      s.time || '',
+      s.location || '',
+      String(enrollmentCounts[s.session_id] || 0),
+    ]);
+    const csvContent = [headers, ...rows].map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sessions-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${filteredSessions.length} sessions to CSV`);
+  }, [filteredSessions, enrollmentCounts]);
+
   return (
     <div className="space-y-6 p-4 md:p-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -256,7 +280,13 @@ export function Sessions() {
           <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1">Manage training sessions and schedules</p>
         </div>
         {isTeacher && (
-          <Button onClick={openAddModal} className="w-full sm:w-auto">+ Add Session</Button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button onClick={exportToCSV} variant="outline" className="gap-2" title="Export to CSV">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+              Export
+            </Button>
+            <Button onClick={openAddModal} className="flex-1 sm:flex-initial">+ Add Session</Button>
+          </div>
         )}
       </div>
 

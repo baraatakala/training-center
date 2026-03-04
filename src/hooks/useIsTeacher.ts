@@ -27,7 +27,7 @@ export function useIsTeacher() {
             .from('admin')
             .select('admin_id')
             .ilike('email', user.email)
-            .single();
+            .maybeSingle();
           
           const admin = !!adminRecord;
           if (!cancelled) setIsAdmin(admin);
@@ -37,7 +37,7 @@ export function useIsTeacher() {
             .from('teacher')
             .select('teacher_id')
             .ilike('email', user.email)
-            .single();
+            .maybeSingle();
           if (!cancelled) {
             // Admin is also considered a teacher for page access
             setIsTeacher(!!teacher || admin);

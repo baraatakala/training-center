@@ -66,10 +66,22 @@ export function PhotoAvatar({ photoPath, name, size = 'md', className = '' }: Ph
     );
   }
 
+  if (!signedUrl) {
+    return (
+      <div 
+        className={`${sizeClass} rounded-full bg-gray-200 flex items-center justify-center text-gray-400 ${className}`}
+        title="No photo"
+      >
+        👤
+      </div>
+    );
+  }
+
   return (
     <img
-      src={signedUrl || ''}
+      src={signedUrl}
       alt={name}
+      loading="lazy"
       className={`${sizeClass} rounded-full object-cover border-2 border-green-400 ${className}`}
       title="Photo uploaded ✓"
       onError={() => setError(true)}

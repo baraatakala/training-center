@@ -78,7 +78,7 @@ export function Attendance() {
           .from('teacher')
           .select('teacher_id')
           .ilike('email', user.email)
-          .single();
+          .maybeSingle();
 
         if (teacher) {
           setIsTeacher(true);
@@ -90,7 +90,7 @@ export function Attendance() {
           .from('admin')
           .select('admin_id')
           .ilike('email', user.email)
-          .single();
+          .maybeSingle();
 
         if (adminRecord) {
           // Admin user — no fake teacher record needed

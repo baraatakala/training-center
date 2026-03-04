@@ -5,6 +5,7 @@ import { SearchBar } from '../components/ui/SearchBar';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
 import { TeacherForm } from '../components/TeacherForm';
 import { Badge } from '../components/ui/Badge';
+import { Pagination } from '../components/ui/Pagination';
 import { teacherService } from '../services/teacherService';
 import { toast } from '../components/ui/toastUtils';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -30,6 +31,8 @@ export function Teachers() {
   const [sortField, setSortField] = useState<'name' | 'email' | 'phone' | 'enrolledCount'>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [deletingTeacher, setDeletingTeacher] = useState<Teacher | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
 
   const loadTeachers = useCallback(async () => {
     setLoading(true);
@@ -83,6 +86,33 @@ export function Teachers() {
     });
     return result;
   }, [debouncedSearch, teachers, sortField, sortDirection]);
+
+  // Reset page when search changes
+  useEffect(() => { setCurrentPage(1); }, [debouncedSearch]);
+
+  const paginatedTeachers = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredTeachers.slice(start, start + itemsPerPage);
+  }, [filteredTeachers, currentPage, itemsPerPage]);
+
+  const exportToCSV = useCallback(() => {
+    const headers = ['Name', 'Email', 'Phone', 'Enrolled Students'];
+    const rows = filteredTeachers.map(t => [
+      t.name,
+      t.email,
+      t.phone || '',
+      String(t.enrolledCount || 0),
+    ]);
+    const csvContent = [headers, ...rows].map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `teachers-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${filteredTeachers.length} teachers to CSV`);
+  }, [filteredTeachers]);
 
   const toggleSort = (field: typeof sortField) => {
     if (sortField === field) {
@@ -156,10 +186,16 @@ export function Teachers() {
           <p className="text-sm md:text-base text-gray-500 dark:text-gray-400 mt-1">{teachers.length} total teachers</p>
         </div>
         {isTeacher && (
-          <Button onClick={openAddModal} variant="primary" className="w-full sm:w-auto gap-2">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            Add Teacher
-          </Button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button onClick={exportToCSV} variant="outline" className="flex-1 sm:flex-initial gap-2" title="Export to CSV">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+              Export
+            </Button>
+            <Button onClick={openAddModal} variant="primary" className="flex-1 sm:flex-initial gap-2">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+              Add Teacher
+            </Button>
+          </div>
         )}
       </div>
 
@@ -232,7 +268,7 @@ export function Teachers() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredTeachers.map((teacher) => (
+                {paginatedTeachers.map((teacher) => (
                     <TableRow key={teacher.teacher_id}>
                       <TableCell className="font-medium text-gray-900 dark:text-white min-w-[150px]">
                         <div className="flex flex-col">
@@ -280,6 +316,19 @@ export function Teachers() {
                 </TableBody>
               </Table>
             </div>
+          )}
+          {filteredTeachers.length > 0 && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(filteredTeachers.length / itemsPerPage)}
+              totalItems={filteredTeachers.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={(page) => setCurrentPage(page)}
+              onItemsPerPageChange={(items) => {
+                setItemsPerPage(items);
+                setCurrentPage(1);
+              }}
+            />
           )}
         </div>
       )}

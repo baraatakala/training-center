@@ -198,6 +198,27 @@ export function Enrollments() {
     }
   };
 
+  const exportToCSV = useCallback(() => {
+    const headers = ['Student', 'Email', 'Course', 'Enrollment Date', 'Status', 'Can Host'];
+    const rows = filteredEnrollments.map(e => [
+      e.student?.name || '',
+      e.student?.email || '',
+      e.session?.course?.course_name || '',
+      e.enrollment_date,
+      e.status,
+      e.can_host ? 'Yes' : 'No',
+    ]);
+    const csvContent = [headers, ...rows].map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `enrollments-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${filteredEnrollments.length} enrollments to CSV`);
+  }, [filteredEnrollments]);
+
   return (
     <div className="space-y-6 p-4 md:p-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -216,9 +237,15 @@ export function Enrollments() {
             <span className="text-sm font-medium dark:text-gray-300">Can Host Only</span>
           </label>
           {isTeacher && (
-            <Button onClick={() => setIsModalOpen(true)} variant="primary" className="w-full sm:w-auto">
-              <span className="mr-2">+</span> Enroll Student
-            </Button>
+            <>
+              <Button onClick={exportToCSV} variant="outline" className="gap-2" title="Export to CSV">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                Export
+              </Button>
+              <Button onClick={() => setIsModalOpen(true)} variant="primary" className="w-full sm:w-auto">
+                <span className="mr-2">+</span> Enroll Student
+              </Button>
+            </>
           )}
         </div>
       </div>

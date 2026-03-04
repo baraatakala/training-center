@@ -174,7 +174,7 @@ export function Messages() {
         .from('teacher')
         .select('teacher_id')
         .ilike('email', user.email)
-        .single();
+        .maybeSingle();
 
       if (teacher) {
         setUserType('teacher');
@@ -185,7 +185,7 @@ export function Messages() {
           .from('admin')
           .select('admin_id')
           .ilike('email', user.email)
-          .single();
+          .maybeSingle();
         if (adminRecord) {
           // Admin uses admin_id directly — no fake teacher record needed
           setUserType('admin');
@@ -196,7 +196,7 @@ export function Messages() {
             .from('student')
             .select('student_id')
             .ilike('email', user.email)
-            .single();
+            .maybeSingle();
 
           if (student) {
             setUserType('student');

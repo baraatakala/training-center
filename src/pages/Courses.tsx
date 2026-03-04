@@ -42,6 +42,12 @@ export function Courses() {
   const [itemsPerPage, setItemsPerPage] = useState(25);
   const [sortField, setSortField] = useState<'course_name' | 'category' | 'teacher'>('course_name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+
+  const categories = useMemo(() => {
+    const cats = [...new Set(courses.map(c => c.category).filter(Boolean))].sort();
+    return cats;
+  }, [courses]);
 
   const loadCourses = useCallback(async () => {
     setLoading(true);
@@ -64,6 +70,9 @@ export function Courses() {
 
   const filteredCourses = useMemo(() => {
     let result = [...courses];
+    if (selectedCategory !== 'all') {
+      result = result.filter(c => c.category === selectedCategory);
+    }
     if (debouncedSearch) {
       const query = debouncedSearch.toLowerCase();
       result = result.filter(
@@ -87,12 +96,30 @@ export function Courses() {
       return sortDirection === 'desc' ? -cmp : cmp;
     });
     return result;
-  }, [debouncedSearch, courses, sortField, sortDirection]);
+  }, [debouncedSearch, courses, sortField, sortDirection, selectedCategory]);
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, sortField, sortDirection]);
+  }, [debouncedSearch, sortField, sortDirection, selectedCategory]);
+
+  const exportToCSV = useCallback(() => {
+    const headers = ['Course Name', 'Category', 'Teacher'];
+    const rows = filteredCourses.map(c => [
+      c.course_name,
+      c.category,
+      c.teacher?.name || '',
+    ]);
+    const csvContent = [headers, ...rows].map(r => r.map(col => `"${col.replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `courses-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${filteredCourses.length} courses to CSV`);
+  }, [filteredCourses]);
 
   const toggleSort = (field: typeof sortField) => {
     if (sortField === field) {
@@ -171,10 +198,16 @@ export function Courses() {
           <p className="text-sm md:text-base text-gray-500 dark:text-gray-400 mt-1">{courses.length} total courses</p>
         </div>
         {isTeacher && (
-          <Button onClick={openAddModal} variant="primary" className="w-full sm:w-auto gap-2">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            Add Course
-          </Button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button onClick={exportToCSV} variant="outline" className="flex-1 sm:flex-initial gap-2" title="Export to CSV">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+              Export
+            </Button>
+            <Button onClick={openAddModal} variant="primary" className="flex-1 sm:flex-initial gap-2">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+              Add Course
+            </Button>
+          </div>
         )}
       </div>
 
@@ -208,11 +241,25 @@ export function Courses() {
       )}
 
       <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm p-4 md:p-5 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700/50">
-        <SearchBar
-          value={searchQuery}
-          onChange={setSearchQuery}
-          placeholder="Search courses by name, category, or instructor..."
-        />
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="flex-1">
+            <SearchBar
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search courses by name, category, or instructor..."
+            />
+          </div>
+          <select
+            value={selectedCategory}
+            onChange={e => setSelectedCategory(e.target.value)}
+            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm dark:bg-gray-700 dark:text-white w-full md:w-48"
+          >
+            <option value="all">All Categories</option>
+            {categories.map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {loading ? (

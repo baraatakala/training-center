@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -8,6 +8,49 @@ import { Tables } from '../types/database.types';
 import { format } from 'date-fns';
 import { analyzeAttendanceRisk } from '../utils/attendanceAnalytics';
 import type { AbsentStudent } from '../utils/attendanceAnalytics';
+import { excuseRequestService } from '../services/excuseRequestService';
+
+// Message template types for the composer
+type MessageTemplate = 'attendance_alert' | 'encouragement' | 'reminder' | 'custom';
+type MessageChannel = 'email' | 'sms' | 'whatsapp';
+
+// Risk level styling — defined outside component to avoid recreation on every render
+const RISK_STYLES = {
+  critical: {
+    bg: 'bg-red-50 dark:bg-red-900/30',
+    border: 'border-red-300 dark:border-red-700',
+    hover: 'hover:bg-red-100 hover:border-red-400 dark:hover:bg-red-900/50',
+    badge: 'bg-red-600 text-white',
+    icon: '🚨'
+  },
+  high: {
+    bg: 'bg-orange-50 dark:bg-orange-900/30',
+    border: 'border-orange-300 dark:border-orange-700',
+    hover: 'hover:bg-orange-100 hover:border-orange-400 dark:hover:bg-orange-900/50',
+    badge: 'bg-orange-600 text-white',
+    icon: '⚠️'
+  },
+  medium: {
+    bg: 'bg-yellow-50 dark:bg-yellow-900/30',
+    border: 'border-yellow-300 dark:border-yellow-700',
+    hover: 'hover:bg-yellow-100 hover:border-yellow-400 dark:hover:bg-yellow-900/50',
+    badge: 'bg-yellow-600 text-white',
+    icon: '⚡'
+  },
+  watch: {
+    bg: 'bg-blue-50 dark:bg-blue-900/30',
+    border: 'border-blue-300 dark:border-blue-700',
+    hover: 'hover:bg-blue-100 hover:border-blue-400 dark:hover:bg-blue-900/50',
+    badge: 'bg-blue-600 text-white',
+    icon: '👁️'
+  }
+} as const;
+
+const TREND_ICONS = {
+  improving: { icon: '📈', text: 'Improving', color: 'text-green-600 dark:text-green-400' },
+  declining: { icon: '📉', text: 'Declining', color: 'text-red-600 dark:text-red-400' },
+  stable: { icon: '→', text: 'Stable', color: 'text-gray-600 dark:text-gray-400' }
+} as const;
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -27,6 +70,30 @@ export function Dashboard() {
   const [courses, setCourses] = useState<{ id: string; name: string }[]>([]);
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
+
+  // Message Composer state
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [composerStudent, setComposerStudent] = useState<AbsentStudent | null>(null);
+  const [composerChannel, setComposerChannel] = useState<MessageChannel>('email');
+  const [composerTemplate, setComposerTemplate] = useState<MessageTemplate>('attendance_alert');
+  const [composerSubject, setComposerSubject] = useState('');
+  const [composerBody, setComposerBody] = useState('');
+  const [bulkMode, setBulkMode] = useState(false);
+  const [pendingExcuses, setPendingExcuses] = useState(0);
+
+  // Memoized filtered students and risk counts to avoid recalculation on every render
+  const filteredStudents = useMemo(() => {
+    return selectedCourse === 'all'
+      ? absentStudents
+      : absentStudents.filter(s => s.course_id === selectedCourse);
+  }, [absentStudents, selectedCourse]);
+
+  const riskCounts = useMemo(() => ({
+    critical: filteredStudents.filter(s => s.riskLevel === 'critical').length,
+    high: filteredStudents.filter(s => s.riskLevel === 'high').length,
+    medium: filteredStudents.filter(s => s.riskLevel === 'medium').length,
+    watch: filteredStudents.filter(s => s.riskLevel === 'watch').length,
+  }), [filteredStudents]);
 
   const loadStats = async () => {
     try {
@@ -106,41 +173,92 @@ export function Dashboard() {
 
   const generateEmailLink = (student: AbsentStudent): string => {
     const riskLevelText = student.riskLevel.toUpperCase();
-    const subject = `[${riskLevelText} PRIORITY] Attendance Concern - ${student.student_name}`;
+    const subject = `[${riskLevelText} PRIORITY] Attendance Concern - ${student.student_name} | إشعار حضور - ${student.student_name}`;
     
     const trendText = {
-      improving: 'showing improvement',
-      declining: 'declining',
-      stable: 'stable but concerning'
+      improving: 'showing improvement ✅',
+      declining: 'declining ⬇️',
+      stable: 'stable but concerning ⚠️'
+    }[student.trend];
+
+    const trendTextAr = {
+      improving: 'في تحسّن ✅',
+      declining: 'في تراجع ⬇️',
+      stable: 'مستقر لكنه مقلق ⚠️'
     }[student.trend];
 
     const patternsText = student.patterns.length > 0 
-      ? `\n\n🔍 Observed Patterns:\n${student.patterns.map(p => `  • ${p}`).join('\n')}`
+      ? `\n\n🔍 Detected Patterns:\n${student.patterns.map(p => `  • ${p}`).join('\n')}`
+      : '';
+
+    // Calculate absence severity metrics
+    const absencePercentage = student.totalDays > 0 ? Math.round(((student.totalDays - student.presentDays) / student.totalDays) * 100) : 0;
+    const daysToReach75 = student.totalDays > 0 
+      ? Math.max(0, Math.ceil((0.75 * student.totalDays - student.presentDays) / (1 - 0.75)))
+      : 0;
+    const projectedEndRate = student.trend === 'declining' 
+      ? Math.max(0, student.attendanceRate - 5) 
+      : student.trend === 'improving' 
+        ? Math.min(100, student.attendanceRate + 5) 
+        : student.attendanceRate;
+
+    // Risk-specific recommendation
+    const recommendation = {
+      critical: `🚨 URGENT ACTION REQUIRED:\nYour attendance has dropped to a critical level (${student.attendanceRate}%). This may result in:\n  • Academic probation or course failure\n  • Loss of enrollment eligibility\n  • Impact on certification/completion\n\nPlease schedule an immediate meeting with the administration within 48 hours.\n\n🚨 إجراء عاجل مطلوب:\nلقد انخفض حضورك إلى مستوى حرج (${student.attendanceRate}%). قد يؤدي هذا إلى:\n  • الإنذار الأكاديمي أو الإخفاق\n  • فقدان أهلية التسجيل\n  • التأثير على الشهادة/الإتمام\n\nيرجى تحديد موعد اجتماع فوري مع الإدارة خلال 48 ساعة.`,
+      high: `⚠️ HIGH PRIORITY:\nYour attendance pattern (${student.attendanceRate}%) shows significant risk. We recommend:\n  • Meeting with your instructor this week\n  • Setting up an attendance improvement plan\n  • Contacting us about any difficulties\n\n⚠️ أولوية عالية:\nنمط حضورك (${student.attendanceRate}%) يُظهر خطراً كبيراً. ننصحك بـ:\n  • الاجتماع مع معلمك هذا الأسبوع\n  • وضع خطة لتحسين الحضور\n  • التواصل معنا بشأن أي صعوبات`,
+      medium: `⚡ ATTENTION NEEDED:\nYour attendance (${student.attendanceRate}%) is below our recommended minimum of 75%. To get back on track:\n  • Attend all upcoming sessions without exception\n  • ${daysToReach75 > 0 ? `You need ${daysToReach75} consecutive sessions to reach 75%` : 'Keep maintaining current attendance'}\n  • Reach out if you need schedule accommodation\n\n⚡ يحتاج انتباهك:\nحضورك (${student.attendanceRate}%) أقل من الحد الأدنى الموصى به 75%. للعودة إلى المسار:\n  • احضر جميع الجلسات القادمة بدون استثناء\n  • ${daysToReach75 > 0 ? `تحتاج ${daysToReach75} جلسات متتالية للوصول إلى 75%` : 'حافظ على حضورك الحالي'}\n  • تواصل معنا إذا احتجت ترتيباً خاصاً`,
+      watch: `👁️ EARLY NOTICE:\nWe've noticed some attendance patterns that may affect your progress. Current rate: ${student.attendanceRate}%.\nThis is an early intervention — maintaining regular attendance ensures you get the most from the course.\n\n👁️ إشعار مبكر:\nلاحظنا بعض أنماط الحضور التي قد تؤثر على تقدمك. المعدل الحالي: ${student.attendanceRate}%.\nهذا تدخل مبكر — الحفاظ على الحضور المنتظم يضمن لك أقصى استفادة من الدورة.`
+    }[student.riskLevel];
+
+    // Formatted absence list with day names
+    const absencesList = student.absentDates.slice(0, 15).map(d => {
+      const dateObj = new Date(d);
+      return `  • ${format(dateObj, 'EEEE, MMMM dd, yyyy')}`;
+    }).join('\n');
+    const moreAbsences = student.absentDates.length > 15 
+      ? `\n  ... and ${student.absentDates.length - 15} additional absences` 
       : '';
 
     const body = `Dear ${student.student_name},
+عزيزي/عزيزتي ${student.student_name}،
 
-📊 ATTENDANCE ALERT - ${riskLevelText} PRIORITY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 ATTENDANCE REPORT / تقرير الحضور
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Priority Level / مستوى الأولوية: ${riskLevelText}
+Course / الدورة: ${student.course_name}
+Report Date / تاريخ التقرير: ${format(new Date(), 'EEEE, MMMM dd, yyyy')}
 
-We have conducted an analysis of your attendance in "${student.course_name}" and identified some concerns that need your attention.
-
-📈 Current Statistics:
-  • Attendance Rate: ${student.attendanceRate}%
-  • Consecutive Absences: ${student.consecutiveAbsences} sessions
-  • Total Sessions: ${student.presentDays} present out of ${student.totalDays}
-  • Engagement Score: ${student.engagementScore}/100
-  • Attendance Trend: ${trendText}${student.lastAttendedDate ? `\n  • Last Attended: ${format(new Date(student.lastAttendedDate), 'MMM dd, yyyy')}` : ''}
+📈 DETAILED STATISTICS / إحصائيات مفصلة:
+  • Attendance Rate / معدل الحضور: ${student.attendanceRate}%
+  • Absence Rate / معدل الغياب: ${absencePercentage}%
+  • Sessions Attended / الجلسات المحضورة: ${student.presentDays} / ${student.totalDays}
+  • Sessions Missed / الجلسات الفائتة: ${student.totalDays - student.presentDays}
+  • Consecutive Absences / غياب متتالي: ${student.consecutiveAbsences} sessions
+  • Engagement Score / درجة المشاركة: ${student.engagementScore}/100
+  • Current Trend / الاتجاه الحالي: ${trendText} / ${trendTextAr}
+  • Projected Rate / المعدل المتوقع: ~${projectedEndRate}% (if trend continues)${student.lastAttendedDate ? `\n  • Last Attended / آخر حضور: ${format(new Date(student.lastAttendedDate), 'EEEE, MMMM dd, yyyy')}` : ''}
 ${patternsText}
 
-📅 Recent Absences:
-${student.absentDates.slice(0, 10).map(d => `  • ${format(new Date(d), 'EEEE, MMMM dd, yyyy')}`).join('\n')}${student.absentDates.length > 10 ? `\n  ... and ${student.absentDates.length - 10} more` : ''}
+📅 ABSENCE RECORD / سجل الغياب:
+${absencesList}${moreAbsences}
 
-${student.riskLevel === 'critical' ? '🚨 CRITICAL: Your attendance has reached a critical level. Immediate action is required to prevent academic consequences.' : student.riskLevel === 'high' ? '⚠️ HIGH RISK: Your attendance pattern shows significant concerns. Please contact us urgently.' : student.riskLevel === 'medium' ? '⚡ ATTENTION NEEDED: Your attendance is below expected standards. Let\'s work together to improve.' : '👁️ EARLY WARNING: We\'ve noticed some patterns that may affect your success. Let\'s address them early.'}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${recommendation}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Please contact us to discuss any challenges you're facing. We're here to support you.
+📞 NEXT STEPS / الخطوات التالية:
+  1. Please respond to this email within 3 business days / يرجى الرد خلال 3 أيام عمل
+  2. Schedule a meeting if needed / حدد موعد اجتماع إذا لزم الأمر
+  3. Provide documentation for any excused absences / قدّم وثائق لأي غياب بعذر
+  4. Contact us at any time for support / تواصل معنا في أي وقت للدعم
 
-Best regards,
-Training Center Management`;
+Best regards / مع أطيب التحيات,
+Training Center Management / إدارة مركز التدريب
+
+---
+This is an automated attendance report generated by the Training Center Management System.
+هذا تقرير حضور آلي تم إنشاؤه بواسطة نظام إدارة مركز التدريب.`;
 
     return `mailto:${student.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
@@ -153,16 +271,193 @@ Training Center Management`;
       watch: '👁️'
     }[student.riskLevel];
 
-    const message = `${riskEmoji} ATTENDANCE ALERT
+    const riskTextAr = {
+      critical: 'حرج',
+      high: 'عالي',
+      medium: 'متوسط',
+      watch: 'مراقبة'
+    }[student.riskLevel];
+
+    const urgencyNote = {
+      critical: 'IMMEDIATE response required / مطلوب رد فوري',
+      high: 'Please respond within 24 hours / يرجى الرد خلال 24 ساعة',
+      medium: 'Please respond within 3 days / يرجى الرد خلال 3 أيام',
+      watch: 'For your information / للعلم'
+    }[student.riskLevel];
+
+    // Recent absences for SMS (compact)
+    const recentDates = student.absentDates.slice(0, 3).map(d => format(new Date(d), 'MMM dd')).join(', ');
+    const moreDates = student.absentDates.length > 3 ? ` +${student.absentDates.length - 3} more` : '';
+
+    const message = `${riskEmoji} ATTENDANCE ALERT / إشعار حضور
 ${student.student_name}
-Course: ${student.course_name}
-Attendance: ${student.attendanceRate}%
-Consecutive Absences: ${student.consecutiveAbsences}
-Trend: ${student.trend}
-Please contact the training center urgently.`;
+
+Course/الدورة: ${student.course_name}
+Rate/المعدل: ${student.attendanceRate}%
+Attended/حضر: ${student.presentDays}/${student.totalDays} sessions
+Consecutive Absences/غياب متتالي: ${student.consecutiveAbsences}
+Trend/الاتجاه: ${student.trend}
+Risk/المستوى: ${student.riskLevel.toUpperCase()} (${riskTextAr})
+${recentDates ? `Recent Absences/غياب حديث: ${recentDates}${moreDates}` : ''}
+
+${urgencyNote}
+
+Contact training center / تواصل مع مركز التدريب`;
 
     // SMS link format - works on most devices
     return `sms:${student.phone || ''}?body=${encodeURIComponent(message)}`;
+  };
+
+  const generateWhatsAppLink = (student: AbsentStudent): string => {
+    const riskEmoji = { critical: '🚨', high: '⚠️', medium: '⚡', watch: '👁️' }[student.riskLevel];
+    const riskTextAr = { critical: 'حرج', high: 'عالي', medium: 'متوسط', watch: 'مراقبة' }[student.riskLevel];
+    const recentDates = student.absentDates.slice(0, 3).map(d => format(new Date(d), 'MMM dd')).join(', ');
+
+    const message = `${riskEmoji} *ATTENDANCE ALERT / إشعار حضور*
+
+*Student/الطالب:* ${student.student_name}
+*Course/الدورة:* ${student.course_name}
+*Rate/المعدل:* ${student.attendanceRate}%
+*Attended/حضر:* ${student.presentDays}/${student.totalDays} sessions
+*Consecutive Absences/غياب متتالي:* ${student.consecutiveAbsences}
+*Risk Level/المستوى:* ${student.riskLevel.toUpperCase()} (${riskTextAr})
+${recentDates ? `*Recent/حديث:* ${recentDates}` : ''}
+
+Please contact the training center.
+يرجى التواصل مع مركز التدريب.`;
+
+    const phone = (student.phone || '').replace(/[^0-9]/g, '');
+    return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+  };
+
+  // Generate template body based on type
+  const generateTemplateBody = useCallback((template: MessageTemplate, student: AbsentStudent, channel: MessageChannel): { subject: string; body: string } => {
+    const isEmail = channel === 'email';
+    
+    switch (template) {
+      case 'encouragement': {
+        const subject = `Great Progress! Keep Going - ${student.student_name} | أحسنت! واصل التقدم`;
+        const body = isEmail
+          ? `Dear ${student.student_name},\nعزيزي/عزيزتي ${student.student_name}،\n\n` +
+            `We want to acknowledge your efforts in "${student.course_name}".\n` +
+            `نود أن نقدر جهودك في "${student.course_name}".\n\n` +
+            `📊 Your Stats / إحصائياتك:\n` +
+            `  • Attendance Rate / معدل الحضور: ${student.attendanceRate}%\n` +
+            `  • Sessions Attended / الجلسات المحضورة: ${student.presentDays}/${student.totalDays}\n` +
+            `  • Engagement / المشاركة: ${student.engagementScore}/100\n` +
+            `  • Trend / الاتجاه: ${student.trend}\n\n` +
+            (student.trend === 'improving' 
+              ? `🌟 Your attendance trend is improving — keep up the great work!\nاتجاه حضورك في تحسّن — استمر في العمل الرائع!\n\n`
+              : `💪 We believe in your ability to succeed. Every session counts!\nنحن نؤمن بقدرتك على النجاح. كل جلسة مهمة!\n\n`) +
+            `Best regards / مع أطيب التحيات,\nTraining Center Management / إدارة مركز التدريب`
+          : `🌟 ${student.student_name}\n` +
+            `Course: ${student.course_name}\n` +
+            `Rate: ${student.attendanceRate}% | ${student.presentDays}/${student.totalDays}\n` +
+            `Keep up the great work! واصل التقدم!`;
+        return { subject, body };
+      }
+      case 'reminder': {
+        const subject = `Session Reminder - ${student.course_name} | تذكير بالجلسة - ${student.course_name}`;
+        const body = isEmail
+          ? `Dear ${student.student_name},\nعزيزي/عزيزتي ${student.student_name}،\n\n` +
+            `This is a friendly reminder about your upcoming session.\nهذا تذكير ودي بجلستك القادمة.\n\n` +
+            `📅 Course / الدورة: ${student.course_name}\n` +
+            `📊 Current Attendance / الحضور الحالي: ${student.attendanceRate}%\n` +
+            `📈 Sessions Completed / الجلسات المكتملة: ${student.presentDays}/${student.totalDays}\n\n` +
+            (student.attendanceRate < 75 
+              ? `⚠️ Your attendance is below 75%. Please make every effort to attend.\nحضورك أقل من 75%. يرجى بذل كل جهد للحضور.\n\n`
+              : '') +
+            `We look forward to seeing you!\nنتطلع لرؤيتك!\n\n` +
+            `Training Center Management / إدارة مركز التدريب`
+          : `📅 REMINDER / تذكير\n${student.student_name}\n` +
+            `Course: ${student.course_name}\n` +
+            `Rate: ${student.attendanceRate}%\n` +
+            `Don't miss your next session! لا تفوت جلستك القادمة!`;
+        return { subject, body };
+      }
+      case 'custom':
+        return { subject: `Re: ${student.student_name} - ${student.course_name}`, body: '' };
+      case 'attendance_alert':
+      default: {
+        // Use existing generator logic but return as editable text
+        if (isEmail) {
+          const link = generateEmailLink(student);
+          const params = new URL(link.replace('mailto:', 'https://x.com?to='));
+          const subject = decodeURIComponent(params.searchParams.get('subject') || '');
+          const body = decodeURIComponent(params.searchParams.get('body') || '');
+          return { subject, body };
+        } else {
+          const smsLink = generateSMSLink(student);
+          const body = decodeURIComponent(smsLink.split('body=')[1] || '');
+          return { subject: '', body };
+        }
+      }
+    }
+  }, []);
+
+  // Open composer for a single student
+  const openComposer = useCallback((student: AbsentStudent, channel: MessageChannel = 'email') => {
+    setComposerStudent(student);
+    setComposerChannel(channel);
+    setComposerTemplate('attendance_alert');
+    setBulkMode(false);
+    const { subject, body } = generateTemplateBody('attendance_alert', student, channel);
+    setComposerSubject(subject);
+    setComposerBody(body);
+    setComposerOpen(true);
+  }, [generateTemplateBody]);
+
+  // Open bulk composer
+  const openBulkComposer = useCallback((channel: MessageChannel = 'email') => {
+    const first = filteredStudents[0];
+    if (!first) return;
+    setComposerStudent(first);
+    setComposerChannel(channel);
+    setComposerTemplate('attendance_alert');
+    setBulkMode(true);
+    setComposerSubject('[BULK] Attendance Alert / إشعار حضور');
+    setComposerBody('Each student will receive a personalized message based on their attendance data.\nسيتلقى كل طالب رسالة مخصصة بناءً على بيانات حضوره.');
+    setComposerOpen(true);
+  }, [filteredStudents]);
+
+  // Send message from composer
+  const sendComposerMessage = useCallback(() => {
+    if (bulkMode) {
+      // Open all links for filtered students
+      filteredStudents.forEach((student, index) => {
+        setTimeout(() => {
+          const { subject, body } = generateTemplateBody(composerTemplate, student, composerChannel);
+          if (composerChannel === 'email') {
+            window.open(`mailto:${student.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
+          } else if (composerChannel === 'sms') {
+            window.open(`sms:${student.phone || ''}?body=${encodeURIComponent(body)}`, '_blank');
+          } else {
+            const phone = (student.phone || '').replace(/[^0-9]/g, '');
+            window.open(`https://wa.me/${phone}?text=${encodeURIComponent(body)}`, '_blank');
+          }
+        }, index * 500); // Stagger to avoid popup blocking
+      });
+    } else if (composerStudent) {
+      if (composerChannel === 'email') {
+        window.open(`mailto:${composerStudent.email}?subject=${encodeURIComponent(composerSubject)}&body=${encodeURIComponent(composerBody)}`, '_blank');
+      } else if (composerChannel === 'sms') {
+        window.open(`sms:${composerStudent.phone || ''}?body=${encodeURIComponent(composerBody)}`, '_blank');
+      } else {
+        const phone = (composerStudent.phone || '').replace(/[^0-9]/g, '');
+        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(composerBody)}`, '_blank');
+      }
+    }
+    setComposerOpen(false);
+  }, [bulkMode, filteredStudents, composerStudent, composerChannel, composerTemplate, composerSubject, composerBody, generateTemplateBody]);
+
+  // Load pending excuses count — uses service layer
+  const loadPendingExcuses = async () => {
+    try {
+      const { count } = await excuseRequestService.getPendingCount();
+      setPendingExcuses(count || 0);
+    } catch {
+      // table might not exist yet
+    }
   };
 
   useEffect(() => {
@@ -176,7 +471,7 @@ Please contact the training center urgently.`;
             .from('teacher')
             .select('teacher_id')
             .ilike('email', user.email)
-            .single();
+            .maybeSingle();
           if (teacher) {
             setIsTeacher(true);
           } else {
@@ -185,7 +480,7 @@ Please contact the training center urgently.`;
               .from('admin')
               .select('admin_id')
               .ilike('email', user.email)
-              .single();
+              .maybeSingle();
             setIsTeacher(!!adminRecord);
           }
         } else {
@@ -198,6 +493,7 @@ Please contact the training center urgently.`;
     init();
     loadStats();
     loadAttendanceAlerts();
+    loadPendingExcuses();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -343,6 +639,32 @@ Please contact the training center urgently.`;
               </Button>
             </Link>
           </div>
+          {/* Second row - New features */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+            <Link to="/excuse-requests">
+              <Button variant="outline" className="w-full justify-start gap-3" size="lg">
+                <svg className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                Excuse Requests
+                {pendingExcuses > 0 && (
+                  <span className="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full animate-pulse">
+                    {pendingExcuses}
+                  </span>
+                )}
+              </Button>
+            </Link>
+            <Link to="/certificates">
+              <Button variant="outline" className="w-full justify-start gap-3" size="lg">
+                <svg className="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>
+                Certificates
+              </Button>
+            </Link>
+            <Link to="/announcements">
+              <Button variant="outline" className="w-full justify-start gap-3" size="lg">
+                <svg className="w-5 h-5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg>
+                Announcements
+              </Button>
+            </Link>
+          </div>
         </CardContent>
       </Card>
 
@@ -416,15 +738,11 @@ Please contact the training center urgently.`;
               <p className="text-gray-500 dark:text-gray-400">Analyzing attendance patterns...</p>
             </div>
           ) : (() => {
-            const filtered = selectedCourse === 'all' 
-              ? absentStudents 
-              : absentStudents.filter(s => s.course_id === selectedCourse);
-            
-            // Count by risk level
-            const criticalCount = filtered.filter(s => s.riskLevel === 'critical').length;
-            const highCount = filtered.filter(s => s.riskLevel === 'high').length;
-            const mediumCount = filtered.filter(s => s.riskLevel === 'medium').length;
-            const watchCount = filtered.filter(s => s.riskLevel === 'watch').length;
+            const filtered = filteredStudents;
+            const criticalCount = riskCounts.critical;
+            const highCount = riskCounts.high;
+            const mediumCount = riskCounts.medium;
+            const watchCount = riskCounts.watch;
             
             return filtered.length === 0 ? (
               <div className="text-center py-8">
@@ -454,50 +772,38 @@ Please contact the training center urgently.`;
                   </div>
                 </div>
 
+                {/* Bulk Messaging Toolbar */}
+                <div className="flex flex-wrap items-center gap-2 mb-4 p-3 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-lg">
+                  <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">📨 Bulk Message ({filtered.length} students):</span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => openBulkComposer('email')}
+                      className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs font-medium flex items-center gap-1"
+                    >
+                      📧 Email All
+                    </button>
+                    <button
+                      onClick={() => openBulkComposer('sms')}
+                      className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs font-medium flex items-center gap-1"
+                    >
+                      💬 SMS All
+                    </button>
+                    <button
+                      onClick={() => openBulkComposer('whatsapp')}
+                      className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-xs font-medium flex items-center gap-1"
+                    >
+                      📱 WhatsApp All
+                    </button>
+                  </div>
+                </div>
+
                 {/* Alert Cards */}
                 <div className="space-y-3">
                   {filtered.map((student) => {
-                    // Risk level styling
-                    const riskStyles = {
-                      critical: {
-                        bg: 'bg-red-50 dark:bg-red-900/30',
-                        border: 'border-red-300 dark:border-red-700',
-                        hover: 'hover:bg-red-100 hover:border-red-400 dark:hover:bg-red-900/50',
-                        badge: 'bg-red-600 text-white',
-                        icon: '🚨'
-                      },
-                      high: {
-                        bg: 'bg-orange-50 dark:bg-orange-900/30',
-                        border: 'border-orange-300 dark:border-orange-700',
-                        hover: 'hover:bg-orange-100 hover:border-orange-400 dark:hover:bg-orange-900/50',
-                        badge: 'bg-orange-600 text-white',
-                        icon: '⚠️'
-                      },
-                      medium: {
-                        bg: 'bg-yellow-50 dark:bg-yellow-900/30',
-                        border: 'border-yellow-300 dark:border-yellow-700',
-                        hover: 'hover:bg-yellow-100 hover:border-yellow-400 dark:hover:bg-yellow-900/50',
-                        badge: 'bg-yellow-600 text-white',
-                        icon: '⚡'
-                      },
-                      watch: {
-                        bg: 'bg-blue-50 dark:bg-blue-900/30',
-                        border: 'border-blue-300 dark:border-blue-700',
-                        hover: 'hover:bg-blue-100 hover:border-blue-400 dark:hover:bg-blue-900/50',
-                        badge: 'bg-blue-600 text-white',
-                        icon: '👁️'
-                      }
-                    };
-
-                    const style = riskStyles[student.riskLevel];
+                    const style = RISK_STYLES[student.riskLevel];
 
                     // Trend icon
-                    const trendIcons = {
-                      improving: { icon: '📈', text: 'Improving', color: 'text-green-600 dark:text-green-400' },
-                      declining: { icon: '📉', text: 'Declining', color: 'text-red-600 dark:text-red-400' },
-                      stable: { icon: '→', text: 'Stable', color: 'text-gray-600 dark:text-gray-400' }
-                    };
-                    const trendInfo = trendIcons[student.trend];
+                    const trendInfo = TREND_ICONS[student.trend];
 
                     return (
                       <div
@@ -601,23 +907,34 @@ Please contact the training center urgently.`;
 
                           {/* Action Buttons */}
                           <div className="flex flex-col gap-2">
-                            <a
-                              href={generateEmailLink(student)}
-                              onClick={e => e.stopPropagation()}
+                            <button
+                              onClick={e => { e.stopPropagation(); openComposer(student, 'email'); }}
                               className="flex-shrink-0 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap text-sm font-medium text-center"
-                              tabIndex={-1}
+                              title="Compose Email"
                             >
                               📧 Email
-                            </a>
+                            </button>
                             {student.phone && (
-                              <a
-                                href={generateSMSLink(student)}
-                                onClick={e => e.stopPropagation()}
-                                className="flex-shrink-0 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors whitespace-nowrap text-sm font-medium text-center"
-                                tabIndex={-1}
-                              >
-                                💬 SMS
-                              </a>
+                              <>
+                                <button
+                                  onClick={e => { e.stopPropagation(); openComposer(student, 'sms'); }}
+                                  className="flex-shrink-0 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors whitespace-nowrap text-sm font-medium text-center"
+                                  title="Compose SMS"
+                                >
+                                  💬 SMS
+                                </button>
+                                <a
+                                  href={generateWhatsAppLink(student)}
+                                  onClick={e => e.stopPropagation()}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex-shrink-0 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors whitespace-nowrap text-sm font-medium text-center"
+                                  title="Send WhatsApp"
+                                  tabIndex={-1}
+                                >
+                                  📱 WhatsApp
+                                </a>
+                              </>
                             )}
                           </div>
                         </div>
@@ -632,15 +949,212 @@ Please contact the training center urgently.`;
       </Card>
       )}
 
-      {/* Student-facing: Simple personal message */}
+      {/* Student-facing: Enhanced personal dashboard */}
       {isTeacher === false && (
-        <Card>
-          <CardContent className="py-8 text-center">
-            <div className="text-4xl mb-3">📚</div>
-            <p className="text-gray-700 dark:text-gray-200 font-medium text-lg">Welcome to the Training Center</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Navigate to your courses, sessions, and attendance records using the menu above.</p>
-          </CardContent>
-        </Card>
+        <div className="space-y-6">
+          <Card>
+            <CardContent className="py-8 text-center">
+              <div className="text-4xl mb-3">📚</div>
+              <p className="text-gray-700 dark:text-gray-200 font-medium text-lg">Welcome to the Training Center</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Navigate to your courses, sessions, and attendance records using the menu above.</p>
+            </CardContent>
+          </Card>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Link to="/attendance-records">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                <CardContent className="py-6 text-center">
+                  <div className="text-3xl mb-2">📋</div>
+                  <p className="font-medium text-gray-800 dark:text-gray-200">My Attendance</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">View your attendance records</p>
+                </CardContent>
+              </Card>
+            </Link>
+            <Link to="/excuse-requests">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                <CardContent className="py-6 text-center">
+                  <div className="text-3xl mb-2">📝</div>
+                  <p className="font-medium text-gray-800 dark:text-gray-200">Excuse Requests</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Submit or track excuse requests</p>
+                </CardContent>
+              </Card>
+            </Link>
+            <Link to="/certificates">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                <CardContent className="py-6 text-center">
+                  <div className="text-3xl mb-2">🏆</div>
+                  <p className="font-medium text-gray-800 dark:text-gray-200">My Certificates</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">View and download certificates</p>
+                </CardContent>
+              </Card>
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Message Composer Modal */}
+      {composerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-gray-700">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                  {bulkMode ? `📨 Bulk Message (${filteredStudents.length} students)` : '✉️ Message Composer'}
+                </h3>
+                {composerStudent && !bulkMode && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                    To: {composerStudent.student_name} — {composerStudent.course_name}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => setComposerOpen(false)}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              {/* Channel selector */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Channel</label>
+                <div className="flex gap-2">
+                  {(['email', 'sms', 'whatsapp'] as MessageChannel[]).map(ch => (
+                    <button
+                      key={ch}
+                      onClick={() => {
+                        setComposerChannel(ch);
+                        if (composerStudent) {
+                          const { subject, body } = generateTemplateBody(composerTemplate, composerStudent, ch);
+                          setComposerSubject(subject);
+                          setComposerBody(body);
+                        }
+                      }}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        composerChannel === ch
+                          ? ch === 'email' ? 'bg-blue-600 text-white' : ch === 'sms' ? 'bg-green-600 text-white' : 'bg-emerald-600 text-white'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      {ch === 'email' ? '📧 Email' : ch === 'sms' ? '💬 SMS' : '📱 WhatsApp'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Template selector */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Template</label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {([
+                    { key: 'attendance_alert' as MessageTemplate, label: '🚨 Attendance Alert', desc: 'Risk-based warning' },
+                    { key: 'encouragement' as MessageTemplate, label: '🌟 Encouragement', desc: 'Positive reinforcement' },
+                    { key: 'reminder' as MessageTemplate, label: '📅 Session Reminder', desc: 'Upcoming session' },
+                    { key: 'custom' as MessageTemplate, label: '✏️ Custom', desc: 'Write your own' },
+                  ]).map(t => (
+                    <button
+                      key={t.key}
+                      onClick={() => {
+                        setComposerTemplate(t.key);
+                        if (composerStudent) {
+                          const { subject, body } = generateTemplateBody(t.key, composerStudent, composerChannel);
+                          setComposerSubject(subject);
+                          setComposerBody(body);
+                        }
+                      }}
+                      className={`p-3 rounded-lg border-2 text-left transition-colors ${
+                        composerTemplate === t.key
+                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 dark:border-blue-400'
+                          : 'border-gray-200 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
+                      }`}
+                    >
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">{t.label}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{t.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Subject (email only) */}
+              {composerChannel === 'email' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Subject</label>
+                  <input
+                    type="text"
+                    value={composerSubject}
+                    onChange={e => setComposerSubject(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Email subject..."
+                  />
+                </div>
+              )}
+
+              {/* Message body */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Message Body</label>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {composerBody.length} characters
+                    {composerChannel === 'sms' && composerBody.length > 160 && (
+                      <span className="text-amber-600 dark:text-amber-400 ml-1">
+                        ({Math.ceil(composerBody.length / 160)} SMS parts)
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <textarea
+                  value={composerBody}
+                  onChange={e => setComposerBody(e.target.value)}
+                  rows={12}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono"
+                  placeholder="Compose your message..."
+                />
+              </div>
+
+              {/* Student preview card (non-bulk) */}
+              {composerStudent && !bulkMode && (
+                <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                  <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Recipient Details</div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                    <div><span className="text-gray-500 dark:text-gray-400">Name:</span> <span className="font-medium text-gray-900 dark:text-white">{composerStudent.student_name}</span></div>
+                    <div><span className="text-gray-500 dark:text-gray-400">Rate:</span> <span className="font-medium text-gray-900 dark:text-white">{composerStudent.attendanceRate}%</span></div>
+                    <div><span className="text-gray-500 dark:text-gray-400">Risk:</span> <span className={`font-medium ${composerStudent.riskLevel === 'critical' ? 'text-red-600' : composerStudent.riskLevel === 'high' ? 'text-orange-600' : composerStudent.riskLevel === 'medium' ? 'text-yellow-600' : 'text-blue-600'}`}>{composerStudent.riskLevel.toUpperCase()}</span></div>
+                    <div><span className="text-gray-500 dark:text-gray-400">Trend:</span> <span className="font-medium text-gray-900 dark:text-white">{composerStudent.trend}</span></div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between p-5 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setComposerOpen(false)}
+                className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <div className="flex items-center gap-2">
+                {!bulkMode && composerStudent && (
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {composerChannel === 'email' ? composerStudent.email : composerStudent.phone || 'No phone'}
+                  </span>
+                )}
+                <button
+                  onClick={sendComposerMessage}
+                  className={`px-6 py-2 rounded-lg text-white text-sm font-medium transition-colors ${
+                    composerChannel === 'email' ? 'bg-blue-600 hover:bg-blue-700' :
+                    composerChannel === 'sms' ? 'bg-green-600 hover:bg-green-700' :
+                    'bg-emerald-600 hover:bg-emerald-700'
+                  }`}
+                >
+                  {bulkMode ? `Send to ${filteredStudents.length} Students` : 'Send Message'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

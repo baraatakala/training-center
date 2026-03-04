@@ -14,6 +14,8 @@ import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/ui/ToastContainer';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { loadConfigSync, calcLateScore as calcLateScoreFromConfig, calcCoverageFactor as calcCoverageFromConfig } from '../services/scoringConfigService';
+import { LocationMap } from '../components/LocationMap';
+import { parseCoordinates, calculateDistance, formatDistance } from '../services/geocodingService';
 
 interface AttendanceRecord {
   attendance_id: string;
@@ -235,7 +237,32 @@ const AttendanceRecords = () => {
   const [collapseStudentTable, setCollapseStudentTable] = useState(false);
   const [collapseDateTable, setCollapseDateTable] = useState(false);
   const [collapseHostTable, setCollapseHostTable] = useState(false);
+  const [collapseCrosstabTable, setCollapseCrosstabTable] = useState(false);
   const [collapseScoreExplainer, setCollapseScoreExplainer] = useState(true);
+
+  // Table include/exclude toggles for exports — persisted in localStorage
+  const [includedTables, setIncludedTables] = useState<{
+    summary: boolean;
+    student: boolean;
+    date: boolean;
+    host: boolean;
+    crosstab: boolean;
+  }>(() => {
+    try {
+      const saved = localStorage.getItem('analyticsIncludedTables');
+      if (saved) return JSON.parse(saved);
+    } catch { /* ignore */ }
+    return { summary: true, student: true, date: true, host: true, crosstab: false };
+  });
+  useEffect(() => {
+    localStorage.setItem('analyticsIncludedTables', JSON.stringify(includedTables));
+  }, [includedTables]);
+
+  // Matrix date selection — which dates to include in the cross-tab matrix (all exports + UI)
+  // null means "all dates" (default), otherwise a Set of selected date strings
+  const [matrixSelectedDates, setMatrixSelectedDates] = useState<Set<string> | null>(null);
+  const [showMatrixDatePicker, setShowMatrixDatePicker] = useState(false);
+
   const [scoreExplainerStudent, setScoreExplainerStudent] = useState<string>('');
   const [scoreExplainerLang, setScoreExplainerLang] = useState<'en' | 'ar' | 'both'>('both');
   const [showScoreDetails, setShowScoreDetails] = useState(false);
@@ -353,7 +380,7 @@ const AttendanceRecords = () => {
             .from('teacher')
             .select('teacher_id')
             .ilike('email', user.email)
-            .single();
+            .maybeSingle();
           if (teacher) {
             setIsTeacher(true);
           } else {
@@ -362,7 +389,7 @@ const AttendanceRecords = () => {
               .from('admin')
               .select('admin_id')
               .ilike('email', user.email)
-              .single();
+              .maybeSingle();
             setIsTeacher(!!adminRecord);
           }
         }
@@ -808,6 +835,24 @@ const AttendanceRecords = () => {
     studentPerformance: '🎓 تحليلات أداء الطلاب',
     attendanceByDate: '📅 الحضور حسب التاريخ',
     hostAnalyticsTitle: '🏠 تحليلات المضيف',
+    crosstabTitle: '🗓️ مصفوفة الحضور',
+    crosstabDesc: 'الطلاب × التواريخ مع مؤشرات ملونة',
+    includeTables: 'تضمين الجداول',
+    summaryTable: 'الإحصائيات',
+    studentTable: 'الطلاب',
+    dateTable: 'التواريخ',
+    hostTable: 'المضيفين',
+    crosstabTable: 'المصفوفة',
+    locationMap: '📍 خريطة المواقع',
+    locationMapDesc: 'مواقع الاستضافة مع المسافات والتوجيه',
+    viewOnMap: 'عرض على الخريطة',
+    getDirections: 'الاتجاهات',
+    distanceBetween: 'المسافة بين المواقع',
+    noGpsData: 'لا توجد بيانات GPS',
+    locationSummary: 'ملخص المواقع',
+    uniqueLocations: 'مواقع فريدة',
+    totalSessions: 'إجمالي الجلسات',
+    avgDistance: 'متوسط المسافة',
     students: 'طلاب',
     sessions: 'جلسات',
     hosts: 'مضيفين',
@@ -897,6 +942,24 @@ const AttendanceRecords = () => {
     studentPerformance: '🎓 Student Performance Analytics',
     attendanceByDate: '📅 Attendance by Date',
     hostAnalyticsTitle: '🏠 Host Analytics',
+    crosstabTitle: '🗓️ Attendance Matrix',
+    crosstabDesc: 'Students × Dates with color-coded status',
+    includeTables: 'Include Tables',
+    summaryTable: 'Summary',
+    studentTable: 'Students',
+    dateTable: 'Dates',
+    hostTable: 'Hosts',
+    crosstabTable: 'Matrix',
+    locationMap: '📍 Location Map',
+    locationMapDesc: 'Host locations with distances & routing',
+    viewOnMap: 'View on Map',
+    getDirections: 'Directions',
+    distanceBetween: 'Distance Between Locations',
+    noGpsData: 'No GPS data',
+    locationSummary: 'Location Summary',
+    uniqueLocations: 'unique locations',
+    totalSessions: 'total sessions',
+    avgDistance: 'avg distance',
     students: 'students',
     sessions: 'sessions',
     hosts: 'hosts',
@@ -1207,8 +1270,36 @@ const AttendanceRecords = () => {
             )}
           </td>
         );
-      case 'host_address':
-        return <td key={colKey} className={`${tdClass} text-gray-900 dark:text-white`}>{record.host_address || record.session_location || '-'}</td>;
+      case 'host_address': {
+        const addr = record.host_address || record.session_location || null;
+        if (!addr) return <td key={colKey} className={`${tdClass} text-gray-400 dark:text-gray-500`}>-</td>;
+        // Try to extract GPS coords for map link
+        const hasGps = record.gps_latitude && record.gps_longitude;
+        const coordsParsed = parseCoordinates(addr);
+        const mapQuery = hasGps
+          ? `${record.gps_latitude},${record.gps_longitude}`
+          : coordsParsed ? `${coordsParsed.lat},${coordsParsed.lon}`
+          : encodeURIComponent(addr);
+        return (
+          <td key={colKey} className={`${tdClass} text-gray-900 dark:text-white`}>
+            <div className="flex items-center gap-1.5">
+              <span className="truncate max-w-[160px]" title={addr}>{addr}</span>
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${mapQuery}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 flex-shrink-0"
+                title={t.viewOnMap}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </a>
+            </div>
+          </td>
+        );
+      }
       case 'gps_latitude':
         return <td key={colKey} className={`${tdClass} text-gray-600 dark:text-gray-300 font-mono text-[10px]`}>{record.gps_latitude ? record.gps_latitude.toFixed(6) : '-'}</td>;
       case 'gps_longitude':
@@ -1223,10 +1314,27 @@ const AttendanceRecords = () => {
         return (
           <td key={colKey} className={`${tdClass} text-gray-600 dark:text-gray-300`}>
             {record.gps_latitude && record.gps_longitude ? (
-              <div className="space-y-1">
-                <div className="text-xs">{record.gps_latitude.toFixed(4)}°, {record.gps_longitude.toFixed(4)}°</div>
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-mono">{record.gps_latitude.toFixed(4)}°, {record.gps_longitude.toFixed(4)}°</span>
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${record.gps_latitude},${record.gps_longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 flex-shrink-0"
+                    title={t.viewOnMap}
+                  >
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </a>
+                </div>
                 {record.gps_accuracy && (
                   <div className="text-xs text-gray-500 dark:text-gray-400">±{record.gps_accuracy.toFixed(0)}m</div>
+                )}
+                {record.distance_from_host != null && (
+                  <div className="text-[10px] text-gray-400 dark:text-gray-500">↔ {formatDistance(record.distance_from_host)} from host</div>
                 )}
               </div>
             ) : (
@@ -1404,10 +1512,12 @@ const AttendanceRecords = () => {
         : 0;
       const totalPresent = dateData.presentCount + dateData.lateCount;
       const totalStudents = totalPresent + dateData.excusedAbsentCount + dateData.unexcusedAbsentCount;
-      // Attendance Rate: (Total Present / Total Students) * 100
-      const attendanceRate = totalStudents > 0 ? Math.round((totalPresent / totalStudents) * 100) : 0;
-      // Absence Rate: (Unexcused Absent / (Unexcused Absent + Present)) * 100
-      const absentRate = (dateData.unexcusedAbsentCount + totalPresent) > 0 ? Math.round((dateData.unexcusedAbsentCount / (dateData.unexcusedAbsentCount + totalPresent)) * 100) : 0;
+      // Accountable = those who should have attended (excused excluded from denominator)
+      const totalAccountable = totalPresent + dateData.unexcusedAbsentCount;
+      // Attendance Rate: (Total Present / Accountable) × 100
+      const attendanceRate = totalAccountable > 0 ? Math.round((totalPresent / totalAccountable) * 100) : 0;
+      // Absence Rate: (Unexcused Absent / Accountable) × 100
+      const absentRate = totalAccountable > 0 ? Math.round((dateData.unexcusedAbsentCount / totalAccountable) * 100) : 0;
       const punctRate = totalPresent > 0 
         ? Math.round(dateData.presentCount / totalPresent * 100)
         : 0;
@@ -1512,24 +1622,62 @@ const AttendanceRecords = () => {
       hostConfig.getData(data as Record<string, unknown>, index)
     );
 
-    // Create workbook with sheets
+    // Create workbook with sheets — respect includedTables toggles
     const wb = XLSX.utils.book_new();
 
     // Sheet 1: Summary Statistics
-    const wsSummary = XLSX.utils.aoa_to_sheet([summaryHeaders, ...summaryRows]);
-    XLSX.utils.book_append_sheet(wb, wsSummary, isArabic ? 'إحصائيات عامة' : 'Summary Statistics');
+    if (includedTables.summary) {
+      const wsSummary = XLSX.utils.aoa_to_sheet([summaryHeaders, ...summaryRows]);
+      XLSX.utils.book_append_sheet(wb, wsSummary, isArabic ? 'إحصائيات عامة' : 'Summary Statistics');
+    }
 
     // Sheet 2: Student Performance (filtered by saved selection)
-    const ws1 = XLSX.utils.aoa_to_sheet([studentConfig.headers, ...studentRows]);
-    XLSX.utils.book_append_sheet(wb, ws1, isArabic ? 'أداء الطلاب' : 'Student Performance');
+    if (includedTables.student) {
+      const ws1 = XLSX.utils.aoa_to_sheet([studentConfig.headers, ...studentRows]);
+      XLSX.utils.book_append_sheet(wb, ws1, isArabic ? 'أداء الطلاب' : 'Student Performance');
+    }
 
     // Sheet 3: Attendance by Date (filtered by saved selection)
-    const ws2 = XLSX.utils.aoa_to_sheet([dateConfig.headers, ...dateRows]);
-    XLSX.utils.book_append_sheet(wb, ws2, isArabic ? 'الحضور بالتاريخ' : 'Attendance by Date');
+    if (includedTables.date) {
+      const ws2 = XLSX.utils.aoa_to_sheet([dateConfig.headers, ...dateRows]);
+      XLSX.utils.book_append_sheet(wb, ws2, isArabic ? 'الحضور بالتاريخ' : 'Attendance by Date');
+    }
 
     // Sheet 4: Host Rankings (filtered by saved selection)
-    const ws3 = XLSX.utils.aoa_to_sheet([hostConfig.headers, ...hostRows]);
-    XLSX.utils.book_append_sheet(wb, ws3, isArabic ? 'تصنيف المضيفين' : 'Host Rankings');
+    if (includedTables.host) {
+      const ws3 = XLSX.utils.aoa_to_sheet([hostConfig.headers, ...hostRows]);
+      XLSX.utils.book_append_sheet(wb, ws3, isArabic ? 'تصنيف المضيفين' : 'Host Rankings');
+    }
+
+    // Sheet 5: Cross-Tab Heatmap (Student × Date matrix)
+    if (includedTables.crosstab) {
+      const sortedStudents = [...studentAnalytics].sort((a, b) => b.weightedScore - a.weightedScore);
+      const allSortedDates = [...dateAnalytics].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      const sortedDates = matrixSelectedDates
+        ? allSortedDates.filter(d => matrixSelectedDates.has(d.date))
+        : allSortedDates;
+      const ctHeaders = [isArabic ? 'الطالب' : 'Student', ...sortedDates.map(d => format(new Date(d.date), 'MMM dd'))];
+      const ctRows = sortedStudents.map(student => {
+        const row: (string | number)[] = [student.student_name];
+        sortedDates.forEach(dateData => {
+          const record = filteredRecords.find(r => r.student_id === student.student_id && r.attendance_date === dateData.date);
+          if (!record) { row.push('-'); return; }
+          if (record.status === 'on time') row.push(isArabic ? 'حاضر' : 'On Time');
+          else if (record.status === 'late') row.push(`${isArabic ? 'متأخر' : 'Late'} ${record.late_minutes ? `(${record.late_minutes}m)` : ''}`);
+          else if (record.status === 'excused' || (record.status === 'absent' && record.excuse_reason)) row.push(isArabic ? 'معذور' : 'Excused');
+          else row.push(isArabic ? 'غائب' : 'Absent');
+        });
+        return row;
+      });
+      const wsCT = XLSX.utils.aoa_to_sheet([ctHeaders, ...ctRows]);
+      XLSX.utils.book_append_sheet(wb, wsCT, isArabic ? 'مصفوفة الطلاب × التواريخ' : 'Student × Date Matrix');
+    }
+
+    // Ensure at least one sheet exists
+    if (wb.SheetNames.length === 0) {
+      const wsEmpty = XLSX.utils.aoa_to_sheet([['No tables selected for export']]);
+      XLSX.utils.book_append_sheet(wb, wsEmpty, 'Info');
+    }
 
     // Export to file
     const excelFileName = isArabic 
@@ -1695,33 +1843,37 @@ const AttendanceRecords = () => {
     const hostDataObjects = sortDataBySettings(hostDataObjectsUnsorted, 'hostAnalytics');
     hostDataObjects.forEach((obj, idx) => { obj.rank = idx + 1; });
 
-    // Build CSV content with all three sections
+    // Build CSV content with sections — respect includedTables toggles
     const sections: string[] = [];
     
     // Section 1: Student Performance
-    const studentTitle = isArabic ? '# أداء الطلاب' : '# Student Performance';
-    const studentHeaderRow = studentConfig.headers.map(escapeCSV).join(',');
-    const studentRows = studentDataObjects.map((data, index) => 
-      studentConfig.getData(data as Record<string, unknown>, index).map(escapeCSV).join(',')
-    );
-    sections.push(studentTitle);
-    sections.push(studentHeaderRow);
-    sections.push(...studentRows);
-    sections.push(''); // Empty line between sections
+    if (includedTables.student) {
+      const studentTitle = isArabic ? '# أداء الطلاب' : '# Student Performance';
+      const studentHeaderRow = studentConfig.headers.map(escapeCSV).join(',');
+      const studentRows = studentDataObjects.map((data, index) => 
+        studentConfig.getData(data as Record<string, unknown>, index).map(escapeCSV).join(',')
+      );
+      sections.push(studentTitle);
+      sections.push(studentHeaderRow);
+      sections.push(...studentRows);
+      sections.push(''); // Empty line between sections
+    }
 
     // Section 2: Attendance by Date
-    const dateTitle = isArabic ? '# الحضور حسب التاريخ' : '# Attendance by Date';
-    const dateHeaderRow = dateConfig.headers.map(escapeCSV).join(',');
-    const dateRows = dateDataObjects.map((data, index) => 
-      dateConfig.getData(data as Record<string, unknown>, index).map(escapeCSV).join(',')
-    );
-    sections.push(dateTitle);
-    sections.push(dateHeaderRow);
-    sections.push(...dateRows);
-    sections.push(''); // Empty line between sections
+    if (includedTables.date) {
+      const dateTitle = isArabic ? '# الحضور حسب التاريخ' : '# Attendance by Date';
+      const dateHeaderRow = dateConfig.headers.map(escapeCSV).join(',');
+      const dateRows = dateDataObjects.map((data, index) => 
+        dateConfig.getData(data as Record<string, unknown>, index).map(escapeCSV).join(',')
+      );
+      sections.push(dateTitle);
+      sections.push(dateHeaderRow);
+      sections.push(...dateRows);
+      sections.push(''); // Empty line between sections
+    }
 
     // Section 3: Host Rankings
-    if (hostDataObjects.length > 0) {
+    if (includedTables.host && hostDataObjects.length > 0) {
       const hostTitle = isArabic ? '# تصنيف المضيفين' : '# Host Rankings';
       const hostHeaderRow = hostConfig.headers.map(escapeCSV).join(',');
       const hostRows = hostDataObjects.map((data, index) => 
@@ -1730,6 +1882,37 @@ const AttendanceRecords = () => {
       sections.push(hostTitle);
       sections.push(hostHeaderRow);
       sections.push(...hostRows);
+      sections.push('');
+    }
+
+    // Section 4: Cross-Tab Matrix
+    if (includedTables.crosstab) {
+      const sortedStudents = [...studentAnalytics].sort((a, b) => b.weightedScore - a.weightedScore);
+      const allSortedDates = [...dateAnalytics].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      const sortedDates = matrixSelectedDates
+        ? allSortedDates.filter(d => matrixSelectedDates.has(d.date))
+        : allSortedDates;
+      const ctTitle = isArabic ? '# مصفوفة الطلاب × التواريخ' : '# Student × Date Matrix';
+      const ctHeaders = [isArabic ? 'الطالب' : 'Student', ...sortedDates.map(d => format(new Date(d.date), 'MMM dd'))].map(escapeCSV).join(',');
+      const ctRows = sortedStudents.map(student => {
+        const cells: string[] = [student.student_name];
+        sortedDates.forEach(dateData => {
+          const record = filteredRecords.find(r => r.student_id === student.student_id && r.attendance_date === dateData.date);
+          if (!record) { cells.push('-'); return; }
+          if (record.status === 'on time') cells.push(isArabic ? 'حاضر' : 'On Time');
+          else if (record.status === 'late') cells.push(`${isArabic ? 'متأخر' : 'Late'} ${record.late_minutes ? `(${record.late_minutes}m)` : ''}`);
+          else if (record.status === 'excused' || (record.status === 'absent' && record.excuse_reason)) cells.push(isArabic ? 'معذور' : 'Excused');
+          else cells.push(isArabic ? 'غائب' : 'Absent');
+        });
+        return cells.map(escapeCSV).join(',');
+      });
+      sections.push(ctTitle);
+      sections.push(ctHeaders);
+      sections.push(...ctRows);
+    }
+
+    if (sections.length === 0) {
+      sections.push('No tables selected for export');
     }
 
     // Add BOM for UTF-8 and create blob
@@ -1776,32 +1959,37 @@ const AttendanceRecords = () => {
     doc.text(`Date Range: ${format(new Date(filters.startDate), 'MMM dd, yyyy')} - ${format(new Date(filters.endDate), 'MMM dd, yyyy')}`, pageWidth / 2, 28, { align: 'center' });
 
     // Summary Statistics Section (Compact Format)
-    doc.setFontSize(10);
-    
-    const totalStudents = studentAnalytics.length;
-    const classAvgRate = studentAnalytics.length > 0 
-      ? Math.round(studentAnalytics.reduce((sum, s) => sum + s.attendanceRate, 0) / studentAnalytics.length)
-      : 0;
-    const avgWeightedScore = studentAnalytics.length > 0
-      ? Math.round(studentAnalytics.reduce((sum, s) => sum + s.weightedScore, 0) / studentAnalytics.length)
-      : 0;
-    const avgAttendanceByDate = dateAnalytics.length > 0
-      ? Math.round(dateAnalytics.reduce((sum, d) => sum + d.attendanceRate, 0) / dateAnalytics.length)
-      : 0;
-    const medianRateByDate = (() => {
-      if (dateAnalytics.length === 0) return 0;
-      const sorted = [...dateAnalytics].sort((a, b) => a.attendanceRate - b.attendanceRate);
-      const mid = Math.floor(sorted.length / 2);
-      return sorted.length % 2 === 0
-        ? Math.round((sorted[mid - 1].attendanceRate + sorted[mid].attendanceRate) / 2)
-        : Math.round(sorted[mid].attendanceRate);
-    })();
+    let currentY = 32; // Track Y position for dynamic section placement
 
-    // Compact inline stats display (Always English for PDF)
-    const statsText = `Total Students: ${totalStudents} Students | class Avg Rate: ${classAvgRate}% | Avg weighted Score: ${avgWeightedScore} | Avg attendance by Date: ${avgAttendanceByDate}% | Median Rate by Date: ${medianRateByDate}%`;
-    doc.setFontSize(8);
-    doc.text(statsText, 8, 35);
-    doc.setFontSize(10); // Restore font size for following content
+    if (includedTables.summary) {
+      doc.setFontSize(10);
+      
+      const totalStudents = studentAnalytics.length;
+      const classAvgRate = studentAnalytics.length > 0 
+        ? Math.round(studentAnalytics.reduce((sum, s) => sum + s.attendanceRate, 0) / studentAnalytics.length)
+        : 0;
+      const avgWeightedScore = studentAnalytics.length > 0
+        ? Math.round(studentAnalytics.reduce((sum, s) => sum + s.weightedScore, 0) / studentAnalytics.length)
+        : 0;
+      const avgAttendanceByDate = dateAnalytics.length > 0
+        ? Math.round(dateAnalytics.reduce((sum, d) => sum + d.attendanceRate, 0) / dateAnalytics.length)
+        : 0;
+      const medianRateByDate = (() => {
+        if (dateAnalytics.length === 0) return 0;
+        const sorted = [...dateAnalytics].sort((a, b) => a.attendanceRate - b.attendanceRate);
+        const mid = Math.floor(sorted.length / 2);
+        return sorted.length % 2 === 0
+          ? Math.round((sorted[mid - 1].attendanceRate + sorted[mid].attendanceRate) / 2)
+          : Math.round(sorted[mid].attendanceRate);
+      })();
+
+      // Compact inline stats display (Always English for PDF)
+      const statsText = `Total Students: ${totalStudents} Students | class Avg Rate: ${classAvgRate}% | Avg weighted Score: ${avgWeightedScore} | Avg attendance by Date: ${avgAttendanceByDate}% | Median Rate by Date: ${medianRateByDate}%`;
+      doc.setFontSize(8);
+      doc.text(statsText, 8, 35);
+      doc.setFontSize(10); // Restore font size for following content
+      currentY = 38;
+    }
 
     // ========== Use saved field selections for PDF ==========
     const studentConfig = filterDataByFields('studentAnalytics', false); // Always English for PDF
@@ -1856,9 +2044,6 @@ const AttendanceRecords = () => {
 
 
     // Student Performance Table using saved fields
-    doc.setFontSize(12);
-    doc.text('Student Performance Summary', 14, 42);
-    
     // Helper function to detect percentage columns for conditional coloring
     const detectPercentageColumns = (headers: string[]): number[] => {
       const percentagePatterns = [
@@ -1904,37 +2089,41 @@ const AttendanceRecords = () => {
     const dateColoring = resolveColorColumns('dateAnalytics', dateConfig.headers);
     const hostColoring = resolveColorColumns('hostAnalytics', hostConfig.headers);
 
-    // Detect percentage columns for student table
-    const studentColorColumns = studentColoring.colorColumns;
-    
-    autoTable(doc, {
-      startY: 46,
-      head: [studentConfig.headers],
-      body: studentDataObjects.slice(0, 20).map((data, index) => studentConfig.getData(data as Record<string, unknown>, index)) as (string | number)[][],
-      styles: { fontSize: 7, cellPadding: 2 },
-      headStyles: { fillColor: [59, 130, 246], fontSize: 7 },
-      alternateRowStyles: { fillColor: [245, 245, 245] },
-      rowPageBreak: 'avoid',
-      didParseCell: (hookData) => {
-        if (studentColoring.enabled && hookData.section === 'body' && studentColorColumns.includes(hookData.column.index)) {
-          const cellText = hookData.cell.text.join('');
-          const numMatch = cellText.match(/(\d+\.?\d*)/);
-          if (numMatch) {
-            const value = parseFloat(numMatch[1]);
-            if (!isNaN(value) && value >= 0 && value <= 100) {
-              hookData.cell.styles.fillColor = getColorForValuePDF(value, studentColoring.theme);
-              hookData.cell.styles.textColor = [255, 255, 255];
-              hookData.cell.styles.fontStyle = 'bold';
+    if (includedTables.student) {
+      doc.setFontSize(12);
+      doc.text('Student Performance Summary', 14, currentY + 4);
+
+      // Detect percentage columns for student table
+      const studentColorColumns = studentColoring.colorColumns;
+      
+      autoTable(doc, {
+        startY: currentY + 8,
+        head: [studentConfig.headers],
+        body: studentDataObjects.slice(0, 20).map((data, index) => studentConfig.getData(data as Record<string, unknown>, index)) as (string | number)[][],
+        styles: { fontSize: 7, cellPadding: 2 },
+        headStyles: { fillColor: [59, 130, 246], fontSize: 7 },
+        alternateRowStyles: { fillColor: [245, 245, 245] },
+        rowPageBreak: 'avoid',
+        didParseCell: (hookData) => {
+          if (studentColoring.enabled && hookData.section === 'body' && studentColorColumns.includes(hookData.column.index)) {
+            const cellText = hookData.cell.text.join('');
+            const numMatch = cellText.match(/(\d+\.?\d*)/);
+            if (numMatch) {
+              const value = parseFloat(numMatch[1]);
+              if (!isNaN(value) && value >= 0 && value <= 100) {
+                hookData.cell.styles.fillColor = getColorForValuePDF(value, studentColoring.theme);
+                hookData.cell.styles.textColor = [255, 255, 255];
+                hookData.cell.styles.fontStyle = 'bold';
+              }
             }
           }
-        }
-      },
-    });
+        },
+      });
+      currentY = (doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || currentY + 8;
+    }
 
     // Date Analytics Table using saved fields
-    const performanceTableY = (doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || 46;
-    doc.setFontSize(12);
-    doc.text('Attendance by Date', 14, performanceTableY + 10);
+    if (includedTables.date) {
     
     // Prepare date data objects
     const dateDataObjectsUnsorted = dateAnalytics.map((dateData) => {
@@ -1999,8 +2188,11 @@ const AttendanceRecords = () => {
     // Detect percentage columns for date table - use per-type settings
     const dateColorColumns = dateColoring.colorColumns;
 
+    doc.setFontSize(12);
+    doc.text('Attendance by Date', 14, currentY + 10);
+
     autoTable(doc, {
-      startY: performanceTableY + 14,
+      startY: currentY + 14,
       head: [dateConfig.headers],
       body: dateDataObjects.map((data, index) => dateConfig.getData(data as Record<string, unknown>, index)) as (string | number)[][],
       styles: { fontSize: 6, cellPadding: 1.5 },
@@ -2022,9 +2214,11 @@ const AttendanceRecords = () => {
         }
       },
     });
+    currentY = (doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || currentY + 14;
+    } // end includedTables.date
 
     // Host Rankings Table using saved fields
-    const dateTableY = (doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || performanceTableY + 14;
+    if (includedTables.host) {
     
     // Calculate host rankings
     const hostMap = new Map<string, { 
@@ -2097,13 +2291,13 @@ const AttendanceRecords = () => {
 
     if (hostDataObjects.length > 0) {
       doc.setFontSize(12);
-      doc.text('Host Rankings', 14, dateTableY + 10);
+      doc.text('Host Rankings', 14, currentY + 10);
 
       // Detect percentage columns for host table - use per-type settings
       const hostColorColumns = hostColoring.colorColumns;
 
       autoTable(doc, {
-        startY: dateTableY + 14,
+        startY: currentY + 14,
         head: [hostConfig.headers],
         body: hostDataObjects.map((data, index) => hostConfig.getData(data as Record<string, unknown>, index)) as (string | number)[][],
         styles: { fontSize: 7, cellPadding: 2 },
@@ -2124,6 +2318,146 @@ const AttendanceRecords = () => {
           }
         },
       });
+      currentY = (doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || currentY + 14;
+    }
+    } // end includedTables.host
+
+    // Cross-Tab Matrix (Student × Date) for PDF — Smart Auto-Builder
+    // Automatically handles any number of dates/students with orientation & pagination
+    if (includedTables.crosstab && studentAnalytics.length > 0 && dateAnalytics.length > 0) {
+      const sortedStudents = [...studentAnalytics].sort((a, b) => b.weightedScore - a.weightedScore);
+      const allSortedDates = [...dateAnalytics].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      // Apply date selection filter
+      const sortedDates = matrixSelectedDates
+        ? allSortedDates.filter(d => matrixSelectedDates.has(d.date))
+        : allSortedDates;
+
+      if (sortedDates.length > 0) {
+      // Build fast lookup for status
+      const statusLookup = new Map<string, { status: string; late_minutes?: number }>();
+      filteredRecords.forEach(r => {
+        statusLookup.set(`${r.student_id}|${r.attendance_date}`, { status: r.status, late_minutes: r.late_minutes ?? undefined });
+      });
+
+      const totalDates = sortedDates.length;
+
+      // Smart layout calculation — aggressive scaling to fit all on one page
+      // Portrait usable width ~182mm, Landscape usable width ~269mm
+      // Dynamic name column & date column widths based on date count
+      const nameColWidth = totalDates <= 20 ? 30 : totalDates <= 35 ? 26 : 22;
+      const portraitUsable = 182;
+      const landscapeUsable = 269;
+
+      // Calculate minimum viable column width based on content
+      // With tiny font, columns can be as narrow as 6mm
+      const minDateColWidth = totalDates <= 15 ? 9 : totalDates <= 25 ? 7.5 : totalDates <= 40 ? 6.5 : 5.5;
+
+      const portraitMaxCols = Math.floor((portraitUsable - nameColWidth) / minDateColWidth);
+      const landscapeMaxCols = Math.floor((landscapeUsable - nameColWidth) / minDateColWidth);
+
+      // Decide orientation and chunking — try to fit everything on one page
+      let useLandscape = false;
+      let colsPerChunk: number;
+
+      if (totalDates <= portraitMaxCols) {
+        useLandscape = false;
+        colsPerChunk = totalDates;
+      } else if (totalDates <= landscapeMaxCols) {
+        useLandscape = true;
+        colsPerChunk = totalDates;
+      } else {
+        // Too many — split into chunks, use landscape for max cols
+        useLandscape = true;
+        colsPerChunk = landscapeMaxCols;
+      }
+
+      // Dynamic font sizing — scale down for more dates
+      const fontSize = totalDates <= 14 ? 6.5
+        : totalDates <= 20 ? 5.5
+        : totalDates <= 30 ? 5
+        : totalDates <= 45 ? 4.5
+        : 4;
+      const headerFontSize = Math.max(fontSize - 0.5, 3.5);
+      const cellPadding = totalDates <= 20 ? 1.5 : totalDates <= 35 ? 1 : 0.7;
+
+      // Calculate how many chunks we need
+      const numChunks = Math.ceil(totalDates / colsPerChunk);
+
+      for (let chunkIdx = 0; chunkIdx < numChunks; chunkIdx++) {
+        const startCol = chunkIdx * colsPerChunk;
+        const endCol = Math.min(startCol + colsPerChunk, totalDates);
+        const chunkDates = sortedDates.slice(startCol, endCol);
+
+        // Add a new page for the matrix (landscape or portrait)
+        doc.addPage(useLandscape ? 'l' : 'p');
+        const matrixPageWidth = doc.internal.pageSize.width;
+
+        // Title with chunk info and selection info
+        doc.setFontSize(11);
+        let matrixTitle = 'Student × Date Matrix';
+        if (matrixSelectedDates) {
+          matrixTitle += ` (${totalDates} of ${allSortedDates.length} dates selected)`;
+        }
+        if (numChunks > 1) {
+          matrixTitle += ` — Page ${chunkIdx + 1}/${numChunks} (Dates ${startCol + 1}–${endCol})`;
+        }
+        doc.text(matrixTitle, 14, 14);
+
+        // Date format: compact for many columns
+        const dateFormat = totalDates <= 15 ? 'MM/dd' : totalDates <= 30 ? 'dd' : 'd';
+        const ctHeaders = ['Student', ...chunkDates.map(d => format(new Date(d.date), dateFormat))];
+
+        // ALL students — auto page break handled by autoTable
+        const ctBody = sortedStudents.map(student => {
+          const row: string[] = [student.student_name];
+          chunkDates.forEach(dateData => {
+            const key = `${student.student_id}|${dateData.date}`;
+            const rec = statusLookup.get(key);
+            if (!rec) { row.push('-'); return; }
+            if (rec.status === 'on time') row.push('✓');
+            else if (rec.status === 'late') row.push(`L${rec.late_minutes || ''}`);
+            else if (rec.status === 'excused') row.push('E');
+            else row.push('✗');
+          });
+          return row;
+        });
+
+        // Calculate dynamic column width for dates — fill available space
+        const availableWidth = matrixPageWidth - 28; // margins
+        const dateColWidth = (availableWidth - nameColWidth) / chunkDates.length;
+
+        // Build column styles dynamically
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const colStyles: Record<number, any> = {
+          0: { halign: 'left', cellWidth: nameColWidth },
+        };
+        for (let c = 1; c <= chunkDates.length; c++) {
+          colStyles[c] = { cellWidth: dateColWidth };
+        }
+
+        autoTable(doc, {
+          startY: 18,
+          head: [ctHeaders],
+          body: ctBody,
+          styles: { fontSize, cellPadding, halign: 'center', overflow: 'hidden' },
+          headStyles: { fillColor: [124, 58, 237], fontSize: headerFontSize, cellPadding: 0.8 },
+          columnStyles: colStyles,
+          alternateRowStyles: { fillColor: [245, 245, 245] },
+          rowPageBreak: 'avoid',
+          margin: { left: 14, right: 14 },
+          didParseCell: (hookData) => {
+            if (hookData.section === 'body' && hookData.column.index > 0) {
+              const text = hookData.cell.text.join('');
+              if (text === '✓') hookData.cell.styles.fillColor = [209, 250, 229]; // emerald (on time)
+              else if (text.startsWith('L')) hookData.cell.styles.fillColor = [254, 249, 195]; // yellow (late)
+              else if (text === '✗') hookData.cell.styles.fillColor = [254, 202, 202]; // red (absent)
+              else if (text === 'E') hookData.cell.styles.fillColor = [219, 234, 254]; // blue (excused)
+            }
+          },
+        });
+      }
+      } // end sortedDates.length > 0
+      currentY = (doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || currentY + 14;
     }
 
     // Add color legend at the end of the PDF - only if any coloring was applied
@@ -2446,15 +2780,40 @@ const AttendanceRecords = () => {
     })();
     const wordAnyEnabled = wordStudentColoring.enabled || wordDateColoring.enabled || wordHostColoring.enabled;
 
+    // Build cross-tab matrix data for Word export
+    let crosstabForWord: { headers: string[]; rows: string[][] } | undefined;
+    if (includedTables.crosstab && studentAnalytics.length > 0 && dateAnalytics.length > 0) {
+      const sortedStudents = [...studentAnalytics].sort((a, b) => b.weightedScore - a.weightedScore);
+      const allSortedDates = [...dateAnalytics].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      const sortedDates = matrixSelectedDates
+        ? allSortedDates.filter(d => matrixSelectedDates.has(d.date))
+        : allSortedDates;
+      crosstabForWord = {
+        headers: [isArabic ? 'الطالب' : 'Student', ...sortedDates.map(d => format(new Date(d.date), 'MMM dd'))],
+        rows: sortedStudents.map(student => {
+          const cells: string[] = [student.student_name];
+          sortedDates.forEach(dateData => {
+            const record = filteredRecords.find(r => r.student_id === student.student_id && r.attendance_date === dateData.date);
+            if (!record) { cells.push('-'); return; }
+            if (record.status === 'on time') cells.push(isArabic ? 'حاضر' : '✓');
+            else if (record.status === 'late') cells.push(`${isArabic ? 'متأخر' : 'L'}${record.late_minutes ? ` (${record.late_minutes}m)` : ''}`);
+            else if (record.status === 'excused') cells.push(isArabic ? 'معذور' : 'E');
+            else cells.push(isArabic ? 'غائب' : '✗');
+          });
+          return cells;
+        }),
+      };
+    }
+
     try {
       await wordExportService.exportAnalyticsToWordDynamic(
-        studentDataForExport,
-        studentConfig.headers,
-        dateDataForExport,
-        dateConfig.headers,
-        hostDataForExport,
-        hostConfig.headers,
-        summaryStats,
+        includedTables.student ? studentDataForExport : [],
+        includedTables.student ? studentConfig.headers : [],
+        includedTables.date ? dateDataForExport : [],
+        includedTables.date ? dateConfig.headers : [],
+        includedTables.host ? hostDataForExport : [],
+        includedTables.host ? hostConfig.headers : [],
+        includedTables.summary ? summaryStats : { totalStudents: 0, totalSessions: 0, classAvgRate: 0, avgWeightedScore: 0, avgAttendanceByDate: 0, medianRateByDate: 0, totalPresent: 0, totalAbsent: 0, totalExcused: 0, totalLate: 0 },
         isArabic,
         filters.startDate,
         filters.endDate,
@@ -2467,6 +2826,7 @@ const AttendanceRecords = () => {
             dateAnalytics: wordDateColoring,
             hostAnalytics: wordHostColoring,
           },
+          crosstabData: crosstabForWord,
         }
       );
       success('Word document exported successfully!');
@@ -3444,6 +3804,11 @@ const AttendanceRecords = () => {
       }
       const val = item[field];
       if (val == null) return '';
+      // If value is a string that looks numeric (e.g., '78.6', '100%', '0.345'), parse it as a number for proper sorting
+      if (typeof val === 'string') {
+        const numMatch = val.match(/^(-?\d+\.?\d*)%?$/);
+        if (numMatch) return parseFloat(numMatch[1]);
+      }
       return val as number | string;
     };
     
@@ -3608,10 +3973,12 @@ const AttendanceRecords = () => {
           : 0;
         const totalPresent = dateData.presentCount + dateData.lateCount;
         const totalStudents = totalPresent + dateData.excusedAbsentCount + dateData.unexcusedAbsentCount;
-        // Attendance Rate: (Total Present / Total Students) * 100
-        const attendanceRate = totalStudents > 0 ? Math.round((totalPresent / totalStudents) * 100) : 0;
-        // Absence Rate: (Unexcused Absent / (Unexcused Absent + Present)) * 100
-        const absentRate = (dateData.unexcusedAbsentCount + totalPresent) > 0 ? Math.round((dateData.unexcusedAbsentCount / (dateData.unexcusedAbsentCount + totalPresent)) * 100) : 0;
+        // Effective (accountable) students = total minus excused
+        const totalAccountable = totalPresent + dateData.unexcusedAbsentCount;
+        // Attendance Rate: (Total Present / Accountable) × 100 — excused excluded from denominator
+        const attendanceRate = totalAccountable > 0 ? Math.round((totalPresent / totalAccountable) * 100) : 0;
+        // Absence Rate: (Unexcused Absent / Accountable) × 100
+        const absentRate = totalAccountable > 0 ? Math.round((dateData.unexcusedAbsentCount / totalAccountable) * 100) : 0;
         const punctualityRate = totalPresent > 0 
           ? Math.round(dateData.presentCount / totalPresent * 100)
           : 0;
@@ -3635,7 +4002,7 @@ const AttendanceRecords = () => {
           unexcusedAbsentCount: dateData.unexcusedAbsentCount,
           totalAbsent: dateData.excusedAbsentCount + dateData.unexcusedAbsentCount,
           totalStudents,
-          // Rates & Percentages
+          // Rates & Percentages (excused excluded from denominator for fairness)
           attendanceRate,
           punctualityRate,
           absentRate,
@@ -3918,6 +4285,7 @@ const AttendanceRecords = () => {
       {showAnalytics && (
         <div className="space-y-4 sm:space-y-6">
           {/* Summary Statistics - Enhanced Cards */}
+          {includedTables.summary && (
           <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-2xl shadow-lg dark:shadow-gray-900/30 border border-gray-100 dark:border-gray-700">
             <h2 className="text-base sm:text-lg font-semibold mb-4 dark:text-white flex items-center gap-2">
               <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
@@ -3991,6 +4359,7 @@ const AttendanceRecords = () => {
               </div>
             </div>
           </div>
+          )}
 
           {/* Export Analytics Bar - Right after summary, easy access */}
           <div className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 rounded-2xl shadow-lg p-4 border border-indigo-100 dark:border-indigo-800">
@@ -4068,10 +4437,160 @@ const AttendanceRecords = () => {
                   <button onClick={() => { setExportDataType('hostAnalytics'); setShowAdvancedExport(true); }} className="text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-300 underline text-xs ml-1">{t.edit}</button>
                 </div>
               </div>
+              {/* Table Include/Exclude Toggles */}
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-gray-600 dark:text-gray-400 font-medium">{t.includeTables}:</span>
+                {([
+                  { key: 'summary' as const, label: t.summaryTable, icon: '📊' },
+                  { key: 'student' as const, label: t.studentTable, icon: '🎓' },
+                  { key: 'date' as const, label: t.dateTable, icon: '📅' },
+                  { key: 'host' as const, label: t.hostTable, icon: '🏠' },
+                  { key: 'crosstab' as const, label: t.crosstabTable, icon: '🗓️' },
+                ]).map(({ key, label, icon }) => (
+                  <button
+                    key={key}
+                    onClick={() => setIncludedTables(prev => ({ ...prev, [key]: !prev[key] }))}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-md border transition-all duration-150 ${
+                      includedTables[key]
+                        ? 'bg-indigo-100 dark:bg-indigo-900/40 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300'
+                        : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500 line-through'
+                    }`}
+                    title={includedTables[key] ? `Click to exclude ${label} from export` : `Click to include ${label} in export`}
+                  >
+                    <span>{icon}</span>
+                    <span>{label}</span>
+                    {includedTables[key]
+                      ? <svg className="w-3 h-3 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                      : <svg className="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                    }
+                  </button>
+                ))}
+              </div>
+
+              {/* Matrix Date Picker — Select which dates to include in cross-tab */}
+              {includedTables.crosstab && dateAnalytics.length > 0 && (
+                <div className="mt-2">
+                  <button
+                    onClick={() => setShowMatrixDatePicker(prev => !prev)}
+                    className="flex items-center gap-2 text-xs text-violet-600 dark:text-violet-400 hover:text-violet-800 dark:hover:text-violet-300 font-medium transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    🗓️ Matrix Date Selection
+                    <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                      ({matrixSelectedDates ? `${matrixSelectedDates.size}/${dateAnalytics.length}` : `All ${dateAnalytics.length}`} dates)
+                    </span>
+                    <svg className={`w-3 h-3 transition-transform duration-200 ${showMatrixDatePicker ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+
+                  {showMatrixDatePicker && (() => {
+                    const allDates = [...dateAnalytics].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                    const selectedCount = matrixSelectedDates ? matrixSelectedDates.size : allDates.length;
+                    const allSelected = !matrixSelectedDates || matrixSelectedDates.size === allDates.length;
+
+                    return (
+                      <div className="mt-2 p-3 bg-violet-50 dark:bg-violet-900/20 rounded-lg border border-violet-200 dark:border-violet-800">
+                        {/* Quick actions */}
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <button
+                            onClick={() => setMatrixSelectedDates(null)}
+                            className={`px-2 py-0.5 text-[10px] rounded border transition-colors ${allSelected ? 'bg-violet-600 text-white border-violet-600' : 'bg-white dark:bg-gray-800 text-violet-600 dark:text-violet-400 border-violet-300 dark:border-violet-700 hover:bg-violet-100 dark:hover:bg-violet-900/40'}`}
+                          >
+                            Select All
+                          </button>
+                          <button
+                            onClick={() => setMatrixSelectedDates(new Set())}
+                            className="px-2 py-0.5 text-[10px] rounded border bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          >
+                            Deselect All
+                          </button>
+                          <button
+                            onClick={() => {
+                              const last7 = allDates.slice(-7);
+                              setMatrixSelectedDates(new Set(last7.map(d => d.date)));
+                            }}
+                            className="px-2 py-0.5 text-[10px] rounded border bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                          >
+                            Last 7
+                          </button>
+                          <button
+                            onClick={() => {
+                              const last14 = allDates.slice(-14);
+                              setMatrixSelectedDates(new Set(last14.map(d => d.date)));
+                            }}
+                            className="px-2 py-0.5 text-[10px] rounded border bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                          >
+                            Last 14
+                          </button>
+                          <button
+                            onClick={() => {
+                              const first = allDates.slice(0, Math.ceil(allDates.length / 2));
+                              setMatrixSelectedDates(new Set(first.map(d => d.date)));
+                            }}
+                            className="px-2 py-0.5 text-[10px] rounded border bg-white dark:bg-gray-800 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
+                          >
+                            First Half
+                          </button>
+                          <button
+                            onClick={() => {
+                              const second = allDates.slice(Math.floor(allDates.length / 2));
+                              setMatrixSelectedDates(new Set(second.map(d => d.date)));
+                            }}
+                            className="px-2 py-0.5 text-[10px] rounded border bg-white dark:bg-gray-800 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
+                          >
+                            Second Half
+                          </button>
+                          <span className="ml-auto text-[10px] font-medium text-violet-700 dark:text-violet-300">
+                            {selectedCount}/{allDates.length} selected
+                          </span>
+                        </div>
+                        {/* Date chips grid */}
+                        <div className="flex flex-wrap gap-1 max-h-[120px] overflow-y-auto">
+                          {allDates.map(d => {
+                            const isSelected = !matrixSelectedDates || matrixSelectedDates.has(d.date);
+                            const dateObj = new Date(d.date);
+                            return (
+                              <button
+                                key={d.date}
+                                onClick={() => {
+                                  setMatrixSelectedDates(prev => {
+                                    const current = prev || new Set(allDates.map(x => x.date));
+                                    const next = new Set(current);
+                                    if (next.has(d.date)) {
+                                      next.delete(d.date);
+                                    } else {
+                                      next.add(d.date);
+                                    }
+                                    // If all are selected again, return null (meaning "all")
+                                    if (next.size === allDates.length) return null;
+                                    return next;
+                                  });
+                                }}
+                                className={`px-1.5 py-0.5 text-[10px] rounded border transition-all duration-100 ${
+                                  isSelected
+                                    ? 'bg-violet-100 dark:bg-violet-800/50 border-violet-400 dark:border-violet-600 text-violet-800 dark:text-violet-200 font-medium shadow-sm'
+                                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500'
+                                }`}
+                                title={format(dateObj, 'EEEE, MMM dd, yyyy')}
+                              >
+                                {format(dateObj, 'MMM dd')}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
           </div>
 
           {/* Student Performance Table — Dynamic columns from field selections */}
+          {includedTables.student && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
             <button
               onClick={() => setCollapseStudentTable(prev => !prev)}
@@ -4167,8 +4686,10 @@ const AttendanceRecords = () => {
               </div>
             )}
           </div>
+          )}
 
           {/* Date Analytics Table — Dynamic columns from field selections */}
+          {includedTables.date && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
             <button
               onClick={() => setCollapseDateTable(prev => !prev)}
@@ -4191,8 +4712,10 @@ const AttendanceRecords = () => {
                     const totalPres = d.presentCount + d.lateCount;
                     const totalAbs = d.excusedAbsentCount + d.unexcusedAbsentCount;
                     const totalStud = totalPres + totalAbs;
+                    // Accountable = those who should have attended (excused excluded)
+                    const totalAccountable = totalPres + d.unexcusedAbsentCount;
                     const punctRate = totalPres > 0 ? Math.round(d.presentCount / totalPres * 100) : 0;
-                    const absRate = (d.unexcusedAbsentCount + totalPres) > 0 ? Math.round((d.unexcusedAbsentCount / (d.unexcusedAbsentCount + totalPres)) * 100) : 0;
+                    const absRate = totalAccountable > 0 ? Math.round((d.unexcusedAbsentCount / totalAccountable) * 100) : 0;
                     const bookPages = d.bookStartPage && d.bookEndPage ? `${d.bookStartPage}-${d.bookEndPage}` : '-';
                     const pagesCount = d.bookStartPage && d.bookEndPage ? d.bookEndPage - d.bookStartPage + 1 : 0;
                     const dateObj = new Date(d.date);
@@ -4255,8 +4778,10 @@ const AttendanceRecords = () => {
               </div>
             )}
           </div>
+          )}
 
           {/* Host Analytics Table — Dynamic columns from field selections */}
+          {includedTables.host && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
             <button
               onClick={() => setCollapseHostTable(prev => !prev)}
@@ -4374,6 +4899,327 @@ const AttendanceRecords = () => {
               </div>
             )}
           </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════════════════════
+              LOCATION MAP — Host Locations with Map Embed & Distance Matrix
+              ═══════════════════════════════════════════════════════════════ */}
+          {includedTables.host && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
+            {(() => {
+              // Build location points from attendance records and host addresses
+              const hostGpsMap = new Map<string, { lats: number[]; lons: number[]; count: number; dates: string[] }>();
+
+              // First, try to parse GPS from attendance records grouped by host_address
+              filteredRecords.forEach(r => {
+                const addr = r.host_address || r.session_location;
+                if (!addr || addr === 'SESSION_NOT_HELD') return;
+                const existing = hostGpsMap.get(addr) || { lats: [], lons: [], count: 0, dates: [] };
+                if (r.gps_latitude && r.gps_longitude) {
+                  existing.lats.push(r.gps_latitude);
+                  existing.lons.push(r.gps_longitude);
+                }
+                if (r.attendance_date && !existing.dates.includes(r.attendance_date)) {
+                  existing.dates.push(r.attendance_date);
+                }
+                existing.count++;
+                hostGpsMap.set(addr, existing);
+              });
+
+              // Also try to parse coordinates from host address strings
+              const locationPoints: Array<{ label: string; lat: number; lon: number; count: number; dates: string[] }> = [];
+
+              hostGpsMap.forEach((data, addr) => {
+                let lat: number | null = null;
+                let lon: number | null = null;
+
+                // Average GPS from attendance records at this host
+                if (data.lats.length > 0) {
+                  lat = data.lats.reduce((s, v) => s + v, 0) / data.lats.length;
+                  lon = data.lons.reduce((s, v) => s + v, 0) / data.lons.length;
+                } else {
+                  // Try to parse from address string (if it contains coordinates)
+                  const parsed = parseCoordinates(addr);
+                  if (parsed) {
+                    lat = parsed.lat;
+                    lon = parsed.lon;
+                  }
+                }
+
+                if (lat !== null && lon !== null) {
+                  locationPoints.push({
+                    label: addr.length > 40 ? addr.substring(0, 37) + '...' : addr,
+                    lat,
+                    lon,
+                    count: data.dates.length,
+                    dates: data.dates.sort().map(d => format(new Date(d), 'MMM dd')),
+                  });
+                }
+              });
+
+              if (locationPoints.length === 0) return null;
+
+              // Calculate pairwise distances
+              const distances: { from: string; to: string; distance: number }[] = [];
+              for (let i = 0; i < locationPoints.length; i++) {
+                for (let j = i + 1; j < locationPoints.length; j++) {
+                  distances.push({
+                    from: locationPoints[i].label,
+                    to: locationPoints[j].label,
+                    distance: calculateDistance(
+                      locationPoints[i].lat, locationPoints[i].lon,
+                      locationPoints[j].lat, locationPoints[j].lon
+                    ),
+                  });
+                }
+              }
+              distances.sort((a, b) => a.distance - b.distance);
+
+              const avgDist = distances.length > 0
+                ? distances.reduce((s, d) => s + d.distance, 0) / distances.length
+                : 0;
+              const totalSessions = locationPoints.reduce((s, p) => s + p.count, 0);
+
+              return (
+                <>
+                  <button
+                    onClick={() => {
+                      const el = document.getElementById('location-map-body');
+                      if (el) el.classList.toggle('hidden');
+                    }}
+                    className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/30 dark:to-cyan-900/30 border-b dark:border-gray-600 flex items-center justify-between hover:from-blue-100 hover:to-cyan-100 dark:hover:from-blue-900/40 dark:hover:to-cyan-900/40 transition-colors cursor-pointer"
+                  >
+                    <div>
+                      <h2 className="text-base sm:text-lg font-semibold dark:text-white">{t.locationMap}</h2>
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400">{t.locationMapDesc}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {/* Summary badges */}
+                      <div className="hidden sm:flex items-center gap-2">
+                        <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded text-[10px] font-medium">
+                          {locationPoints.length} {t.uniqueLocations}
+                        </span>
+                        <span className="px-2 py-0.5 bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300 rounded text-[10px] font-medium">
+                          {totalSessions} {t.totalSessions}
+                        </span>
+                        {avgDist > 0 && (
+                          <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded text-[10px] font-medium">
+                            {t.avgDistance}: {formatDistance(avgDist)}
+                          </span>
+                        )}
+                      </div>
+                      <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </button>
+
+                  <div id="location-map-body">
+                    {/* Location Map Embed */}
+                    <LocationMap
+                      locations={locationPoints}
+                      showEmbed={true}
+                      showDistanceMatrix={locationPoints.length > 1}
+                      zoom={13}
+                    />
+
+                    {/* Quick Navigation Grid */}
+                    <div className="p-3 border-t dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50">
+                      <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wider">{t.locationSummary}</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        {locationPoints.map((loc, idx) => (
+                          <div key={idx} className="bg-white dark:bg-gray-800 rounded-lg p-2.5 border border-gray-200 dark:border-gray-600 flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-medium dark:text-white truncate" title={loc.label}>📍 {loc.label}</p>
+                              <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
+                                {loc.count} session{loc.count > 1 ? 's' : ''} • {loc.lat.toFixed(4)}°, {loc.lon.toFixed(4)}°
+                              </p>
+                            </div>
+                            <div className="flex gap-1 flex-shrink-0">
+                              <a
+                                href={`https://www.google.com/maps/search/?api=1&query=${loc.lat},${loc.lon}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                                title={t.viewOnMap}
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                              </a>
+                              <a
+                                href={`https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lon}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1 rounded bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50"
+                                title={t.getDirections}
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                                </svg>
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Distance is shown inside LocationMap's built-in distance matrix toggle */}
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════════════════════
+              CROSS-TAB HEATMAP TABLE — Student × Date Matrix
+              Color-coded cells showing attendance status
+              ═══════════════════════════════════════════════════════════════ */}
+          {includedTables.crosstab && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
+            <button
+              onClick={() => setCollapseCrosstabTable(prev => !prev)}
+              className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-violet-50 to-fuchsia-50 dark:from-violet-900/30 dark:to-fuchsia-900/30 border-b dark:border-gray-600 flex items-center justify-between hover:from-violet-100 hover:to-fuchsia-100 dark:hover:from-violet-900/40 dark:hover:to-fuchsia-900/40 transition-colors cursor-pointer"
+            >
+              <div>
+                <h2 className="text-base sm:text-lg font-semibold dark:text-white">{t.crosstabTitle}</h2>
+                <p className="text-[10px] text-gray-500 dark:text-gray-400">{t.crosstabDesc}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  {studentAnalytics.length} × {matrixSelectedDates ? matrixSelectedDates.size : dateAnalytics.length}
+                  {matrixSelectedDates && <span className="text-violet-500"> (of {dateAnalytics.length})</span>}
+                </span>
+                <svg className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${collapseCrosstabTable ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </button>
+            {!collapseCrosstabTable && (
+              <div className="overflow-x-auto overflow-y-auto max-h-[500px] sm:max-h-[700px]">
+                {(() => {
+                  // Build a lookup: studentId → date → record
+                  const recordLookup = new Map<string, Map<string, AttendanceRecord>>();
+                  const analyticsRecords = filteredRecords.filter(r =>
+                    r.status !== 'not enrolled' && r.excuse_reason !== 'session not held'
+                  );
+                  analyticsRecords.forEach(r => {
+                    if (!recordLookup.has(r.student_id)) recordLookup.set(r.student_id, new Map());
+                    recordLookup.get(r.student_id)!.set(r.attendance_date, r);
+                  });
+
+                  const allSortedDates = [...dateAnalytics].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                  const sortedDates = matrixSelectedDates
+                    ? allSortedDates.filter(d => matrixSelectedDates.has(d.date))
+                    : allSortedDates;
+                  const sortedStudents = [...studentAnalytics].sort((a, b) => b.weightedScore - a.weightedScore);
+
+                  if (sortedDates.length === 0 || sortedStudents.length === 0) {
+                    return (
+                      <div className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                        <span className="text-2xl block mb-2">🗓️</span>
+                        <p className="text-sm">No data to display in the matrix.</p>
+                      </div>
+                    );
+                  }
+
+                  // Status cell rendering with creative color coding
+                  const getCellStyle = (record: AttendanceRecord | undefined): { bg: string; text: string; icon: string; title: string } => {
+                    if (!record) return { bg: 'bg-gray-100 dark:bg-gray-700', text: 'text-gray-400 dark:text-gray-500', icon: '—', title: 'No record' };
+                    switch (record.status) {
+                      case 'on time':
+                        return { bg: 'bg-emerald-100 dark:bg-emerald-900/50', text: 'text-emerald-700 dark:text-emerald-300', icon: '✓', title: 'On Time' };
+                      case 'late': {
+                        const mins = record.late_minutes || 0;
+                        if (mins <= 5) return { bg: 'bg-lime-100 dark:bg-lime-900/40', text: 'text-lime-700 dark:text-lime-300', icon: `${mins}′`, title: `Late ${mins} min (Minor)` };
+                        if (mins <= 15) return { bg: 'bg-yellow-100 dark:bg-yellow-900/40', text: 'text-yellow-700 dark:text-yellow-300', icon: `${mins}′`, title: `Late ${mins} min (Moderate)` };
+                        if (mins <= 30) return { bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300', icon: `${mins}′`, title: `Late ${mins} min (Significant)` };
+                        return { bg: 'bg-red-100 dark:bg-red-900/40', text: 'text-red-700 dark:text-red-300', icon: `${mins}′`, title: `Late ${mins} min (Severe)` };
+                      }
+                      case 'absent':
+                        return { bg: 'bg-red-200 dark:bg-red-900/60', text: 'text-red-800 dark:text-red-200', icon: '✗', title: 'Absent' };
+                      case 'excused':
+                        return { bg: 'bg-blue-100 dark:bg-blue-900/40', text: 'text-blue-700 dark:text-blue-300', icon: 'E', title: `Excused${record.excuse_reason ? `: ${record.excuse_reason}` : ''}` };
+                      default:
+                        return { bg: 'bg-gray-100 dark:bg-gray-700', text: 'text-gray-400 dark:text-gray-500', icon: '?', title: record.status };
+                    }
+                  };
+
+                  return (
+                    <>
+                      {/* Legend */}
+                      <div className="flex flex-wrap gap-2 px-4 py-2 bg-gray-50 dark:bg-gray-750 border-b dark:border-gray-700 text-[10px]">
+                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-100 dark:bg-emerald-900/50 border border-emerald-300 dark:border-emerald-700"></span>On Time</span>
+                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-lime-100 dark:bg-lime-900/40 border border-lime-300 dark:border-lime-700"></span>Late ≤5m</span>
+                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-yellow-100 dark:bg-yellow-900/40 border border-yellow-300 dark:border-yellow-700"></span>Late 6-15m</span>
+                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-100 dark:bg-orange-900/40 border border-orange-300 dark:border-orange-700"></span>Late 16-30m</span>
+                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100 dark:bg-red-900/40 border border-red-300 dark:border-red-700"></span>Late 30m+</span>
+                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-200 dark:bg-red-900/60 border border-red-400 dark:border-red-600"></span>Absent</span>
+                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-100 dark:bg-blue-900/40 border border-blue-300 dark:border-blue-700"></span>Excused</span>
+                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600"></span>No Record</span>
+                      </div>
+                      <table className="min-w-full border-collapse">
+                        <thead className="sticky top-0 z-10">
+                          <tr className="bg-gray-50 dark:bg-gray-700">
+                            <th className="sticky left-0 z-20 bg-gray-50 dark:bg-gray-700 px-3 py-2 text-left text-xs font-medium text-gray-600 dark:text-gray-300 border-b border-r dark:border-gray-600 min-w-[140px]">
+                              Student
+                            </th>
+                            {sortedDates.map(d => {
+                              const dateObj = new Date(d.date);
+                              return (
+                                <th key={d.date} className="px-1 py-2 text-center text-[9px] font-medium text-gray-500 dark:text-gray-400 border-b dark:border-gray-600 min-w-[40px] max-w-[48px]" title={format(dateObj, 'EEEE, MMM dd, yyyy')}>
+                                  <div>{format(dateObj, 'dd')}</div>
+                                  <div className="text-[8px] text-gray-400 dark:text-gray-500">{format(dateObj, 'MMM')}</div>
+                                </th>
+                              );
+                            })}
+                            <th className="px-3 py-2 text-center text-xs font-medium text-gray-600 dark:text-gray-300 border-b border-l dark:border-gray-600 min-w-[50px]">
+                              Rate
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sortedStudents.map((student) => {
+                            const studentMap = recordLookup.get(student.student_id);
+                            return (
+                              <tr key={student.student_id} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/50">
+                                <td className="sticky left-0 z-10 bg-white dark:bg-gray-800 px-3 py-1.5 text-xs font-medium text-gray-800 dark:text-gray-200 border-b border-r dark:border-gray-700 truncate max-w-[160px]" title={student.student_name}>
+                                  {student.student_name}
+                                </td>
+                                {sortedDates.map(d => {
+                                  const record = studentMap?.get(d.date);
+                                  const cellStyle = getCellStyle(record);
+                                  return (
+                                    <td
+                                      key={d.date}
+                                      className={`px-0 py-0 text-center border-b dark:border-gray-700`}
+                                      title={cellStyle.title}
+                                    >
+                                      <div className={`${cellStyle.bg} ${cellStyle.text} w-full h-full px-1 py-1.5 text-[10px] font-bold leading-none`}>
+                                        {cellStyle.icon}
+                                      </div>
+                                    </td>
+                                  );
+                                })}
+                                <td className="px-2 py-1.5 text-center text-xs font-semibold border-b border-l dark:border-gray-700">
+                                  <span className={`${student.attendanceRate >= 90 ? 'text-emerald-600 dark:text-emerald-400' : student.attendanceRate >= 70 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
+                                    {student.attendanceRate}%
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+          )}
         </div>
       )}
 

@@ -388,6 +388,26 @@ export function AuditLogs() {
 
   const maxDailyCount = Math.max(1, ...stats.dailyActivity.map(([, c]) => c));
 
+  const exportToCSV = useCallback(() => {
+    const headers = ['Timestamp', 'Table', 'Operation', 'User', 'Description', 'Details'];
+    const rows = filteredLogs.map(l => [
+      l.deleted_at ? format(new Date(l.deleted_at), 'yyyy-MM-dd HH:mm:ss') : '',
+      l.table_name,
+      l.operation,
+      l.deleted_by || '',
+      describeAction(l),
+      JSON.stringify(l.new_data || l.old_data || {}),
+    ]);
+    const csvContent = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `audit-logs-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [filteredLogs]);
+
   // Group logs by date for timeline view
   const groupedByDate = useMemo(() => {
     const groups = new Map<string, AuditLogEntry[]>();
@@ -458,6 +478,9 @@ export function AuditLogs() {
           </div>
           <Button onClick={loadLogs} disabled={loading}>
             {loading ? '⟳ Loading...' : '🔄 Refresh'}
+          </Button>
+          <Button onClick={exportToCSV} variant="outline" disabled={filteredLogs.length === 0} title="Export to CSV">
+            📥 Export
           </Button>
         </div>
       </div>

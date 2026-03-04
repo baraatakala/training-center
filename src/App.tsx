@@ -1,7 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import { Layout } from './components/Layout';
-import { Dashboard } from './pages/Dashboard';
 import Login from './pages/Login';
 import PrivateRoute from './components/PrivateRoute';
 import { AuthProvider } from './context/AuthContext';
@@ -11,6 +10,7 @@ import { ScrollToTop } from './components/ui/ScrollToTop';
 import './App.css';
 
 // Lazy-loaded pages for code splitting
+const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
 const Teachers = lazy(() => import('./pages/Teachers').then(m => ({ default: m.Teachers })));
 const Students = lazy(() => import('./pages/Students').then(m => ({ default: m.Students })));
 const Courses = lazy(() => import('./pages/Courses').then(m => ({ default: m.Courses })));
@@ -24,6 +24,8 @@ const PhotoCheckIn = lazy(() => import('./pages/PhotoCheckIn').then(m => ({ defa
 const Announcements = lazy(() => import('./pages/Announcements').then(m => ({ default: m.Announcements })));
 const Messages = lazy(() => import('./pages/Messages').then(m => ({ default: m.Messages })));
 const ScoringConfiguration = lazy(() => import('./pages/ScoringConfiguration'));
+const ExcuseRequests = lazy(() => import('./pages/ExcuseRequests'));
+const Certificates = lazy(() => import('./pages/Certificates'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 function PageLoader() {
@@ -77,7 +79,7 @@ function App() {
               <PrivateRoute>
                 <Layout>
                   <Routes>
-                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/" element={<SafePage><Dashboard /></SafePage>} />
                     <Route path="/teachers" element={<SafePage><Teachers /></SafePage>} />
                     <Route path="/students" element={<SafePage><Students /></SafePage>} />
                     <Route path="/courses" element={<SafePage><Courses /></SafePage>} />
@@ -89,6 +91,8 @@ function App() {
                     <Route path="/announcements" element={<SafePage><Announcements /></SafePage>} />
                     <Route path="/messages" element={<SafePage><Messages /></SafePage>} />
                     <Route path="/scoring-config" element={<SafePage><ScoringConfiguration /></SafePage>} />
+                    <Route path="/excuse-requests" element={<SafePage><ExcuseRequests /></SafePage>} />
+                    <Route path="/certificates" element={<SafePage><Certificates /></SafePage>} />
                     <Route path="*" element={<SafePage><NotFound /></SafePage>} />
                   </Routes>
                 </Layout>

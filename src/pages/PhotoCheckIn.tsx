@@ -986,6 +986,7 @@ export function PhotoCheckIn() {
                 <img 
                   src={signedPhotoUrl} 
                   alt="Reference" 
+                  loading="lazy"
                   className="w-16 h-16 rounded-full object-cover border-2 border-blue-300 dark:border-blue-600"
                 />
               ) : (

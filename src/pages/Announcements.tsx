@@ -82,6 +82,296 @@ const CATEGORIES = {
 
 type CategoryType = keyof typeof CATEGORIES;
 
+// Announcement Templates — pre-built for common scenarios
+const ANNOUNCEMENT_TEMPLATES = [
+  {
+    id: 'class_cancelled',
+    icon: '🚫',
+    label: 'Class Cancelled',
+    labelAr: 'إلغاء الحصة',
+    category: 'urgent' as CategoryType,
+    priority: 'high' as AnnouncementPriority,
+    title: 'Class Cancelled - [Date]',
+    content: `Dear Students,
+
+Please be informed that the class scheduled for [Date] has been cancelled due to [Reason].
+
+📌 Key Information:
+• Original Date: [Date]
+• Makeup Class: [TBD / Date]
+• Affected Course: [Course Name]
+
+Please check back for updates on the rescheduled session. If you have any questions, contact the administration.
+
+الطلاب الأعزاء،
+نود إبلاغكم بأن الحصة المقررة في [التاريخ] قد تم إلغاؤها بسبب [السبب].
+يرجى متابعة التحديثات بخصوص الموعد البديل.
+
+Best regards / مع أطيب التحيات`,
+  },
+  {
+    id: 'location_change',
+    icon: '📍',
+    label: 'Location Change',
+    labelAr: 'تغيير المكان',
+    category: 'reminder' as CategoryType,
+    priority: 'high' as AnnouncementPriority,
+    title: 'Location Change - [Date]',
+    content: `Dear Students,
+
+The session on [Date] will be held at a DIFFERENT location:
+
+📍 New Location: [Address / Host Name]
+🕐 Time: [Same / Updated Time]
+📅 Date: [Date]
+
+⚠️ Please update your plans accordingly and arrive on time.
+
+Previous Location: [Old Address]
+Reason for Change: [Reason]
+
+الطلاب الأعزاء،
+سيتم عقد جلسة [التاريخ] في موقع مختلف:
+📍 الموقع الجديد: [العنوان]
+يرجى تحديث خططكم والحضور في الوقت المحدد.
+
+Best regards / مع أطيب التحيات`,
+  },
+  {
+    id: 'schedule_change',
+    icon: '📅',
+    label: 'Schedule Change',
+    labelAr: 'تغيير الجدول',
+    category: 'reminder' as CategoryType,
+    priority: 'normal' as AnnouncementPriority,
+    title: 'Schedule Update - Effective [Date]',
+    content: `Dear Students,
+
+We would like to inform you of the following schedule change:
+
+📅 Previous Schedule: [Day] at [Time]
+📅 New Schedule: [Day] at [Time]
+📅 Effective From: [Date]
+
+This change applies to: [Course Name / All Courses]
+
+Please adjust your plans accordingly. If you have conflicts with the new schedule, please contact us immediately.
+
+الطلاب الأعزاء،
+نود إعلامكم بتغيير الجدول كالتالي:
+الجدول السابق: [اليوم] الساعة [الوقت]
+الجدول الجديد: [اليوم] الساعة [الوقت]
+يبدأ من: [التاريخ]
+
+يرجى التواصل معنا في حال وجود أي تعارض.
+
+Best regards / مع أطيب التحيات`,
+  },
+  {
+    id: 'holiday_notice',
+    icon: '🏖️',
+    label: 'Holiday / Break Notice',
+    labelAr: 'إشعار إجازة',
+    category: 'general' as CategoryType,
+    priority: 'normal' as AnnouncementPriority,
+    title: 'Holiday Break Notice - [Holiday Name]',
+    content: `Dear Students,
+
+Please note that classes will be suspended during the upcoming holiday period:
+
+🗓 Holiday: [Holiday Name]
+📅 Break Period: [Start Date] — [End Date]
+📅 Classes Resume: [Resume Date]
+
+During this period:
+• No sessions will be held
+• Homework/assignments are still due as scheduled
+• For emergencies, contact [Phone/Email]
+
+Wishing you a wonderful break! 🎉
+
+الطلاب الأعزاء،
+نود إعلامكم بتعليق الدروس خلال فترة إجازة [اسم الإجازة]:
+من [تاريخ البداية] إلى [تاريخ النهاية]
+تستأنف الدروس في: [تاريخ الاستئناف]
+
+نتمنى لكم إجازة سعيدة! 🎉
+
+Best regards / مع أطيب التحيات`,
+  },
+  {
+    id: 'exam_notice',
+    icon: '📝',
+    label: 'Exam / Test Notice',
+    labelAr: 'إشعار اختبار',
+    category: 'exam' as CategoryType,
+    priority: 'high' as AnnouncementPriority,
+    title: 'Upcoming Exam - [Subject] - [Date]',
+    content: `Dear Students,
+
+An exam has been scheduled:
+
+📝 Subject: [Subject / Topic]
+📅 Date: [Date]
+🕐 Time: [Time]
+📍 Location: [Location]
+⏱ Duration: [Duration] minutes
+
+📚 Topics Covered:
+• [Topic 1]
+• [Topic 2]
+• [Topic 3]
+
+📋 Preparation Tips:
+• Review chapters [X-Y] thoroughly
+• Practice exercises from [Resource]
+• Bring required materials: [Materials List]
+
+⚠️ Important: Students who are absent without a valid excuse will receive a zero.
+
+الطلاب الأعزاء،
+تم تحديد موعد اختبار:
+المادة: [المادة]
+التاريخ: [التاريخ]
+الوقت: [الوقت]
+
+يرجى المراجعة والتحضير جيداً.
+
+Good luck! / بالتوفيق! 🍀`,
+  },
+  {
+    id: 'homework',
+    icon: '📚',
+    label: 'Homework Assignment',
+    labelAr: 'واجب منزلي',
+    category: 'homework' as CategoryType,
+    priority: 'normal' as AnnouncementPriority,
+    title: 'Homework: [Topic] - Due [Date]',
+    content: `Dear Students,
+
+A new homework assignment has been posted:
+
+📚 Subject: [Subject]
+📖 Topic: [Topic / Chapter]
+📅 Due Date: [Date]
+📝 Requirements: [Brief Description]
+
+Instructions:
+1. [Step 1]
+2. [Step 2]
+3. [Step 3]
+
+⚠️ Late submissions: [Policy]
+📧 Questions? Contact: [Teacher Email / Phone]
+
+الطلاب الأعزاء،
+تم نشر واجب منزلي جديد:
+الموضوع: [الموضوع]
+موعد التسليم: [التاريخ]
+
+يرجى الالتزام بالموعد النهائي.
+
+Best regards / مع أطيب التحيات`,
+  },
+  {
+    id: 'welcome',
+    icon: '👋',
+    label: 'Welcome New Students',
+    labelAr: 'ترحيب بالطلاب الجدد',
+    category: 'celebration' as CategoryType,
+    priority: 'normal' as AnnouncementPriority,
+    title: 'Welcome to [Course Name]! 🎉',
+    content: `Welcome to all new students! 🎉
+
+We're thrilled to have you join us. Here's everything you need to know:
+
+📅 Schedule: [Day(s)] at [Time]
+📍 Location: [Location]
+👨‍🏫 Instructor: [Instructor Name]
+
+📋 What to Bring:
+• [Item 1]
+• [Item 2]
+• Notebook and pen
+
+📱 Stay Connected:
+• Download [App/Platform] for updates
+• Check announcements regularly
+• Contact: [Email / Phone]
+
+We look forward to an amazing learning journey together!
+
+أهلاً وسهلاً بجميع الطلاب الجدد! 🎉
+نحن سعداء بانضمامكم إلينا.
+نتطلع إلى رحلة تعلّم رائعة معاً!
+
+Best regards / مع أطيب التحيات`,
+  },
+  {
+    id: 'achievement',
+    icon: '🏆',
+    label: 'Student Achievement',
+    labelAr: 'إنجاز طلابي',
+    category: 'celebration' as CategoryType,
+    priority: 'normal' as AnnouncementPriority,
+    title: '🏆 Congratulations to Our Outstanding Students!',
+    content: `🎊 Student Achievement Recognition 🎊
+
+We are proud to recognize the following students for their outstanding performance:
+
+🥇 [Student Name] — [Achievement]
+🥈 [Student Name] — [Achievement]
+🥉 [Student Name] — [Achievement]
+
+📊 This Period's Highlights:
+• Average Class Attendance: [X]%
+• Top Performer Score: [X]
+• Most Improved: [Student Name]
+
+Keep up the excellent work! Your dedication inspires everyone.
+
+نفخر بتكريم الطلاب المتميزين التالية أسماؤهم:
+[أسماء الطلاب]
+
+استمروا في التميز! 🌟
+
+Best regards / مع أطيب التحيات`,
+  },
+  {
+    id: 'event',
+    icon: '🎊',
+    label: 'Special Event',
+    labelAr: 'فعالية خاصة',
+    category: 'event' as CategoryType,
+    priority: 'normal' as AnnouncementPriority,
+    title: '🎊 [Event Name] - [Date]',
+    content: `Dear Students,
+
+You're invited to an upcoming special event!
+
+🎊 Event: [Event Name]
+📅 Date: [Date]
+🕐 Time: [Start Time] - [End Time]
+📍 Location: [Location]
+
+📋 Event Details:
+[Brief description of the event]
+
+🎯 Agenda:
+• [Activity 1]
+• [Activity 2]
+• [Activity 3]
+
+⚠️ Registration: [Required / Optional]
+📧 RSVP by: [Date]
+
+Don't miss it! / لا تفوتوها! 🎉
+
+Best regards / مع أطيب التحيات`,
+  },
+] as const;
+
+
 // Extended Announcement type with reactions and comments
 interface ExtendedAnnouncement extends Announcement {
   reactions?: { emoji: string; count: number; hasReacted: boolean; reactors?: { id: string; name: string }[] }[];
@@ -126,6 +416,7 @@ export function Announcements() {
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   // Signed URLs cache for announcement images
@@ -208,7 +499,7 @@ export function Announcements() {
         .from('teacher')
         .select('teacher_id')
         .ilike('email', user.email)
-        .single();
+        .maybeSingle();
 
       if (teacher) {
         setIsTeacher(true);
@@ -222,7 +513,7 @@ export function Announcements() {
           .from('admin')
           .select('admin_id')
           .ilike('email', user.email)
-          .single();
+          .maybeSingle();
         if (adminRecord) {
           // Admin uses admin_id directly — no fake teacher record needed
           setIsTeacher(true);
@@ -236,7 +527,7 @@ export function Announcements() {
             .from('student')
             .select('student_id')
             .ilike('email', user.email)
-            .single();
+            .maybeSingle();
 
           if (student) {
             setIsTeacher(false);
@@ -922,6 +1213,48 @@ export function Announcements() {
         size="lg"
       >
         <div className="space-y-4">
+          {/* Template Picker — Only for new announcements */}
+          {!editingAnnouncement && (
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowTemplatePicker(prev => !prev)}
+                className="flex items-center gap-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
+              >
+                <span>📋</span>
+                <span>{showTemplatePicker ? 'Hide Templates' : 'Use a Template'}</span>
+                <svg className={`w-4 h-4 transition-transform ${showTemplatePicker ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {showTemplatePicker && (
+                <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[240px] overflow-y-auto p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                  {ANNOUNCEMENT_TEMPLATES.map(template => (
+                    <button
+                      key={template.id}
+                      type="button"
+                      onClick={() => {
+                        setFormTitle(template.title);
+                        setFormContent(template.content);
+                        setFormCategory(template.category);
+                        setFormPriority(template.priority);
+                        setShowTemplatePicker(false);
+                        toast.success(`Template "${template.label}" applied`);
+                      }}
+                      className="flex items-center gap-2 p-2 rounded-lg text-left text-xs font-medium bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                    >
+                      <span className="text-lg">{template.icon}</span>
+                      <div className="min-w-0">
+                        <div className="truncate text-gray-800 dark:text-gray-200">{template.label}</div>
+                        <div className="truncate text-[10px] text-gray-500 dark:text-gray-400">{template.labelAr}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium mb-1 dark:text-gray-300">Title *</label>
             <Input
