@@ -50,12 +50,8 @@ type HostInfo = {
   address_longitude?: number | null;
 };
 
-const EXCUSE_REASONS = [
-  { value: 'sick', label: 'Sick' },
-  { value: 'abroad', label: 'Abroad' },
-  { value: 'on working', label: 'On Working' },
-  { value: 'session not held', label: 'Session Not Held' }
-];
+// Use SERVICE_EXCUSE_REASONS from excuseRequestService for the excuse dropdown.
+// 'session not held' is set programmatically and not user-selectable.
 
 export function Attendance() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -2126,8 +2122,8 @@ export function Attendance() {
                                 className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs sm:text-sm font-medium bg-white dark:bg-gray-700 dark:text-white"
                               >
                                 <option value="">Select reason...</option>
-                                {EXCUSE_REASONS.map(reason => (
-                                  <option key={reason.value} value={reason.value}>{reason.label}</option>
+                                {SERVICE_EXCUSE_REASONS.map(reason => (
+                                  <option key={reason.value} value={reason.value}>{reason.icon} {reason.label}</option>
                                 ))}
                               </select>
                               <Button
