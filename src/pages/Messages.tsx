@@ -240,7 +240,7 @@ export function Messages() {
     tick();
     const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
-  }, [userType, lastSentAt, STUDENT_COOLDOWN_SECONDS]);
+  }, [userType, lastSentAt]); // STUDENT_COOLDOWN_SECONDS is a constant
 
   const handleSendMessage = async () => {
     if (!formRecipientId || !formContent.trim()) {

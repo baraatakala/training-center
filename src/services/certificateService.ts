@@ -265,8 +265,9 @@ class CertificateService {
         .eq('session_id', payload.session_id)
         .single();
       if (session) {
-        courseName = (session as any).course?.course_name || '';
-        teacherName = (session as any).teacher?.name || '';
+        const s = session as Record<string, unknown>;
+        courseName = (s.course as Record<string, string> | null)?.course_name || '';
+        teacherName = (s.teacher as Record<string, string> | null)?.name || '';
       }
     }
 

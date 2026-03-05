@@ -63,6 +63,19 @@ export function Sessions() {
     return (localStorage.getItem('sessions_view_mode') as 'table' | 'cards') || 'table';
   });
 
+  // Clone session state
+  const [cloneSource, setCloneSource] = useState<SessionWithDetails | null>(null);
+  const [cloneForm, setCloneForm] = useState({
+    start_date: '',
+    end_date: '',
+    day: '' as string,
+    time: '',
+    location: '',
+    copyEnrollments: true,
+  });
+  const [cloning, setCloning] = useState(false);
+  const [selectedCloneDays, setSelectedCloneDays] = useState<string[]>([]);
+
   const loadSessions = useCallback(async () => {
     setError(null);
     const { data, error: fetchError } = await supabase
@@ -106,7 +119,7 @@ export function Sessions() {
 
   useEffect(() => {
     loadSessions();
-  }, []);
+  }, [loadSessions]);
 
   const filteredSessions = useMemo(() => {
     const today = new Date();
@@ -223,6 +236,58 @@ export function Sessions() {
   const openEditModal = (session: SessionWithDetails) => {
     setEditingSession(session);
     setIsModalOpen(true);
+  };
+
+  const openCloneModal = (session: SessionWithDetails) => {
+    setCloneSource(session);
+    const days = session.day ? session.day.split(',').map(d => d.trim()) : [];
+    setSelectedCloneDays(days);
+    setCloneForm({
+      start_date: '',
+      end_date: '',
+      day: session.day || '',
+      time: session.time || '',
+      location: session.location || '',
+      copyEnrollments: true,
+    });
+  };
+
+  const handleCloneSession = async () => {
+    if (!cloneSource) return;
+    if (!cloneForm.start_date || !cloneForm.end_date || selectedCloneDays.length === 0) {
+      toast.error('Please fill in start date, end date, and select at least one day');
+      return;
+    }
+    if (new Date(cloneForm.end_date) <= new Date(cloneForm.start_date)) {
+      toast.error('End date must be after start date');
+      return;
+    }
+    setCloning(true);
+    try {
+      const { error, copied } = await sessionService.cloneSession(
+        cloneSource.session_id,
+        {
+          start_date: cloneForm.start_date,
+          end_date: cloneForm.end_date,
+          day: selectedCloneDays.join(', '),
+          time: cloneForm.time || undefined,
+          location: cloneForm.location || undefined,
+        },
+        cloneForm.copyEnrollments,
+      );
+      if (error) {
+        toast.error('Failed to clone session: ' + error.message);
+      } else {
+        const msg = cloneForm.copyEnrollments
+          ? `Session cloned! ${copied} students copied.`
+          : 'Session cloned (without students).';
+        toast.success(msg);
+        setCloneSource(null);
+        loadSessions();
+      }
+    } finally {
+      setCloning(false);
+    }
   };
 
   const today = new Date();
@@ -543,6 +608,14 @@ export function Sessions() {
                               <Button
                                 size="sm"
                                 variant="outline"
+                                onClick={() => openCloneModal(session)}
+                                title="Clone session with new dates and copy all students"
+                              >
+                                📋 Clone
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
                                 onClick={() => openEditModal(session)}
                               >
                                 ✏️ Edit
@@ -695,6 +768,9 @@ export function Sessions() {
                           )}
                           {isAdmin && (
                             <>
+                              <Button size="sm" variant="outline" onClick={() => openCloneModal(session)}>
+                                Clone
+                              </Button>
                               <Button 
                                 size="sm" 
                                 variant="outline" 
@@ -807,6 +883,141 @@ export function Sessions() {
         onConfirm={handleDeleteSession}
         onCancel={() => setDeletingSession(null)}
       />
+
+      {/* Clone Session Modal */}
+      <Modal
+        isOpen={!!cloneSource}
+        onClose={() => setCloneSource(null)}
+        title={`Clone Session — ${cloneSource?.course?.course_name || ''}`}
+      >
+        {cloneSource && (
+          <div className="space-y-4">
+            {/* Source info */}
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
+              <p className="text-sm text-blue-800 dark:text-blue-300">
+                <strong>Cloning from:</strong> {cloneSource.course.course_name} — {cloneSource.teacher.name}
+              </p>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                Original: {cloneSource.day} · {cloneSource.time || 'No time set'} · {enrollmentCounts[cloneSource.session_id] || 0} students
+              </p>
+            </div>
+
+            {/* New date range */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">New Start Date <span className="text-red-500">*</span></label>
+                <input
+                  type="date"
+                  value={cloneForm.start_date}
+                  onChange={e => setCloneForm(f => ({ ...f, start_date: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">New End Date <span className="text-red-500">*</span></label>
+                <input
+                  type="date"
+                  value={cloneForm.end_date}
+                  onChange={e => setCloneForm(f => ({ ...f, end_date: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Days */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Day(s) <span className="text-red-500">*</span></label>
+              <div className="flex flex-wrap gap-2">
+                {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => (
+                  <label key={day} className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedCloneDays.includes(day)}
+                      onChange={e => {
+                        const newDays = e.target.checked
+                          ? [...selectedCloneDays, day]
+                          : selectedCloneDays.filter(d => d !== day);
+                        setSelectedCloneDays(newDays);
+                      }}
+                      className="h-4 w-4 text-blue-600 rounded border-gray-300"
+                    />
+                    <span className="text-sm text-gray-700 dark:text-gray-300">{day}</span>
+                  </label>
+                ))}
+              </div>
+              {selectedCloneDays.length > 0 && (
+                <p className="mt-1 text-xs text-gray-500">Selected: {selectedCloneDays.join(', ')}</p>
+              )}
+            </div>
+
+            {/* Time */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Time Range</label>
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  type="time"
+                  value={cloneForm.time?.split('-')[0]?.trim() || ''}
+                  onChange={e => {
+                    const endTime = cloneForm.time?.split('-')[1]?.trim() || '';
+                    setCloneForm(f => ({ ...f, time: endTime ? `${e.target.value}-${endTime}` : e.target.value }));
+                  }}
+                  className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
+                />
+                <input
+                  type="time"
+                  value={cloneForm.time?.split('-')[1]?.trim() || ''}
+                  onChange={e => {
+                    const startTime = cloneForm.time?.split('-')[0]?.trim() || '';
+                    setCloneForm(f => ({ ...f, time: startTime ? `${startTime}-${e.target.value}` : e.target.value }));
+                  }}
+                  className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Location */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Location</label>
+              <input
+                type="text"
+                value={cloneForm.location}
+                onChange={e => setCloneForm(f => ({ ...f, location: e.target.value }))}
+                placeholder="e.g., Main Campus - Room 202"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
+              />
+            </div>
+
+            {/* Copy enrollments toggle */}
+            <label className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={cloneForm.copyEnrollments}
+                onChange={e => setCloneForm(f => ({ ...f, copyEnrollments: e.target.checked }))}
+                className="h-5 w-5 text-blue-600 rounded border-gray-300"
+              />
+              <div>
+                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                  Copy all {enrollmentCounts[cloneSource.session_id] || 0} students to new session
+                </span>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Active enrollments will be duplicated automatically
+                </p>
+              </div>
+            </label>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+              <Button variant="outline" onClick={() => setCloneSource(null)}>Cancel</Button>
+              <Button
+                onClick={handleCloneSession}
+                disabled={cloning || !cloneForm.start_date || !cloneForm.end_date || selectedCloneDays.length === 0}
+              >
+                {cloning ? 'Cloning...' : `📋 Clone Session${cloneForm.copyEnrollments ? ' + Students' : ''}`}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

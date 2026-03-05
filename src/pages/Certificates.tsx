@@ -253,7 +253,7 @@ export function Certificates() {
         <ConfirmDialog
           isOpen={true}
           title="Revoke Certificate"
-          message={`Revoke certificate ${revokeConfirm.certificate_number} for ${(revokeConfirm as any).student?.name || 'this student'}?`}
+          message={`Revoke certificate ${revokeConfirm.certificate_number} for ${revokeConfirm.student?.name || 'this student'}?`}
           confirmText="Revoke"
           type="danger"
           onConfirm={handleRevoke}
@@ -297,9 +297,9 @@ function CertificatesList({
     if (!search.trim()) return certificates;
     const term = search.toLowerCase();
     return certificates.filter(c =>
-      (c as any).student?.name?.toLowerCase().includes(term) ||
+      c.student?.name?.toLowerCase().includes(term) ||
       c.certificate_number.toLowerCase().includes(term) ||
-      (c as any).session?.course?.course_name?.toLowerCase().includes(term)
+      c.session?.course?.course_name?.toLowerCase().includes(term)
     );
   }, [certificates, search]);
 
@@ -340,10 +340,10 @@ function CertificatesList({
                     <code className="text-xs text-gray-400 dark:text-gray-500 font-mono">{cert.certificate_number}</code>
                   </div>
                   <h3 className="mt-1.5 text-sm font-semibold text-gray-900 dark:text-white">
-                    {(cert as any).student?.name || 'Unknown Student'}
+                    {cert.student?.name || 'Unknown Student'}
                   </h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    {(cert as any).session?.course?.course_name || 'Unknown Course'}
+                    {cert.session?.course?.course_name || 'Unknown Course'}
                     {cert.issued_at && ` · Issued ${format(parseISO(cert.issued_at), 'MMM d, yyyy')}`}
                   </p>
                   <div className="mt-1.5 flex items-center gap-3 text-xs text-gray-400">
@@ -493,11 +493,11 @@ function VerifyTab({
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
                 <span className="text-xs text-gray-400">Student</span>
-                <p className="font-medium text-gray-900 dark:text-white">{(result as any).student?.name}</p>
+                <p className="font-medium text-gray-900 dark:text-white">{result.student?.name}</p>
               </div>
               <div>
                 <span className="text-xs text-gray-400">Course</span>
-                <p className="font-medium text-gray-900 dark:text-white">{(result as any).session?.course?.course_name || '—'}</p>
+                <p className="font-medium text-gray-900 dark:text-white">{result.session?.course?.course_name || '—'}</p>
               </div>
               <div>
                 <span className="text-xs text-gray-400">Certificate #</span>
@@ -648,7 +648,7 @@ function TemplateModal({
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
               <select
                 value={templateType}
-                onChange={e => setTemplateType(e.target.value as any)}
+                onChange={e => setTemplateType(e.target.value as CertificateTemplate['template_type'])}
                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
               >
                 {TEMPLATE_TYPES.map(t => (
@@ -660,7 +660,7 @@ function TemplateModal({
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Border Style</label>
               <select
                 value={style.border_style}
-                onChange={e => setStyle(s => ({ ...s, border_style: e.target.value as any }))}
+                onChange={e => setStyle(s => ({ ...s, border_style: e.target.value as StyleConfig['border_style'] }))}
                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
               >
                 {BORDER_STYLES.map(b => (
@@ -825,10 +825,10 @@ function IssueModal({
         .select('session_id, course:course_id(course_name), teacher:teacher_id(name)')
         .order('start_date', { ascending: false });
       if (data) {
-        setSessions(data.map((s: any) => ({
-          session_id: s.session_id,
-          label: `${s.course?.course_name || 'Unknown'} (${s.teacher?.name || 'Unknown Teacher'})`,
-          course_id: s.course_id,
+        setSessions(data.map((s: Record<string, unknown>) => ({
+          session_id: s.session_id as string,
+          label: `${(s.course as Record<string, string> | null)?.course_name || 'Unknown'} (${(s.teacher as Record<string, string> | null)?.name || 'Unknown Teacher'})`,
+          course_id: s.course_id as string,
         })));
       }
     };
@@ -844,10 +844,13 @@ function IssueModal({
         .eq('session_id', sessionId)
         .eq('status', 'active');
       if (data) {
-        setStudents(data.map((e: any) => ({
-          student_id: e.student?.student_id,
-          name: e.student?.name || 'Unknown',
-        })).filter((s: any) => s.student_id));
+        setStudents(data.map((e: Record<string, unknown>) => {
+          const stu = e.student as Record<string, string> | null;
+          return {
+            student_id: stu?.student_id || '',
+            name: stu?.name || 'Unknown',
+          };
+        }).filter(s => s.student_id));
       }
     };
     loadStudents();
@@ -866,7 +869,7 @@ function IssueModal({
           .eq('student_id', studentId);
         if (records && records.length > 0) {
           const total = records.length;
-          const present = records.filter((r: any) => r.status === 'present' || r.status === 'late').length;
+          const present = records.filter((r: { status: string }) => r.status === 'present' || r.status === 'late').length;
           const attendRate = total > 0 ? Math.round((present / total) * 1000) / 10 : 0;
           // Quality score: present=1, late=partial, absent=0
           let qualitySum = 0;

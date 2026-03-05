@@ -104,6 +104,7 @@ export function ExcuseRequests() {
     } finally {
       setLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, refreshKey]);
 
   useEffect(() => {
@@ -553,13 +554,16 @@ function CreateRequestModal({
 
         if (enrollments) {
           const sessionList = enrollments
-            .filter((e: any) => e.session)
-            .map((e: any) => ({
-              session_id: e.session.session_id,
-              course_name: e.session.course?.course_name || 'Unknown',
-              day: e.session.day,
-              time: e.session.time,
-            }));
+            .filter((e: Record<string, unknown>) => e.session)
+            .map((e: Record<string, unknown>) => {
+              const sess = e.session as Record<string, unknown>;
+              return {
+                session_id: sess.session_id as string,
+                course_name: (sess.course as Record<string, string> | null)?.course_name || 'Unknown',
+                day: sess.day as string | null,
+                time: sess.time as string | null,
+              };
+            });
           setSessions(sessionList);
         }
       } catch (err) {

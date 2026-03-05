@@ -181,6 +181,76 @@ export const sessionService = {
     return await query;
   },
 
+  // Clone a session (same course/teacher, new dates/day/time) and optionally copy enrollments
+  async cloneSession(
+    sourceSessionId: string,
+    overrides: { start_date: string; end_date: string; day: string; time?: string; location?: string },
+    copyEnrollments = true
+  ) {
+    // Fetch source session
+    const { data: source, error: fetchErr } = await supabase
+      .from(Tables.SESSION)
+      .select('*')
+      .eq('session_id', sourceSessionId)
+      .single();
+
+    if (fetchErr || !source) {
+      return { data: null, error: fetchErr || new Error('Source session not found'), copied: 0 };
+    }
+
+    // Create new session with same course/teacher but new schedule
+    const { data: newSession, error: createErr } = await supabase
+      .from(Tables.SESSION)
+      .insert({
+        course_id: source.course_id,
+        teacher_id: source.teacher_id,
+        start_date: overrides.start_date,
+        end_date: overrides.end_date,
+        day: overrides.day,
+        time: overrides.time ?? source.time,
+        location: overrides.location ?? source.location,
+        grace_period_minutes: source.grace_period_minutes,
+        proximity_radius: source.proximity_radius,
+      })
+      .select()
+      .single();
+
+    if (createErr || !newSession) {
+      return { data: null, error: createErr, copied: 0 };
+    }
+
+    try { await logInsert('session', newSession.session_id, newSession as Record<string, unknown>); } catch { /* audit non-critical */ }
+
+    // Copy enrollments if requested
+    let copied = 0;
+    if (copyEnrollments) {
+      const { data: enrollments } = await supabase
+        .from(Tables.ENROLLMENT)
+        .select('student_id, can_host')
+        .eq('session_id', sourceSessionId)
+        .eq('status', 'active');
+
+      if (enrollments && enrollments.length > 0) {
+        const today = new Date().toISOString().split('T')[0];
+        const insertData = enrollments.map(e => ({
+          student_id: e.student_id,
+          session_id: newSession.session_id,
+          enrollment_date: today,
+          status: 'active' as const,
+          can_host: e.can_host || false,
+        }));
+
+        const { error: enrollErr } = await supabase
+          .from(Tables.ENROLLMENT)
+          .insert(insertData);
+
+        if (!enrollErr) copied = enrollments.length;
+      }
+    }
+
+    return { data: newSession, error: null, copied };
+  },
+
   // Get session with enrollment count
   async getWithEnrollmentCount(id: string) {
     const [sessionRes, enrollmentRes] = await Promise.all([

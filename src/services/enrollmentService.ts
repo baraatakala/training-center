@@ -203,4 +203,60 @@ export const enrollmentService = {
       error: null,
     };
   },
+
+  // Copy all active enrollments from one session to another
+  async copyEnrollments(fromSessionId: string, toSessionId: string) {
+    // Get active enrollments from source session
+    const { data: sourceEnrollments, error: fetchError } = await supabase
+      .from(Tables.ENROLLMENT)
+      .select('student_id, can_host')
+      .eq('session_id', fromSessionId)
+      .eq('status', 'active');
+
+    if (fetchError) return { copied: 0, skipped: 0, error: fetchError };
+    if (!sourceEnrollments || sourceEnrollments.length === 0) {
+      return { copied: 0, skipped: 0, error: null };
+    }
+
+    // Get existing enrollments in target session to avoid duplicates
+    const { data: existingEnrollments } = await supabase
+      .from(Tables.ENROLLMENT)
+      .select('student_id')
+      .eq('session_id', toSessionId);
+
+    const existingStudentIds = new Set(
+      (existingEnrollments || []).map((e: { student_id: string }) => e.student_id)
+    );
+
+    // Filter out already-enrolled students
+    const newEnrollments = sourceEnrollments.filter(
+      e => !existingStudentIds.has(e.student_id)
+    );
+
+    if (newEnrollments.length === 0) {
+      return { copied: 0, skipped: sourceEnrollments.length, error: null };
+    }
+
+    // Bulk insert new enrollments
+    const today = new Date().toISOString().split('T')[0];
+    const insertData = newEnrollments.map(e => ({
+      student_id: e.student_id,
+      session_id: toSessionId,
+      enrollment_date: today,
+      status: 'active' as const,
+      can_host: e.can_host || false,
+    }));
+
+    const { error: insertError } = await supabase
+      .from(Tables.ENROLLMENT)
+      .insert(insertData);
+
+    if (insertError) return { copied: 0, skipped: 0, error: insertError };
+
+    return {
+      copied: newEnrollments.length,
+      skipped: sourceEnrollments.length - newEnrollments.length,
+      error: null,
+    };
+  },
 };

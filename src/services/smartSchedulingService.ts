@@ -169,7 +169,7 @@ class SmartSchedulingService {
             conflicts.push({
               type: 'teacher',
               date: dateStr,
-              description: `Teacher already assigned to "${(session as any).course?.course_name || 'another session'}" on ${dayName}`,
+              description: `Teacher already assigned to "${(session as Record<string, unknown>).course ? ((session as Record<string, unknown>).course as Record<string, string>).course_name : 'another session'}" on ${dayName}`,
               conflictingSessionId: session.session_id,
               severity: 'error',
             });
@@ -222,13 +222,13 @@ class SmartSchedulingService {
 
     // Build host candidates
     const candidates: HostCandidate[] = enrollments
-      .filter((e: any) => e.can_host)
-      .map((e: any) => ({
-        student_id: e.student_id,
-        name: e.student?.name || 'Unknown',
+      .filter((e: Record<string, unknown>) => e.can_host)
+      .map((e: Record<string, unknown>) => ({
+        student_id: e.student_id as string,
+        name: (e.student as Record<string, string> | null)?.name || 'Unknown',
         can_host: true,
-        address: e.student?.address || null,
-        times_hosted: hostCountMap.get(e.student_id) || 0,
+        address: (e.student as Record<string, string> | null)?.address || null,
+        times_hosted: hostCountMap.get(e.student_id as string) || 0,
         last_hosted_date: null,
       }));
 
