@@ -822,14 +822,23 @@ function IssueModal({
     const loadSessions = async () => {
       const { data } = await supabase
         .from('session')
-        .select('session_id, course:course_id(course_name), teacher:teacher_id(name)')
+        .select('session_id, day, time, start_date, course:course_id(course_name), teacher:teacher_id(name)')
         .order('start_date', { ascending: false });
       if (data) {
-        setSessions(data.map((s: Record<string, unknown>) => ({
-          session_id: s.session_id as string,
-          label: `${(s.course as Record<string, string> | null)?.course_name || 'Unknown'} (${(s.teacher as Record<string, string> | null)?.name || 'Unknown Teacher'})`,
-          course_id: s.course_id as string,
-        })));
+        setSessions(data.map((s: Record<string, unknown>) => {
+          const courseName = (s.course as Record<string, string> | null)?.course_name || 'Unknown';
+          const teacherName = (s.teacher as Record<string, string> | null)?.name || 'Unknown Teacher';
+          const day = s.day as string | null;
+          const time = s.time as string | null;
+          const parts = [courseName, `(${teacherName})`];
+          if (day) parts.push(`- ${day}`);
+          if (time) parts.push(`@ ${time}`);
+          return {
+            session_id: s.session_id as string,
+            label: parts.join(' '),
+            course_id: s.course_id as string,
+          };
+        }));
       }
     };
     loadSessions();
@@ -868,21 +877,27 @@ function IssueModal({
           .eq('session_id', sessionId)
           .eq('student_id', studentId);
         if (records && records.length > 0) {
-          const total = records.length;
-          const present = records.filter((r: { status: string }) => r.status === 'present' || r.status === 'late').length;
-          const attendRate = total > 0 ? Math.round((present / total) * 1000) / 10 : 0;
-          // Quality score: present=1, late=partial, absent=0
+          // Exclude excused from denominator — only count accountable days
+          const excusedCount = records.filter((r: { status: string }) => r.status === 'excused').length;
+          const accountable = records.length - excusedCount;
+          const present = records.filter((r: { status: string }) => r.status === 'on time' || r.status === 'late').length;
+          const attendRate = accountable > 0 ? Math.round((present / accountable) * 1000) / 10 : 0;
+          // Quality-adjusted score: on time=1, late=partial (exponential decay), absent=0, excused=excluded
           let qualitySum = 0;
           for (const r of records) {
-            if (r.status === 'present') qualitySum += 1;
+            if (r.status === 'on time') qualitySum += 1;
             else if (r.status === 'late') {
-              const mins = r.late_minutes || 0;
+              const mins = (r as { late_minutes?: number }).late_minutes || 0;
               qualitySum += Math.max(0.05, Math.exp(-mins / 43.3));
             }
+            // absent = 0, excused = excluded (not counted)
           }
-          const qualityRate = total > 0 ? Math.round((qualitySum / total) * 1000) / 10 : 0;
+          const qualityRate = accountable > 0 ? Math.round((qualitySum / accountable) * 1000) / 10 : 0;
           setAttendance(attendRate);
           setScore(qualityRate);
+        } else {
+          setAttendance(0);
+          setScore(0);
         }
       } catch { /* non-critical */ }
       setLoadingStats(false);
