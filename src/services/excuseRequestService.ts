@@ -60,6 +60,41 @@ export const EXCUSE_REASONS = [
 
 class ExcuseRequestService {
   /**
+   * Get pending excuse requests for a specific session + date.
+   * Used by Attendance.tsx to show pending badges and allow quick approve/reject.
+   */
+  async getForSessionDate(sessionId: string, attendanceDate: string) {
+    const { data, error } = await supabase
+      .from('excuse_request')
+      .select(`
+        *,
+        student:student_id(student_id, name, email, phone)
+      `)
+      .eq('session_id', sessionId)
+      .eq('attendance_date', attendanceDate)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+
+    return { data: data as ExcuseRequest[] | null, error };
+  }
+
+  /**
+   * Check existing attendance status for a student on a date.
+   * Used before creating requests to provide helpful context.
+   */
+  async checkAttendanceStatus(studentId: string, sessionId: string, attendanceDate: string) {
+    const { data } = await supabase
+      .from('attendance')
+      .select('status, excuse_reason')
+      .eq('student_id', studentId)
+      .eq('session_id', sessionId)
+      .eq('attendance_date', attendanceDate)
+      .maybeSingle();
+
+    return data as { status: string; excuse_reason: string | null } | null;
+  }
+
+  /**
    * Get all excuse requests (with student and session info)
    * Teachers see their session requests, admins see all
    */
@@ -130,8 +165,39 @@ class ExcuseRequestService {
 
   /**
    * Submit a new excuse request (student action)
+   * Checks for existing requests and attendance status before creating.
    */
   async create(request: CreateExcuseRequest) {
+    // 1. Check for duplicate request (same student + session + date)
+    const { data: existing } = await supabase
+      .from('excuse_request')
+      .select('request_id, status')
+      .eq('student_id', request.student_id)
+      .eq('session_id', request.session_id)
+      .eq('attendance_date', request.attendance_date)
+      .maybeSingle();
+
+    if (existing) {
+      const msg = existing.status === 'pending'
+        ? 'You already have a pending excuse request for this session and date'
+        : existing.status === 'approved'
+          ? 'An excuse request for this session and date was already approved'
+          : `A ${existing.status} excuse request already exists for this session and date`;
+      return { data: null, error: { message: msg } as unknown as Error };
+    }
+
+    // 2. Check if attendance is already excused
+    const attendanceStatus = await this.checkAttendanceStatus(
+      request.student_id, request.session_id, request.attendance_date
+    );
+    if (attendanceStatus?.status === 'excused') {
+      return {
+        data: null,
+        error: { message: 'Your attendance is already marked as excused for this date' } as unknown as Error,
+      };
+    }
+
+    // 3. Insert the request
     const { data, error } = await supabase
       .from('excuse_request')
       .insert({
@@ -148,7 +214,6 @@ class ExcuseRequestService {
       .single();
 
     if (!error && data) {
-      // Log to audit
       await supabase.from('audit_log').insert({
         table_name: 'excuse_request',
         record_id: data.request_id,
@@ -162,7 +227,8 @@ class ExcuseRequestService {
 
   /**
    * Review (approve/reject) an excuse request (teacher/admin action)
-   * On approval, also updates the attendance record to 'excused'
+   * On approval, upserts the attendance record to 'excused' via enrollment_id.
+   * Guards against re-processing already-reviewed requests.
    */
   async review(requestId: string, review: ReviewExcuseRequest) {
     // 1. Get the request details first
@@ -174,6 +240,11 @@ class ExcuseRequestService {
 
     if (fetchError || !request) {
       return { data: null, error: fetchError || new Error('Request not found') };
+    }
+
+    // Guard: prevent re-reviewing already-processed requests
+    if (request.status !== 'pending') {
+      return { data: null, error: new Error(`Request already ${request.status} — cannot review again`) };
     }
 
     // 2. Update the request status
@@ -191,21 +262,58 @@ class ExcuseRequestService {
 
     if (updateError) return { data: null, error: updateError };
 
-    // 3. If approved, update the attendance record to 'excused'
+    // 3. If approved, upsert attendance to 'excused'
     if (review.status === 'approved') {
-      const { error: attendanceError } = await supabase
-        .from('attendance')
-        .update({
-          status: 'excused',
-          excuse_reason: request.reason,
-        })
+      // Find active enrollment so we can write using the canonical unique key
+      // (enrollment_id + attendance_date) used across attendance flows.
+      const { data: enrollment, error: enrollmentError } = await supabase
+        .from('enrollment')
+        .select('enrollment_id')
         .eq('student_id', request.student_id)
         .eq('session_id', request.session_id)
-        .eq('attendance_date', request.attendance_date);
+        .eq('status', 'active')
+        .order('enrollment_date', { ascending: false })
+        .maybeSingle();
 
-      if (attendanceError) {
-        console.error('Failed to update attendance on approval:', attendanceError);
-        // Don't fail the whole operation — request is approved
+      if (enrollmentError) {
+        console.error('Failed to resolve enrollment for excuse approval:', enrollmentError);
+      }
+
+      if (enrollment?.enrollment_id) {
+        const { error: attendanceError } = await supabase
+          .from('attendance')
+          .upsert(
+            {
+              enrollment_id: enrollment.enrollment_id,
+              student_id: request.student_id,
+              session_id: request.session_id,
+              attendance_date: request.attendance_date,
+              status: 'excused',
+              excuse_reason: request.reason,
+              marked_by: `${review.reviewed_by} - excuse approved`,
+            },
+            { onConflict: 'enrollment_id,attendance_date' }
+          );
+
+        if (attendanceError) {
+          console.error('Failed to upsert attendance on approval:', attendanceError);
+          // Don't fail the whole operation — request is approved.
+        }
+      } else {
+        // Legacy fallback: update by student/session/date when enrollment is unavailable.
+        const { error: attendanceError } = await supabase
+          .from('attendance')
+          .update({
+            status: 'excused',
+            excuse_reason: request.reason,
+          })
+          .eq('student_id', request.student_id)
+          .eq('session_id', request.session_id)
+          .eq('attendance_date', request.attendance_date);
+
+        if (attendanceError) {
+          console.error('Failed to update attendance on approval (fallback):', attendanceError);
+        }
       }
     }
 

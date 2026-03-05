@@ -15,6 +15,7 @@ import { PhotoCheckInModal } from '../components/PhotoCheckInModal';
 import { logDelete, logInsert, logUpdate } from '../services/auditService';
 import { toast } from '../components/ui/toastUtils';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { excuseRequestService, EXCUSE_REASONS as SERVICE_EXCUSE_REASONS, type ExcuseRequest } from '../services/excuseRequestService';
 
 type AttendanceRecord = {
   attendance_id: string;
@@ -138,6 +139,9 @@ export function Attendance() {
   const [confirmSessionNotHeld, setConfirmSessionNotHeld] = useState<boolean>(false);
   const [confirmUnmarkSessionNotHeld, setConfirmUnmarkSessionNotHeld] = useState<boolean>(false);
   const [confirmClearGPS, setConfirmClearGPS] = useState<{ hostId: string; isTeacher: boolean } | null>(null);
+
+  // Pending excuse requests for current session+date
+  const [pendingExcuseRequests, setPendingExcuseRequests] = useState<ExcuseRequest[]>([]);
 
   // GPS Geolocation capture function
   const captureGPSLocation = (): Promise<{
@@ -725,6 +729,38 @@ export function Attendance() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, passedDate]);
 
+  // Load pending excuse requests for the current session + date
+  const loadPendingExcuseRequests = useCallback(async () => {
+    if (!sessionId || !selectedDate) {
+      setPendingExcuseRequests([]);
+      return;
+    }
+    try {
+      const { data } = await excuseRequestService.getForSessionDate(sessionId, selectedDate);
+      setPendingExcuseRequests(data || []);
+    } catch {
+      // Non-critical
+      setPendingExcuseRequests([]);
+    }
+  }, [sessionId, selectedDate]);
+
+  // Handle approve/reject excuse request directly from attendance page
+  const handleExcuseAction = async (requestId: string, action: 'approved' | 'rejected') => {
+    const userEmail = await getCurrentUserEmail();
+    const { error } = await excuseRequestService.review(requestId, {
+      status: action,
+      reviewed_by: userEmail,
+    });
+    if (error) {
+      toast.error(`Failed to ${action === 'approved' ? 'approve' : 'reject'} excuse: ${error.message}`);
+    } else {
+      toast.success(`Excuse request ${action}`);
+      // Reload both attendance (approval changes it) and pending requests
+      loadAttendance();
+      loadPendingExcuseRequests();
+    }
+  };
+
   useEffect(() => {
     if (selectedDate) {
       // Reset selectedAddress when date changes, loadAttendance will set it if there's a saved value
@@ -732,6 +768,7 @@ export function Attendance() {
       loadHostAddresses();
       loadAttendance();
       loadSelectedBookReference();
+      loadPendingExcuseRequests();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);
@@ -1887,6 +1924,51 @@ export function Attendance() {
                     </div>
                   </div>
 
+                  {/* Pending Excuse Requests Banner */}
+                  {pendingExcuseRequests.length > 0 && (
+                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3 space-y-2">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-300">
+                        <span>📋</span>
+                        <span>{pendingExcuseRequests.length} Pending Excuse Request{pendingExcuseRequests.length > 1 ? 's' : ''}</span>
+                      </div>
+                      {pendingExcuseRequests.map(req => {
+                        const reasonObj = SERVICE_EXCUSE_REASONS.find(r => r.value === req.reason);
+                        return (
+                          <div key={req.request_id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-white dark:bg-gray-800 rounded-lg p-2.5 border border-amber-100 dark:border-amber-800">
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm font-medium text-gray-900 dark:text-white">{req.student?.name || 'Unknown'}</span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                                {reasonObj ? `${reasonObj.icon} ${reasonObj.label}` : req.reason}
+                              </span>
+                              {req.description && (
+                                <p className="text-xs text-gray-400 dark:text-gray-500 truncate mt-0.5">&ldquo;{req.description}&rdquo;</p>
+                              )}
+                              {req.supporting_doc_url && (
+                                <a href={req.supporting_doc_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline">📎 Document</a>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <Button
+                                onClick={() => handleExcuseAction(req.request_id, 'approved')}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-xs px-2.5 py-1"
+                                size="sm"
+                              >
+                                ✅ Approve
+                              </Button>
+                              <Button
+                                onClick={() => handleExcuseAction(req.request_id, 'rejected')}
+                                className="bg-red-500 hover:bg-red-600 text-white text-xs px-2.5 py-1"
+                                size="sm"
+                              >
+                                ❌ Reject
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                   <div className="flex items-center gap-2 mb-4">
                     <input
@@ -1921,6 +2003,7 @@ export function Attendance() {
                     })
                     .map((record) => {
                       const isNotEnrolled = record.status === 'not enrolled';
+                      const studentExcuseReq = pendingExcuseRequests.find(r => r.student_id === record.student_id);
                       return (
                     <div
                       key={record.attendance_id}
@@ -1937,7 +2020,14 @@ export function Attendance() {
                           className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-500 rounded disabled:opacity-30 disabled:cursor-not-allowed"
                         />
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-medium truncate dark:text-white">{record.student.name}</h3>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-medium truncate dark:text-white">{record.student.name}</h3>
+                            {studentExcuseReq && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 animate-pulse" title={`Pending excuse: ${studentExcuseReq.reason}`}>
+                                📋 Excuse Pending
+                              </span>
+                            )}
+                          </div>
                           <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{record.student.email}</p>
                           {record.check_in_time && (
                             <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">

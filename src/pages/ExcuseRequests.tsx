@@ -519,6 +519,32 @@ function CreateRequestModal({
   const [studentId, setStudentId] = useState('');
   const [loadingSessions, setLoadingSessions] = useState(true);
 
+  // Attendance status check for selected session + date
+  const [attendanceStatus, setAttendanceStatus] = useState<{ status: string; excuse_reason: string | null } | null>(null);
+  const [checkingStatus, setCheckingStatus] = useState(false);
+
+  // Check attendance status when session + date are selected
+  useEffect(() => {
+    if (!studentId || !selectedSession || !attendanceDate) {
+      setAttendanceStatus(null);
+      return;
+    }
+    let cancelled = false;
+    const check = async () => {
+      setCheckingStatus(true);
+      try {
+        const result = await excuseRequestService.checkAttendanceStatus(studentId, selectedSession, attendanceDate);
+        if (!cancelled) setAttendanceStatus(result);
+      } catch {
+        if (!cancelled) setAttendanceStatus(null);
+      } finally {
+        if (!cancelled) setCheckingStatus(false);
+      }
+    };
+    check();
+    return () => { cancelled = true; };
+  }, [studentId, selectedSession, attendanceDate]);
+
   useEffect(() => {
     const loadStudentSessions = async () => {
       setLoadingSessions(true);
@@ -611,12 +637,7 @@ function CreateRequestModal({
 
       const { error } = await excuseRequestService.create(payload);
       if (error) {
-        // Check for duplicate
-        if (error.message?.includes('duplicate') || error.message?.includes('unique')) {
-          toast.error('You already have a request for this session and date');
-        } else {
-          toast.error('Failed to submit request: ' + error.message);
-        }
+        toast.error(error.message || 'Failed to submit request');
       } else {
         toast.success('Excuse request submitted successfully');
         onCreated();
@@ -685,6 +706,47 @@ function CreateRequestModal({
                     className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
+
+                {/* Attendance Status Indicator */}
+                {selectedSession && attendanceDate && (
+                  <div className="rounded-lg border p-3 text-sm">
+                    {checkingStatus ? (
+                      <span className="text-gray-400">Checking attendance status...</span>
+                    ) : attendanceStatus ? (
+                      attendanceStatus.status === 'excused' ? (
+                        <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-2">
+                          <span>ℹ️</span>
+                          <span>Your attendance is already marked as <strong>excused</strong>{attendanceStatus.excuse_reason ? ` (${attendanceStatus.excuse_reason})` : ''}. No request needed.</span>
+                        </div>
+                      ) : attendanceStatus.status === 'on time' ? (
+                        <div className="flex items-center gap-2 text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 rounded-lg p-2">
+                          <span>✅</span>
+                          <span>You are marked as <strong>present (on time)</strong> for this date.</span>
+                        </div>
+                      ) : attendanceStatus.status === 'late' ? (
+                        <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-2">
+                          <span>⚡</span>
+                          <span>You are marked as <strong>late</strong> for this date.</span>
+                        </div>
+                      ) : attendanceStatus.status === 'absent' ? (
+                        <div className="flex items-center gap-2 text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 rounded-lg p-2">
+                          <span>❗</span>
+                          <span>You are marked as <strong>absent</strong> — submitting an excuse may change this to excused.</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                          <span>📝</span>
+                          <span>Current status: <strong>{attendanceStatus.status}</strong></span>
+                        </div>
+                      )
+                    ) : (
+                      <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                        <span>📝</span>
+                        <span>No attendance record yet for this date.</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             )}
 
@@ -692,7 +754,7 @@ function CreateRequestModal({
               <Button variant="outline" onClick={onClose}>Cancel</Button>
               <Button
                 onClick={() => setStep(2)}
-                disabled={!selectedSession || !attendanceDate}
+                disabled={!selectedSession || !attendanceDate || attendanceStatus?.status === 'excused'}
               >
                 Next →
               </Button>
