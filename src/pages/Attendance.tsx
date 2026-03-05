@@ -8,7 +8,8 @@ import { Skeleton, TableSkeleton } from '../components/ui/Skeleton';
 import { supabase } from '../lib/supabase';
 import { Tables, type Session } from '../types/database.types';
 import { format } from 'date-fns';
-import { getAttendanceDateOptions } from '../utils/attendanceGenerator';
+import { getAttendanceDateOptions, type DayChange } from '../utils/attendanceGenerator';
+import { sessionService } from '../services/sessionService';
 import { QRCodeModal } from '../components/QRCodeModal';
 import { PhotoCheckInModal } from '../components/PhotoCheckInModal';
 import { logDelete, logInsert, logUpdate } from '../services/auditService';
@@ -256,8 +257,13 @@ export function Attendance() {
         }
       }
       
-      // Generate attendance dates based on session schedule
-      const dates = getAttendanceDateOptions(data);
+      // Generate attendance dates based on session schedule (with day-change history)
+      let dayChanges: DayChange[] = [];
+      try {
+        const { data: changes } = await sessionService.getDayChangeHistory(sessionId!);
+        if (changes) dayChanges = changes;
+      } catch { /* non-critical */ }
+      const dates = getAttendanceDateOptions(data, dayChanges);
       setAvailableDates(dates);
       
       // If a date was passed via navigation, use it; otherwise select the date nearest to today

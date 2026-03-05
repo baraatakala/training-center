@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS excuse_request (
   -- Status workflow
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled')),
   -- Review info (filled by teacher/admin)
-  reviewed_by UUID REFERENCES teacher(teacher_id),
+  reviewed_by TEXT,                    -- Email of reviewer (teacher or admin)
   reviewed_at TIMESTAMPTZ,
   review_note TEXT,               -- Teacher's note on approval/rejection
   -- Timestamps

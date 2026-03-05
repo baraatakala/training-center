@@ -812,6 +812,7 @@ function IssueModal({
   const [score, setScore] = useState(0);
   const [attendance, setAttendance] = useState(0);
   const [issuing, setIssuing] = useState(false);
+  const [loadingStats, setLoadingStats] = useState(false);
 
   // Load sessions + students
   const [sessions, setSessions] = useState<Array<{ session_id: string; label: string; course_id: string }>>([]);
@@ -851,6 +852,40 @@ function IssueModal({
     };
     loadStudents();
   }, [sessionId]);
+
+  // Auto-fetch attendance stats when student + session selected
+  useEffect(() => {
+    if (!studentId || !sessionId) return;
+    const fetchStats = async () => {
+      setLoadingStats(true);
+      try {
+        const { data: records } = await supabase
+          .from('attendance')
+          .select('status, late_minutes')
+          .eq('session_id', sessionId)
+          .eq('student_id', studentId);
+        if (records && records.length > 0) {
+          const total = records.length;
+          const present = records.filter((r: any) => r.status === 'present' || r.status === 'late').length;
+          const attendRate = total > 0 ? Math.round((present / total) * 1000) / 10 : 0;
+          // Quality score: present=1, late=partial, absent=0
+          let qualitySum = 0;
+          for (const r of records) {
+            if (r.status === 'present') qualitySum += 1;
+            else if (r.status === 'late') {
+              const mins = r.late_minutes || 0;
+              qualitySum += Math.max(0.05, Math.exp(-mins / 43.3));
+            }
+          }
+          const qualityRate = total > 0 ? Math.round((qualitySum / total) * 1000) / 10 : 0;
+          setAttendance(attendRate);
+          setScore(qualityRate);
+        }
+      } catch { /* non-critical */ }
+      setLoadingStats(false);
+    };
+    fetchStats();
+  }, [studentId, sessionId]);
 
   const handleIssue = async () => {
     if (!templateId || !studentId) {
@@ -928,7 +963,9 @@ function IssueModal({
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Final Score (%)</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Final Score (%) {loadingStats && <span className="text-xs text-blue-500">loading...</span>}
+            </label>
             <input
               type="number"
               value={score}
@@ -938,9 +975,12 @@ function IssueModal({
               step={0.1}
               className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
             />
+            {studentId && sessionId && !loadingStats && <p className="text-xs text-gray-400 mt-1">Auto-filled from attendance records</p>}
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Attendance Rate (%)</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Attendance Rate (%) {loadingStats && <span className="text-xs text-blue-500">loading...</span>}
+            </label>
             <input
               type="number"
               value={attendance}

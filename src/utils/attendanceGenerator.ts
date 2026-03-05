@@ -1,6 +1,7 @@
 /**
  * Attendance Date Generation Utility
- * Automatically generates attendance dates based on session schedule
+ * Generates attendance dates based on session schedule,
+ * with support for day-change history (schedule versioning).
  */
 
 import { format } from 'date-fns';
@@ -14,6 +15,12 @@ export interface SessionSchedule {
   location: string | null;
 }
 
+export interface DayChange {
+  old_day: string | null;
+  new_day: string;
+  effective_date: string; // YYYY-MM-DD
+}
+
 export interface AttendanceDate {
   date: string; // ISO date format YYYY-MM-DD
   day_name: string;
@@ -23,82 +30,120 @@ export interface AttendanceDate {
 
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+const DAY_MAP: Record<string, number> = {
+  'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
+  'thursday': 4, 'friday': 5, 'saturday': 6,
+};
+
 /**
- * Generates all attendance dates for a session based on its schedule
+ * Parses comma-separated day string to array of day numbers (0=Sun..6=Sat)
+ */
+function parseDayNums(days: string | null): number[] {
+  if (!days) return [];
+  return days.split(',')
+    .map(d => DAY_MAP[d.trim().toLowerCase()])
+    .filter(n => n !== undefined);
+}
+
+/**
+ * Generates all attendance dates for a session based on its schedule,
+ * respecting day-change history for schedule versioning.
+ * 
  * @param session The session with start_date, end_date, and day
+ * @param dayChanges Optional array of day changes (sorted by effective_date ascending)
  * @returns Array of attendance dates
  */
-export function generateAttendanceDates(session: SessionSchedule): AttendanceDate[] {
-  const dates: AttendanceDate[] = [];
-  
+export function generateAttendanceDates(
+  session: SessionSchedule,
+  dayChanges?: DayChange[]
+): AttendanceDate[] {
   if (!session.start_date || !session.end_date) {
-    return dates;
+    return [];
   }
 
   const startDate = new Date(session.start_date);
   const endDate = new Date(session.end_date);
-  
-  // Parse the days (could be comma-separated like "Monday,Wednesday")
-  const scheduledDays = session.day 
-    ? session.day.split(',').map(d => d.trim().toLowerCase())
-    : [];
 
-  // If no specific days are set, include all days
-  const includeAllDays = scheduledDays.length === 0;
+  // Build date-range → dayNums segments based on day change history
+  const changes = (dayChanges || [])
+    .filter(c => c.effective_date)
+    .sort((a, b) => a.effective_date.localeCompare(b.effective_date));
 
-  // Iterate through all dates in the range
-  const currentDate = new Date(startDate);
-  while (currentDate <= endDate) {
-    const dayName = DAYS_OF_WEEK[currentDate.getDay()];
-    const shouldInclude = includeAllDays || 
-      scheduledDays.some(d => dayName.toLowerCase() === d);
+  const segments: Array<{ from: Date; to: Date; dayNums: number[] }> = [];
 
-    if (shouldInclude) {
-      dates.push({
-        date: currentDate.toISOString().split('T')[0], // YYYY-MM-DD format
-        day_name: dayName,
-        session_id: session.session_id,
-        location: session.location,
-      });
+  if (changes.length === 0) {
+    // No changes: same days for entire range
+    const dayNums = parseDayNums(session.day);
+    if (dayNums.length === 0) return [];
+    segments.push({ from: startDate, to: endDate, dayNums });
+  } else {
+    // Build segments: original days until first change, then each change's new days
+    let currentDays = session.day;
+    let rangeStart = startDate;
+
+    for (const change of changes) {
+      const effectiveDate = new Date(change.effective_date);
+      if (effectiveDate > rangeStart) {
+        const dayNums = parseDayNums(currentDays);
+        if (dayNums.length > 0) {
+          const segEnd = new Date(effectiveDate.getTime() - 86400000);
+          segments.push({ from: rangeStart, to: segEnd, dayNums });
+        }
+      }
+      currentDays = change.new_day;
+      rangeStart = effectiveDate;
     }
-
-    // Move to next day
-    currentDate.setDate(currentDate.getDate() + 1);
+    // Last range to end
+    const dayNums = parseDayNums(currentDays);
+    if (dayNums.length > 0) {
+      segments.push({ from: rangeStart, to: endDate, dayNums });
+    }
   }
 
-  return dates;
+  // Generate all matching dates from segments
+  const dates: AttendanceDate[] = [];
+  for (const seg of segments) {
+    const cursor = new Date(seg.from);
+    while (cursor <= seg.to && cursor <= endDate) {
+      if (seg.dayNums.includes(cursor.getDay())) {
+        dates.push({
+          date: cursor.toISOString().split('T')[0],
+          day_name: DAYS_OF_WEEK[cursor.getDay()],
+          session_id: session.session_id,
+          location: session.location,
+        });
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  }
+
+  return dates.sort((a, b) => a.date.localeCompare(b.date));
 }
 
 /**
  * Generates a display label for a session date
- * @param date The date string (YYYY-MM-DD)
- * @param location The location string
- * @returns Formatted label like "Feb 02, 2025 - Main Campus - Room 202"
  */
 export function generateDateLabel(date: string, location: string | null): string {
   const dateObj = new Date(date);
   const formattedDate = format(dateObj, 'MMM dd, yyyy');
-  
   return location ? `${formattedDate} - ${location}` : formattedDate;
 }
 
 /**
  * Gets the next upcoming attendance date for a session
- * @param session The session schedule
- * @returns The next date or null if session has ended
  */
-export function getNextAttendanceDate(session: SessionSchedule): AttendanceDate | null {
-  const dates = generateAttendanceDates(session);
+export function getNextAttendanceDate(
+  session: SessionSchedule,
+  dayChanges?: DayChange[]
+): AttendanceDate | null {
+  const dates = generateAttendanceDates(session, dayChanges);
   const today = new Date().toISOString().split('T')[0];
-  
   const upcomingDates = dates.filter(d => d.date >= today);
   return upcomingDates.length > 0 ? upcomingDates[0] : null;
 }
 
 /**
  * Checks if a session is currently active (today is within date range)
- * @param session The session schedule
- * @returns True if session is active today
  */
 export function isSessionActive(session: SessionSchedule): boolean {
   const today = new Date().toISOString().split('T')[0];
@@ -107,11 +152,12 @@ export function isSessionActive(session: SessionSchedule): boolean {
 
 /**
  * Gets all dates formatted for dropdown selection
- * @param session The session schedule
- * @returns Array of {value, label} for Select component
  */
-export function getAttendanceDateOptions(session: SessionSchedule): Array<{ value: string; label: string }> {
-  const dates = generateAttendanceDates(session);
+export function getAttendanceDateOptions(
+  session: SessionSchedule,
+  dayChanges?: DayChange[]
+): Array<{ value: string; label: string }> {
+  const dates = generateAttendanceDates(session, dayChanges);
   return dates.map(d => ({
     value: d.date,
     label: generateDateLabel(d.date, d.location)
