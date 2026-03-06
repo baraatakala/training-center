@@ -15,7 +15,7 @@ import { ToastContainer } from '../components/ui/ToastContainer';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { loadConfigSync, calcLateScore as calcLateScoreFromConfig, calcCoverageFactor as calcCoverageFromConfig } from '../services/scoringConfigService';
 import { LocationMap } from '../components/LocationMap';
-import { parseCoordinates, calculateDistance, formatDistance } from '../services/geocodingService';
+import { parseCoordinates, calculateDistance, formatDistance, isValidCoordinate } from '../services/geocodingService';
 
 interface AttendanceRecord {
   attendance_id: string;
@@ -674,8 +674,8 @@ const AttendanceRecords = () => {
         hostRes.data.forEach((h: { session_id: string; attendance_date: string; host_address: string; host_latitude?: number | null; host_longitude?: number | null }) => {
           const key = `${h.session_id}|${h.attendance_date}`;
           hostAddressMap.set(key, h.host_address);
-          if (h.host_latitude && h.host_longitude) {
-            hostCoordsMap.set(h.host_address, { lat: h.host_latitude, lon: h.host_longitude });
+          if (h.host_latitude && h.host_longitude && isValidCoordinate(h.host_latitude, h.host_longitude)) {
+            hostCoordsMap.set(h.host_address.trim(), { lat: h.host_latitude, lon: h.host_longitude });
           }
         });
       }
@@ -4950,12 +4950,20 @@ const AttendanceRecords = () => {
               // Build location points from attendance records and host addresses
               const hostGpsMap = new Map<string, { lats: number[]; lons: number[]; count: number; dates: string[] }>();
 
-              // First, try to parse GPS from attendance records grouped by host_address
+              // Helper: compute median of a number array (outlier-resistant)
+              const median = (arr: number[]) => {
+                if (arr.length === 0) return null;
+                const sorted = [...arr].sort((a, b) => a - b);
+                const mid = Math.floor(sorted.length / 2);
+                return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+              };
+
+              // First, collect GPS from attendance records grouped by host_address
               filteredRecords.forEach(r => {
-                const addr = r.host_address || r.session_location;
+                const addr = (r.host_address || r.session_location || '').trim();
                 if (!addr || addr === 'SESSION_NOT_HELD') return;
                 const existing = hostGpsMap.get(addr) || { lats: [], lons: [], count: 0, dates: [] };
-                if (r.gps_latitude && r.gps_longitude) {
+                if (r.gps_latitude && r.gps_longitude && isValidCoordinate(r.gps_latitude, r.gps_longitude)) {
                   existing.lats.push(r.gps_latitude);
                   existing.lons.push(r.gps_longitude);
                 }
@@ -4966,7 +4974,6 @@ const AttendanceRecords = () => {
                 hostGpsMap.set(addr, existing);
               });
 
-              // Also try to parse coordinates from host address strings
               const locationPoints: Array<{ label: string; lat: number; lon: number; count: number; dates: string[] }> = [];
 
               // Collect all dates across all locations for smart year formatting
@@ -4976,21 +4983,42 @@ const AttendanceRecords = () => {
                 let lat: number | null = null;
                 let lon: number | null = null;
 
-                // Priority 1: Teacher-set GPS from session_date_host table
-                const teacherCoords = hostCoordinates.get(addr);
-                if (teacherCoords) {
+                // Priority 1: Teacher-set GPS from session_date_host (authoritative, validated)
+                const addrTrimmed = addr.trim();
+                const teacherCoords = hostCoordinates.get(addrTrimmed);
+                if (teacherCoords && isValidCoordinate(teacherCoords.lat, teacherCoords.lon)) {
                   lat = teacherCoords.lat;
                   lon = teacherCoords.lon;
                 }
-                // Priority 2: Average GPS from student check-in records
-                else if (data.lats.length > 0) {
-                  lat = data.lats.reduce((s, v) => s + v, 0) / data.lats.length;
-                  lon = data.lons.reduce((s, v) => s + v, 0) / data.lons.length;
+
+                // Priority 2: Median GPS from student check-ins (outlier-resistant)
+                if (lat === null && data.lats.length > 0) {
+                  // First pass: compute rough median
+                  const roughLat = median(data.lats)!;
+                  const roughLon = median(data.lons)!;
+                  // Second pass: filter outliers >2km from the rough median
+                  const cleanLats: number[] = [];
+                  const cleanLons: number[] = [];
+                  for (let i = 0; i < data.lats.length; i++) {
+                    const dist = calculateDistance(roughLat, roughLon, data.lats[i], data.lons[i]);
+                    if (dist <= 2000) { // within 2km
+                      cleanLats.push(data.lats[i]);
+                      cleanLons.push(data.lons[i]);
+                    }
+                  }
+                  // Use cleaned median if we have points, else fall back to rough median
+                  const finalLat = cleanLats.length > 0 ? median(cleanLats) : roughLat;
+                  const finalLon = cleanLons.length > 0 ? median(cleanLons) : roughLon;
+                  if (finalLat !== null && finalLon !== null && isValidCoordinate(finalLat, finalLon)) {
+                    lat = finalLat;
+                    lon = finalLon;
+                  }
                 }
-                // Priority 3: Try to parse from address string
-                else {
+
+                // Priority 3: Try to parse from address string (e.g. "24.7136,46.6753")
+                if (lat === null) {
                   const parsed = parseCoordinates(addr);
-                  if (parsed) {
+                  if (parsed && isValidCoordinate(parsed.lat, parsed.lon)) {
                     lat = parsed.lat;
                     lon = parsed.lon;
                   }
