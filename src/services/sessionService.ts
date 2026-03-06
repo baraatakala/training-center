@@ -172,7 +172,8 @@ export const sessionService = {
       .from(Tables.SESSION)
       .select('session_id, start_date, end_date')
       .eq('teacher_id', teacherId)
-      .or(`start_date.lte.${endDate},end_date.gte.${startDate}`);
+      .lte('start_date', endDate)
+      .gte('end_date', startDate);
 
     if (excludeSessionId) {
       query = query.neq('session_id', excludeSessionId);

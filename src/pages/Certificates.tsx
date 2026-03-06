@@ -911,6 +911,31 @@ function IssueModal({
     load();
   }, [courseId, teacherId]);
 
+  // Re-filter students when a specific session is selected
+  useEffect(() => {
+    if (!sessionId || !courseId || !teacherId) return;
+    setStudentId('');
+    const load = async () => {
+      const { data: enrollData } = await supabase
+        .from('enrollment')
+        .select('student:student_id(student_id, name)')
+        .eq('session_id', sessionId)
+        .eq('status', 'active');
+      if (enrollData) {
+        const unique = new Map<string, { student_id: string; name: string }>();
+        for (const e of enrollData) {
+          const stu = (Array.isArray(e.student) ? e.student[0] : e.student) as { student_id: string; name: string } | null;
+          if (stu && !unique.has(stu.student_id)) {
+            unique.set(stu.student_id, { student_id: stu.student_id, name: stu.name });
+          }
+        }
+        setStudents(Array.from(unique.values()).sort((a, b) => a.name.localeCompare(b.name)));
+      }
+    };
+    load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
+
   // Auto-fetch attendance stats when student + course selected
   useEffect(() => {
     if (!studentId || !courseId || !teacherId) return;

@@ -492,16 +492,14 @@ Please contact the training center.
     };
     init();
     loadStats();
-    loadAttendanceAlerts();
     loadPendingExcuses();
+    // loadAttendanceAlerts is called by the [startDate, endDate] effect on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Reload alerts when date filters change
+  // Reload alerts when date filters change (including when cleared)
   useEffect(() => {
-    if (startDate || endDate) {
-      loadAttendanceAlerts();
-    }
+    loadAttendanceAlerts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startDate, endDate]);
 

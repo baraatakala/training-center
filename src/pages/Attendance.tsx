@@ -767,6 +767,9 @@ export function Attendance() {
       setSelectedAddress('');
       setHostAddresses([]);  // Clear stale host data to prevent auto-suggest race
       setHostDataLoaded(false);  // Block auto-suggest until loadAttendance confirms host status
+      setExcuseReason({});  // Clear stale excuse reasons from previous date
+      setSelectedStudents(new Set());  // Clear bulk selection from previous date
+      setSessionNotHeld(false);  // Reset until loadAttendance confirms
       loadHostAddresses();
       loadAttendance();
       loadSelectedBookReference();
