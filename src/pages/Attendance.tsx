@@ -123,6 +123,7 @@ export function Attendance() {
   const [hostAddresses, setHostAddresses] = useState<HostInfo[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<string>('');
   const [hostCoordinates, setHostCoordinates] = useState<{ lat: number; lon: number } | null>(null);
+  const [hostDataLoaded, setHostDataLoaded] = useState(false);
   const [sessionNotHeld, setSessionNotHeld] = useState<boolean>(false);
   const [showQRModal, setShowQRModal] = useState<boolean>(false);
   const [showPhotoModal, setShowPhotoModal] = useState<boolean>(false);
@@ -524,6 +525,9 @@ export function Attendance() {
       setSessionNotHeld(false);
     }
 
+    // Signal that host data has been loaded — auto-suggest can now safely fire
+    setHostDataLoaded(true);
+
     // Get all enrollments for this session
     const { data: enrollments, error: enrollmentsError } = await supabase
       .from(Tables.ENROLLMENT)
@@ -759,8 +763,10 @@ export function Attendance() {
 
   useEffect(() => {
     if (selectedDate) {
-      // Reset selectedAddress when date changes, loadAttendance will set it if there's a saved value
+      // Reset state before loading new date data
       setSelectedAddress('');
+      setHostAddresses([]);  // Clear stale host data to prevent auto-suggest race
+      setHostDataLoaded(false);  // Block auto-suggest until loadAttendance confirms host status
       loadHostAddresses();
       loadAttendance();
       loadSelectedBookReference();
@@ -773,10 +779,11 @@ export function Attendance() {
   useEffect(() => {
     // Only suggest if:
     // 1. We have a selected date
-    // 2. We have host addresses loaded
-    // 3. No address is currently selected (or was just reset)
-    // 4. Not in "session not held" mode
-    if (!selectedDate || hostAddresses.length === 0 || selectedAddress || sessionNotHeld) {
+    // 2. loadAttendance has confirmed no saved host exists (hostDataLoaded = true)
+    // 3. We have host addresses loaded (fresh, not stale)
+    // 4. No address is currently selected
+    // 5. Not in "session not held" mode
+    if (!selectedDate || !hostDataLoaded || hostAddresses.length === 0 || selectedAddress || sessionNotHeld) {
       return;
     }
 
@@ -828,7 +835,7 @@ export function Attendance() {
         }
       })();
     }
-  }, [selectedDate, hostAddresses, selectedAddress, sessionNotHeld, sessionId]);
+  }, [selectedDate, hostDataLoaded, hostAddresses, selectedAddress, sessionNotHeld, sessionId]);
 
   const loadSelectedBookReference = async () => {
     if (!sessionId || !selectedDate) return;
