@@ -24,6 +24,8 @@ interface LocationMapProps {
   compact?: boolean;
 }
 
+type SortMode = 'distance-asc' | 'distance-desc' | 'name-asc';
+
 /**
  * LocationMap Component
  * Provides location visualization using OpenStreetMap embed (no external packages)
@@ -39,6 +41,9 @@ export function LocationMap({
 }: LocationMapProps) {
   const [selectedLocation, setSelectedLocation] = useState<number>(0);
   const [showMatrix, setShowMatrix] = useState(false);
+  const [matrixSearch, setMatrixSearch] = useState('');
+  const [matrixSort, setMatrixSort] = useState<SortMode>('distance-asc');
+  const [matrixMaxDist, setMatrixMaxDist] = useState<number | null>(null);
 
   // Calculate distance matrix
   const distanceMatrix = useMemo(() => {
@@ -224,20 +229,105 @@ export function LocationMap({
             </svg>
             {showMatrix ? 'Hide' : 'Show'} Distance Matrix ({distanceMatrix.length} pairs)
           </button>
-          {showMatrix && (
-            <div className="px-3 pb-3 space-y-1">
-              {distanceMatrix.map((pair, idx) => (
-                <div key={idx} className="flex items-center justify-between text-[10px] py-1 border-b border-gray-100 dark:border-gray-700 last:border-0">
-                  <span className="text-gray-600 dark:text-gray-400">
-                    📍 {pair.from} → {pair.to}
+          {showMatrix && (() => {
+            // Filter and sort
+            const searchLower = matrixSearch.toLowerCase();
+            const filtered = distanceMatrix.filter(pair => {
+              if (searchLower && !pair.from.toLowerCase().includes(searchLower) && !pair.to.toLowerCase().includes(searchLower)) return false;
+              if (matrixMaxDist !== null && pair.distance > matrixMaxDist) return false;
+              return true;
+            });
+
+            const sorted = [...filtered].sort((a, b) => {
+              switch (matrixSort) {
+                case 'distance-asc': return a.distance - b.distance;
+                case 'distance-desc': return b.distance - a.distance;
+                case 'name-asc': return a.from.localeCompare(b.from) || a.to.localeCompare(b.to);
+              }
+            });
+
+            // Stats
+            const allDistances = distanceMatrix.map(p => p.distance);
+            const minDist = Math.min(...allDistances);
+            const maxDist = Math.max(...allDistances);
+            const avgDist = allDistances.reduce((s, v) => s + v, 0) / allDistances.length;
+
+            return (
+              <div className="px-3 pb-3 space-y-2">
+                {/* Stats bar */}
+                <div className="flex flex-wrap gap-3 text-[10px] py-1.5 px-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                  <span className="text-gray-500 dark:text-gray-400">
+                    Min: <span className="font-semibold text-green-600 dark:text-green-400">{formatDistance(minDist)}</span>
                   </span>
-                  <span className={`font-mono font-medium ${pair.distance < 1000 ? 'text-green-600 dark:text-green-400' : pair.distance < 5000 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
-                    {formatDistance(pair.distance)}
+                  <span className="text-gray-500 dark:text-gray-400">
+                    Avg: <span className="font-semibold text-amber-600 dark:text-amber-400">{formatDistance(avgDist)}</span>
+                  </span>
+                  <span className="text-gray-500 dark:text-gray-400">
+                    Max: <span className="font-semibold text-red-600 dark:text-red-400">{formatDistance(maxDist)}</span>
                   </span>
                 </div>
-              ))}
-            </div>
-          )}
+
+                {/* Search + Sort + Distance filter */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative flex-1 min-w-[140px]">
+                    <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <input
+                      type="text"
+                      value={matrixSearch}
+                      onChange={e => setMatrixSearch(e.target.value)}
+                      placeholder="Filter locations..."
+                      className="w-full pl-7 pr-2 py-1 text-[10px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    />
+                  </div>
+                  <select
+                    value={matrixSort}
+                    onChange={e => setMatrixSort(e.target.value as SortMode)}
+                    className="text-[10px] py-1 px-1.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  >
+                    <option value="distance-asc">Nearest first</option>
+                    <option value="distance-desc">Farthest first</option>
+                    <option value="name-asc">A → Z</option>
+                  </select>
+                  <select
+                    value={matrixMaxDist === null ? '' : String(matrixMaxDist)}
+                    onChange={e => setMatrixMaxDist(e.target.value === '' ? null : Number(e.target.value))}
+                    className="text-[10px] py-1 px-1.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  >
+                    <option value="">All distances</option>
+                    <option value="500">≤ 500m</option>
+                    <option value="1000">≤ 1 km</option>
+                    <option value="5000">≤ 5 km</option>
+                    <option value="10000">≤ 10 km</option>
+                  </select>
+                </div>
+
+                {/* Pair list */}
+                {sorted.length === 0 ? (
+                  <div className="text-center text-[10px] text-gray-400 dark:text-gray-500 py-3">
+                    No pairs match your filters
+                  </div>
+                ) : (
+                  <>
+                    <div className="text-[10px] text-gray-400 dark:text-gray-500">
+                      Showing {sorted.length} of {distanceMatrix.length} pairs
+                    </div>
+                    {sorted.map((pair, idx) => (
+                      <div key={idx} className="flex items-center justify-between text-[10px] py-1.5 border-b border-gray-100 dark:border-gray-700 last:border-0">
+                        <span className="text-gray-600 dark:text-gray-300 truncate mr-2">
+                          📍 {pair.from} → {pair.to}
+                        </span>
+                        <span className={`font-mono font-medium whitespace-nowrap ${pair.distance < 1000 ? 'text-green-600 dark:text-green-400' : pair.distance < 5000 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
+                          {formatDistance(pair.distance)}
+                        </span>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>
