@@ -60,7 +60,7 @@ export function Teachers() {
 
   useEffect(() => {
     loadTeachers();
-  }, []);
+  }, [loadTeachers]);
 
   const filteredTeachers = useMemo(() => {
     let result = [...teachers];

@@ -66,7 +66,7 @@ export function Courses() {
 
   useEffect(() => {
     loadCourses();
-  }, []);
+  }, [loadCourses]);
 
   const filteredCourses = useMemo(() => {
     let result = [...courses];

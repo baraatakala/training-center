@@ -67,7 +67,7 @@ export function Enrollments() {
 
   useEffect(() => {
     loadEnrollments();
-  }, []);
+  }, [loadEnrollments]);
 
   const filteredEnrollments = useMemo(() => {
     let filtered = [...enrollments];
@@ -425,7 +425,11 @@ export function Enrollments() {
                             onClick={async () => {
                               const newValue = !enrollment.can_host;
                               const { error } = await enrollmentService.update(enrollment.enrollment_id, { can_host: newValue });
-                              if (!error) loadEnrollments();
+                              if (error) {
+                                toast.error('Failed to update host status: ' + error.message);
+                              } else {
+                                loadEnrollments();
+                              }
                             }}
                             className={`inline-flex items-center justify-center h-8 w-8 rounded-full cursor-pointer transition ${
                               enrollment.can_host 

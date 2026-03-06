@@ -20,6 +20,8 @@ export function PhotoAvatar({ photoPath, name, size = 'md', className = '' }: Ph
   const [error, setError] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+
     const loadUrl = async () => {
       if (!photoPath) {
         setSignedUrl(null);
@@ -31,16 +33,19 @@ export function PhotoAvatar({ photoPath, name, size = 'md', className = '' }: Ph
 
       try {
         const url = await getSignedPhotoUrl(photoPath);
+        if (cancelled) return;
         setSignedUrl(url);
         if (!url) setError(true);
       } catch {
+        if (cancelled) return;
         setError(true);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     loadUrl();
+    return () => { cancelled = true; };
   }, [photoPath]);
 
   const sizeClass = sizeClasses[size];

@@ -50,7 +50,7 @@ export function Students() {
 
   useEffect(() => {
     loadStudents();
-  }, []);
+  }, [loadStudents]);
 
   const filteredStudents = useMemo(() => {
     let result = [...students];
