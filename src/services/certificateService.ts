@@ -269,6 +269,18 @@ class CertificateService {
         courseName = (s.course as Record<string, string> | null)?.course_name || '';
         teacherName = (s.teacher as Record<string, string> | null)?.name || '';
       }
+    } else if (payload.course_id) {
+      // Resolve course name + teacher from course_id when no session selected
+      const { data: course } = await supabase
+        .from('course')
+        .select('course_name, teacher:teacher_id(name)')
+        .eq('course_id', payload.course_id)
+        .single();
+      if (course) {
+        const c = course as Record<string, unknown>;
+        courseName = (c.course_name as string) || '';
+        teacherName = (c.teacher as Record<string, string> | null)?.name || '';
+      }
     }
 
     // Resolve template body

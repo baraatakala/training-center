@@ -807,6 +807,8 @@ function IssueModal({
   userEmail: string;
 }) {
   const [templateId, setTemplateId] = useState('');
+  const [teacherId, setTeacherId] = useState('');
+  const [courseId, setCourseId] = useState('');
   const [sessionId, setSessionId] = useState('');
   const [studentId, setStudentId] = useState('');
   const [score, setScore] = useState(0);
@@ -814,75 +816,129 @@ function IssueModal({
   const [issuing, setIssuing] = useState(false);
   const [loadingStats, setLoadingStats] = useState(false);
 
-  // Load sessions + students
-  const [sessions, setSessions] = useState<Array<{ session_id: string; label: string; course_id: string }>>([]);
+  // Loaded data
+  const [teachers, setTeachers] = useState<Array<{ teacher_id: string; name: string }>>([]);
+  const [courses, setCourses] = useState<Array<{ course_id: string; course_name: string; teacher_id: string }>>([]);
+  const [sessions, setSessions] = useState<Array<{ session_id: string; label: string }>>([]);
   const [students, setStudents] = useState<Array<{ student_id: string; name: string }>>([]);
 
+  // Load teachers on mount
   useEffect(() => {
-    const loadSessions = async () => {
+    const load = async () => {
       const { data } = await supabase
-        .from('session')
-        .select('session_id, day, time, start_date, course:course_id(course_name), teacher:teacher_id(name)')
-        .order('start_date', { ascending: false });
-      if (data) {
-        setSessions(data.map((s: Record<string, unknown>) => {
-          const courseName = (s.course as Record<string, string> | null)?.course_name || 'Unknown';
-          const teacherName = (s.teacher as Record<string, string> | null)?.name || 'Unknown Teacher';
-          const day = s.day as string | null;
-          const time = s.time as string | null;
-          const parts = [courseName, `(${teacherName})`];
-          if (day) parts.push(`- ${day}`);
-          if (time) parts.push(`@ ${time}`);
-          return {
-            session_id: s.session_id as string,
-            label: parts.join(' '),
-            course_id: s.course_id as string,
-          };
-        }));
-      }
+        .from('teacher')
+        .select('teacher_id, name')
+        .order('name');
+      if (data) setTeachers(data);
     };
-    loadSessions();
+    load();
   }, []);
 
+  // Load courses when teacher changes
   useEffect(() => {
-    if (!sessionId) { setStudents([]); return; }
-    const loadStudents = async () => {
+    setCourseId('');
+    setSessionId('');
+    setStudentId('');
+    setCourses([]);
+    setSessions([]);
+    setStudents([]);
+    if (!teacherId) return;
+    const load = async () => {
+      // Get courses that have sessions taught by this teacher
       const { data } = await supabase
-        .from('enrollment')
-        .select('student:student_id(student_id, name)')
-        .eq('session_id', sessionId)
-        .eq('status', 'active');
+        .from('session')
+        .select('course_id, course:course_id(course_id, course_name)')
+        .eq('teacher_id', teacherId);
       if (data) {
-        setStudents(data.map((e: Record<string, unknown>) => {
-          const stu = e.student as Record<string, string> | null;
-          return {
-            student_id: stu?.student_id || '',
-            name: stu?.name || 'Unknown',
-          };
-        }).filter(s => s.student_id));
+        const unique = new Map<string, { course_id: string; course_name: string; teacher_id: string }>();
+        for (const s of data) {
+          const c = (Array.isArray(s.course) ? s.course[0] : s.course) as { course_id: string; course_name: string } | null;
+          if (c && !unique.has(c.course_id)) {
+            unique.set(c.course_id, { course_id: c.course_id, course_name: c.course_name, teacher_id: teacherId });
+          }
+        }
+        setCourses(Array.from(unique.values()).sort((a, b) => a.course_name.localeCompare(b.course_name)));
       }
     };
-    loadStudents();
-  }, [sessionId]);
+    load();
+  }, [teacherId]);
 
-  // Auto-fetch attendance stats when student + session selected
+  // Load sessions + enrolled students when course changes
   useEffect(() => {
-    if (!studentId || !sessionId) return;
+    setSessionId('');
+    setStudentId('');
+    setSessions([]);
+    setStudents([]);
+    if (!courseId || !teacherId) return;
+    const load = async () => {
+      // Get sessions for this course+teacher
+      const { data: sessData } = await supabase
+        .from('session')
+        .select('session_id, day, time, start_date')
+        .eq('course_id', courseId)
+        .eq('teacher_id', teacherId)
+        .order('start_date', { ascending: false });
+      if (sessData) {
+        setSessions(sessData.map(s => {
+          const parts: string[] = [];
+          if (s.day) parts.push(s.day);
+          if (s.time) parts.push(`@ ${s.time}`);
+          if (s.start_date) parts.push(`(${s.start_date})`);
+          return { session_id: s.session_id, label: parts.join(' ') || s.session_id };
+        }));
+
+        // Get enrolled students across ALL sessions for this course+teacher
+        const sessionIds = sessData.map(s => s.session_id);
+        if (sessionIds.length > 0) {
+          const { data: enrollData } = await supabase
+            .from('enrollment')
+            .select('student:student_id(student_id, name)')
+            .in('session_id', sessionIds)
+            .eq('status', 'active');
+          if (enrollData) {
+            const unique = new Map<string, { student_id: string; name: string }>();
+            for (const e of enrollData) {
+              const stu = (Array.isArray(e.student) ? e.student[0] : e.student) as { student_id: string; name: string } | null;
+              if (stu && !unique.has(stu.student_id)) {
+                unique.set(stu.student_id, { student_id: stu.student_id, name: stu.name });
+              }
+            }
+            setStudents(Array.from(unique.values()).sort((a, b) => a.name.localeCompare(b.name)));
+          }
+        }
+      }
+    };
+    load();
+  }, [courseId, teacherId]);
+
+  // Auto-fetch attendance stats when student + course selected
+  useEffect(() => {
+    if (!studentId || !courseId || !teacherId) return;
     const fetchStats = async () => {
       setLoadingStats(true);
       try {
+        // Get all session IDs for this course+teacher
+        const { data: sessData } = await supabase
+          .from('session')
+          .select('session_id')
+          .eq('course_id', courseId)
+          .eq('teacher_id', teacherId);
+        const sessionIds = sessData?.map(s => s.session_id) || [];
+        if (sessionIds.length === 0) { setLoadingStats(false); return; }
+
+        // If a specific session is selected, use only that one
+        const idsToQuery = sessionId ? [sessionId] : sessionIds;
+
         const { data: records } = await supabase
           .from('attendance')
           .select('status, late_minutes')
-          .eq('session_id', sessionId)
+          .in('session_id', idsToQuery)
           .eq('student_id', studentId);
         if (records && records.length > 0) {
-          // Exclude excused from denominator — only count accountable days
           const excusedCount = records.filter((r: { status: string }) => r.status === 'excused').length;
           const accountable = records.length - excusedCount;
           const present = records.filter((r: { status: string }) => r.status === 'on time' || r.status === 'late').length;
           const attendRate = accountable > 0 ? Math.round((present / accountable) * 1000) / 10 : 0;
-          // Quality-adjusted score: on time=1, late=partial (exponential decay), absent=0, excused=excluded
           let qualitySum = 0;
           for (const r of records) {
             if (r.status === 'on time') qualitySum += 1;
@@ -890,7 +946,6 @@ function IssueModal({
               const mins = (r as { late_minutes?: number }).late_minutes || 0;
               qualitySum += Math.max(0.05, Math.exp(-mins / 43.3));
             }
-            // absent = 0, excused = excluded (not counted)
           }
           const qualityRate = accountable > 0 ? Math.round((qualitySum / accountable) * 1000) / 10 : 0;
           setAttendance(attendRate);
@@ -903,7 +958,7 @@ function IssueModal({
       setLoadingStats(false);
     };
     fetchStats();
-  }, [studentId, sessionId]);
+  }, [studentId, courseId, teacherId, sessionId]);
 
   const handleIssue = async () => {
     if (!templateId || !studentId) {
@@ -912,12 +967,11 @@ function IssueModal({
     }
     setIssuing(true);
     try {
-      const session = sessions.find(s => s.session_id === sessionId);
       const { error } = await certificateService.issueCertificate({
         template_id: templateId,
         student_id: studentId,
         session_id: sessionId || undefined,
-        course_id: session?.course_id,
+        course_id: courseId || undefined,
         final_score: score,
         attendance_rate: attendance,
         issued_by: userEmail,
@@ -936,6 +990,7 @@ function IssueModal({
   return (
     <Modal isOpen={true} onClose={onClose} title="Issue Certificate" size="lg">
       <div className="space-y-4">
+        {/* Template */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Template <span className="text-red-500">*</span></label>
           <select
@@ -950,35 +1005,73 @@ function IssueModal({
           </select>
         </div>
 
+        {/* Teacher */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Session / Course</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Teacher</label>
           <select
-            value={sessionId}
-            onChange={e => setSessionId(e.target.value)}
+            value={teacherId}
+            onChange={e => setTeacherId(e.target.value)}
             className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
           >
-            <option value="">Select session...</option>
-            {sessions.map(s => (
-              <option key={s.session_id} value={s.session_id}>{s.label}</option>
+            <option value="">Select teacher...</option>
+            {teachers.map(t => (
+              <option key={t.teacher_id} value={t.teacher_id}>{t.name}</option>
             ))}
           </select>
         </div>
 
+        {/* Course */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Course <span className="text-red-500">*</span></label>
+          <select
+            value={courseId}
+            onChange={e => setCourseId(e.target.value)}
+            disabled={!teacherId}
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm disabled:opacity-50"
+          >
+            <option value="">{teacherId ? 'Select course...' : 'Select a teacher first'}</option>
+            {courses.map(c => (
+              <option key={c.course_id} value={c.course_id}>{c.course_name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Session (optional) */}
+        {sessions.length > 1 && courseId && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Session <span className="text-xs text-gray-400">(optional — defaults to all sessions)</span>
+            </label>
+            <select
+              value={sessionId}
+              onChange={e => setSessionId(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
+            >
+              <option value="">All sessions (combined stats)</option>
+              {sessions.map(s => (
+                <option key={s.session_id} value={s.session_id}>{s.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Student */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Student <span className="text-red-500">*</span></label>
           <select
             value={studentId}
             onChange={e => setStudentId(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
-            disabled={!sessionId}
+            disabled={!courseId}
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm disabled:opacity-50"
           >
-            <option value="">{sessionId ? 'Select student...' : 'Select a session first'}</option>
+            <option value="">{courseId ? `Select student... (${students.length} enrolled)` : 'Select a course first'}</option>
             {students.map(s => (
               <option key={s.student_id} value={s.student_id}>{s.name}</option>
             ))}
           </select>
         </div>
 
+        {/* Scores */}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -993,7 +1086,7 @@ function IssueModal({
               step={0.1}
               className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
             />
-            {studentId && sessionId && !loadingStats && <p className="text-xs text-gray-400 mt-1">Auto-filled from attendance records</p>}
+            {studentId && courseId && !loadingStats && <p className="text-xs text-gray-400 mt-1">Auto-filled from attendance records</p>}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1126,24 +1219,39 @@ function CertificatePreview({
       <head>
         <title>Certificate - ${certificate.certificate_number}</title>
         <style>
-          @page { size: ${style.orientation}; margin: 0; }
-          body { margin: 0; padding: 40px; font-family: ${style.font_family}; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-          .cert { border: 4px double ${style.accent_color}; border-radius: 12px; padding: 48px; text-align: center; max-width: 800px; background: ${style.background_color}; }
+          *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+          @page { size: ${style.orientation === 'portrait' ? 'A4 portrait' : 'A4 landscape'}; margin: 10mm; }
+          html, body { width: 100%; height: 100%; font-family: ${style.font_family}; }
+          body { display: flex; align-items: center; justify-content: center; }
+          .cert {
+            border: 4px double ${style.accent_color};
+            border-radius: 12px;
+            padding: 40px 48px;
+            text-align: center;
+            width: 100%;
+            max-width: ${style.orientation === 'portrait' ? '170mm' : '257mm'};
+            background: ${style.background_color};
+            page-break-inside: avoid;
+          }
           .title { font-size: 28px; color: ${style.accent_color}; font-weight: bold; letter-spacing: 4px; margin-bottom: 4px; }
-          .subtitle { font-size: 11px; text-transform: uppercase; letter-spacing: 3px; color: #888; }
-          .divider { display: flex; align-items: center; gap: 8px; margin: 16px auto; max-width: 200px; }
+          .subtitle { font-size: 11px; text-transform: uppercase; letter-spacing: 3px; color: #888; margin-bottom: 12px; }
+          .icon { font-size: 36px; margin-bottom: 8px; }
+          .divider { display: flex; align-items: center; gap: 8px; margin: 12px auto; max-width: 200px; }
           .divider-line { flex: 1; height: 1px; background: ${style.accent_color}; }
-          .body { font-size: 14px; line-height: 1.8; color: #333; margin: 20px 32px; }
-          .meta { font-size: 11px; color: #888; margin-top: 12px; }
-          .sig { display: inline-block; margin-top: 24px; padding: 0 32px; border-top: 1px solid #999; padding-top: 8px; }
+          .body { font-size: 14px; line-height: 1.8; color: #333; margin: 16px 24px; }
+          .meta { font-size: 11px; color: #888; margin-top: 10px; }
+          .sig { display: inline-block; margin-top: 20px; padding: 0 32px; border-top: 1px solid #999; padding-top: 8px; }
           .sig-name { font-size: 14px; font-weight: bold; }
           .sig-title { font-size: 11px; color: #666; }
-          .verify { margin-top: 16px; font-size: 10px; color: #aaa; font-family: monospace; }
+          .verify { margin-top: 12px; font-size: 10px; color: #aaa; font-family: monospace; }
+          @media print {
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          }
         </style>
       </head>
       <body>
         <div class="cert">
-          <div style="font-size: 36px;">${typeObj?.icon || '📜'}</div>
+          <div class="icon">${typeObj?.icon || '📜'}</div>
           <div class="title">CERTIFICATE</div>
           <div class="subtitle">of ${tmpl?.template_type || 'completion'}</div>
           <div class="divider">
