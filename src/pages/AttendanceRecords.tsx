@@ -638,7 +638,7 @@ const AttendanceRecords = () => {
         sessionDatePairs.length > 0
           ? supabase
               .from('session_date_host')
-              .select('session_id, attendance_date, host_address, host_latitude, host_longitude')
+              .select('session_id, attendance_date, host_address, host_id, host_type, host_latitude, host_longitude')
           : Promise.resolve({ data: null, error: null })
       ]);
 
@@ -670,12 +670,61 @@ const AttendanceRecords = () => {
       }
 
       if (hostRes.data) {
-        hostRes.data.forEach((h: { session_id: string; attendance_date: string; host_address: string; host_latitude: number | null; host_longitude: number | null }) => {
+        // Collect unique host IDs by type to batch-query their GPS from profile tables
+        const studentHostIds = new Set<string>();
+        const teacherHostIds = new Set<string>();
+        const hostEntries: Array<{ session_id: string; attendance_date: string; host_address: string; host_id: string | null; host_type: string | null; host_latitude: number | null; host_longitude: number | null }> = hostRes.data;
+
+        hostEntries.forEach(h => {
           const key = `${h.session_id}|${h.attendance_date}`;
           hostAddressMap.set(key, h.host_address);
+          // Use session_date_host GPS columns if populated
           if (h.host_latitude != null && h.host_longitude != null) {
-            // Store host GPS by address so the location map can use it
             newHostGpsLookup.set(h.host_address, { lat: h.host_latitude, lon: h.host_longitude });
+          }
+          // Collect host IDs for profile lookup
+          if (h.host_id) {
+            if (h.host_type === 'teacher') teacherHostIds.add(h.host_id);
+            else studentHostIds.add(h.host_id);
+          }
+        });
+
+        // Batch-fetch GPS from host profiles (student/teacher address_latitude/address_longitude)
+        const [studentGpsRes, teacherGpsRes] = await Promise.all([
+          studentHostIds.size > 0
+            ? supabase.from('student').select('student_id, address_latitude, address_longitude').in('student_id', [...studentHostIds])
+            : Promise.resolve({ data: null }),
+          teacherHostIds.size > 0
+            ? supabase.from('teacher').select('teacher_id, address_latitude, address_longitude').in('teacher_id', [...teacherHostIds])
+            : Promise.resolve({ data: null }),
+        ]);
+
+        // Build host_id → GPS lookup from profiles
+        const hostIdGps = new Map<string, { lat: number; lon: number }>();
+        if (studentGpsRes.data) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          studentGpsRes.data.forEach((s: any) => {
+            if (s.address_latitude && s.address_longitude) {
+              hostIdGps.set(s.student_id, { lat: Number(s.address_latitude), lon: Number(s.address_longitude) });
+            }
+          });
+        }
+        if (teacherGpsRes.data) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          teacherGpsRes.data.forEach((t: any) => {
+            if (t.address_latitude && t.address_longitude) {
+              hostIdGps.set(t.teacher_id, { lat: Number(t.address_latitude), lon: Number(t.address_longitude) });
+            }
+          });
+        }
+
+        // Fill in GPS from host profiles where session_date_host didn't have it
+        hostEntries.forEach(h => {
+          if (!newHostGpsLookup.has(h.host_address) && h.host_id) {
+            const profileGps = hostIdGps.get(h.host_id);
+            if (profileGps) {
+              newHostGpsLookup.set(h.host_address, profileGps);
+            }
           }
         });
       }
