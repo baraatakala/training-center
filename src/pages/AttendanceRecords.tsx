@@ -4705,10 +4705,20 @@ const AttendanceRecords = () => {
               <h2 className="text-base sm:text-lg font-semibold dark:text-white">{t.attendanceByDate}</h2>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-500 dark:text-gray-400">
-                  {matrixSelectedDates
-                    ? `${dateAnalytics.filter(d => matrixSelectedDates.has(d.date)).length} of ${dateAnalytics.length} ${t.sessions}`
-                    : `${dateAnalytics.length} ${t.sessions}`
-                  }
+                  {(() => {
+                    const excluded = savedExportSettings.dateAnalytics?.excludedRows;
+                    const hasExcluded = excluded && excluded.length > 0;
+                    const hasMatrixFilter = !!matrixSelectedDates;
+                    if (hasExcluded) {
+                      const excludedSet = new Set(excluded);
+                      const visibleCount = dateAnalytics.filter(d => !excludedSet.has(format(new Date(d.date), 'MMM dd, yyyy'))).length;
+                      return `${visibleCount} of ${dateAnalytics.length} ${t.sessions}`;
+                    }
+                    if (hasMatrixFilter) {
+                      return `${dateAnalytics.filter(d => matrixSelectedDates.has(d.date)).length} of ${dateAnalytics.length} ${t.sessions}`;
+                    }
+                    return `${dateAnalytics.length} ${t.sessions}`;
+                  })()}
                 </span>
                 <svg className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${collapseDateTable ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -4720,9 +4730,16 @@ const AttendanceRecords = () => {
                 {(() => {
                   const isArabic = reportLanguage === 'ar';
                   const config = filterDataByFields('dateAnalytics', isArabic);
-                  const visibleDates = matrixSelectedDates
-                    ? dateAnalytics.filter(d => matrixSelectedDates.has(d.date))
-                    : dateAnalytics;
+                  // Filter by export builder excluded rows (primary) or cross-tab date picker (fallback)
+                  const excludedDateRows = savedExportSettings.dateAnalytics?.excludedRows;
+                  const hasExcluded = excludedDateRows && excludedDateRows.length > 0;
+                  let visibleDates = dateAnalytics;
+                  if (hasExcluded) {
+                    const excludedSet = new Set(excludedDateRows);
+                    visibleDates = dateAnalytics.filter(d => !excludedSet.has(format(new Date(d.date), 'MMM dd, yyyy')));
+                  } else if (matrixSelectedDates) {
+                    visibleDates = dateAnalytics.filter(d => matrixSelectedDates.has(d.date));
+                  }
                   const dataObjects = visibleDates.map((d) => {
                     const totalPres = d.presentCount + d.lateCount;
                     const totalAbs = d.excusedAbsentCount + d.unexcusedAbsentCount;
