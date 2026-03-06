@@ -173,6 +173,15 @@ const getLateBracketInfo = (lateMinutes: number | null | undefined): { name: str
     : { name: 'Very Late', color: 'bg-red-200 text-red-900 dark:bg-red-900/50 dark:text-red-200' };
 };
 
+/**
+ * Smart date formatter: uses 'MMM dd' when all dates are in the same year,
+ * switches to 'MMM dd, yy' when dates span multiple years.
+ */
+const smartDateFormat = (date: Date, allDates: Date[]): string => {
+  const years = new Set(allDates.map(d => d.getFullYear()));
+  return format(date, years.size > 1 ? 'MMM dd, yy' : 'MMM dd');
+};
+
 const AttendanceRecords = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1568,7 +1577,6 @@ const AttendanceRecords = () => {
       if (dateData.hostAddress && dateData.hostAddress !== 'SESSION_NOT_HELD') {
         const existing = hostMap.get(dateData.hostAddress) || { count: 0, dates: [], rawDates: [], present: 0, late: 0, absent: 0, excused: 0 };
         existing.count++;
-        existing.dates.push(format(new Date(dateData.date), 'MMM dd'));
         existing.rawDates.push(new Date(dateData.date));
         existing.present += dateData.presentCount;
         existing.late += dateData.lateCount;
@@ -1582,6 +1590,8 @@ const AttendanceRecords = () => {
     const hostRankings = Array.from(hostMap.entries())
       .map(([address, data]) => ({ address, ...data }))
       .sort((a, b) => b.count - a.count);
+    // Collect all host dates for smart year formatting
+    const allHostRawDates = hostRankings.flatMap(h => h.rawDates);
 
     // Prepare host data objects with all possible fields
     const hostDataObjectsUnsorted = hostRankings.map((host, index) => {
@@ -1609,7 +1619,7 @@ const AttendanceRecords = () => {
         totalAbsent: host.absent,
         totalExcused: host.excused,
         totalStudents,
-        dates: host.dates.join(', '),
+        dates: host.rawDates.map(d => smartDateFormat(d, allHostRawDates)).join(', '),
       };
     });
     
@@ -1656,7 +1666,8 @@ const AttendanceRecords = () => {
       const sortedDates = matrixSelectedDates
         ? allSortedDates.filter(d => matrixSelectedDates.has(d.date))
         : allSortedDates;
-      const ctHeaders = [isArabic ? 'الطالب' : 'Student', ...sortedDates.map(d => format(new Date(d.date), 'MMM dd'))];
+      const ctAllRawDates = sortedDates.map(d => new Date(d.date));
+      const ctHeaders = [isArabic ? 'الطالب' : 'Student', ...sortedDates.map(d => smartDateFormat(new Date(d.date), ctAllRawDates))];
       const ctRows = sortedStudents.map(student => {
         const row: (string | number)[] = [student.student_name];
         sortedDates.forEach(dateData => {
@@ -1794,12 +1805,11 @@ const AttendanceRecords = () => {
     const dateDataObjects = filterExcludedDateRows(sortDataBySettings(dateDataObjectsUnsorted, 'dateAnalytics'));
 
     // Prepare host data with all possible fields
-    const hostMap = new Map<string, { count: number; dates: string[]; rawDates: Date[]; present: number; late: number; absent: number; excused: number }>();
+    const hostMap = new Map<string, { count: number; rawDates: Date[]; present: number; late: number; absent: number; excused: number }>();
     dateAnalytics.forEach((dateData) => {
       if (dateData.hostAddress && dateData.hostAddress !== 'SESSION_NOT_HELD') {
-        const existing = hostMap.get(dateData.hostAddress) || { count: 0, dates: [], rawDates: [], present: 0, late: 0, absent: 0, excused: 0 };
+        const existing = hostMap.get(dateData.hostAddress) || { count: 0, rawDates: [], present: 0, late: 0, absent: 0, excused: 0 };
         existing.count++;
-        existing.dates.push(format(new Date(dateData.date), 'MMM dd'));
         existing.rawDates.push(new Date(dateData.date));
         existing.present += dateData.presentCount;
         existing.late += dateData.lateCount;
@@ -1809,6 +1819,7 @@ const AttendanceRecords = () => {
       }
     });
     const totalHostings = Array.from(hostMap.values()).reduce((sum, h) => sum + h.count, 0);
+    const allHostRawDates2 = Array.from(hostMap.values()).flatMap(h => h.rawDates);
     const hostDataObjectsUnsorted = Array.from(hostMap.entries())
       .map(([address, data]) => ({ address, ...data }))
       .sort((a, b) => b.count - a.count)
@@ -1837,7 +1848,7 @@ const AttendanceRecords = () => {
           totalAbsent: host.absent + host.excused,
           totalExcused: host.excused,
           totalStudents,
-          dates: host.dates.join(', '),
+          dates: host.rawDates.map(d => smartDateFormat(d, allHostRawDates2)).join(', '),
         };
       });
     const hostDataObjects = sortDataBySettings(hostDataObjectsUnsorted, 'hostAnalytics');
@@ -1893,7 +1904,7 @@ const AttendanceRecords = () => {
         ? allSortedDates.filter(d => matrixSelectedDates.has(d.date))
         : allSortedDates;
       const ctTitle = isArabic ? '# مصفوفة الطلاب × التواريخ' : '# Student × Date Matrix';
-      const ctHeaders = [isArabic ? 'الطالب' : 'Student', ...sortedDates.map(d => format(new Date(d.date), 'MMM dd'))].map(escapeCSV).join(',');
+      const ctHeaders = [isArabic ? 'الطالب' : 'Student', ...sortedDates.map(d => smartDateFormat(new Date(d.date), sortedDates.map(x => new Date(x.date))))].map(escapeCSV).join(',');
       const ctRows = sortedStudents.map(student => {
         const cells: string[] = [student.student_name];
         sortedDates.forEach(dateData => {
@@ -2223,7 +2234,6 @@ const AttendanceRecords = () => {
     // Calculate host rankings
     const hostMap = new Map<string, { 
       count: number; 
-      dates: string[]; 
       rawDates: Date[];
       present: number;
       late: number;
@@ -2234,7 +2244,6 @@ const AttendanceRecords = () => {
       if (dateData.hostAddress && dateData.hostAddress !== 'SESSION_NOT_HELD') {
         const existing = hostMap.get(dateData.hostAddress) || { 
           count: 0, 
-          dates: [], 
           rawDates: [],
           present: 0,
           late: 0,
@@ -2242,7 +2251,6 @@ const AttendanceRecords = () => {
           excused: 0,
         };
         existing.count++;
-        existing.dates.push(format(new Date(dateData.date), 'MMM dd'));
         existing.rawDates.push(new Date(dateData.date));
         existing.present += dateData.presentCount;
         existing.late += dateData.lateCount;
@@ -2253,6 +2261,7 @@ const AttendanceRecords = () => {
     });
 
     const totalHostings = Array.from(hostMap.values()).reduce((sum, h) => sum + h.count, 0);
+    const allHostRawDates3 = Array.from(hostMap.values()).flatMap(h => h.rawDates);
     
     const hostDataObjectsUnsorted = Array.from(hostMap.entries())
       .map(([address, data]) => ({ address, ...data }))
@@ -2281,7 +2290,7 @@ const AttendanceRecords = () => {
           totalAbsent: host.absent,
           totalExcused: host.excused,
           totalStudents,
-          dates: host.dates.join(', '),
+          dates: host.rawDates.map(d => smartDateFormat(d, allHostRawDates3)).join(', '),
         };
       });
     
@@ -2664,7 +2673,6 @@ const AttendanceRecords = () => {
     // Prepare host data with all possible fields
     const hostMap = new Map<string, {
       count: number;
-      dates: string[];
       rawDates: Date[];
       present: number;
       late: number;
@@ -2675,10 +2683,9 @@ const AttendanceRecords = () => {
     dateAnalytics.forEach((dateData) => {
       if (dateData.hostAddress && dateData.hostAddress !== 'SESSION_NOT_HELD') {
         const existing = hostMap.get(dateData.hostAddress) || {
-          count: 0, dates: [], rawDates: [], present: 0, late: 0, absent: 0, excused: 0,
+          count: 0, rawDates: [], present: 0, late: 0, absent: 0, excused: 0,
         };
         existing.count++;
-        existing.dates.push(format(new Date(dateData.date), 'MMM dd'));
         existing.rawDates.push(new Date(dateData.date));
         existing.present += dateData.presentCount;
         existing.late += dateData.lateCount;
@@ -2689,6 +2696,7 @@ const AttendanceRecords = () => {
     });
 
     const totalHostings = Array.from(hostMap.values()).reduce((sum, h) => sum + h.count, 0);
+    const allHostRawDates4 = Array.from(hostMap.values()).flatMap(h => h.rawDates);
 
     const hostDataObjectsUnsorted = Array.from(hostMap.entries())
       .map(([address, data]) => ({ address, ...data }))
@@ -2717,7 +2725,7 @@ const AttendanceRecords = () => {
           totalAbsent: host.absent,
           totalExcused: host.excused,
           totalStudents,
-          dates: host.dates.join(', '),
+          dates: host.rawDates.map(d => smartDateFormat(d, allHostRawDates4)).join(', '),
         };
       });
     
@@ -2789,7 +2797,7 @@ const AttendanceRecords = () => {
         ? allSortedDates.filter(d => matrixSelectedDates.has(d.date))
         : allSortedDates;
       crosstabForWord = {
-        headers: [isArabic ? 'الطالب' : 'Student', ...sortedDates.map(d => format(new Date(d.date), 'MMM dd'))],
+        headers: [isArabic ? 'الطالب' : 'Student', ...sortedDates.map(d => smartDateFormat(new Date(d.date), sortedDates.map(x => new Date(x.date))))],
         rows: sortedStudents.map(student => {
           const cells: string[] = [student.student_name];
           sortedDates.forEach(dateData => {
@@ -4020,7 +4028,6 @@ const AttendanceRecords = () => {
       // Build host map with attendance stats per host
       const hostMap = new Map<string, { 
         count: number; 
-        dates: string[]; 
         rawDates: Date[];
         present: number;
         late: number;
@@ -4033,7 +4040,6 @@ const AttendanceRecords = () => {
         if (dateData.hostAddress && dateData.hostAddress !== 'SESSION_NOT_HELD') {
           const existing = hostMap.get(dateData.hostAddress) || { 
             count: 0, 
-            dates: [], 
             rawDates: [],
             present: 0,
             late: 0,
@@ -4042,7 +4048,6 @@ const AttendanceRecords = () => {
             totalStudents: 0
           };
           existing.count++;
-          existing.dates.push(format(new Date(dateData.date), 'MMM dd'));
           existing.rawDates.push(new Date(dateData.date));
           // Aggregate attendance stats
           existing.present += dateData.presentCount;
@@ -4054,6 +4059,7 @@ const AttendanceRecords = () => {
         }
       });
       const totalHostings = Array.from(hostMap.values()).reduce((sum, h) => sum + h.count, 0);
+      const allHostRawDates5 = Array.from(hostMap.values()).flatMap(h => h.rawDates);
       return Array.from(hostMap.entries())
         .map(([address, data]) => ({ address, ...data }))
         .sort((a, b) => b.count - a.count)
@@ -4082,8 +4088,8 @@ const AttendanceRecords = () => {
             totalExcused: host.excused,
             totalStudents: host.totalStudents,
             // Hosting Dates
-            dates: host.dates.join(', '),
-            datesList: host.dates.join('\n'),
+            dates: host.rawDates.map(d => smartDateFormat(d, allHostRawDates5)).join(', '),
+            datesList: host.rawDates.map(d => smartDateFormat(d, allHostRawDates5)).join('\n'),
           };
         });
     }
@@ -4488,6 +4494,7 @@ const AttendanceRecords = () => {
 
                   {showMatrixDatePicker && (() => {
                     const allDates = [...dateAnalytics].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                    const allDateObjects = allDates.map(d => new Date(d.date));
                     const selectedCount = matrixSelectedDates ? matrixSelectedDates.size : allDates.length;
                     const allSelected = !matrixSelectedDates || matrixSelectedDates.size === allDates.length;
 
@@ -4576,7 +4583,7 @@ const AttendanceRecords = () => {
                                 }`}
                                 title={format(dateObj, 'EEEE, MMM dd, yyyy')}
                               >
-                                {format(dateObj, 'MMM dd')}
+                                {smartDateFormat(dateObj, allDateObjects)}
                               </button>
                             );
                           })}
@@ -4697,7 +4704,12 @@ const AttendanceRecords = () => {
             >
               <h2 className="text-base sm:text-lg font-semibold dark:text-white">{t.attendanceByDate}</h2>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 dark:text-gray-400">{dateAnalytics.length} {t.sessions}</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  {matrixSelectedDates
+                    ? `${dateAnalytics.filter(d => matrixSelectedDates.has(d.date)).length} of ${dateAnalytics.length} ${t.sessions}`
+                    : `${dateAnalytics.length} ${t.sessions}`
+                  }
+                </span>
                 <svg className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${collapseDateTable ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
@@ -4708,7 +4720,10 @@ const AttendanceRecords = () => {
                 {(() => {
                   const isArabic = reportLanguage === 'ar';
                   const config = filterDataByFields('dateAnalytics', isArabic);
-                  const dataObjects = dateAnalytics.map((d) => {
+                  const visibleDates = matrixSelectedDates
+                    ? dateAnalytics.filter(d => matrixSelectedDates.has(d.date))
+                    : dateAnalytics;
+                  const dataObjects = visibleDates.map((d) => {
                     const totalPres = d.presentCount + d.lateCount;
                     const totalAbs = d.excusedAbsentCount + d.unexcusedAbsentCount;
                     const totalStud = totalPres + totalAbs;
@@ -4812,12 +4827,11 @@ const AttendanceRecords = () => {
                   const config = filterDataByFields('hostAnalytics', isArabic);
 
                   // Build host data from dateAnalytics
-                  const hostMap = new Map<string, { count: number; dates: string[]; rawDates: Date[]; present: number; late: number; absent: number; excused: number }>();
+                  const hostMap = new Map<string, { count: number; rawDates: Date[]; present: number; late: number; absent: number; excused: number }>();
                   dateAnalytics.forEach((dateData) => {
                     if (dateData.hostAddress && dateData.hostAddress !== 'SESSION_NOT_HELD') {
-                      const existing = hostMap.get(dateData.hostAddress) || { count: 0, dates: [], rawDates: [], present: 0, late: 0, absent: 0, excused: 0 };
+                      const existing = hostMap.get(dateData.hostAddress) || { count: 0, rawDates: [], present: 0, late: 0, absent: 0, excused: 0 };
                       existing.count++;
-                      existing.dates.push(format(new Date(dateData.date), 'MMM dd'));
                       existing.rawDates.push(new Date(dateData.date));
                       existing.present += dateData.presentCount;
                       existing.late += dateData.lateCount;
@@ -4828,6 +4842,7 @@ const AttendanceRecords = () => {
                   });
 
                   const totalHostings = Array.from(hostMap.values()).reduce((sum, h) => sum + h.count, 0);
+                  const allHostRawDates6 = Array.from(hostMap.values()).flatMap(h => h.rawDates);
                   const hostRankings = Array.from(hostMap.entries())
                     .map(([address, data]) => ({ address, ...data }))
                     .sort((a, b) => b.count - a.count);
@@ -4856,7 +4871,7 @@ const AttendanceRecords = () => {
                       totalAbsent: host.absent,
                       totalExcused: host.excused,
                       totalStudents,
-                      dates: host.dates.join(', '),
+                      dates: host.rawDates.map(d => smartDateFormat(d, allHostRawDates6)).join(', '),
                     } as Record<string, unknown>;
                   });
 
@@ -4929,6 +4944,9 @@ const AttendanceRecords = () => {
               // Also try to parse coordinates from host address strings
               const locationPoints: Array<{ label: string; lat: number; lon: number; count: number; dates: string[] }> = [];
 
+              // Collect all dates across all locations for smart year formatting
+              const allLocRawDates = Array.from(hostGpsMap.values()).flatMap(d => d.dates.map(ds => new Date(ds)));
+
               hostGpsMap.forEach((data, addr) => {
                 let lat: number | null = null;
                 let lon: number | null = null;
@@ -4952,7 +4970,7 @@ const AttendanceRecords = () => {
                     lat,
                     lon,
                     count: data.dates.length,
-                    dates: data.dates.sort().map(d => format(new Date(d), 'MMM dd')),
+                    dates: data.dates.sort().map(d => smartDateFormat(new Date(d), allLocRawDates)),
                   });
                 }
               });
@@ -5015,7 +5033,7 @@ const AttendanceRecords = () => {
                   </button>
 
                   <div id="location-map-body">
-                    {/* Location Map Embed */}
+                    {/* Location Map Embed — includes location selector, map, details, Google Maps & Directions links */}
                     <LocationMap
                       locations={locationPoints}
                       showEmbed={true}
@@ -5023,50 +5041,8 @@ const AttendanceRecords = () => {
                       zoom={13}
                     />
 
-                    {/* Quick Navigation Grid */}
-                    <div className="p-3 border-t dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50">
-                      <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wider">{t.locationSummary}</p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                        {locationPoints.map((loc, idx) => (
-                          <div key={idx} className="bg-white dark:bg-gray-800 rounded-lg p-2.5 border border-gray-200 dark:border-gray-600 flex items-start justify-between gap-2">
-                            <div className="min-w-0 flex-1">
-                              <p className="text-xs font-medium dark:text-white truncate" title={loc.label}>📍 {loc.label}</p>
-                              <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
-                                {loc.count} session{loc.count > 1 ? 's' : ''} • {loc.lat.toFixed(4)}°, {loc.lon.toFixed(4)}°
-                              </p>
-                            </div>
-                            <div className="flex gap-1 flex-shrink-0">
-                              <a
-                                href={`https://www.google.com/maps/search/?api=1&query=${loc.lat},${loc.lon}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-1 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50"
-                                title={t.viewOnMap}
-                              >
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                              </a>
-                              <a
-                                href={`https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lon}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-1 rounded bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50"
-                                title={t.getDirections}
-                              >
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                                </svg>
-                              </a>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
                       {/* Distance is shown inside LocationMap's built-in distance matrix toggle */}
                     </div>
-                  </div>
                 </>
               );
             })()}

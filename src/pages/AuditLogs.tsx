@@ -16,21 +16,32 @@ import { toast } from '../components/ui/toastUtils';
 
 /** Turn a table + operation + data into a human-readable sentence */
 const describeAction = (log: AuditLogEntry): string => {
-  const data = (log.old_data || log.new_data || {}) as Record<string, unknown>;
+  // For UPDATEs, prefer new_data for current state, fall back to old_data
+  const newData = (log.new_data || {}) as Record<string, unknown>;
+  const oldData = (log.old_data || {}) as Record<string, unknown>;
+  const data = { ...oldData, ...newData };
   const name = data.name || data.course_name || data.student_name || data.teacher_name || data.title || '';
   const entity = log.table_name.charAt(0).toUpperCase() + log.table_name.slice(1);
   const article = /^[aeiou]/i.test(log.table_name) ? 'An' : 'A';
 
   // Attendance-specific descriptions
   if (log.table_name === 'attendance') {
-    const status = (data.status as string) || '';
+    const status = (newData.status as string) || (oldData.status as string) || '';
     const method = (data.check_in_method as string) || '';
     const date = (data.attendance_date as string) || '';
     const datePart = date ? ` on ${date}` : '';
     const methodPart = method ? ` (${method})` : '';
     switch (log.operation) {
-      case 'INSERT': return `Attendance marked as ${status || 'present'}${datePart}${methodPart}`;
-      case 'UPDATE': return `Attendance updated to ${status || '?'}${datePart}`;
+      case 'INSERT': return `Attendance marked as ${status || 'recorded'}${datePart}${methodPart}`;
+      case 'UPDATE': {
+        // Describe what actually changed instead of just "updated to status"
+        const changes = getChangedFields(log.old_data, log.new_data).filter(c => !NOISE_FIELDS.has(c.key));
+        const changedKeys = changes.map(c => c.key.replace(/_/g, ' '));
+        if (changedKeys.length > 0) {
+          return `${changedKeys.join(', ')} updated${status ? ` (${status})` : ''}${datePart}`;
+        }
+        return `Attendance updated${status ? ` (${status})` : ''}${datePart}`;
+      }
       case 'DELETE': return `Attendance record${status ? ` (${status})` : ''} deleted${datePart}`;
     }
   }
@@ -66,7 +77,7 @@ const getChangedFields = (
 };
 
 const formatValue = (val: unknown): string => {
-  if (val === null || val === undefined) return '(empty)';
+  if (val === null || val === undefined) return '–';
   if (typeof val === 'object') return JSON.stringify(val);
   return String(val);
 };
