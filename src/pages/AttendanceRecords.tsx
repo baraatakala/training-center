@@ -232,6 +232,7 @@ const AttendanceRecords = () => {
 
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<AttendanceRecord[]>([]);
+  const [hostCoordinates, setHostCoordinates] = useState<Map<string, { lat: number; lon: number }>>(new Map());
   const [loading, setLoading] = useState(false);
   const [exportingWord, setExportingWord] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
@@ -637,7 +638,7 @@ const AttendanceRecords = () => {
         sessionDatePairs.length > 0
           ? supabase
               .from('session_date_host')
-              .select('session_id, attendance_date, host_address')
+              .select('session_id, attendance_date, host_address, host_latitude, host_longitude')
           : Promise.resolve({ data: null, error: null })
       ]);
 
@@ -667,10 +668,15 @@ const AttendanceRecords = () => {
         });
       }
 
+      const hostCoordsMap = new Map<string, { lat: number; lon: number }>();
+
       if (hostRes.data) {
-        hostRes.data.forEach((h: { session_id: string; attendance_date: string; host_address: string }) => {
+        hostRes.data.forEach((h: { session_id: string; attendance_date: string; host_address: string; host_latitude?: number | null; host_longitude?: number | null }) => {
           const key = `${h.session_id}|${h.attendance_date}`;
           hostAddressMap.set(key, h.host_address);
+          if (h.host_latitude && h.host_longitude) {
+            hostCoordsMap.set(h.host_address, { lat: h.host_latitude, lon: h.host_longitude });
+          }
         });
       }
 
@@ -732,10 +738,12 @@ const AttendanceRecords = () => {
       });
 
       setRecords(formattedRecords);
+      setHostCoordinates(hostCoordsMap);
     } catch (error) {
       console.error('Error loading records:', error);
       showError('Failed to load attendance records. Please try again.');
       setRecords([]);
+      setHostCoordinates(new Map());
     }
     setLoading(false);
   };
@@ -4968,12 +4976,19 @@ const AttendanceRecords = () => {
                 let lat: number | null = null;
                 let lon: number | null = null;
 
-                // Average GPS from attendance records at this host
-                if (data.lats.length > 0) {
+                // Priority 1: Teacher-set GPS from session_date_host table
+                const teacherCoords = hostCoordinates.get(addr);
+                if (teacherCoords) {
+                  lat = teacherCoords.lat;
+                  lon = teacherCoords.lon;
+                }
+                // Priority 2: Average GPS from student check-in records
+                else if (data.lats.length > 0) {
                   lat = data.lats.reduce((s, v) => s + v, 0) / data.lats.length;
                   lon = data.lons.reduce((s, v) => s + v, 0) / data.lons.length;
-                } else {
-                  // Try to parse from address string (if it contains coordinates)
+                }
+                // Priority 3: Try to parse from address string
+                else {
                   const parsed = parseCoordinates(addr);
                   if (parsed) {
                     lat = parsed.lat;
