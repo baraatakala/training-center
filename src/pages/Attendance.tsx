@@ -807,15 +807,26 @@ export function Attendance() {
       
       setSelectedAddress(value);
       
-      // Update coordinates from the suggested host
-      if (plannedHost.address_latitude && plannedHost.address_longitude) {
-        setHostCoordinates({
-          lat: plannedHost.address_latitude,
-          lon: plannedHost.address_longitude
-        });
-      } else {
-        setHostCoordinates(null);
-      }
+      // Fetch fresh coordinates from student/teacher table
+      (async () => {
+        const table = plannedHost.is_teacher ? Tables.TEACHER : Tables.STUDENT;
+        const idField = plannedHost.is_teacher ? 'teacher_id' : 'student_id';
+        const { data: coordData } = await supabase
+          .from(table)
+          .select('address_latitude, address_longitude')
+          .eq(idField, plannedHost.student_id)
+          .single();
+        if (coordData?.address_latitude && coordData?.address_longitude) {
+          const lat = Number(coordData.address_latitude);
+          const lon = Number(coordData.address_longitude);
+          setHostCoordinates({ lat, lon });
+          setHostAddresses(prev => prev.map(h =>
+            h.student_id === plannedHost.student_id ? { ...h, address_latitude: lat, address_longitude: lon } : h
+          ));
+        } else {
+          setHostCoordinates(null);
+        }
+      })();
     }
   }, [selectedDate, hostAddresses, selectedAddress, sessionNotHeld, sessionId]);
 
@@ -882,12 +893,27 @@ export function Attendance() {
     const hostInfo = hostAddresses.find(h => h.student_id === hostId);
     const hostType = hostInfo?.student_name?.includes('Teacher') ? 'teacher' : 'student';
     
-    // Load coordinates from the selected host (student/teacher table)
-    if (hostInfo?.address_latitude && hostInfo?.address_longitude) {
-      setHostCoordinates({
-        lat: hostInfo.address_latitude,
-        lon: hostInfo.address_longitude
-      });
+    // Always fetch fresh coordinates from student/teacher table (not cached hostAddresses state)
+    if (hostId) {
+      const isTeacher = hostType === 'teacher';
+      const table = isTeacher ? Tables.TEACHER : Tables.STUDENT;
+      const idField = isTeacher ? 'teacher_id' : 'student_id';
+      const { data: coordData } = await supabase
+        .from(table)
+        .select('address_latitude, address_longitude')
+        .eq(idField, hostId)
+        .single();
+      if (coordData?.address_latitude && coordData?.address_longitude) {
+        const lat = Number(coordData.address_latitude);
+        const lon = Number(coordData.address_longitude);
+        setHostCoordinates({ lat, lon });
+        // Sync local hostAddresses state
+        setHostAddresses(prev => prev.map(h =>
+          h.student_id === hostId ? { ...h, address_latitude: lat, address_longitude: lon } : h
+        ));
+      } else {
+        setHostCoordinates(null);
+      }
     } else {
       setHostCoordinates(null);
     }
