@@ -56,6 +56,7 @@ export interface CourseBookReference {
   start_page: number;
   end_page: number;
   display_order: number;
+  parent_id: string | null;
   created_at: string;
   updated_at: string;
 }

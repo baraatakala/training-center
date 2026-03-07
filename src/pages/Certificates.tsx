@@ -418,8 +418,12 @@ function TemplatesList({
               </div>
 
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-500 dark:text-gray-400">
-                <div>Min Score: <strong>{tmpl.min_score}%</strong></div>
-                <div>Min Attendance: <strong>{tmpl.min_attendance}%</strong></div>
+                <div className={tmpl.min_score > 0 ? 'text-blue-600 dark:text-blue-400 font-medium' : ''}>
+                  Min Score: <strong>{tmpl.min_score > 0 ? `${tmpl.min_score}%` : 'None'}</strong>
+                </div>
+                <div className={tmpl.min_attendance > 0 ? 'text-blue-600 dark:text-blue-400 font-medium' : ''}>
+                  Min Attendance: <strong>{tmpl.min_attendance > 0 ? `${tmpl.min_attendance}%` : 'None'}</strong>
+                </div>
                 <div>Style: <strong>{(tmpl.style_config as StyleConfig)?.border_style || '—'}</strong></div>
                 <div>Type: <strong>{typeObj?.label || tmpl.template_type}</strong></div>
               </div>
@@ -673,24 +677,32 @@ function TemplateModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Min Score (%)</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Min Score (%)
+                <span className="block text-[10px] text-gray-400 font-normal">Students below this are warned on issuance</span>
+              </label>
               <input
                 type="number"
                 value={minScore}
                 onChange={e => setMinScore(Number(e.target.value))}
                 min={0}
                 max={100}
+                placeholder="0 = no minimum"
                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Min Attendance (%)</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Min Attendance (%)
+                <span className="block text-[10px] text-gray-400 font-normal">Students below this are warned on issuance</span>
+              </label>
               <input
                 type="number"
                 value={minAttendance}
                 onChange={e => setMinAttendance(Number(e.target.value))}
                 min={0}
                 max={100}
+                placeholder="0 = no minimum"
                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
               />
             </div>
@@ -816,6 +828,7 @@ function IssueModal({
   const [attendance, setAttendance] = useState(0);
   const [issuing, setIssuing] = useState(false);
   const [loadingStats, setLoadingStats] = useState(false);
+  const [belowThresholdAcknowledged, setBelowThresholdAcknowledged] = useState(false);
 
   // Loaded data
   const [teachers, setTeachers] = useState<Array<{ teacher_id: string; name: string }>>([]);
@@ -986,10 +999,34 @@ function IssueModal({
     fetchStats();
   }, [studentId, courseId, teacherId, sessionId]);
 
+  // Reset threshold acknowledgment when key form values change
+  useEffect(() => {
+    setBelowThresholdAcknowledged(false);
+  }, [templateId, studentId, score, attendance]);
+
+  // Computed: selected template and threshold status
+  const selectedTemplate = templates.find(t => t.template_id === templateId);
+  const belowMinScore = selectedTemplate && selectedTemplate.min_score > 0 && score < selectedTemplate.min_score;
+  const belowMinAttendance = selectedTemplate && selectedTemplate.min_attendance > 0 && attendance < selectedTemplate.min_attendance;
+  const hasThresholdWarning = !!(belowMinScore || belowMinAttendance);
+
   const handleIssue = async () => {
     if (!templateId || !studentId) {
       toast.error('Select a template and student');
       return;
+    }
+    // Threshold check — warn but allow override
+    const selectedTemplate = templates.find(t => t.template_id === templateId);
+    if (selectedTemplate && !belowThresholdAcknowledged) {
+      const belowScore = selectedTemplate.min_score > 0 && score < selectedTemplate.min_score;
+      const belowAttendance = selectedTemplate.min_attendance > 0 && attendance < selectedTemplate.min_attendance;
+      if (belowScore || belowAttendance) {
+        setBelowThresholdAcknowledged(true);
+        toast.warning(
+          `Student does not meet template requirements (${belowScore ? `Score: ${score}% < ${selectedTemplate.min_score}%` : ''}${belowScore && belowAttendance ? ', ' : ''}${belowAttendance ? `Attendance: ${attendance}% < ${selectedTemplate.min_attendance}%` : ''}). Click "Issue Anyway" to confirm.`
+        );
+        return;
+      }
     }
     setIssuing(true);
     try {
@@ -1110,9 +1147,12 @@ function IssueModal({
               min={0}
               max={100}
               step={0.1}
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
+              className={`w-full px-3 py-2 rounded-lg border text-sm ${belowMinScore ? 'border-red-400 bg-red-50 dark:bg-red-900/20 dark:border-red-600' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800'}`}
             />
-            {studentId && courseId && !loadingStats && <p className="text-xs text-gray-400 mt-1">Auto-filled from attendance records</p>}
+            {belowMinScore && (
+              <p className="text-xs text-red-500 mt-1 font-medium">⚠ Below minimum {selectedTemplate!.min_score}%</p>
+            )}
+            {studentId && courseId && !loadingStats && !belowMinScore && <p className="text-xs text-gray-400 mt-1">Auto-filled from attendance records</p>}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1125,15 +1165,41 @@ function IssueModal({
               min={0}
               max={100}
               step={0.1}
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
+              className={`w-full px-3 py-2 rounded-lg border text-sm ${belowMinAttendance ? 'border-red-400 bg-red-50 dark:bg-red-900/20 dark:border-red-600' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800'}`}
             />
+            {belowMinAttendance && (
+              <p className="text-xs text-red-500 mt-1 font-medium">⚠ Below minimum {selectedTemplate!.min_attendance}%</p>
+            )}
           </div>
         </div>
 
+        {/* Threshold requirements indicator */}
+        {selectedTemplate && (selectedTemplate.min_score > 0 || selectedTemplate.min_attendance > 0) && (
+          <div className={`p-3 rounded-lg border text-xs ${
+            hasThresholdWarning
+              ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200'
+              : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200'
+          }`}>
+            <div className="font-semibold mb-1">{hasThresholdWarning ? '⚠ Template Requirements Not Met' : '✅ Template Requirements Met'}</div>
+            <div className="flex gap-4">
+              {selectedTemplate.min_score > 0 && (
+                <span>Score: <strong>{score}%</strong> / {selectedTemplate.min_score}% min {score >= selectedTemplate.min_score ? '✓' : '✗'}</span>
+              )}
+              {selectedTemplate.min_attendance > 0 && (
+                <span>Attendance: <strong>{attendance}%</strong> / {selectedTemplate.min_attendance}% min {attendance >= selectedTemplate.min_attendance ? '✓' : '✗'}</span>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleIssue} disabled={issuing || !templateId || !studentId}>
-            {issuing ? 'Issuing...' : '🎓 Issue Certificate'}
+          <Button
+            onClick={handleIssue}
+            disabled={issuing || !templateId || !studentId}
+            className={hasThresholdWarning && !belowThresholdAcknowledged ? '' : hasThresholdWarning && belowThresholdAcknowledged ? 'bg-amber-600 hover:bg-amber-700' : ''}
+          >
+            {issuing ? 'Issuing...' : hasThresholdWarning && !belowThresholdAcknowledged ? '⚠ Check Requirements' : hasThresholdWarning && belowThresholdAcknowledged ? '⚠ Issue Anyway' : '🎓 Issue Certificate'}
           </Button>
         </div>
       </div>

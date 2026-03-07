@@ -269,9 +269,61 @@ const AttendanceRecords = () => {
   }, [includedTables]);
 
   // Matrix date selection — which dates to include in the cross-tab matrix (all exports + UI)
-  // null means "all dates" (default), otherwise a Set of selected date strings
-  const [matrixSelectedDates, setMatrixSelectedDates] = useState<Set<string> | null>(null);
+  // null means "all dates" (default), otherwise a Set of selected date strings — persisted in localStorage
+  const [matrixSelectedDates, setMatrixSelectedDates] = useState<Set<string> | null>(() => {
+    try {
+      const saved = localStorage.getItem('matrixSelectedDates');
+      if (saved) {
+        const arr = JSON.parse(saved) as string[] | null;
+        return arr ? new Set(arr) : null;
+      }
+    } catch { /* ignore */ }
+    return null;
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('matrixSelectedDates', JSON.stringify(matrixSelectedDates ? [...matrixSelectedDates] : null));
+    } catch { /* ignore */ }
+  }, [matrixSelectedDates]);
   const [showMatrixDatePicker, setShowMatrixDatePicker] = useState(false);
+
+  // Matrix sorting — persisted in localStorage
+  type MatrixSortField = 'name' | 'score' | 'attendance' | 'present' | 'absent' | 'late';
+  type MatrixSortDir = 'asc' | 'desc';
+  const [matrixSortField, setMatrixSortField] = useState<MatrixSortField>(() => {
+    try {
+      const saved = localStorage.getItem('matrixSortField');
+      if (saved && ['name', 'score', 'attendance', 'present', 'absent', 'late'].includes(saved)) return saved as MatrixSortField;
+    } catch { /* ignore */ }
+    return 'score';
+  });
+  const [matrixSortDir, setMatrixSortDir] = useState<MatrixSortDir>(() => {
+    try {
+      const saved = localStorage.getItem('matrixSortDir');
+      if (saved === 'asc' || saved === 'desc') return saved;
+    } catch { /* ignore */ }
+    return 'desc';
+  });
+  useEffect(() => {
+    localStorage.setItem('matrixSortField', matrixSortField);
+    localStorage.setItem('matrixSortDir', matrixSortDir);
+  }, [matrixSortField, matrixSortDir]);
+
+  // Helper: sort students using matrix sort settings (used in both UI and exports)
+  const sortStudentsForMatrix = <T extends { student_name: string; weightedScore: number; attendanceRate: number; presentCount: number; lateCount: number; absentCount: number }>(arr: T[]): T[] =>
+    [...arr].sort((a, b) => {
+      let cmp = 0;
+      switch (matrixSortField) {
+        case 'name': cmp = a.student_name.localeCompare(b.student_name, 'ar'); break;
+        case 'score': cmp = a.weightedScore - b.weightedScore; break;
+        case 'attendance': cmp = a.attendanceRate - b.attendanceRate; break;
+        case 'present': cmp = (a.presentCount + a.lateCount) - (b.presentCount + b.lateCount); break;
+        case 'absent': cmp = a.absentCount - b.absentCount; break;
+        case 'late': cmp = a.lateCount - b.lateCount; break;
+        default: cmp = a.weightedScore - b.weightedScore;
+      }
+      return matrixSortDir === 'asc' ? cmp : -cmp;
+    });
 
   const [scoreExplainerStudent, setScoreExplainerStudent] = useState<string>('');
   const [scoreExplainerLang, setScoreExplainerLang] = useState<'en' | 'ar' | 'both'>('both');
@@ -1717,7 +1769,7 @@ const AttendanceRecords = () => {
 
     // Sheet 5: Cross-Tab Heatmap (Student × Date matrix)
     if (includedTables.crosstab) {
-      const sortedStudents = [...studentAnalytics].sort((a, b) => b.weightedScore - a.weightedScore);
+      const sortedStudents = sortStudentsForMatrix(studentAnalytics);
       const allSortedDates = [...dateAnalytics].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       const sortedDates = matrixSelectedDates
         ? allSortedDates.filter(d => matrixSelectedDates.has(d.date))
@@ -1954,7 +2006,7 @@ const AttendanceRecords = () => {
 
     // Section 4: Cross-Tab Matrix
     if (includedTables.crosstab) {
-      const sortedStudents = [...studentAnalytics].sort((a, b) => b.weightedScore - a.weightedScore);
+      const sortedStudents = sortStudentsForMatrix(studentAnalytics);
       const allSortedDates = [...dateAnalytics].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       const sortedDates = matrixSelectedDates
         ? allSortedDates.filter(d => matrixSelectedDates.has(d.date))
@@ -2390,7 +2442,7 @@ const AttendanceRecords = () => {
     // Cross-Tab Matrix (Student × Date) for PDF — Smart Auto-Builder
     // Automatically handles any number of dates/students with orientation & pagination
     if (includedTables.crosstab && studentAnalytics.length > 0 && dateAnalytics.length > 0) {
-      const sortedStudents = [...studentAnalytics].sort((a, b) => b.weightedScore - a.weightedScore);
+      const sortedStudents = sortStudentsForMatrix(studentAnalytics);
       const allSortedDates = [...dateAnalytics].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       // Apply date selection filter
       const sortedDates = matrixSelectedDates
@@ -2847,7 +2899,7 @@ const AttendanceRecords = () => {
     // Build cross-tab matrix data for Word export
     let crosstabForWord: { headers: string[]; rows: string[][] } | undefined;
     if (includedTables.crosstab && studentAnalytics.length > 0 && dateAnalytics.length > 0) {
-      const sortedStudents = [...studentAnalytics].sort((a, b) => b.weightedScore - a.weightedScore);
+      const sortedStudents = sortStudentsForMatrix(studentAnalytics);
       const allSortedDates = [...dateAnalytics].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       const sortedDates = matrixSelectedDates
         ? allSortedDates.filter(d => matrixSelectedDates.has(d.date))
@@ -5168,7 +5220,18 @@ const AttendanceRecords = () => {
                   const sortedDates = matrixSelectedDates
                     ? allSortedDates.filter(d => matrixSelectedDates.has(d.date))
                     : allSortedDates;
-                  const sortedStudents = [...studentAnalytics].sort((a, b) => b.weightedScore - a.weightedScore);
+                  const sortedStudents = sortStudentsForMatrix(studentAnalytics);
+
+                  const handleMatrixSort = (field: MatrixSortField) => {
+                    if (matrixSortField === field) {
+                      setMatrixSortDir(d => d === 'asc' ? 'desc' : 'asc');
+                    } else {
+                      setMatrixSortField(field);
+                      setMatrixSortDir(field === 'name' ? 'asc' : 'desc');
+                    }
+                  };
+                  const sortIndicator = (field: MatrixSortField) =>
+                    matrixSortField === field ? (matrixSortDir === 'asc' ? ' ▲' : ' ▼') : '';
 
                   if (sortedDates.length === 0 || sortedStudents.length === 0) {
                     return (
@@ -5203,6 +5266,30 @@ const AttendanceRecords = () => {
 
                   return (
                     <>
+                      {/* Sort controls bar */}
+                      <div className="flex flex-wrap items-center gap-2 px-4 py-2 bg-violet-50 dark:bg-violet-900/20 border-b dark:border-gray-700 text-[10px]">
+                        <span className="text-[10px] font-semibold text-violet-700 dark:text-violet-300 mr-1">Sort by:</span>
+                        {([
+                          ['name', '🔤 Name'],
+                          ['score', '🏆 Score'],
+                          ['attendance', '📊 Attendance'],
+                          ['present', '✓ Present'],
+                          ['late', '⏰ Late'],
+                          ['absent', '✗ Absent'],
+                        ] as [MatrixSortField, string][]).map(([field, label]) => (
+                          <button
+                            key={field}
+                            onClick={() => handleMatrixSort(field)}
+                            className={`px-2 py-0.5 rounded border transition-colors ${
+                              matrixSortField === field
+                                ? 'bg-violet-600 text-white border-violet-600 font-bold'
+                                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-violet-100 dark:hover:bg-violet-900/40'
+                            }`}
+                          >
+                            {label}{sortIndicator(field)}
+                          </button>
+                        ))}
+                      </div>
                       {/* Legend */}
                       <div className="flex flex-wrap gap-2 px-4 py-2 bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700 text-[10px]">
                         <span className="flex items-center gap-1 text-gray-700 dark:text-gray-300"><span className="w-3 h-3 rounded bg-emerald-100 dark:bg-emerald-900/50 border border-emerald-300 dark:border-emerald-700"></span>On Time</span>
@@ -5217,8 +5304,12 @@ const AttendanceRecords = () => {
                       <table className="min-w-full border-collapse">
                         <thead className="sticky top-0 z-10">
                           <tr className="bg-gray-50 dark:bg-gray-700">
-                            <th className="sticky left-0 z-20 bg-gray-50 dark:bg-gray-700 px-3 py-2 text-left text-xs font-medium text-gray-600 dark:text-gray-300 border-b border-r dark:border-gray-600 min-w-[140px]">
-                              Student
+                            <th
+                              className="sticky left-0 z-20 bg-gray-50 dark:bg-gray-700 px-3 py-2 text-left text-xs font-medium text-gray-600 dark:text-gray-300 border-b border-r dark:border-gray-600 min-w-[140px] cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 select-none"
+                              onClick={() => handleMatrixSort('name')}
+                              title="Sort by student name"
+                            >
+                              Student{sortIndicator('name')}
                             </th>
                             {sortedDates.map(d => {
                               const dateObj = new Date(d.date);
@@ -5229,8 +5320,12 @@ const AttendanceRecords = () => {
                                 </th>
                               );
                             })}
-                            <th className="px-3 py-2 text-center text-xs font-medium text-gray-600 dark:text-gray-300 border-b border-l dark:border-gray-600 min-w-[50px]">
-                              Rate
+                            <th
+                              className="px-3 py-2 text-center text-xs font-medium text-gray-600 dark:text-gray-300 border-b border-l dark:border-gray-600 min-w-[50px] cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 select-none"
+                              onClick={() => handleMatrixSort('attendance')}
+                              title="Sort by attendance rate"
+                            >
+                              Rate{sortIndicator('attendance')}
                             </th>
                           </tr>
                         </thead>

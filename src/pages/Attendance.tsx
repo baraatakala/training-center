@@ -128,7 +128,7 @@ export function Attendance() {
   const [showQRModal, setShowQRModal] = useState<boolean>(false);
   const [showPhotoModal, setShowPhotoModal] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
-  const [bookReferences, setBookReferences] = useState<Array<{ reference_id: string; topic: string; start_page: number; end_page: number }>>([]);
+  const [bookReferences, setBookReferences] = useState<Array<{ reference_id: string; topic: string; start_page: number; end_page: number; parent_id: string | null }>>([]);
   const [selectedBookReference, setSelectedBookReference] = useState<string>('');
   const [editingLateMinutes, setEditingLateMinutes] = useState<string | null>(null);
   const [lateMinutesInput, setLateMinutesInput] = useState<string>('');
@@ -249,7 +249,7 @@ export function Attendance() {
       if (data.course && !Array.isArray(data.course)) {
         const { data: references } = await supabase
           .from(Tables.COURSE_BOOK_REFERENCE)
-          .select('reference_id, topic, start_page, end_page')
+          .select('reference_id, topic, start_page, end_page, parent_id')
           .eq('course_id', data.course.course_id)
           .order('start_page', { ascending: true });
         
@@ -1817,10 +1817,23 @@ export function Attendance() {
               onChange={handleBookReferenceChange}
               options={[
                 { value: '', label: 'Select what topic was covered today...' },
-                ...bookReferences.map(ref => ({
-                  value: ref.reference_id,
-                  label: `${ref.topic} (Pages ${ref.start_page}-${ref.end_page})`
-                }))
+                ...(() => {
+                  const chapters = bookReferences.filter(r => !r.parent_id);
+                  const opts: Array<{ value: string; label: string }> = [];
+                  chapters.forEach(ch => {
+                    opts.push({ value: ch.reference_id, label: `📖 ${ch.topic} (pp. ${ch.start_page}–${ch.end_page})` });
+                    const subs = bookReferences.filter(r => r.parent_id === ch.reference_id);
+                    subs.forEach(sub => {
+                      opts.push({ value: sub.reference_id, label: `    ↳ ${sub.topic} (pp. ${sub.start_page}–${sub.end_page})` });
+                    });
+                  });
+                  // Include any orphans (parent_id set but parent not found) - shouldn't happen but safe
+                  const chapterIds = new Set(chapters.map(c => c.reference_id));
+                  bookReferences.filter(r => r.parent_id && !chapterIds.has(r.parent_id)).forEach(orphan => {
+                    opts.push({ value: orphan.reference_id, label: `${orphan.topic} (pp. ${orphan.start_page}–${orphan.end_page})` });
+                  });
+                  return opts;
+                })()
               ]}
               placeholder="Select book reference"
             />
