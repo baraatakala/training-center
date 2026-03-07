@@ -58,6 +58,7 @@ export interface IssuedCertificate {
   template?: CertificateTemplate;
   student?: { student_id: string; name: string; email: string };
   session?: { session_id: string; course?: { course_name: string }; teacher?: { name: string } };
+  course?: { course_id: string; course_name: string };
 }
 
 export interface CreateCertificateTemplate {
@@ -208,7 +209,8 @@ class CertificateService {
           session_id,
           course:course_id(course_name),
           teacher:teacher_id(name)
-        )
+        ),
+        course:course_id(course_id, course_name)
       `)
       .order('created_at', { ascending: false });
 
@@ -226,13 +228,14 @@ class CertificateService {
       .from('issued_certificate')
       .select(`
         *,
-        template:template_id(name, template_type, style_config),
-        student:student_id(name, email),
+        template:template_id(*),
+        student:student_id(student_id, name, email),
         session:session_id(
           session_id,
           course:course_id(course_name),
           teacher:teacher_id(name)
-        )
+        ),
+        course:course_id(course_id, course_name)
       `)
       .eq('verification_code', code.toUpperCase())
       .single();

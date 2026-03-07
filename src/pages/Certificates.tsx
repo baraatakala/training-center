@@ -299,6 +299,7 @@ function CertificatesList({
     return certificates.filter(c =>
       c.student?.name?.toLowerCase().includes(term) ||
       c.certificate_number.toLowerCase().includes(term) ||
+      c.course?.course_name?.toLowerCase().includes(term) ||
       c.session?.course?.course_name?.toLowerCase().includes(term)
     );
   }, [certificates, search]);
@@ -343,7 +344,7 @@ function CertificatesList({
                     {cert.student?.name || 'Unknown Student'}
                   </h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    {cert.session?.course?.course_name || 'Unknown Course'}
+                    {cert.course?.course_name || cert.session?.course?.course_name || 'Unknown Course'}
                     {cert.issued_at && ` · Issued ${format(parseISO(cert.issued_at), 'MMM d, yyyy')}`}
                   </p>
                   <div className="mt-1.5 flex items-center gap-3 text-xs text-gray-400">
@@ -497,7 +498,7 @@ function VerifyTab({
               </div>
               <div>
                 <span className="text-xs text-gray-400">Course</span>
-                <p className="font-medium text-gray-900 dark:text-white">{result.session?.course?.course_name || '—'}</p>
+                <p className="font-medium text-gray-900 dark:text-white">{result.course?.course_name || result.session?.course?.course_name || '—'}</p>
               </div>
               <div>
                 <span className="text-xs text-gray-400">Certificate #</span>
@@ -590,7 +591,7 @@ function TemplateModal({
       };
 
       const { error } = isEditing
-        ? await certificateService.updateTemplate(template!.template_id, { ...payload, ...(isActive !== template!.is_active ? {} : {}) })
+        ? await certificateService.updateTemplate(template!.template_id, { ...payload, is_active: isActive } as Parameters<typeof certificateService.updateTemplate>[1])
         : await certificateService.createTemplate(payload);
 
       if (error) {
@@ -1231,6 +1232,26 @@ function CertificatePreview({
     orientation: 'landscape',
   };
 
+  // Re-resolve the body if it still contains unresolved {{...}} placeholders
+  // This fixes cases where the stored resolved_body has issues
+  const courseName = certificate.course?.course_name || certificate.session?.course?.course_name || '';
+  const teacherName = certificate.session?.teacher?.name || '';
+  const displayBody = certificate.resolved_body
+    ? resolveTemplate(certificate.resolved_body, {
+        name: certificate.student?.name,
+        course: courseName,
+        date: certificate.issued_at
+          ? new Date(certificate.issued_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+          : undefined,
+        score: certificate.final_score ?? undefined,
+        attendance: certificate.attendance_rate ?? undefined,
+        teacher: teacherName,
+      })
+    : '(No content)';
+
+  const signerName = tmpl?.signature_name || '—';
+  const signerTitle = tmpl?.signature_title || '';
+
   const handlePrint = () => {
     // Create a printable window with the certificate
     const printWindow = window.open('', '_blank');
@@ -1284,11 +1305,11 @@ function CertificatePreview({
             <span style="color: ${style.accent_color};">✦</span>
             <div class="divider-line"></div>
           </div>
-          <div class="body">${certificate.resolved_body || ''}</div>
+          <div class="body">${displayBody}</div>
           <div class="meta">${certificate.issued_at ? new Date(certificate.issued_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : ''}</div>
           <div class="sig">
-            <div class="sig-name">${tmpl?.signature_name || ''}</div>
-            <div class="sig-title">${tmpl?.signature_title || ''}</div>
+            <div class="sig-name">${signerName}</div>
+            <div class="sig-title">${signerTitle}</div>
           </div>
           <div class="verify">Certificate #${certificate.certificate_number} · Verify: ${certificate.verification_code}</div>
         </div>
@@ -1304,9 +1325,9 @@ function CertificatePreview({
       <div className="space-y-4">
         <CertificatePreviewCard
           style={style}
-          body={certificate.resolved_body || '(No content)'}
-          signatureName={tmpl?.signature_name || ''}
-          signatureTitle={tmpl?.signature_title || ''}
+          body={displayBody}
+          signatureName={signerName}
+          signatureTitle={signerTitle}
           templateType={tmpl?.template_type || 'completion'}
         />
 
