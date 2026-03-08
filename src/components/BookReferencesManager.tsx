@@ -297,7 +297,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
   /** Parse OCR text into chapter entries — detects Arabic/English lines with page numbers */
   const parseOcrText = (text: string): Array<{ topic: string; startPage: number; endPage: number }> => {
     console.log('[OCR] Raw text output:\n', text);
-    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    const rawLines = text.split('\n').map(l => l.trim()).filter(Boolean);
     const entries: Array<{ topic: string; startPage: number; endPage: number }> = [];
 
     /** Normalize Arabic-Indic numerals (٠١٢٣٤٥٦٧٨٩) and Persian variants to Western digits */
@@ -305,13 +305,70 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
       s.replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
        .replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
 
-    for (const rawLine of lines) {
+    /** Check if a line is purely numeric (page number or range) */
+    const isNumericLine = (line: string) => /^[\d\s\-–—.,]+$/.test(normalizeDigits(line).replace(/[.…·_]/g, ''));
+
+    // ========== Strategy A: Detect split-column output (RTL pages) ==========
+    // Arabic OCR often reads numbers column first, then text column separately.
+    // Detect: first N lines are numbers, remaining M lines are text, and N ~= M
+    const numberLines: string[] = [];
+    const textLines: string[] = [];
+    let splitPoint = -1;
+    let seenText = false;
+
+    for (let i = 0; i < rawLines.length; i++) {
+      const norm = normalizeDigits(rawLines[i]);
+      if (!seenText && isNumericLine(rawLines[i])) {
+        numberLines.push(norm);
+      } else {
+        if (!seenText) splitPoint = i;
+        seenText = true;
+        textLines.push(rawLines[i]);
+      }
+    }
+
+    console.log('[OCR] Split analysis:', { numberLines: numberLines.length, textLines: textLines.length, splitPoint });
+
+    // If the columns split roughly matches (allow some tolerance), pair them
+    if (numberLines.length >= 3 && textLines.length >= 3 &&
+        Math.abs(numberLines.length - textLines.length) <= Math.max(3, Math.round(numberLines.length * 0.3))) {
+      console.log('[OCR] Detected split-column format — pairing numbers with topics');
+      const count = Math.min(numberLines.length, textLines.length);
+      for (let i = 0; i < count; i++) {
+        const numStr = numberLines[i].replace(/[.…·_\s]/g, '');
+        const topic = textLines[i].replace(/[.…·_]+$/, '').replace(/^[.…·_]+/, '').trim();
+        if (!topic || topic.length < 2) continue;
+
+        // Parse page: could be "15", "15-22", etc.
+        const rangeMatch = numStr.match(/^(\d+)\s*[-–—]\s*(\d+)$/);
+        if (rangeMatch) {
+          entries.push({ topic, startPage: parseInt(rangeMatch[1]), endPage: parseInt(rangeMatch[2]) });
+        } else {
+          const page = parseInt(numStr);
+          if (!isNaN(page) && page > 0) {
+            entries.push({ topic, startPage: page, endPage: page });
+          }
+        }
+      }
+
+      // Post-process: fill end pages
+      for (let i = 0; i < entries.length; i++) {
+        if (entries[i].startPage === entries[i].endPage && i < entries.length - 1) {
+          entries[i].endPage = Math.max(entries[i].startPage, entries[i + 1].startPage - 1);
+        }
+      }
+      console.log('[OCR] Paired entries:', entries);
+      return entries;
+    }
+
+    // ========== Strategy B: Same-line matching (topic + page on each line) ==========
+    for (const rawLine of rawLines) {
       const line = normalizeDigits(rawLine);
 
-      // Skip very short lines or pure dot/dash lines
+      // Skip very short lines or pure dot/dash/number lines
       if (line.replace(/[.…·\-_\s\d]/g, '').length < 2) continue;
 
-      // --- Pattern 1: range at end  "Topic ... 15-20" or "Topic ... 15 - 20" ---
+      // --- Pattern 1: range at end  "Topic ... 15-20" ---
       const endRangeMatch = line.match(/^(.+?)\s*[.…·_\s]{2,}\s*(\d+)\s*[-–—]\s*(\d+)\s*$/);
       if (endRangeMatch) {
         const topic = endRangeMatch[1].replace(/[.…·_]+$/, '').trim();
@@ -321,7 +378,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
         }
       }
 
-      // --- Pattern 2: range at start  "15-20 ... Topic" (RTL OCR can flip) ---
+      // --- Pattern 2: range at start  "15-20 ... Topic" (RTL flip) ---
       const startRangeMatch = line.match(/^(\d+)\s*[-–—]\s*(\d+)\s*[.…·_\s]{2,}(.+)$/);
       if (startRangeMatch) {
         const topic = startRangeMatch[3].replace(/^[.…·_]+/, '').trim();
@@ -341,7 +398,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
         }
       }
 
-      // --- Pattern 4: single page at start  "15  Topic name" (RTL OCR output) ---
+      // --- Pattern 4: single page at start  "15  Topic name" ---
       const startPageMatch = line.match(/^(\d+)\s*[.…·_\s]{2,}(.+)$/);
       if (startPageMatch) {
         const topic = startPageMatch[2].replace(/^[.…·_]+/, '').trim();
@@ -351,15 +408,12 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
         }
       }
 
-      // --- Pattern 5: number anywhere near text (last resort, very flexible) ---
-      // Try to extract any line that has a number and some text
+      // --- Pattern 5: flexible — number near text (last resort) ---
       const flexMatch = line.match(/^(.+?)\s+(\d+)\s*$/) || line.match(/^(\d+)\s+(.+)$/);
       if (flexMatch) {
-        // Figure out which group is the number
         const g1Num = /^\d+$/.test(flexMatch[1].trim());
         const topic = g1Num ? flexMatch[2].trim() : flexMatch[1].trim();
         const page = parseInt(g1Num ? flexMatch[1].trim() : flexMatch[2].trim());
-        // Only accept if there's meaningful text (not just numbers/dots)
         if (topic.replace(/[.…·_\-\s\d]/g, '').length >= 2 && page > 0 && page < 10000) {
           entries.push({ topic, startPage: page, endPage: page });
           continue;
@@ -367,7 +421,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
       }
     }
 
-    // Post-process: fill end pages — if entry N has only a start page, set endPage = next entry's startPage - 1
+    // Post-process: fill end pages
     for (let i = 0; i < entries.length; i++) {
       if (entries[i].startPage === entries[i].endPage && i < entries.length - 1) {
         entries[i].endPage = Math.max(entries[i].startPage, entries[i + 1].startPage - 1);

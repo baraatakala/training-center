@@ -706,6 +706,29 @@ export function AuditLogs() {
       ) : viewMode === 'timeline' ? (
         /* ==================== TIMELINE VIEW ==================== */
         <div className="space-y-6">
+          {/* Select All bar for timeline (admin only) */}
+          {isAdmin && pagedLogs.length > 0 && (
+            <div className="flex items-center gap-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 px-4 py-2.5">
+              <input
+                type="checkbox"
+                checked={selectedLogs.size === pagedLogs.length && pagedLogs.length > 0}
+                onChange={toggleSelectAll}
+                className="rounded"
+                aria-label="Select all"
+              />
+              <span className="text-xs text-gray-600 dark:text-gray-400">
+                {selectedLogs.size > 0 ? `${selectedLogs.size} of ${pagedLogs.length} selected` : `Select all ${pagedLogs.length} entries`}
+              </span>
+              {selectedLogs.size > 0 && (
+                <button
+                  onClick={() => setSelectedLogs(new Set())}
+                  className="ml-auto text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  Clear selection
+                </button>
+              )}
+            </div>
+          )}
           {[...groupedByDate.entries()].map(([dateStr, dayLogs]) => (
             <div key={dateStr}>
               {/* Date header */}
@@ -733,15 +756,27 @@ export function AuditLogs() {
                       {/* Card */}
                       <div
                         className={`bg-white dark:bg-gray-800 rounded-xl border transition-all cursor-pointer hover:shadow-md ${
-                          isExpanded
-                            ? 'border-blue-300 dark:border-blue-600 shadow-md'
-                            : 'border-gray-100 dark:border-gray-700'
+                          selectedLogs.has(log.audit_id || '')
+                            ? 'border-blue-400 dark:border-blue-500 ring-1 ring-blue-200 dark:ring-blue-800'
+                            : isExpanded
+                              ? 'border-blue-300 dark:border-blue-600 shadow-md'
+                              : 'border-gray-100 dark:border-gray-700'
                         }`}
                         onClick={() => setExpandedLog(isExpanded ? null : log.audit_id || null)}
                       >
                         <div className="p-4">
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-start gap-3 min-w-0">
+                              {isAdmin && (
+                                <input
+                                  type="checkbox"
+                                  checked={selectedLogs.has(log.audit_id || '')}
+                                  onChange={(e) => { e.stopPropagation(); toggleSelectLog(log.audit_id || ''); }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="rounded mt-1 flex-shrink-0"
+                                  aria-label="Select entry"
+                                />
+                              )}
                               <span className="text-xl flex-shrink-0 mt-0.5">
                                 {TABLE_ICONS[log.table_name] || '📄'}
                               </span>
