@@ -43,6 +43,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
   // OCR state
   const [ocrProcessing, setOcrProcessing] = useState(false);
   const [ocrProgress, setOcrProgress] = useState(0);
+  const [ocrStatus, setOcrStatus] = useState('');
   const [ocrResults, setOcrResults] = useState<Array<{ topic: string; startPage: number; endPage: number }>>([]);
   const [showOcrResults, setShowOcrResults] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -295,19 +296,23 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
 
   /** Parse OCR text into chapter entries — detects Arabic/English lines with page numbers */
   const parseOcrText = (text: string): Array<{ topic: string; startPage: number; endPage: number }> => {
+    console.log('[OCR] Raw text output:\n', text);
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
     const entries: Array<{ topic: string; startPage: number; endPage: number }> = [];
 
-    for (const line of lines) {
-      // Try to match patterns like:
-      // "topic name ... 15"  or  "topic name  15-20"  or  "topic 15 - 20"  or  "15  topic name"
-      // Also match Arabic: "أحكام التجويد ......... ٢٣" (with Arabic-Indic numerals)
+    /** Normalize Arabic-Indic numerals (٠١٢٣٤٥٦٧٨٩) and Persian variants to Western digits */
+    const normalizeDigits = (s: string) =>
+      s.replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
+       .replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
 
-      // Normalize Arabic-Indic numerals (٠١٢٣٤٥٦٧٨٩) to Western
-      const normalized = line.replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+    for (const rawLine of lines) {
+      const line = normalizeDigits(rawLine);
 
-      // Pattern: text then page range at end  e.g. "Topic ... 15-20" or "Topic ... 15"
-      const endRangeMatch = normalized.match(/^(.+?)\s*[.…·\-_\s]{2,}\s*(\d+)\s*[-–—]\s*(\d+)\s*$/);
+      // Skip very short lines or pure dot/dash lines
+      if (line.replace(/[.…·\-_\s\d]/g, '').length < 2) continue;
+
+      // --- Pattern 1: range at end  "Topic ... 15-20" or "Topic ... 15 - 20" ---
+      const endRangeMatch = line.match(/^(.+?)\s*[.…·_\s]{2,}\s*(\d+)\s*[-–—]\s*(\d+)\s*$/);
       if (endRangeMatch) {
         const topic = endRangeMatch[1].replace(/[.…·_]+$/, '').trim();
         if (topic.length > 0) {
@@ -316,8 +321,18 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
         }
       }
 
-      // Pattern: text then single page at end  e.g. "Topic....... 15"
-      const endPageMatch = normalized.match(/^(.+?)\s*[.…·\-_\s]{2,}\s*(\d+)\s*$/);
+      // --- Pattern 2: range at start  "15-20 ... Topic" (RTL OCR can flip) ---
+      const startRangeMatch = line.match(/^(\d+)\s*[-–—]\s*(\d+)\s*[.…·_\s]{2,}(.+)$/);
+      if (startRangeMatch) {
+        const topic = startRangeMatch[3].replace(/^[.…·_]+/, '').trim();
+        if (topic.length > 0) {
+          entries.push({ topic, startPage: parseInt(startRangeMatch[1]), endPage: parseInt(startRangeMatch[2]) });
+          continue;
+        }
+      }
+
+      // --- Pattern 3: single page at end  "Topic....... 15" ---
+      const endPageMatch = line.match(/^(.+?)\s*[.…·_\s]{2,}\s*(\d+)\s*$/);
       if (endPageMatch) {
         const topic = endPageMatch[1].replace(/[.…·_]+$/, '').trim();
         if (topic.length > 0) {
@@ -326,12 +341,27 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
         }
       }
 
-      // Pattern: page number at start  e.g. "15  Topic name"
-      const startPageMatch = normalized.match(/^(\d+)\s{2,}(.+)$/);
+      // --- Pattern 4: single page at start  "15  Topic name" (RTL OCR output) ---
+      const startPageMatch = line.match(/^(\d+)\s*[.…·_\s]{2,}(.+)$/);
       if (startPageMatch) {
-        const topic = startPageMatch[2].trim();
+        const topic = startPageMatch[2].replace(/^[.…·_]+/, '').trim();
         if (topic.length > 1) {
           entries.push({ topic, startPage: parseInt(startPageMatch[1]), endPage: parseInt(startPageMatch[1]) });
+          continue;
+        }
+      }
+
+      // --- Pattern 5: number anywhere near text (last resort, very flexible) ---
+      // Try to extract any line that has a number and some text
+      const flexMatch = line.match(/^(.+?)\s+(\d+)\s*$/) || line.match(/^(\d+)\s+(.+)$/);
+      if (flexMatch) {
+        // Figure out which group is the number
+        const g1Num = /^\d+$/.test(flexMatch[1].trim());
+        const topic = g1Num ? flexMatch[2].trim() : flexMatch[1].trim();
+        const page = parseInt(g1Num ? flexMatch[1].trim() : flexMatch[2].trim());
+        // Only accept if there's meaningful text (not just numbers/dots)
+        if (topic.replace(/[.…·_\-\s\d]/g, '').length >= 2 && page > 0 && page < 10000) {
+          entries.push({ topic, startPage: page, endPage: page });
           continue;
         }
       }
@@ -344,24 +374,46 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
       }
     }
 
+    console.log('[OCR] Parsed entries:', entries);
     return entries;
   };
 
   const handleOcrScan = async (file: File) => {
     setOcrProcessing(true);
     setOcrProgress(0);
+    setOcrStatus('Initializing...');
     setOcrResults([]);
     setShowOcrResults(false);
 
     try {
+      console.log('[OCR] Starting scan for file:', file.name, 'size:', file.size);
+
+      const statusLabels: Record<string, string> = {
+        'loading tesseract core': 'Loading OCR engine...',
+        'initializing tesseract': 'Initializing...',
+        'loading language traineddata': 'Downloading Arabic+English language data...',
+        'loaded language traineddata': 'Language data ready',
+        'initializing api': 'Preparing recognition...',
+        'recognizing text': 'Recognizing text...',
+      };
+
       const { data } = await Tesseract.recognize(file, 'ara+eng', {
         logger: (m: { status: string; progress: number }) => {
+          console.log('[OCR]', m.status, Math.round(m.progress * 100) + '%');
+          const label = statusLabels[m.status] || m.status;
+          setOcrStatus(label);
+          // Show progress for all stages, emphasize recognition phase
           if (m.status === 'recognizing text') {
-            setOcrProgress(Math.round(m.progress * 100));
+            setOcrProgress(50 + Math.round(m.progress * 50)); // 50-100%
+          } else if (m.status === 'loading language traineddata') {
+            setOcrProgress(Math.round(m.progress * 40)); // 0-40%
+          } else {
+            setOcrProgress(Math.min(45, ocrProgress)); // keep between stages
           }
         },
       });
 
+      console.log('[OCR] Recognition complete. Text length:', data.text.length);
       const parsed = parseOcrText(data.text);
 
       if (parsed.length === 0) {
@@ -372,12 +424,12 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
         toast.success(`Found ${parsed.length} entries — review and import below`);
       }
     } catch (err) {
-      console.error('OCR error:', err);
-      toast.error('OCR scan failed. Please try a different image.');
+      console.error('[OCR] Error:', err);
+      toast.error('OCR scan failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
     } finally {
       setOcrProcessing(false);
       setOcrProgress(0);
-      // Reset file input
+      setOcrStatus('');
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -617,7 +669,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
                   <div className="w-5 h-5 border-2 border-amber-300 border-t-amber-600 rounded-full animate-spin shrink-0"></div>
                   <div className="flex-1">
                     <div className="flex justify-between text-xs mb-1">
-                      <span className="text-gray-600 dark:text-gray-400">Scanning image...</span>
+                      <span className="text-gray-600 dark:text-gray-400">{ocrStatus || 'Starting...'}</span>
                       <span className="text-amber-600 font-medium">{ocrProgress}%</span>
                     </div>
                     <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
@@ -625,7 +677,11 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
                     </div>
                   </div>
                 </div>
-                <p className="text-[10px] text-gray-400">Processing Arabic + English text recognition...</p>
+                <p className="text-[10px] text-gray-400">
+                  {ocrStatus.includes('Downloading') 
+                    ? 'First-time download of Arabic language data (~15MB). This only happens once.' 
+                    : 'Processing Arabic + English text recognition...'}
+                </p>
               </div>
             ) : showOcrResults && ocrResults.length > 0 ? (
               <div className="space-y-3">
