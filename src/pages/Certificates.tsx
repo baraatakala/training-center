@@ -562,6 +562,16 @@ function TemplateModal({
   );
   const [signatureName, setSignatureName] = useState(template?.signature_name || '');
   const [signatureTitle, setSignatureTitle] = useState(template?.signature_title || '');
+  const [signerTeachers, setSignerTeachers] = useState<Array<{ teacher_id: string; name: string }>>([]);
+
+  // Load teachers for signer auto-fill
+  useEffect(() => {
+    const loadTeachers = async () => {
+      const { data } = await supabase.from('teacher').select('teacher_id, name').order('name');
+      if (data) setSignerTeachers(data);
+    };
+    loadTeachers();
+  }, []);
   const [isActive, setIsActive] = useState(template?.is_active ?? true);
 
   // Style
@@ -747,26 +757,48 @@ function TemplateModal({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          {/* Signer - Auto-fill from teacher */}
+          <div className="space-y-2">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Signer Name</label>
-              <input
-                type="text"
-                value={signatureName}
-                onChange={e => setSignatureName(e.target.value)}
-                placeholder="e.g. Dr. Ahmad"
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Auto-fill Signer from Teacher</label>
+              <select
+                value=""
+                onChange={e => {
+                  const t = signerTeachers.find(t => t.teacher_id === e.target.value);
+                  if (t) {
+                    setSignatureName(t.name);
+                    setSignatureTitle('Teacher / معلم');
+                  }
+                }}
                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
-              />
+              >
+                <option value="">Select teacher to auto-fill...</option>
+                {signerTeachers.map(t => (
+                  <option key={t.teacher_id} value={t.teacher_id}>{t.name}</option>
+                ))}
+              </select>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Signer Title</label>
-              <input
-                type="text"
-                value={signatureTitle}
-                onChange={e => setSignatureTitle(e.target.value)}
-                placeholder="e.g. Director"
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Signer Name</label>
+                <input
+                  type="text"
+                  value={signatureName}
+                  onChange={e => setSignatureName(e.target.value)}
+                  placeholder="Auto-filled or type manually"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Signer Title</label>
+                <input
+                  type="text"
+                  value={signatureTitle}
+                  onChange={e => setSignatureTitle(e.target.value)}
+                  placeholder="Auto-filled or type manually"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
+                />
+              </div>
             </div>
           </div>
 

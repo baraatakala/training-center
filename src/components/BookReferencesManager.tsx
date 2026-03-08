@@ -116,8 +116,9 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
 
     if (!error) {
       setNewTopic('');
-      setNewStartPage(1);
-      setNewEndPage(1);
+      // Auto-advance: next chapter starts where this one ended
+      setNewStartPage(newEndPage);
+      setNewEndPage(newEndPage);
       loadReferences();
       toast.success('Chapter added / تم إضافة الفصل');
     } else {
@@ -149,9 +150,10 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
 
     if (!error) {
       setSubTopic('');
-      setSubStartPage(1);
-      setSubEndPage(1);
-      setAddingSubtopicFor(null);
+      // Auto-advance: next subtopic starts where this one ended
+      setSubStartPage(subEndPage);
+      setSubEndPage(subEndPage);
+      // Keep form open for quick sequential entry
       loadReferences();
       toast.success('Subtopic added / تم إضافة العنوان الفرعي');
     } else {
@@ -422,7 +424,14 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
                   type="number"
                   min={1}
                   value={newStartPage}
-                  onChange={e => setNewStartPage(parseInt(e.target.value) || 1)}
+                  onChange={e => {
+                    const val = parseInt(e.target.value) || 1;
+                    setNewStartPage(val);
+                    // Auto-fill end page: find next chapter that starts after this page
+                    const sorted = chapters.slice().sort((a, b) => a.start_page - b.start_page);
+                    const next = sorted.find(c => c.start_page > val);
+                    setNewEndPage(next ? next.start_page : val);
+                  }}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
                 />
               </div>
