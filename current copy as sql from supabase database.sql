@@ -1,6 +1,15 @@
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
 
+CREATE TABLE public.admin (
+  admin_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  email text NOT NULL UNIQUE,
+  name text NOT NULL DEFAULT 'Admin'::text,
+  auth_user_id uuid UNIQUE,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT admin_pkey PRIMARY KEY (admin_id)
+);
 CREATE TABLE public.announcement (
   announcement_id uuid NOT NULL DEFAULT gen_random_uuid(),
   title character varying NOT NULL,
@@ -16,8 +25,8 @@ CREATE TABLE public.announcement (
   attachments jsonb DEFAULT '[]'::jsonb,
   view_count integer DEFAULT 0,
   image_url text,
+  creator_type text DEFAULT 'teacher'::text,
   CONSTRAINT announcement_pkey PRIMARY KEY (announcement_id),
-  CONSTRAINT announcement_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.teacher(teacher_id),
   CONSTRAINT announcement_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.course(course_id)
 );
 CREATE TABLE public.announcement_comment (
@@ -97,6 +106,22 @@ CREATE TABLE public.audit_log (
   user_agent text,
   CONSTRAINT audit_log_pkey PRIMARY KEY (audit_id)
 );
+CREATE TABLE public.certificate_template (
+  template_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  description text,
+  template_type text NOT NULL DEFAULT 'completion'::text CHECK (template_type = ANY (ARRAY['completion'::text, 'attendance'::text, 'achievement'::text, 'participation'::text])),
+  min_score numeric DEFAULT 0,
+  min_attendance numeric DEFAULT 0,
+  style_config jsonb DEFAULT '{"font_family": "serif", "orientation": "landscape", "accent_color": "#1e40af", "border_style": "classic", "background_color": "#ffffff"}'::jsonb,
+  body_template text DEFAULT 'This is to certify that {{name}} has successfully completed the course "{{course}}" with a score of {{score}}%.'::text,
+  signature_name text,
+  signature_title text,
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT certificate_template_pkey PRIMARY KEY (template_id)
+);
 CREATE TABLE public.course (
   course_id uuid NOT NULL DEFAULT uuid_generate_v4(),
   teacher_id uuid,
@@ -116,7 +141,9 @@ CREATE TABLE public.course_book_reference (
   display_order integer DEFAULT 0,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
+  parent_id uuid,
   CONSTRAINT course_book_reference_pkey PRIMARY KEY (reference_id),
+  CONSTRAINT course_book_reference_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.course_book_reference(reference_id),
   CONSTRAINT course_book_reference_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.course(course_id)
 );
 CREATE TABLE public.enrollment (
@@ -133,6 +160,49 @@ CREATE TABLE public.enrollment (
   CONSTRAINT enrollment_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.student(student_id),
   CONSTRAINT enrollment_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
 );
+CREATE TABLE public.excuse_request (
+  request_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  student_id uuid NOT NULL,
+  session_id uuid NOT NULL,
+  attendance_date date NOT NULL,
+  reason text NOT NULL,
+  description text,
+  supporting_doc_url text,
+  supporting_doc_name text,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text, 'cancelled'::text])),
+  reviewed_by text,
+  reviewed_at timestamp with time zone,
+  review_note text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT excuse_request_pkey PRIMARY KEY (request_id),
+  CONSTRAINT excuse_request_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.student(student_id),
+  CONSTRAINT excuse_request_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
+);
+CREATE TABLE public.issued_certificate (
+  certificate_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  template_id uuid NOT NULL,
+  student_id uuid NOT NULL,
+  session_id uuid,
+  course_id uuid,
+  certificate_number text NOT NULL UNIQUE,
+  verification_code text NOT NULL UNIQUE,
+  final_score numeric,
+  attendance_rate numeric,
+  status text NOT NULL DEFAULT 'draft'::text CHECK (status = ANY (ARRAY['draft'::text, 'issued'::text, 'revoked'::text])),
+  issued_by text,
+  issued_at timestamp with time zone,
+  revoked_at timestamp with time zone,
+  revoke_reason text,
+  resolved_body text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT issued_certificate_pkey PRIMARY KEY (certificate_id),
+  CONSTRAINT issued_certificate_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.certificate_template(template_id),
+  CONSTRAINT issued_certificate_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.student(student_id),
+  CONSTRAINT issued_certificate_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id),
+  CONSTRAINT issued_certificate_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.course(course_id)
+);
 CREATE TABLE public.late_brackets (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   session_id uuid,
@@ -148,9 +218,9 @@ CREATE TABLE public.late_brackets (
 );
 CREATE TABLE public.message (
   message_id uuid NOT NULL DEFAULT gen_random_uuid(),
-  sender_type character varying NOT NULL CHECK (sender_type::text = ANY (ARRAY['teacher'::character varying, 'student'::character varying]::text[])),
+  sender_type character varying NOT NULL CHECK (sender_type::text = ANY (ARRAY['teacher'::character varying, 'student'::character varying, 'admin'::character varying]::text[])),
   sender_id uuid NOT NULL,
-  recipient_type character varying NOT NULL CHECK (recipient_type::text = ANY (ARRAY['teacher'::character varying, 'student'::character varying]::text[])),
+  recipient_type character varying NOT NULL CHECK (recipient_type::text = ANY (ARRAY['teacher'::character varying, 'student'::character varying, 'admin'::character varying]::text[])),
   recipient_id uuid NOT NULL,
   subject character varying,
   content text NOT NULL,
@@ -231,6 +301,29 @@ CREATE TABLE public.qr_sessions (
   CONSTRAINT qr_sessions_pkey PRIMARY KEY (qr_session_id),
   CONSTRAINT qr_sessions_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
 );
+CREATE TABLE public.scoring_config (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  teacher_id uuid NOT NULL,
+  config_name text NOT NULL DEFAULT 'Default Scoring'::text,
+  is_default boolean NOT NULL DEFAULT true,
+  weight_quality numeric NOT NULL DEFAULT 55.00,
+  weight_attendance numeric NOT NULL DEFAULT 35.00,
+  weight_punctuality numeric NOT NULL DEFAULT 10.00,
+  late_decay_constant numeric NOT NULL DEFAULT 43.30,
+  late_minimum_credit numeric NOT NULL DEFAULT 0.050,
+  late_null_estimate numeric NOT NULL DEFAULT 0.600,
+  coverage_enabled boolean NOT NULL DEFAULT true,
+  coverage_method text NOT NULL DEFAULT 'sqrt'::text CHECK (coverage_method = ANY (ARRAY['sqrt'::text, 'linear'::text, 'log'::text, 'none'::text])),
+  coverage_minimum numeric NOT NULL DEFAULT 0.100,
+  late_brackets jsonb NOT NULL DEFAULT '[{"id": "1", "max": 5, "min": 1, "name": "Minor", "color": "bg-green-100 text-green-800"}, {"id": "2", "max": 15, "min": 6, "name": "Moderate", "color": "bg-yellow-100 text-yellow-800"}, {"id": "3", "max": 30, "min": 16, "name": "Significant", "color": "bg-orange-100 text-orange-800"}, {"id": "4", "max": 60, "min": 31, "name": "Severe", "color": "bg-red-100 text-red-800"}, {"id": "5", "max": 999, "min": 61, "name": "Very Late", "color": "bg-red-200 text-red-900"}]'::jsonb,
+  perfect_attendance_bonus numeric NOT NULL DEFAULT 0.00,
+  streak_bonus_per_week numeric NOT NULL DEFAULT 0.00,
+  absence_penalty_multiplier numeric NOT NULL DEFAULT 1.00,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT scoring_config_pkey PRIMARY KEY (id),
+  CONSTRAINT scoring_config_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES auth.users(id)
+);
 CREATE TABLE public.session (
   session_id uuid NOT NULL DEFAULT uuid_generate_v4(),
   course_id uuid NOT NULL,
@@ -272,6 +365,18 @@ CREATE TABLE public.session_date_host (
   host_longitude numeric CHECK (host_longitude IS NULL OR host_longitude >= '-180'::integer::numeric AND host_longitude <= 180::numeric),
   CONSTRAINT session_date_host_pkey PRIMARY KEY (id),
   CONSTRAINT session_date_host_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
+);
+CREATE TABLE public.session_day_change (
+  change_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  session_id uuid NOT NULL,
+  old_day text,
+  new_day text NOT NULL,
+  effective_date date NOT NULL,
+  reason text,
+  changed_by text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT session_day_change_pkey PRIMARY KEY (change_id),
+  CONSTRAINT session_day_change_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
 );
 CREATE TABLE public.student (
   student_id uuid NOT NULL DEFAULT uuid_generate_v4(),

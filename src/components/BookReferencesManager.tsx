@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Tables, type CourseBookReference } from '../types/database.types';
 import { toast } from './ui/toastUtils';
 import { ConfirmDialog } from './ui/ConfirmDialog';
+import Tesseract from 'tesseract.js';
 
 interface BookReferencesManagerProps {
   courseId: string;
@@ -39,6 +40,13 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
   // Search / filter
   const [searchQuery, setSearchQuery] = useState('');
 
+  // OCR state
+  const [ocrProcessing, setOcrProcessing] = useState(false);
+  const [ocrProgress, setOcrProgress] = useState(0);
+  const [ocrResults, setOcrResults] = useState<Array<{ topic: string; startPage: number; endPage: number }>>([]);
+  const [showOcrResults, setShowOcrResults] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const loadReferences = async () => {
     const { data, error } = await supabase
       .from(Tables.COURSE_BOOK_REFERENCE)
@@ -62,15 +70,20 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseId]);
 
-  // Build tree structure
+  // Build tree structure — chapters sorted by start_page
   const { chapters, tree } = useMemo(() => {
-    const chaps = references.filter(r => !r.parent_id);
+    const chaps = references.filter(r => !r.parent_id)
+      .sort((a, b) => a.start_page - b.start_page || a.display_order - b.display_order);
     const treeMap = new Map<string, CourseBookReference[]>();
     for (const ref of references) {
       if (ref.parent_id) {
         if (!treeMap.has(ref.parent_id)) treeMap.set(ref.parent_id, []);
         treeMap.get(ref.parent_id)!.push(ref);
       }
+    }
+    // Sort subtopics by start_page within each chapter
+    for (const [key, subs] of treeMap) {
+      treeMap.set(key, subs.sort((a, b) => a.start_page - b.start_page));
     }
     return { chapters: chaps, tree: treeMap };
   }, [references]);
@@ -276,6 +289,125 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
     });
   };
 
+  // =====================================================
+  // OCR: Scan image of table of contents
+  // =====================================================
+
+  /** Parse OCR text into chapter entries — detects Arabic/English lines with page numbers */
+  const parseOcrText = (text: string): Array<{ topic: string; startPage: number; endPage: number }> => {
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    const entries: Array<{ topic: string; startPage: number; endPage: number }> = [];
+
+    for (const line of lines) {
+      // Try to match patterns like:
+      // "topic name ... 15"  or  "topic name  15-20"  or  "topic 15 - 20"  or  "15  topic name"
+      // Also match Arabic: "أحكام التجويد ......... ٢٣" (with Arabic-Indic numerals)
+
+      // Normalize Arabic-Indic numerals (٠١٢٣٤٥٦٧٨٩) to Western
+      const normalized = line.replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+
+      // Pattern: text then page range at end  e.g. "Topic ... 15-20" or "Topic ... 15"
+      const endRangeMatch = normalized.match(/^(.+?)\s*[.…·\-_\s]{2,}\s*(\d+)\s*[-–—]\s*(\d+)\s*$/);
+      if (endRangeMatch) {
+        const topic = endRangeMatch[1].replace(/[.…·_]+$/, '').trim();
+        if (topic.length > 0) {
+          entries.push({ topic, startPage: parseInt(endRangeMatch[2]), endPage: parseInt(endRangeMatch[3]) });
+          continue;
+        }
+      }
+
+      // Pattern: text then single page at end  e.g. "Topic....... 15"
+      const endPageMatch = normalized.match(/^(.+?)\s*[.…·\-_\s]{2,}\s*(\d+)\s*$/);
+      if (endPageMatch) {
+        const topic = endPageMatch[1].replace(/[.…·_]+$/, '').trim();
+        if (topic.length > 0) {
+          entries.push({ topic, startPage: parseInt(endPageMatch[2]), endPage: parseInt(endPageMatch[2]) });
+          continue;
+        }
+      }
+
+      // Pattern: page number at start  e.g. "15  Topic name"
+      const startPageMatch = normalized.match(/^(\d+)\s{2,}(.+)$/);
+      if (startPageMatch) {
+        const topic = startPageMatch[2].trim();
+        if (topic.length > 1) {
+          entries.push({ topic, startPage: parseInt(startPageMatch[1]), endPage: parseInt(startPageMatch[1]) });
+          continue;
+        }
+      }
+    }
+
+    // Post-process: fill end pages — if entry N has only a start page, set endPage = next entry's startPage - 1
+    for (let i = 0; i < entries.length; i++) {
+      if (entries[i].startPage === entries[i].endPage && i < entries.length - 1) {
+        entries[i].endPage = Math.max(entries[i].startPage, entries[i + 1].startPage - 1);
+      }
+    }
+
+    return entries;
+  };
+
+  const handleOcrScan = async (file: File) => {
+    setOcrProcessing(true);
+    setOcrProgress(0);
+    setOcrResults([]);
+    setShowOcrResults(false);
+
+    try {
+      const { data } = await Tesseract.recognize(file, 'ara+eng', {
+        logger: (m: { status: string; progress: number }) => {
+          if (m.status === 'recognizing text') {
+            setOcrProgress(Math.round(m.progress * 100));
+          }
+        },
+      });
+
+      const parsed = parseOcrText(data.text);
+
+      if (parsed.length === 0) {
+        toast.warning('Could not detect chapters in image. Try a clearer photo of the table of contents.');
+      } else {
+        setOcrResults(parsed);
+        setShowOcrResults(true);
+        toast.success(`Found ${parsed.length} entries — review and import below`);
+      }
+    } catch (err) {
+      console.error('OCR error:', err);
+      toast.error('OCR scan failed. Please try a different image.');
+    } finally {
+      setOcrProcessing(false);
+      setOcrProgress(0);
+      // Reset file input
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleImportOcrResults = async () => {
+    if (ocrResults.length === 0) return;
+
+    let imported = 0;
+    for (const entry of ocrResults) {
+      const { error } = await supabase
+        .from(Tables.COURSE_BOOK_REFERENCE)
+        .insert([{
+          course_id: courseId,
+          topic: entry.topic,
+          start_page: entry.startPage,
+          end_page: entry.endPage,
+          display_order: chapters.length + imported,
+          parent_id: null,
+        }]);
+      if (!error) imported++;
+    }
+
+    if (imported > 0) {
+      await loadReferences();
+      toast.success(`Imported ${imported} chapters from OCR scan / تم استيراد ${imported} فصل`);
+    }
+    setOcrResults([]);
+    setShowOcrResults(false);
+  };
+
   // Helper: render inline edit form for a reference
   const renderEditForm = (ref: CourseBookReference) => (
     <div className="p-4 space-y-3 bg-gradient-to-br from-blue-50/80 to-indigo-50/80 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200 dark:border-blue-700">
@@ -417,9 +549,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
             <h2 className="text-xl font-bold tracking-tight">Book References / مراجع الكتاب</h2>
             <p className="text-purple-200 text-sm mt-0.5">{courseName}</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors" title="Close">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
+
         </div>
       </div>
 
@@ -456,6 +586,108 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
               />
             </div>
           )}
+        </div>
+
+        {/* OCR Scan Section */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="px-4 py-3 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/15 dark:to-orange-900/15 border-b border-gray-200 dark:border-gray-700">
+            <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-100 flex items-center gap-1.5">
+              <svg className="w-4 h-4 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              OCR Scan / مسح ضوئي
+              <span className="text-[10px] font-normal text-amber-600 dark:text-amber-400 ml-1">(Arabic + English)</span>
+            </h3>
+          </div>
+          <div className="p-4">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={e => {
+                const file = e.target.files?.[0];
+                if (file) handleOcrScan(file);
+              }}
+            />
+            {ocrProcessing ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 border-2 border-amber-300 border-t-amber-600 rounded-full animate-spin shrink-0"></div>
+                  <div className="flex-1">
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-gray-600 dark:text-gray-400">Scanning image...</span>
+                      <span className="text-amber-600 font-medium">{ocrProgress}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                      <div className="bg-amber-500 h-1.5 rounded-full transition-all duration-300" style={{ width: `${ocrProgress}%` }} />
+                    </div>
+                  </div>
+                </div>
+                <p className="text-[10px] text-gray-400">Processing Arabic + English text recognition...</p>
+              </div>
+            ) : showOcrResults && ocrResults.length > 0 ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                    Found {ocrResults.length} entries — review before importing:
+                  </span>
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={handleImportOcrResults}
+                      className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-medium transition-colors"
+                    >
+                      ✓ Import All
+                    </button>
+                    <button
+                      onClick={() => { setOcrResults([]); setShowOcrResults(false); }}
+                      className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-medium transition-colors"
+                    >
+                      Discard
+                    </button>
+                  </div>
+                </div>
+                <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-100 dark:divide-gray-700">
+                  {ocrResults.map((entry, i) => (
+                    <div key={i} className="flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 dark:hover:bg-gray-700/40">
+                      <span className="w-5 h-5 bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-300 rounded flex items-center justify-center font-mono font-bold text-[10px] shrink-0">
+                        {i + 1}
+                      </span>
+                      <span className={`flex-1 truncate ${isRTL(entry.topic) ? 'text-right' : ''}`} dir={isRTL(entry.topic) ? 'rtl' : 'ltr'}>
+                        {entry.topic}
+                      </span>
+                      <span className="text-gray-400 tabular-nums shrink-0">pp. {entry.startPage}–{entry.endPage}</span>
+                      <button
+                        onClick={() => setOcrResults(prev => prev.filter((_, idx) => idx !== i))}
+                        className="text-gray-300 hover:text-red-500 shrink-0"
+                        title="Remove"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-amber-300 dark:border-amber-700 rounded-lg text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors text-sm font-medium"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Upload Table of Contents image / رفع صورة الفهرس
+                </button>
+              </div>
+            )}
+            {!ocrProcessing && !showOcrResults && (
+              <p className="text-[10px] text-gray-400 mt-2">
+                Scan a photo of the book's table of contents to auto-extract chapters · يدعم العربية والإنجليزية
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Add New Chapter — compact & smart */}
