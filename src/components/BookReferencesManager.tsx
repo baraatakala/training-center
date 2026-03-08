@@ -44,6 +44,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
   const [ocrProcessing, setOcrProcessing] = useState(false);
   const [ocrProgress, setOcrProgress] = useState(0);
   const [ocrStatus, setOcrStatus] = useState('');
+  const [ocrLang, setOcrLang] = useState<'eng' | 'ara' | 'eng+ara'>('eng');
   const [ocrResults, setOcrResults] = useState<Array<{ topic: string; startPage: number; endPage: number }>>([]);
   const [showOcrResults, setShowOcrResults] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -294,126 +295,57 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
   // OCR: Scan image of table of contents
   // =====================================================
 
-  /** Parse OCR text into chapter entries — detects Arabic/English lines with page numbers */
+  /** Parse OCR text into chapter entries — simple per-line matching */
   const parseOcrText = (text: string): Array<{ topic: string; startPage: number; endPage: number }> => {
     console.log('[OCR] Raw text output:\n', text);
     const rawLines = text.split('\n').map(l => l.trim()).filter(Boolean);
     const entries: Array<{ topic: string; startPage: number; endPage: number }> = [];
 
-    /** Normalize Arabic-Indic numerals (٠١٢٣٤٥٦٧٨٩) and Persian variants to Western digits */
-    const normalizeDigits = (s: string) =>
+    /** Normalize Arabic-Indic numerals (٠١٢٣٤٥٦٧٨٩) and Persian (۰۱۲۳۴۵۶۷۸۹) to Western digits */
+    const nd = (s: string) =>
       s.replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
        .replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
 
-    /** Check if a line is purely numeric (page number or range) */
-    const isNumericLine = (line: string) => /^[\d\s\-–—.,]+$/.test(normalizeDigits(line).replace(/[.…·_]/g, ''));
-
-    // ========== Strategy A: Detect split-column output (RTL pages) ==========
-    // Arabic OCR often reads numbers column first, then text column separately.
-    // Detect: first N lines are numbers, remaining M lines are text, and N ~= M
-    const numberLines: string[] = [];
-    const textLines: string[] = [];
-    let splitPoint = -1;
-    let seenText = false;
-
-    for (let i = 0; i < rawLines.length; i++) {
-      const norm = normalizeDigits(rawLines[i]);
-      if (!seenText && isNumericLine(rawLines[i])) {
-        numberLines.push(norm);
-      } else {
-        if (!seenText) splitPoint = i;
-        seenText = true;
-        textLines.push(rawLines[i]);
-      }
-    }
-
-    console.log('[OCR] Split analysis:', { numberLines: numberLines.length, textLines: textLines.length, splitPoint });
-
-    // If the columns split roughly matches (allow some tolerance), pair them
-    if (numberLines.length >= 3 && textLines.length >= 3 &&
-        Math.abs(numberLines.length - textLines.length) <= Math.max(3, Math.round(numberLines.length * 0.3))) {
-      console.log('[OCR] Detected split-column format — pairing numbers with topics');
-      const count = Math.min(numberLines.length, textLines.length);
-      for (let i = 0; i < count; i++) {
-        const numStr = numberLines[i].replace(/[.…·_\s]/g, '');
-        const topic = textLines[i].replace(/[.…·_]+$/, '').replace(/^[.…·_]+/, '').trim();
-        if (!topic || topic.length < 2) continue;
-
-        // Parse page: could be "15", "15-22", etc.
-        const rangeMatch = numStr.match(/^(\d+)\s*[-–—]\s*(\d+)$/);
-        if (rangeMatch) {
-          entries.push({ topic, startPage: parseInt(rangeMatch[1]), endPage: parseInt(rangeMatch[2]) });
-        } else {
-          const page = parseInt(numStr);
-          if (!isNaN(page) && page > 0) {
-            entries.push({ topic, startPage: page, endPage: page });
-          }
-        }
-      }
-
-      // Post-process: fill end pages
-      for (let i = 0; i < entries.length; i++) {
-        if (entries[i].startPage === entries[i].endPage && i < entries.length - 1) {
-          entries[i].endPage = Math.max(entries[i].startPage, entries[i + 1].startPage - 1);
-        }
-      }
-      console.log('[OCR] Paired entries:', entries);
-      return entries;
-    }
-
-    // ========== Strategy B: Same-line matching (topic + page on each line) ==========
     for (const rawLine of rawLines) {
-      const line = normalizeDigits(rawLine);
+      const line = nd(rawLine);
 
-      // Skip very short lines or pure dot/dash/number lines
+      // Skip lines with no meaningful text (just dots/numbers/dashes)
       if (line.replace(/[.…·\-_\s\d]/g, '').length < 2) continue;
 
-      // --- Pattern 1: range at end  "Topic ... 15-20" ---
-      const endRangeMatch = line.match(/^(.+?)\s*[.…·_\s]{2,}\s*(\d+)\s*[-–—]\s*(\d+)\s*$/);
-      if (endRangeMatch) {
-        const topic = endRangeMatch[1].replace(/[.…·_]+$/, '').trim();
-        if (topic.length > 0) {
-          entries.push({ topic, startPage: parseInt(endRangeMatch[2]), endPage: parseInt(endRangeMatch[3]) });
-          continue;
-        }
+      // Pattern A: "Topic ... 15-20" (range at end)
+      const m1 = line.match(/^(.+?)[.…·_\s]{2,}(\d+)\s*[-–—]\s*(\d+)\s*$/);
+      if (m1 && m1[1].replace(/[.…·_]+$/, '').trim().length > 0) {
+        entries.push({ topic: m1[1].replace(/[.…·_]+$/, '').trim(), startPage: +m1[2], endPage: +m1[3] });
+        continue;
       }
 
-      // --- Pattern 2: range at start  "15-20 ... Topic" (RTL flip) ---
-      const startRangeMatch = line.match(/^(\d+)\s*[-–—]\s*(\d+)\s*[.…·_\s]{2,}(.+)$/);
-      if (startRangeMatch) {
-        const topic = startRangeMatch[3].replace(/^[.…·_]+/, '').trim();
-        if (topic.length > 0) {
-          entries.push({ topic, startPage: parseInt(startRangeMatch[1]), endPage: parseInt(startRangeMatch[2]) });
-          continue;
-        }
+      // Pattern B: "15-20 ... Topic" (range at start, RTL)
+      const m2 = line.match(/^(\d+)\s*[-–—]\s*(\d+)[.…·_\s]{2,}(.+)$/);
+      if (m2 && m2[3].replace(/^[.…·_]+/, '').trim().length > 0) {
+        entries.push({ topic: m2[3].replace(/^[.…·_]+/, '').trim(), startPage: +m2[1], endPage: +m2[2] });
+        continue;
       }
 
-      // --- Pattern 3: single page at end  "Topic....... 15" ---
-      const endPageMatch = line.match(/^(.+?)\s*[.…·_\s]{2,}\s*(\d+)\s*$/);
-      if (endPageMatch) {
-        const topic = endPageMatch[1].replace(/[.…·_]+$/, '').trim();
-        if (topic.length > 0) {
-          entries.push({ topic, startPage: parseInt(endPageMatch[2]), endPage: parseInt(endPageMatch[2]) });
-          continue;
-        }
+      // Pattern C: "Topic....... 15" (single page at end)
+      const m3 = line.match(/^(.+?)[.…·_\s]{2,}(\d+)\s*$/);
+      if (m3 && m3[1].replace(/[.…·_]+$/, '').trim().length > 0) {
+        entries.push({ topic: m3[1].replace(/[.…·_]+$/, '').trim(), startPage: +m3[2], endPage: +m3[2] });
+        continue;
       }
 
-      // --- Pattern 4: single page at start  "15  Topic name" ---
-      const startPageMatch = line.match(/^(\d+)\s*[.…·_\s]{2,}(.+)$/);
-      if (startPageMatch) {
-        const topic = startPageMatch[2].replace(/^[.…·_]+/, '').trim();
-        if (topic.length > 1) {
-          entries.push({ topic, startPage: parseInt(startPageMatch[1]), endPage: parseInt(startPageMatch[1]) });
-          continue;
-        }
+      // Pattern D: "15  Topic name" (page at start)
+      const m4 = line.match(/^(\d+)[.…·_\s]{2,}(.+)$/);
+      if (m4 && m4[2].replace(/^[.…·_]+/, '').trim().length > 1) {
+        entries.push({ topic: m4[2].replace(/^[.…·_]+/, '').trim(), startPage: +m4[1], endPage: +m4[1] });
+        continue;
       }
 
-      // --- Pattern 5: flexible — number near text (last resort) ---
-      const flexMatch = line.match(/^(.+?)\s+(\d+)\s*$/) || line.match(/^(\d+)\s+(.+)$/);
-      if (flexMatch) {
-        const g1Num = /^\d+$/.test(flexMatch[1].trim());
-        const topic = g1Num ? flexMatch[2].trim() : flexMatch[1].trim();
-        const page = parseInt(g1Num ? flexMatch[1].trim() : flexMatch[2].trim());
+      // Pattern E: flexible last resort — "text 15" or "15 text"
+      const m5 = line.match(/^(.+?)\s+(\d+)\s*$/) || line.match(/^(\d+)\s+(.+)$/);
+      if (m5) {
+        const g1IsNum = /^\d+$/.test(m5[1].trim());
+        const topic = (g1IsNum ? m5[2] : m5[1]).trim();
+        const page = +(g1IsNum ? m5[1] : m5[2]).trim();
         if (topic.replace(/[.…·_\-\s\d]/g, '').length >= 2 && page > 0 && page < 10000) {
           entries.push({ topic, startPage: page, endPage: page });
           continue;
@@ -421,14 +353,14 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
       }
     }
 
-    // Post-process: fill end pages
+    // Fill end pages: if entry has same start/end, set endPage = next entry's startPage - 1
     for (let i = 0; i < entries.length; i++) {
       if (entries[i].startPage === entries[i].endPage && i < entries.length - 1) {
         entries[i].endPage = Math.max(entries[i].startPage, entries[i + 1].startPage - 1);
       }
     }
 
-    console.log('[OCR] Parsed entries:', entries);
+    console.log('[OCR] Parsed', entries.length, 'entries:', entries);
     return entries;
   };
 
@@ -440,38 +372,34 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
     setShowOcrResults(false);
 
     try {
-      console.log('[OCR] Starting scan for file:', file.name, 'size:', file.size);
+      console.log('[OCR] Starting scan, lang:', ocrLang, 'file:', file.name, 'size:', file.size);
 
       const statusLabels: Record<string, string> = {
         'loading tesseract core': 'Loading OCR engine...',
         'initializing tesseract': 'Initializing...',
-        'loading language traineddata': 'Downloading Arabic+English language data...',
+        'loading language traineddata': 'Downloading language data...',
         'loaded language traineddata': 'Language data ready',
         'initializing api': 'Preparing recognition...',
         'recognizing text': 'Recognizing text...',
       };
 
-      const { data } = await Tesseract.recognize(file, 'ara+eng', {
+      const { data } = await Tesseract.recognize(file, ocrLang, {
         logger: (m: { status: string; progress: number }) => {
           console.log('[OCR]', m.status, Math.round(m.progress * 100) + '%');
-          const label = statusLabels[m.status] || m.status;
-          setOcrStatus(label);
-          // Show progress for all stages, emphasize recognition phase
+          setOcrStatus(statusLabels[m.status] || m.status);
           if (m.status === 'recognizing text') {
-            setOcrProgress(50 + Math.round(m.progress * 50)); // 50-100%
+            setOcrProgress(50 + Math.round(m.progress * 50));
           } else if (m.status === 'loading language traineddata') {
-            setOcrProgress(Math.round(m.progress * 40)); // 0-40%
-          } else {
-            setOcrProgress(Math.min(45, ocrProgress)); // keep between stages
+            setOcrProgress(Math.round(m.progress * 40));
           }
         },
       });
 
-      console.log('[OCR] Recognition complete. Text length:', data.text.length);
+      console.log('[OCR] Done. Text length:', data.text.length);
       const parsed = parseOcrText(data.text);
 
       if (parsed.length === 0) {
-        toast.warning('Could not detect chapters in image. Try a clearer photo of the table of contents.');
+        toast.warning('Could not detect chapters. Try a clearer photo or different language.');
       } else {
         setOcrResults(parsed);
         setShowOcrResults(true);
@@ -479,7 +407,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
       }
     } catch (err) {
       console.error('[OCR] Error:', err);
-      toast.error('OCR scan failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      toast.error('OCR failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
     } finally {
       setOcrProcessing(false);
       setOcrProgress(0);
@@ -696,15 +624,30 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
 
         {/* OCR Scan Section */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div className="px-4 py-3 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/15 dark:to-orange-900/15 border-b border-gray-200 dark:border-gray-700">
+          <div className="px-4 py-3 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/15 dark:to-orange-900/15 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-100 flex items-center gap-1.5">
               <svg className="w-4 h-4 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
               OCR Scan / مسح ضوئي
-              <span className="text-[10px] font-normal text-amber-600 dark:text-amber-400 ml-1">(Arabic + English)</span>
             </h3>
+            {/* Language toggle */}
+            <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-[11px]">
+              {([['eng', 'EN'], ['ara', 'عربي'], ['eng+ara', 'Both']] as const).map(([val, label]) => (
+                <button
+                  key={val}
+                  onClick={() => setOcrLang(val)}
+                  className={`px-2.5 py-1 font-medium transition-colors ${
+                    ocrLang === val
+                      ? 'bg-amber-500 text-white'
+                      : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="p-4">
             <input
@@ -733,8 +676,8 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
                 </div>
                 <p className="text-[10px] text-gray-400">
                   {ocrStatus.includes('Downloading') 
-                    ? 'First-time download of Arabic language data (~15MB). This only happens once.' 
-                    : 'Processing Arabic + English text recognition...'}
+                    ? 'First-time language download. This only happens once.' 
+                    : 'Processing text recognition...'}
                 </p>
               </div>
             ) : showOcrResults && ocrResults.length > 0 ? (
@@ -794,7 +737,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
             )}
             {!ocrProcessing && !showOcrResults && (
               <p className="text-[10px] text-gray-400 mt-2">
-                Scan a photo of the book's table of contents to auto-extract chapters · يدعم العربية والإنجليزية
+                Upload a photo of the book's table of contents · رفع صورة الفهرس
               </p>
             )}
           </div>
