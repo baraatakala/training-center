@@ -560,18 +560,7 @@ function TemplateModal({
     template?.body_template ||
     'This is to certify that {{name}} has successfully completed the course "{{course}}" with a score of {{score}}% and {{attendance}}% attendance rate.'
   );
-  const [signatureName, setSignatureName] = useState(template?.signature_name || '');
-  const [signatureTitle, setSignatureTitle] = useState(template?.signature_title || '');
-  const [signerTeachers, setSignerTeachers] = useState<Array<{ teacher_id: string; name: string }>>([]);
 
-  // Load teachers for signer auto-fill
-  useEffect(() => {
-    const loadTeachers = async () => {
-      const { data } = await supabase.from('teacher').select('teacher_id, name').order('name');
-      if (data) setSignerTeachers(data);
-    };
-    loadTeachers();
-  }, []);
   const [isActive, setIsActive] = useState(template?.is_active ?? true);
 
   // Style
@@ -600,8 +589,7 @@ function TemplateModal({
         min_attendance: minAttendance,
         style_config: style,
         body_template: bodyTemplate,
-        signature_name: signatureName.trim() || undefined,
-        signature_title: signatureTitle.trim() || undefined,
+
       };
 
       const { error } = isEditing
@@ -757,51 +745,6 @@ function TemplateModal({
             />
           </div>
 
-          {/* Signer - Auto-fill from teacher */}
-          <div className="space-y-2">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Auto-fill Signer from Teacher</label>
-              <select
-                value=""
-                onChange={e => {
-                  const t = signerTeachers.find(t => t.teacher_id === e.target.value);
-                  if (t) {
-                    setSignatureName(t.name);
-                    setSignatureTitle('Teacher / معلم');
-                  }
-                }}
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
-              >
-                <option value="">Select teacher to auto-fill...</option>
-                {signerTeachers.map(t => (
-                  <option key={t.teacher_id} value={t.teacher_id}>{t.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Signer Name</label>
-                <input
-                  type="text"
-                  value={signatureName}
-                  onChange={e => setSignatureName(e.target.value)}
-                  placeholder="Auto-filled or type manually"
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Signer Title</label>
-                <input
-                  type="text"
-                  value={signatureTitle}
-                  onChange={e => setSignatureTitle(e.target.value)}
-                  placeholder="Auto-filled or type manually"
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
-                />
-              </div>
-            </div>
-          </div>
-
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -819,8 +762,8 @@ function TemplateModal({
           <CertificatePreviewCard
             style={style}
             body={previewBody}
-            signatureName={signatureName || 'Director Name'}
-            signatureTitle={signatureTitle || 'Training Center Director'}
+            signatureName="(Set when issuing)"
+            signatureTitle=""
             templateType={templateType}
           />
         </div>
@@ -860,6 +803,8 @@ function IssueModal({
   const [attendance, setAttendance] = useState(0);
   const [issuing, setIssuing] = useState(false);
   const [loadingStats, setLoadingStats] = useState(false);
+  const [signerName, setSignerName] = useState('');
+  const [signerTitle, setSignerTitle] = useState('');
   const [belowThresholdAcknowledged, setBelowThresholdAcknowledged] = useState(false);
 
   // Loaded data
@@ -907,6 +852,10 @@ function IssueModal({
       }
     };
     load();
+    // Auto-fill signer name from teacher
+    const t = teachers.find(t => t.teacher_id === teacherId);
+    if (t && !signerName) setSignerName(t.name);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teacherId]);
 
   // Load sessions + enrolled students when course changes
@@ -1070,6 +1019,8 @@ function IssueModal({
         final_score: score,
         attendance_rate: attendance,
         issued_by: userEmail,
+        signature_name: signerName.trim() || undefined,
+        signature_title: signerTitle.trim() || undefined,
       });
       if (error) {
         toast.error('Failed to issue certificate: ' + error.message);
@@ -1202,6 +1153,42 @@ function IssueModal({
             {belowMinAttendance && (
               <p className="text-xs text-red-500 mt-1 font-medium">⚠ Below minimum {selectedTemplate!.min_attendance}%</p>
             )}
+          </div>
+        </div>
+
+        {/* Signer Info */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Signer Name</label>
+            <input
+              type="text"
+              value={signerName}
+              onChange={e => setSignerName(e.target.value)}
+              placeholder="e.g. Dr. Ahmad"
+              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
+            />
+            {teacherId && !signerName && (
+              <button
+                type="button"
+                onClick={() => {
+                  const t = teachers.find(t => t.teacher_id === teacherId);
+                  if (t) setSignerName(t.name);
+                }}
+                className="text-xs text-blue-500 hover:text-blue-700 mt-1"
+              >
+                Use teacher name
+              </button>
+            )}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Signer Title</label>
+            <input
+              type="text"
+              value={signerTitle}
+              onChange={e => setSignerTitle(e.target.value)}
+              placeholder="e.g. Training Center Director"
+              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
+            />
           </div>
         </div>
 
@@ -1347,8 +1334,8 @@ function CertificatePreview({
       })
     : '(No content)';
 
-  const signerName = tmpl?.signature_name || '—';
-  const signerTitle = tmpl?.signature_title || '';
+  const signerName = certificate.signature_name || tmpl?.signature_name || '—';
+  const signerTitle = certificate.signature_title || tmpl?.signature_title || '';
 
   const handlePrint = () => {
     // Create a printable window with the certificate

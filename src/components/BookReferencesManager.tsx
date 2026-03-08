@@ -1,6 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { Input } from './ui/Input';
 import { Tables, type CourseBookReference } from '../types/database.types';
 import { toast } from './ui/toastUtils';
 import { ConfirmDialog } from './ui/ConfirmDialog';
@@ -27,7 +26,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
   // Which chapter is currently showing its "add subtopic" form
   const [addingSubtopicFor, setAddingSubtopicFor] = useState<string | null>(null);
 
-  // New top-level chapter form
+  // New top-level chapter form — only needs topic (pages auto-computed from subtopics or set after)
   const [newTopic, setNewTopic] = useState('');
   const [newStartPage, setNewStartPage] = useState(1);
   const [newEndPage, setNewEndPage] = useState(1);
@@ -90,12 +89,46 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
   // Stats
   const totalRefs = references.length;
   const topLevel = chapters.length;
-  const subtopics = references.length - chapters.length;
-  const totalPages = references.reduce((sum, ref) => sum + (ref.end_page - ref.start_page + 1), 0);
+  const subtopicCount = references.length - chapters.length;
+  const totalPages = useMemo(() => {
+    // Only count chapter-level pages (subtopics are within chapter range)
+    let sum = 0;
+    for (const ch of chapters) {
+      sum += ch.end_page - ch.start_page + 1;
+    }
+    return sum;
+  }, [chapters]);
+
+  // Auto-compute next chapter start page = last chapter's end page
+  const nextChapterStart = useMemo(() => {
+    if (chapters.length === 0) return 1;
+    const lastChapter = chapters[chapters.length - 1];
+    return lastChapter.end_page;
+  }, [chapters]);
+
+  // Keep chapter form start/end synced when chapters load
+  useEffect(() => {
+    if (!newTopic) {
+      setNewStartPage(nextChapterStart);
+      setNewEndPage(nextChapterStart);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nextChapterStart]);
+
+  // Auto-update chapter range from its subtopics
+  const syncChapterRange = useCallback(async (chapterId: string, subs: CourseBookReference[]) => {
+    if (subs.length === 0) return;
+    const minStart = Math.min(...subs.map(s => s.start_page));
+    const maxEnd = Math.max(...subs.map(s => s.end_page));
+    await supabase
+      .from(Tables.COURSE_BOOK_REFERENCE)
+      .update({ start_page: minStart, end_page: maxEnd })
+      .eq('reference_id', chapterId);
+  }, []);
 
   const handleAddChapter = async () => {
     if (!newTopic.trim()) {
-      toast.warning('Please enter a topic name / أدخل اسم الموضوع');
+      toast.warning('Please enter a chapter name / أدخل اسم الفصل');
       return;
     }
     if (newStartPage > newEndPage) {
@@ -116,10 +149,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
 
     if (!error) {
       setNewTopic('');
-      // Auto-advance: next chapter starts where this one ended
-      setNewStartPage(newEndPage);
-      setNewEndPage(newEndPage);
-      loadReferences();
+      await loadReferences();
       toast.success('Chapter added / تم إضافة الفصل');
     } else {
       toast.error('Error: ' + error.message);
@@ -149,26 +179,41 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
       }]);
 
     if (!error) {
+      // Auto-sync parent chapter range
+      const updatedSubs = [...existingSubs, { start_page: subStartPage, end_page: subEndPage } as CourseBookReference];
+      await syncChapterRange(parentId, updatedSubs);
+
+      // Keep form open for continuous adding — advance start to this subtopic's end page
       setSubTopic('');
-      // Auto-advance: next subtopic starts where this one ended
       setSubStartPage(subEndPage);
       setSubEndPage(subEndPage);
-      // Keep form open for quick sequential entry
-      loadReferences();
-      toast.success('Subtopic added / تم إضافة العنوان الفرعي');
+      // Keep addingSubtopicFor = parentId (don't close)
+      await loadReferences();
+      toast.success('Subtopic added — add next or press ✕ / تم إضافة العنوان الفرعي');
     } else {
       toast.error('Error: ' + error.message);
     }
   };
 
   const handleDelete = async (referenceId: string) => {
+    // If deleting a subtopic, we'll need to re-sync chapter range after
+    const ref = references.find(r => r.reference_id === referenceId);
+    const parentId = ref?.parent_id;
+
     const { error } = await supabase
       .from(Tables.COURSE_BOOK_REFERENCE)
       .delete()
       .eq('reference_id', referenceId);
 
     if (!error) {
-      loadReferences();
+      // Re-sync parent chapter if we deleted a subtopic
+      if (parentId) {
+        const remainingSubs = (tree.get(parentId) || []).filter(s => s.reference_id !== referenceId);
+        if (remainingSubs.length > 0) {
+          await syncChapterRange(parentId, remainingSubs);
+        }
+      }
+      await loadReferences();
     } else {
       toast.error('Error deleting: ' + error.message);
     }
@@ -190,8 +235,15 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
       .eq('reference_id', reference.reference_id);
 
     if (!error) {
+      // If editing a subtopic, re-sync parent chapter range
+      if (reference.parent_id) {
+        const subs = (tree.get(reference.parent_id) || []).map(s =>
+          s.reference_id === reference.reference_id ? reference : s
+        );
+        await syncChapterRange(reference.parent_id, subs);
+      }
       setEditingId(null);
-      loadReferences();
+      await loadReferences();
     } else {
       toast.error('Error updating: ' + error.message);
     }
@@ -206,11 +258,29 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
     });
   };
 
+  // Open add-subtopic form with smart defaults
+  const openAddSubtopic = (chapter: CourseBookReference) => {
+    const subs = tree.get(chapter.reference_id) || [];
+    const lastSub = subs.length > 0 ? subs[subs.length - 1] : null;
+    const startPage = lastSub ? lastSub.end_page : chapter.start_page;
+
+    setAddingSubtopicFor(chapter.reference_id);
+    setSubTopic('');
+    setSubStartPage(startPage);
+    setSubEndPage(startPage);
+    // Auto-expand
+    setCollapsedChapters(prev => {
+      const next = new Set(prev);
+      next.delete(chapter.reference_id);
+      return next;
+    });
+  };
+
   // Helper: render inline edit form for a reference
   const renderEditForm = (ref: CourseBookReference) => (
-    <div className="p-4 space-y-3 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200 dark:border-blue-700">
-      <div className="flex items-center gap-2 text-sm font-semibold text-blue-700 dark:text-blue-300">
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div className="p-4 space-y-3 bg-gradient-to-br from-blue-50/80 to-indigo-50/80 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200 dark:border-blue-700">
+      <div className="flex items-center gap-2 text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
         </svg>
         Editing
@@ -224,37 +294,49 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
             r.reference_id === ref.reference_id ? { ...r, topic: e.target.value } : r
           ));
         }}
-        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
+        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
         placeholder="Topic name / اسم الموضوع"
       />
       <div className="grid grid-cols-2 gap-3">
-        <Input
-          label="Start Page"
-          type="number"
-          min="1"
-          value={ref.start_page.toString()}
-          onChange={(value) => {
-            setReferences(references.map(r =>
-              r.reference_id === ref.reference_id ? { ...r, start_page: parseInt(value) || 1 } : r
-            ));
-          }}
-        />
-        <Input
-          label="End Page"
-          type="number"
-          min="1"
-          value={ref.end_page.toString()}
-          onChange={(value) => {
-            setReferences(references.map(r =>
-              r.reference_id === ref.reference_id ? { ...r, end_page: parseInt(value) || 1 } : r
-            ));
-          }}
-        />
+        <div>
+          <label className="text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 block">Start Page</label>
+          <input
+            type="number"
+            min={1}
+            value={ref.start_page}
+            onChange={(e) => {
+              const v = parseInt(e.target.value) || 1;
+              setReferences(references.map(r =>
+                r.reference_id === ref.reference_id ? { ...r, start_page: v, end_page: Math.max(v, r.end_page) } : r
+              ));
+            }}
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
+          />
+        </div>
+        <div>
+          <label className="text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 block">End Page</label>
+          <input
+            type="number"
+            min={1}
+            value={ref.end_page}
+            onChange={(e) => {
+              setReferences(references.map(r =>
+                r.reference_id === ref.reference_id ? { ...r, end_page: parseInt(e.target.value) || 1 } : r
+              ));
+            }}
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
+          />
+        </div>
       </div>
+      {ref.start_page <= ref.end_page && (
+        <div className="text-[10px] text-blue-600 dark:text-blue-400">
+          📄 {ref.end_page - ref.start_page + 1} page{ref.end_page - ref.start_page + 1 !== 1 ? 's' : ''}
+        </div>
+      )}
       <div className="flex gap-2">
         <button
           onClick={() => handleUpdate(ref)}
-          className="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1"
+          className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1.5"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
           Save
@@ -270,423 +352,389 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
   );
 
   // Helper: render a subtopic item
-  const renderSubtopic = (sub: CourseBookReference, index: number) => {
+  const renderSubtopic = (sub: CourseBookReference, index: number, totalSubs: number) => {
     if (editingId === sub.reference_id) {
-      return <div key={sub.reference_id} className="ml-8 mt-2">{renderEditForm(sub)}</div>;
+      return <div key={sub.reference_id} className="ml-6 mt-2">{renderEditForm(sub)}</div>;
     }
+    const pages = sub.end_page - sub.start_page + 1;
     return (
       <div
         key={sub.reference_id}
-        className="ml-8 mt-1.5 flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-purple-300 dark:hover:border-purple-600 transition-colors group/sub"
+        className="relative ml-6 mt-0 group/sub"
       >
-        {/* Connector line visual */}
-        <div className="flex items-center gap-2 text-gray-400 dark:text-gray-500">
-          <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none">
-            <path d="M4 0v8h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-          <span className="text-[10px] font-mono bg-gray-200 dark:bg-gray-600 px-1.5 py-0.5 rounded text-gray-500 dark:text-gray-400">
+        {/* Tree connector */}
+        <div className="absolute -left-4 top-0 bottom-0 w-4">
+          <div className={`absolute left-1.5 top-0 w-px bg-purple-200 dark:bg-purple-800 ${index === totalSubs - 1 ? 'h-5' : 'h-full'}`} />
+          <div className="absolute left-1.5 top-5 w-2.5 h-px bg-purple-200 dark:bg-purple-800" />
+        </div>
+        <div className="flex items-center gap-2.5 py-2 px-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors">
+          <span className="text-[9px] font-mono font-bold bg-purple-100 dark:bg-purple-800/50 text-purple-600 dark:text-purple-300 w-5 h-5 rounded flex items-center justify-center shrink-0">
             {index + 1}
           </span>
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className={`text-sm font-medium text-gray-800 dark:text-gray-200 truncate ${isRTL(sub.topic) ? 'text-right' : ''}`} dir={isRTL(sub.topic) ? 'rtl' : 'ltr'}>
-            {sub.topic}
-          </p>
-          <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
-            <span>pp. {sub.start_page}–{sub.end_page}</span>
-            <span className="text-gray-300 dark:text-gray-600">|</span>
-            <span>{sub.end_page - sub.start_page + 1} pages</span>
+          <div className="flex-1 min-w-0">
+            <p
+              className={`text-sm text-gray-800 dark:text-gray-200 truncate ${isRTL(sub.topic) ? 'text-right' : ''}`}
+              dir={isRTL(sub.topic) ? 'rtl' : 'ltr'}
+            >
+              {sub.topic}
+            </p>
           </div>
-        </div>
-        <div className="flex gap-1 opacity-0 group-hover/sub:opacity-100 transition-opacity">
-          <button
-            onClick={() => setEditingId(sub.reference_id)}
-            className="p-1.5 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-lg transition-colors"
-            title="Edit"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-          </button>
-          <button
-            onClick={() => setDeleteConfirmId(sub.reference_id)}
-            className="p-1.5 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-lg transition-colors"
-            title="Delete"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-          </button>
+          <span className="shrink-0 text-[10px] text-gray-400 dark:text-gray-500 tabular-nums">
+            {sub.start_page}–{sub.end_page} <span className="text-gray-300 dark:text-gray-600">·</span> {pages}p
+          </span>
+          <div className="flex gap-0.5 opacity-0 group-hover/sub:opacity-100 transition-opacity shrink-0">
+            <button
+              onClick={() => setEditingId(sub.reference_id)}
+              className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"
+              title="Edit"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+            </button>
+            <button
+              onClick={() => setDeleteConfirmId(sub.reference_id)}
+              className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
+              title="Delete"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            </button>
+          </div>
         </div>
       </div>
     );
   };
 
   return (
-    <div className="min-h-[600px] bg-gradient-to-br from-gray-50 via-purple-50 to-gray-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 rounded-2xl overflow-hidden">
+    <div className="min-h-[600px] bg-gray-50 dark:bg-gray-900 rounded-2xl overflow-hidden">
       {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-700 text-white p-6">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="bg-white/20 p-3 rounded-lg backdrop-blur-sm">
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div className="bg-gradient-to-r from-purple-700 to-indigo-700 text-white px-6 py-5">
+        <div className="flex items-center gap-3">
+          <div className="bg-white/15 p-2.5 rounded-xl backdrop-blur-sm">
+            <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
             </svg>
           </div>
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">📚 Book References / مراجع الكتاب</h2>
-            <p className="text-purple-100 text-sm mt-1">
-              <span className="font-semibold">{courseName}</span>
-            </p>
+          <div className="flex-1">
+            <h2 className="text-xl font-bold tracking-tight">Book References / مراجع الكتاب</h2>
+            <p className="text-purple-200 text-sm mt-0.5">{courseName}</p>
           </div>
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors" title="Close">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
         </div>
-        <p className="text-purple-100 text-sm pl-14">
-          Organize chapters and subtopics with page ranges — supports Arabic & English
-          <br />
-          <span dir="rtl" className="text-purple-200 text-xs">نظّم الفصول والعناوين الفرعية مع نطاقات الصفحات</span>
-        </p>
       </div>
 
-      <div className="p-6 space-y-5">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-900/30 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-medium text-blue-700 dark:text-blue-300">Chapters / فصول</p>
-                <p className="text-2xl font-bold text-blue-900 dark:text-blue-100 mt-0.5">{topLevel}</p>
-              </div>
-              <span className="text-2xl">📖</span>
-            </div>
+      <div className="p-5 space-y-4">
+        {/* Compact Stats Bar */}
+        <div className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 text-sm">
+          <div className="flex items-center gap-1.5">
+            <span className="text-purple-600 dark:text-purple-400 font-bold">{topLevel}</span>
+            <span className="text-gray-500 dark:text-gray-400">chapters</span>
           </div>
-          <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-900/30 p-4 rounded-xl border border-purple-200 dark:border-purple-800">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-medium text-purple-700 dark:text-purple-300">Subtopics / عناوين فرعية</p>
-                <p className="text-2xl font-bold text-purple-900 dark:text-purple-100 mt-0.5">{subtopics}</p>
-              </div>
-              <span className="text-2xl">📑</span>
-            </div>
+          <span className="text-gray-300 dark:text-gray-600">·</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-indigo-600 dark:text-indigo-400 font-bold">{subtopicCount}</span>
+            <span className="text-gray-500 dark:text-gray-400">subtopics</span>
           </div>
-          <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-900/30 p-4 rounded-xl border border-green-200 dark:border-green-800">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-medium text-green-700 dark:text-green-300">Total Entries</p>
-                <p className="text-2xl font-bold text-green-900 dark:text-green-100 mt-0.5">{totalRefs}</p>
-              </div>
-              <span className="text-2xl">📋</span>
-            </div>
+          <span className="text-gray-300 dark:text-gray-600">·</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-blue-600 dark:text-blue-400 font-bold">{totalRefs}</span>
+            <span className="text-gray-500 dark:text-gray-400">total</span>
           </div>
-          <div className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-900/30 p-4 rounded-xl border border-amber-200 dark:border-amber-800">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-medium text-amber-700 dark:text-amber-300">Total Pages</p>
-                <p className="text-2xl font-bold text-amber-900 dark:text-amber-100 mt-0.5">{totalPages}</p>
-              </div>
-              <span className="text-2xl">📄</span>
-            </div>
+          <span className="text-gray-300 dark:text-gray-600">·</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-amber-600 dark:text-amber-400 font-bold">{totalPages}</span>
+            <span className="text-gray-500 dark:text-gray-400">pages</span>
           </div>
+          {references.length > 3 && (
+            <div className="flex-1 ml-2">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search... / بحث..."
+                className="w-full px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-xs focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+              />
+            </div>
+          )}
         </div>
 
-        {/* Search bar */}
-        {references.length > 3 && (
-          <div className="relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search topics... / ابحث عن المواضيع..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-            />
-          </div>
-        )}
-
-        {/* Add New Chapter */}
-        <div className="bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 p-5 rounded-2xl border border-purple-200 dark:border-purple-700">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-lg">➕</span>
-            <h3 className="text-base font-semibold text-purple-900 dark:text-purple-100">
+        {/* Add New Chapter — compact & smart */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="px-4 py-3 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/15 dark:to-indigo-900/15 border-b border-gray-200 dark:border-gray-700">
+            <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-100 flex items-center gap-1.5">
+              <svg className="w-4 h-4 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
               Add Chapter / إضافة فصل
             </h3>
           </div>
-          <div className="space-y-3 bg-white dark:bg-gray-800 p-4 rounded-xl border border-purple-100 dark:border-purple-800">
-            <input
-              type="text"
-              value={newTopic}
-              dir={isRTL(newTopic) ? 'rtl' : 'ltr'}
-              onChange={e => setNewTopic(e.target.value)}
-              placeholder="Chapter name / اسم الفصل — e.g. الفصل الثالث: أحكام التجويد"
-              className="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-purple-500"
-              onKeyDown={e => e.key === 'Enter' && handleAddChapter()}
-            />
-            <div className="grid grid-cols-3 gap-3 items-end">
-              <div>
-                <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">Start Page</label>
+          <div className="p-4">
+            <div className="flex gap-3 items-end">
+              <div className="flex-1">
+                <input
+                  type="text"
+                  value={newTopic}
+                  dir={isRTL(newTopic) ? 'rtl' : 'ltr'}
+                  onChange={e => setNewTopic(e.target.value)}
+                  placeholder="Chapter name / اسم الفصل — e.g. الفصل الثالث: أحكام التجويد"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-purple-500"
+                  onKeyDown={e => e.key === 'Enter' && handleAddChapter()}
+                />
+              </div>
+              <div className="w-20">
+                <label className="text-[10px] text-gray-500 dark:text-gray-400 block mb-0.5">Start</label>
                 <input
                   type="number"
                   min={1}
                   value={newStartPage}
                   onChange={e => {
-                    const val = parseInt(e.target.value) || 1;
-                    setNewStartPage(val);
-                    // Auto-fill end page: find next chapter that starts after this page
-                    const sorted = chapters.slice().sort((a, b) => a.start_page - b.start_page);
-                    const next = sorted.find(c => c.start_page > val);
-                    setNewEndPage(next ? next.start_page : val);
+                    const v = parseInt(e.target.value) || 1;
+                    setNewStartPage(v);
+                    // End follows start if they were equal
+                    if (newEndPage <= v) setNewEndPage(v);
                   }}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
+                  className="w-full px-2 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-center tabular-nums"
                 />
               </div>
-              <div>
-                <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">End Page</label>
+              <div className="w-20">
+                <label className="text-[10px] text-gray-500 dark:text-gray-400 block mb-0.5">End</label>
                 <input
                   type="number"
                   min={1}
                   value={newEndPage}
                   onChange={e => setNewEndPage(parseInt(e.target.value) || 1)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
+                  className="w-full px-2 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-center tabular-nums"
                 />
               </div>
               <button
                 onClick={handleAddChapter}
-                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-lg font-medium transition-all text-sm flex items-center justify-center gap-1.5 shadow-md hover:shadow-lg"
+                disabled={!newTopic.trim()}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 shrink-0"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
                 Add
               </button>
             </div>
-            {newStartPage > 0 && newEndPage >= newStartPage && (
-              <div className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
-                <span>📄</span> {newEndPage - newStartPage + 1} pages
-              </div>
+            {newStartPage > 0 && newEndPage >= newStartPage && newTopic.trim() && (
+              <p className="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
+                📄 {newEndPage - newStartPage + 1} pages · Pages will auto-adjust when subtopics are added
+              </p>
             )}
           </div>
         </div>
 
-        {/* Chapter List with Subtopics */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-              <span>📚</span>
-              Table of Contents
-              <span className="ml-1 text-xs font-normal bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded-full">
-                {topLevel} {topLevel === 1 ? 'chapter' : 'chapters'}
-              </span>
-            </h3>
-            {chapters.length > 1 && (
+        {/* Chapter List */}
+        <div className="space-y-2">
+          {chapters.length > 1 && (
+            <div className="flex items-center justify-between px-1">
+              <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Table of Contents · {topLevel} chapter{topLevel !== 1 ? 's' : ''}
+              </h3>
               <button
                 onClick={() => {
-                  if (collapsedChapters.size === chapters.length) {
-                    setCollapsedChapters(new Set());
-                  } else {
-                    setCollapsedChapters(new Set(chapters.map(c => c.reference_id)));
-                  }
+                  if (collapsedChapters.size === chapters.length) setCollapsedChapters(new Set());
+                  else setCollapsedChapters(new Set(chapters.map(c => c.reference_id)));
                 }}
-                className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 font-medium"
+                className="text-[10px] text-purple-600 dark:text-purple-400 hover:underline font-medium"
               >
-                {collapsedChapters.size === chapters.length ? '▶ Expand All' : '▼ Collapse All'}
+                {collapsedChapters.size === chapters.length ? 'Expand All' : 'Collapse All'}
               </button>
-            )}
-          </div>
+            </div>
+          )}
 
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-16 space-y-4">
-              <div className="w-12 h-12 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Loading references...</p>
+            <div className="flex flex-col items-center justify-center py-16 space-y-3">
+              <div className="w-10 h-10 border-3 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
+              <p className="text-gray-400 text-sm">Loading...</p>
             </div>
           ) : filteredChapters.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 space-y-3 bg-white dark:bg-gray-800 rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-600">
-              <span className="text-5xl">📖</span>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            <div className="flex flex-col items-center justify-center py-16 space-y-2 bg-white dark:bg-gray-800 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700">
+              <span className="text-4xl">📖</span>
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">
                 {searchQuery ? 'No matching references' : 'No References Yet'}
               </h3>
-              <p className="text-gray-500 dark:text-gray-400 text-sm text-center max-w-md">
+              <p className="text-gray-400 text-sm text-center max-w-sm">
                 {searchQuery
                   ? 'Try a different search term'
-                  : 'Start by adding a chapter above. Each chapter can have subtopics for detailed tracking.'
+                  : 'Add a chapter above, then add subtopics inside it. Pages auto-adjust.'
                 }
               </p>
-              {!searchQuery && (
-                <p className="text-gray-400 dark:text-gray-500 text-xs text-center" dir="rtl">
-                  ابدأ بإضافة فصل أعلاه. يمكن لكل فصل أن يحتوي على عناوين فرعية للتتبع التفصيلي
-                </p>
-              )}
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {filteredChapters.map((chapter, chapterIndex) => {
                 const subs = tree.get(chapter.reference_id) || [];
                 const isCollapsed = collapsedChapters.has(chapter.reference_id);
+                const hasSubs = subs.length > 0;
                 const chapterPages = chapter.end_page - chapter.start_page + 1;
-                const totalSubPages = subs.reduce((s, r) => s + (r.end_page - r.start_page + 1), 0);
-                const topicIsRTL = isRTL(chapter.topic);
 
                 return (
-                  <div key={chapter.reference_id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                  <div key={chapter.reference_id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden transition-shadow hover:shadow-sm">
                     {/* Chapter header */}
                     {editingId === chapter.reference_id ? (
                       <div className="p-4">{renderEditForm(chapter)}</div>
                     ) : (
-                      <div className="p-4">
-                        <div className="flex items-start gap-3">
-                          {/* Expand/collapse + chapter number */}
-                          <button
-                            onClick={() => toggleCollapse(chapter.reference_id)}
-                            className="flex items-center gap-1.5 mt-0.5 shrink-0"
+                      <div
+                        className="flex items-center gap-3 px-4 py-3 cursor-pointer select-none"
+                        onClick={() => toggleCollapse(chapter.reference_id)}
+                      >
+                        {/* Collapse arrow + index */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          <svg
+                            className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-200 ${isCollapsed ? '-rotate-90' : 'rotate-0'}`}
+                            fill="none" stroke="currentColor" viewBox="0 0 24 24"
                           >
-                            <svg
-                              className={`w-4 h-4 text-purple-500 transition-transform duration-200 ${isCollapsed ? '-rotate-90' : 'rotate-0'}`}
-                              fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
-                            <span className="flex items-center justify-center w-8 h-8 bg-gradient-to-br from-purple-500 to-indigo-600 text-white rounded-lg font-bold text-sm shadow-sm">
-                              {chapterIndex + 1}
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                          <span className="flex items-center justify-center w-7 h-7 bg-purple-600 text-white rounded-lg font-bold text-xs">
+                            {chapterIndex + 1}
+                          </span>
+                        </div>
+
+                        {/* Chapter info */}
+                        <div className="flex-1 min-w-0">
+                          <h4
+                            className={`text-sm font-semibold text-gray-900 dark:text-white truncate ${isRTL(chapter.topic) ? 'text-right' : ''}`}
+                            dir={isRTL(chapter.topic) ? 'rtl' : 'ltr'}
+                          >
+                            {chapter.topic}
+                          </h4>
+                        </div>
+
+                        {/* Page badge */}
+                        <div className="flex items-center gap-2 shrink-0 text-[11px] tabular-nums">
+                          <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-md font-medium">
+                            pp. {chapter.start_page}–{chapter.end_page}
+                          </span>
+                          <span className="text-gray-400">{chapterPages}p</span>
+                          {hasSubs && (
+                            <span className="px-1.5 py-0.5 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 rounded-md font-medium">
+                              {subs.length} sub{subs.length !== 1 ? 's' : ''}
                             </span>
+                          )}
+                          {hasSubs && (
+                            <span className="px-1.5 py-0.5 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-300 rounded-md text-[10px]" title="Range auto-computed from subtopics">
+                              auto
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-0.5 shrink-0" onClick={e => e.stopPropagation()}>
+                          <button
+                            onClick={() => {
+                              if (addingSubtopicFor === chapter.reference_id) {
+                                setAddingSubtopicFor(null);
+                              } else {
+                                openAddSubtopic(chapter);
+                              }
+                            }}
+                            className={`p-1.5 rounded-lg transition-colors ${
+                              addingSubtopicFor === chapter.reference_id
+                                ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'
+                                : 'text-gray-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20'
+                            }`}
+                            title="Add subtopic"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
                           </button>
-
-                          {/* Chapter info */}
-                          <div className="flex-1 min-w-0">
-                            <h4
-                              className={`text-base font-semibold text-gray-900 dark:text-white ${topicIsRTL ? 'text-right' : ''}`}
-                              dir={topicIsRTL ? 'rtl' : 'ltr'}
-                            >
-                              {chapter.topic}
-                            </h4>
-                            <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs">
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-md border border-blue-200 dark:border-blue-700">
-                                📄 pp. {chapter.start_page}–{chapter.end_page} ({chapterPages} pages)
-                              </span>
-                              {subs.length > 0 && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-md border border-purple-200 dark:border-purple-700">
-                                  📑 {subs.length} subtopic{subs.length !== 1 ? 's' : ''} ({totalSubPages} pages)
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Actions */}
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              onClick={() => {
-                                if (addingSubtopicFor === chapter.reference_id) {
-                                  setAddingSubtopicFor(null);
-                                } else {
-                                  setAddingSubtopicFor(chapter.reference_id);
-                                  setSubTopic('');
-                                  setSubStartPage(chapter.start_page);
-                                  setSubEndPage(chapter.end_page);
-                                  // Auto-expand
-                                  setCollapsedChapters(prev => {
-                                    const next = new Set(prev);
-                                    next.delete(chapter.reference_id);
-                                    return next;
-                                  });
-                                }
-                              }}
-                              className={`p-2 rounded-lg text-sm font-medium transition-colors ${
-                                addingSubtopicFor === chapter.reference_id
-                                  ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'
-                                  : 'text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 dark:text-purple-400'
-                              }`}
-                              title="Add subtopic / إضافة عنوان فرعي"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                            </button>
-                            <button
-                              onClick={() => setEditingId(chapter.reference_id)}
-                              className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 dark:text-blue-400 rounded-lg transition-colors"
-                              title="Edit chapter"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                            </button>
-                            <button
-                              onClick={() => setDeleteConfirmId(chapter.reference_id)}
-                              className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 dark:text-red-400 rounded-lg transition-colors"
-                              title={subs.length > 0 ? 'Delete chapter and all subtopics' : 'Delete chapter'}
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                            </button>
-                          </div>
+                          <button
+                            onClick={() => setEditingId(chapter.reference_id)}
+                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                            title="Edit"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirmId(chapter.reference_id)}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                            title={hasSubs ? `Delete chapter + ${subs.length} subtopics` : 'Delete chapter'}
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          </button>
                         </div>
                       </div>
                     )}
 
                     {/* Subtopics + add form (collapsible) */}
                     {!isCollapsed && editingId !== chapter.reference_id && (
-                      <div className="border-t border-gray-100 dark:border-gray-700">
+                      <div className="border-t border-gray-100 dark:border-gray-700/60 px-4 pb-2">
                         {/* Subtopic list */}
                         {subs.length > 0 && (
-                          <div className="px-4 pt-2 pb-1">
-                            {subs.map((sub, idx) => renderSubtopic(sub, idx))}
+                          <div className="pt-1 pl-4">
+                            {subs.map((sub, idx) => renderSubtopic(sub, idx, subs.length))}
                           </div>
                         )}
 
                         {/* Add subtopic inline form */}
                         {addingSubtopicFor === chapter.reference_id && (
-                          <div className="mx-4 my-3 ml-8 p-3 bg-purple-50 dark:bg-purple-900/15 rounded-xl border border-purple-200 dark:border-purple-700 border-dashed">
-                            <div className="text-xs font-semibold text-purple-700 dark:text-purple-300 mb-2 flex items-center gap-1">
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                              Add Subtopic / إضافة عنوان فرعي
-                            </div>
-                            <input
-                              type="text"
-                              value={subTopic}
-                              dir={isRTL(subTopic) ? 'rtl' : 'ltr'}
-                              onChange={e => setSubTopic(e.target.value)}
-                              placeholder="Subtopic name / اسم العنوان الفرعي"
-                              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm mb-2 focus:ring-2 focus:ring-purple-500"
-                              onKeyDown={e => e.key === 'Enter' && handleAddSubtopic(chapter.reference_id)}
-                              autoFocus
-                            />
-                            <div className="grid grid-cols-3 gap-2 items-end">
-                              <div>
+                          <div className="ml-6 mt-2 mb-1 p-3 bg-purple-50/60 dark:bg-purple-900/10 rounded-lg border border-dashed border-purple-300 dark:border-purple-700">
+                            <div className="flex gap-2 items-end">
+                              <div className="flex-1">
+                                <label className="text-[10px] font-medium text-purple-700 dark:text-purple-300 mb-0.5 block">
+                                  Subtopic / عنوان فرعي
+                                </label>
+                                <input
+                                  type="text"
+                                  value={subTopic}
+                                  dir={isRTL(subTopic) ? 'rtl' : 'ltr'}
+                                  onChange={e => setSubTopic(e.target.value)}
+                                  placeholder="Subtopic name / اسم العنوان الفرعي"
+                                  className="w-full px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-purple-500"
+                                  onKeyDown={e => e.key === 'Enter' && handleAddSubtopic(chapter.reference_id)}
+                                  autoFocus
+                                />
+                              </div>
+                              <div className="w-16">
                                 <label className="text-[10px] text-gray-500 block mb-0.5">Start</label>
                                 <input
                                   type="number"
                                   min={1}
                                   value={subStartPage}
-                                  onChange={e => setSubStartPage(parseInt(e.target.value) || 1)}
-                                  className="w-full px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs"
+                                  onChange={e => {
+                                    const v = parseInt(e.target.value) || 1;
+                                    setSubStartPage(v);
+                                    if (subEndPage < v) setSubEndPage(v);
+                                  }}
+                                  className="w-full px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs text-center tabular-nums"
                                 />
                               </div>
-                              <div>
+                              <div className="w-16">
                                 <label className="text-[10px] text-gray-500 block mb-0.5">End</label>
                                 <input
                                   type="number"
                                   min={1}
                                   value={subEndPage}
                                   onChange={e => setSubEndPage(parseInt(e.target.value) || 1)}
-                                  className="w-full px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs"
+                                  className="w-full px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs text-center tabular-nums"
                                 />
                               </div>
-                              <div className="flex gap-1">
-                                <button
-                                  onClick={() => handleAddSubtopic(chapter.reference_id)}
-                                  className="flex-1 px-2 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs font-medium transition-colors"
-                                >
-                                  Add
-                                </button>
-                                <button
-                                  onClick={() => setAddingSubtopicFor(null)}
-                                  className="px-2 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-400 rounded text-xs transition-colors"
-                                >
-                                  ✕
-                                </button>
-                              </div>
+                              <button
+                                onClick={() => handleAddSubtopic(chapter.reference_id)}
+                                disabled={!subTopic.trim()}
+                                className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white rounded text-xs font-medium transition-colors shrink-0"
+                              >
+                                Add
+                              </button>
+                              <button
+                                onClick={() => setAddingSubtopicFor(null)}
+                                className="px-2 py-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 text-xs shrink-0"
+                              >
+                                ✕
+                              </button>
                             </div>
+                            {subStartPage <= subEndPage && subTopic.trim() && (
+                              <p className="text-[10px] text-purple-500 dark:text-purple-400 mt-1.5">
+                                📄 {subEndPage - subStartPage + 1} page{subEndPage - subStartPage + 1 !== 1 ? 's' : ''} · Chapter range will auto-update · Enter adds & keeps form open
+                              </p>
+                            )}
                           </div>
                         )}
 
                         {/* Empty subtopic hint */}
                         {subs.length === 0 && addingSubtopicFor !== chapter.reference_id && (
-                          <div className="px-4 py-2 ml-8">
+                          <div className="ml-6 py-2">
                             <button
-                              onClick={() => {
-                                setAddingSubtopicFor(chapter.reference_id);
-                                setSubTopic('');
-                                setSubStartPage(chapter.start_page);
-                                setSubEndPage(chapter.end_page);
-                              }}
-                              className="text-xs text-purple-500 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 flex items-center gap-1 font-medium"
+                              onClick={() => openAddSubtopic(chapter)}
+                              className="text-xs text-purple-500 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 flex items-center gap-1"
                             >
                               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
                               Add subtopic / إضافة عنوان فرعي
@@ -703,13 +751,13 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex justify-end pt-3 border-t border-gray-200 dark:border-gray-700">
           <button
             onClick={onClose}
-            className="px-8 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl font-semibold transition-all flex items-center gap-2 shadow-lg hover:shadow-xl"
+            className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-medium transition-colors flex items-center gap-2 text-sm"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-            Done & Close
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+            Done
           </button>
         </div>
       </div>

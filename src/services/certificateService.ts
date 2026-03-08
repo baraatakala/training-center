@@ -52,6 +52,8 @@ export interface IssuedCertificate {
   revoked_at: string | null;
   revoke_reason: string | null;
   resolved_body: string | null;
+  signature_name: string | null;
+  signature_title: string | null;
   created_at: string;
   updated_at: string;
   // Joined
@@ -81,6 +83,8 @@ export interface IssueCertificatePayload {
   final_score?: number;
   attendance_rate?: number;
   issued_by: string;
+  signature_name?: string;
+  signature_title?: string;
 }
 
 // =====================================================
@@ -311,6 +315,8 @@ class CertificateService {
         issued_by: payload.issued_by,
         issued_at: new Date().toISOString(),
         resolved_body: resolvedBody,
+        signature_name: payload.signature_name || template.signature_name || null,
+        signature_title: payload.signature_title || template.signature_title || null,
       })
       .select()
       .single();
