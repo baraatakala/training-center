@@ -545,7 +545,7 @@ function CreateRequestModal({
     return () => { cancelled = true; };
   }, [studentId, selectedSession, attendanceDate]);
 
-  // Auto-fill absence date when session is selected (most recent past occurrence of session day)
+  // Auto-fill absence date when session is selected (next upcoming occurrence of session day)
   useEffect(() => {
     if (!selectedSession) return;
     const session = sessions.find(s => s.session_id === selectedSession);
@@ -560,17 +560,43 @@ function CreateRequestModal({
 
     const today = new Date();
     const currentDay = today.getDay();
-    // Days ago: if today is the session day, use today; otherwise go back to the most recent occurrence
-    let daysAgo = (currentDay - targetDay + 7) % 7;
-    if (daysAgo === 0) daysAgo = 0; // Today is the session day — use today
+    // Days ahead: if today IS the session day, use today; otherwise jump forward
+    let daysAhead = (targetDay - currentDay + 7) % 7;
+    if (daysAhead === 0) daysAhead = 0; // Today is the session day
     const targetDate = new Date(today);
-    targetDate.setDate(today.getDate() - daysAgo);
+    targetDate.setDate(today.getDate() + daysAhead);
 
     const yyyy = targetDate.getFullYear();
     const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
     const dd = String(targetDate.getDate()).padStart(2, '0');
     setAttendanceDate(`${yyyy}-${mm}-${dd}`);
   }, [selectedSession, sessions]);
+
+  // Get the session day number for calendar highlighting
+  const sessionDayNum = useMemo(() => {
+    if (!selectedSession) return null;
+    const session = sessions.find(s => s.session_id === selectedSession);
+    if (!session?.day) return null;
+    const dayMap: Record<string, number> = {
+      sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
+      thursday: 4, friday: 5, saturday: 6,
+    };
+    return dayMap[session.day.toLowerCase()] ?? null;
+  }, [selectedSession, sessions]);
+
+  // Calendar state
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() };
+  });
+
+  // Reset calendar month when attendance date changes via auto-fill
+  useEffect(() => {
+    if (attendanceDate) {
+      const d = new Date(attendanceDate + 'T00:00:00');
+      setCalendarMonth({ year: d.getFullYear(), month: d.getMonth() });
+    }
+  }, [attendanceDate]);
 
   useEffect(() => {
     const loadStudentSessions = async () => {
@@ -723,15 +749,123 @@ function CreateRequestModal({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Absence Date <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="date"
-                    value={attendanceDate}
-                    onChange={e => setAttendanceDate(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500"
-                  />
+
+                  {/* Custom Calendar */}
+                  {(() => {
+                    const { year, month } = calendarMonth;
+                    const firstDay = new Date(year, month, 1).getDay();
+                    const daysInMonth = new Date(year, month + 1, 0).getDate();
+                    const monthName = new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' });
+                    const today = new Date();
+                    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                    const dayLabels = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+                    const cells: Array<{ day: number; dateStr: string; isSessionDay: boolean; isToday: boolean; isSelected: boolean; isPast: boolean }> = [];
+                    for (let d = 1; d <= daysInMonth; d++) {
+                      const dateObj = new Date(year, month, d);
+                      const ds = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                      cells.push({
+                        day: d,
+                        dateStr: ds,
+                        isSessionDay: sessionDayNum !== null && dateObj.getDay() === sessionDayNum,
+                        isToday: ds === todayStr,
+                        isSelected: ds === attendanceDate,
+                        isPast: dateObj < new Date(today.getFullYear(), today.getMonth(), today.getDate()),
+                      });
+                    }
+
+                    return (
+                      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+                        {/* Month Navigation */}
+                        <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-500">
+                          <button
+                            type="button"
+                            onClick={() => setCalendarMonth(prev => {
+                              const d = new Date(prev.year, prev.month - 1);
+                              return { year: d.getFullYear(), month: d.getMonth() };
+                            })}
+                            className="p-1.5 rounded-full hover:bg-white/20 text-white transition-colors"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                          </button>
+                          <span className="text-sm font-bold text-white">{monthName}</span>
+                          <button
+                            type="button"
+                            onClick={() => setCalendarMonth(prev => {
+                              const d = new Date(prev.year, prev.month + 1);
+                              return { year: d.getFullYear(), month: d.getMonth() };
+                            })}
+                            className="p-1.5 rounded-full hover:bg-white/20 text-white transition-colors"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                          </button>
+                        </div>
+
+                        {/* Day Headers */}
+                        <div className="grid grid-cols-7 text-center">
+                          {dayLabels.map((dl, i) => (
+                            <div key={dl} className={`py-2 text-[11px] font-semibold uppercase tracking-wider ${
+                              sessionDayNum === i
+                                ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                                : 'text-gray-400 dark:text-gray-500'
+                            }`}>{dl}</div>
+                          ))}
+                        </div>
+
+                        {/* Date Grid */}
+                        <div className="grid grid-cols-7 text-center gap-px bg-gray-100 dark:bg-gray-700/30 p-1">
+                          {/* Empty cells for offset */}
+                          {Array.from({ length: firstDay }).map((_, i) => (
+                            <div key={`empty-${i}`} className="h-9" />
+                          ))}
+                          {/* Day cells */}
+                          {cells.map(({ day, dateStr, isSessionDay, isToday, isSelected }) => (
+                            <button
+                              key={day}
+                              type="button"
+                              onClick={() => setAttendanceDate(dateStr)}
+                              className={`h-9 w-full rounded-lg text-sm font-medium relative transition-all ${
+                                isSelected
+                                  ? 'bg-blue-600 text-white shadow-md scale-105 ring-2 ring-blue-300 dark:ring-blue-500'
+                                  : isToday
+                                    ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-bold ring-1 ring-indigo-300 dark:ring-indigo-600'
+                                    : isSessionDay
+                                      ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800/40 font-semibold'
+                                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                              }`}
+                            >
+                              {day}
+                              {isSessionDay && !isSelected && (
+                                <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400" />
+                              )}
+                              {isToday && !isSelected && (
+                                <span className="absolute top-0.5 right-1 text-[8px]">●</span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Legend */}
+                        <div className="flex items-center justify-center gap-4 px-3 py-2.5 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                            <span className="text-[11px] text-gray-600 dark:text-gray-400">Session Day</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full bg-indigo-400 ring-1 ring-indigo-300" />
+                            <span className="text-[11px] text-gray-600 dark:text-gray-400">Today</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
+                            <span className="text-[11px] text-gray-600 dark:text-gray-400">Selected</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Attendance Status Indicator */}
