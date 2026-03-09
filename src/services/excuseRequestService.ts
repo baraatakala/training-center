@@ -326,6 +326,67 @@ class ExcuseRequestService {
       new_data: updated,
     });
 
+    // 5. Notify the student about the decision via in-app message
+    try {
+      // Resolve reviewer identity (teacher or admin)
+      let reviewerType: 'teacher' | 'admin' = 'teacher';
+      let reviewerId: string | null = null;
+
+      const { data: teacherRecord } = await supabase
+        .from('teacher')
+        .select('teacher_id, name')
+        .ilike('email', review.reviewed_by)
+        .maybeSingle();
+
+      if (teacherRecord) {
+        reviewerType = 'teacher';
+        reviewerId = teacherRecord.teacher_id;
+      } else {
+        const { data: adminRecord } = await supabase
+          .from('admin')
+          .select('admin_id, name')
+          .ilike('email', review.reviewed_by)
+          .maybeSingle();
+        if (adminRecord) {
+          reviewerType = 'admin';
+          reviewerId = adminRecord.admin_id;
+        }
+      }
+
+      // Fetch course name for a richer notification
+      const { data: sessionInfo } = await supabase
+        .from('session')
+        .select('course:course_id(course_name)')
+        .eq('session_id', request.session_id)
+        .maybeSingle();
+      const courseName = (sessionInfo?.course as { course_name?: string } | null)?.course_name || 'your session';
+
+      const statusEmoji = review.status === 'approved' ? '✅' : '❌';
+      const statusLabel = review.status === 'approved' ? 'Approved' : 'Rejected';
+      const noteSection = review.review_note ? `\n\nReviewer note: "${review.review_note}"` : '';
+      const attendanceNote = review.status === 'approved'
+        ? '\n\nYour attendance has been automatically marked as excused.'
+        : '';
+
+      const content = `${statusEmoji} Your excuse request for ${courseName} on ${request.attendance_date} has been ${statusLabel}.`
+        + `\n\nReason submitted: ${request.reason}`
+        + noteSection
+        + attendanceNote;
+
+      if (reviewerId) {
+        await supabase.from('message').insert({
+          sender_type: reviewerType,
+          sender_id: reviewerId,
+          recipient_type: 'student',
+          recipient_id: request.student_id,
+          subject: `Excuse Request ${statusLabel} — ${courseName}`,
+          content,
+        });
+      }
+    } catch (notifyErr) {
+      console.error('Failed to send excuse review notification (non-critical):', notifyErr);
+    }
+
     return { data: updated, error: null };
   }
 

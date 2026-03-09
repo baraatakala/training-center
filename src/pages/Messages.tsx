@@ -46,6 +46,7 @@ export function Messages() {
   const [userType, setUserType] = useState<'teacher' | 'student' | 'admin' | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('inbox');
   const [starredCount, setStarredCount] = useState(0);
+  const [sentCount, setSentCount] = useState(0);
   const [inboxStats, setInboxStats] = useState({ total: 0, unread: 0, read: 0 });
 
   // Compose modal states
@@ -108,6 +109,19 @@ export function Messages() {
     setStarredCount(data?.length || 0);
   }, [userType, currentUserId]);
 
+  // Load inbox stats independently so they're always available regardless of active tab
+  const loadInboxStats = useCallback(async () => {
+    if (!userType || !currentUserId) return;
+    const { data } = await messageService.getInbox(userType, currentUserId);
+    if (data) {
+      setInboxStats({
+        total: data.length,
+        unread: data.filter(m => !m.is_read).length,
+        read: data.filter(m => m.is_read).length,
+      });
+    }
+  }, [userType, currentUserId]);
+
   const loadMessages = useCallback(async () => {
     if (!userType || !currentUserId) return;
 
@@ -138,6 +152,7 @@ export function Messages() {
         const result = await messageService.getSent(userType, currentUserId);
         data = result.data;
         err = result.error;
+        setSentCount(result.data?.length || 0);
       }
 
       if (err) {
@@ -233,9 +248,10 @@ export function Messages() {
   useEffect(() => {
     if (currentUserId && userType) {
       loadMessages();
-      loadStarredCount(); // Load starred count on initial load
+      loadStarredCount();
+      loadInboxStats();
     }
-  }, [currentUserId, userType, loadMessages, loadStarredCount]);
+  }, [currentUserId, userType, loadMessages, loadStarredCount, loadInboxStats]);
 
   // Cooldown timer for student rate limiting
   useEffect(() => {
@@ -561,9 +577,11 @@ export function Messages() {
         <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 border-0">
           <CardContent className="pt-4 text-center">
             <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
-              {inboxStats.total}
+              {activeTab === 'inbox' ? inboxStats.total : activeTab === 'sent' ? sentCount : starredCount}
             </div>
-            <div className="text-sm text-blue-700 dark:text-blue-300">📨 Inbox</div>
+            <div className="text-sm text-blue-700 dark:text-blue-300">
+              {activeTab === 'inbox' ? '📨 Inbox' : activeTab === 'sent' ? '📤 Sent' : '⭐ Starred'}
+            </div>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/30 dark:to-red-800/30 border-0">
