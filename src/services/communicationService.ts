@@ -141,16 +141,30 @@ async function resolveUserName(
   userType: string,
   userId: string
 ): Promise<{ name: string; email: string } | null> {
+  // Primary lookup by declared type
   if (userType === 'teacher') {
-    const { data } = await supabase.from('teacher').select('name, email').eq('teacher_id', userId).single();
-    return data;
+    const { data } = await supabase.from('teacher').select('name, email').eq('teacher_id', userId).maybeSingle();
+    if (data) return data;
   } else if (userType === 'student') {
-    const { data } = await supabase.from('student').select('name, email').eq('student_id', userId).single();
-    return data;
+    const { data } = await supabase.from('student').select('name, email').eq('student_id', userId).maybeSingle();
+    if (data) return data;
   } else if (userType === 'admin') {
-    const { data } = await supabase.from('admin').select('name, email').eq('admin_id', userId).single();
-    return data;
+    const { data } = await supabase.from('admin').select('name, email').eq('admin_id', userId).maybeSingle();
+    if (data) return data;
   }
+
+  // Fallback: UUID may belong to a different table than declared sender_type.
+  // This handles cases where admin is also a teacher or vice-versa.
+  const tables = [
+    { table: 'teacher', idCol: 'teacher_id' },
+    { table: 'admin', idCol: 'admin_id' },
+    { table: 'student', idCol: 'student_id' },
+  ] as const;
+  for (const { table, idCol } of tables) {
+    const { data } = await supabase.from(table).select('name, email').eq(idCol, userId).maybeSingle();
+    if (data) return data;
+  }
+
   return null;
 }
 
