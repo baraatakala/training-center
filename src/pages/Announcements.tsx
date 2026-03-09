@@ -1179,7 +1179,7 @@ export function Announcements() {
               )}
               
               {isTeacher && (
-                <div className="flex gap-2 mt-4 pt-3 border-t dark:border-gray-700">
+                <div className="flex gap-2 mt-4 pt-3 border-t dark:border-gray-700" onClick={(e) => e.stopPropagation()}>
                   <Button size="sm" variant="outline" onClick={() => openEditModal(announcement)}>
                     ✏️ Edit
                   </Button>

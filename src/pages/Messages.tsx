@@ -46,6 +46,7 @@ export function Messages() {
   const [userType, setUserType] = useState<'teacher' | 'student' | 'admin' | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('inbox');
   const [starredCount, setStarredCount] = useState(0);
+  const [inboxStats, setInboxStats] = useState({ total: 0, unread: 0, read: 0 });
 
   // Compose modal states
   const [showComposeModal, setShowComposeModal] = useState(false);
@@ -125,6 +126,14 @@ export function Messages() {
         const result = await messageService.getInbox(userType, currentUserId);
         data = result.data;
         err = result.error;
+        // Update inbox stats whenever inbox is loaded
+        if (result.data) {
+          setInboxStats({
+            total: result.data.length,
+            unread: result.data.filter(m => !m.is_read).length,
+            read: result.data.filter(m => m.is_read).length,
+          });
+        }
       } else {
         const result = await messageService.getSent(userType, currentUserId);
         data = result.data;
@@ -298,6 +307,11 @@ export function Messages() {
         ? { ...m, is_read: true, read_at: new Date().toISOString() }
         : m
     ));
+    setInboxStats(prev => ({
+      ...prev,
+      unread: Math.max(0, prev.unread - 1),
+      read: prev.read + 1,
+    }));
   };
 
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
@@ -547,15 +561,15 @@ export function Messages() {
         <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 border-0">
           <CardContent className="pt-4 text-center">
             <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
-              {messages.length}
+              {inboxStats.total}
             </div>
-            <div className="text-sm text-blue-700 dark:text-blue-300">📨 Total</div>
+            <div className="text-sm text-blue-700 dark:text-blue-300">📨 Inbox</div>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/30 dark:to-red-800/30 border-0">
           <CardContent className="pt-4 text-center">
             <div className="text-3xl font-bold text-red-600 dark:text-red-400">
-              {messages.filter(m => !m.is_read).length}
+              {inboxStats.unread}
             </div>
             <div className="text-sm text-red-700 dark:text-red-300">🔴 Unread</div>
           </CardContent>
@@ -563,7 +577,7 @@ export function Messages() {
         <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/30 border-0">
           <CardContent className="pt-4 text-center">
             <div className="text-3xl font-bold text-green-600 dark:text-green-400">
-              {messages.filter(m => m.is_read).length}
+              {inboxStats.read}
             </div>
             <div className="text-sm text-green-700 dark:text-green-300">✅ Read</div>
           </CardContent>

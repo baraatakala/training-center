@@ -545,6 +545,33 @@ function CreateRequestModal({
     return () => { cancelled = true; };
   }, [studentId, selectedSession, attendanceDate]);
 
+  // Auto-fill absence date when session is selected (most recent past occurrence of session day)
+  useEffect(() => {
+    if (!selectedSession) return;
+    const session = sessions.find(s => s.session_id === selectedSession);
+    if (!session?.day) return;
+
+    const dayMap: Record<string, number> = {
+      sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
+      thursday: 4, friday: 5, saturday: 6,
+    };
+    const targetDay = dayMap[session.day.toLowerCase()];
+    if (targetDay === undefined) return;
+
+    const today = new Date();
+    const currentDay = today.getDay();
+    // Days ago: if today is the session day, use today; otherwise go back to the most recent occurrence
+    let daysAgo = (currentDay - targetDay + 7) % 7;
+    if (daysAgo === 0) daysAgo = 0; // Today is the session day — use today
+    const targetDate = new Date(today);
+    targetDate.setDate(today.getDate() - daysAgo);
+
+    const yyyy = targetDate.getFullYear();
+    const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(targetDate.getDate()).padStart(2, '0');
+    setAttendanceDate(`${yyyy}-${mm}-${dd}`);
+  }, [selectedSession, sessions]);
+
   useEffect(() => {
     const loadStudentSessions = async () => {
       setLoadingSessions(true);

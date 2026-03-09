@@ -14,6 +14,24 @@ import { toast } from '../components/ui/toastUtils';
 // HELPERS
 // =====================================================
 
+/** Extract the actor (who performed the action) from log data when deleted_by is null */
+const getActor = (log: AuditLogEntry): string => {
+  if (log.deleted_by) return log.deleted_by;
+  const newData = (log.new_data || {}) as Record<string, unknown>;
+  const oldData = (log.old_data || {}) as Record<string, unknown>;
+  const data = { ...oldData, ...newData };
+  // Try common actor fields
+  for (const field of ['marked_by', 'reviewed_by', 'changed_by', 'sender_email', 'created_by']) {
+    const val = data[field];
+    if (typeof val === 'string' && val.trim()) {
+      // Strip suffixes like " - session cancelled"
+      const clean = val.split(' - ')[0].trim();
+      return clean;
+    }
+  }
+  return 'system';
+};
+
 /** Turn a table + operation + data into a human-readable sentence */
 const describeAction = (log: AuditLogEntry): string => {
   // For UPDATEs, prefer new_data for current state, fall back to old_data
@@ -176,47 +194,27 @@ const getSummaryEntries = (
     .map(({ field, label }) => ({ label, value: formatValue(data[field]) }));
 };
 
-/** Compact grid for showing record key fields with optional "show all" */
-function DataSummaryGrid({ tableName, data, auditId, color, showAllFields, onToggle }: {
+/** Compact grid for showing record key fields */
+function DataSummaryGrid({ tableName, data, color }: {
   tableName: string;
   data: Record<string, unknown>;
-  auditId: string;
   color: 'red' | 'green';
-  showAllFields: Set<string>;
-  onToggle: (id: string) => void;
 }) {
   const summary = getSummaryEntries(tableName, data);
-  const isShowAll = showAllFields.has(auditId);
-  const allEntries = Object.entries(data).map(([k, v]) => ({
-    label: k.replace(/_/g, ' '),
-    value: formatValue(v),
-  }));
-  const entries = isShowAll ? allEntries : summary;
-  const totalFields = Object.keys(data).length;
   const bg = color === 'red'
     ? 'bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30'
     : 'bg-green-50 dark:bg-green-900/10 border-green-100 dark:border-green-900/30';
 
-  if (entries.length === 0) return <p className="text-xs text-gray-500 italic">No data recorded</p>;
+  if (summary.length === 0) return <p className="text-xs text-gray-500 italic">No data recorded</p>;
 
   return (
-    <div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {entries.map(({ label, value }) => (
-          <div key={label} className={`rounded-lg px-3 py-2 border ${bg}`}>
-            <p className="text-[10px] uppercase text-gray-500 dark:text-gray-500 tracking-wider">{label}</p>
-            <p className="text-xs text-gray-800 dark:text-gray-300 break-all">{value}</p>
-          </div>
-        ))}
-      </div>
-      {totalFields > summary.length && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onToggle(auditId); }}
-          className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
-        >
-          {isShowAll ? '▲ Show less' : `▼ Show all ${totalFields} fields`}
-        </button>
-      )}
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      {summary.map(({ label, value }) => (
+        <div key={label} className={`rounded-lg px-3 py-2 border ${bg}`}>
+          <p className="text-[10px] uppercase text-gray-500 dark:text-gray-500 tracking-wider">{label}</p>
+          <p className="text-xs text-gray-800 dark:text-gray-300 break-all">{value}</p>
+        </div>
+      ))}
     </div>
   );
 }
@@ -229,9 +227,8 @@ export function AuditLogs() {
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [expandedLog, setExpandedLog] = useState<string | null>(null);
-  const [showAllFields, setShowAllFields] = useState<Set<string>>(new Set());
-  const toggleShowAll = (auditId: string) => setShowAllFields(prev => {
+  const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
+  const toggleExpanded = (auditId: string) => setExpandedLogs(prev => {
     const n = new Set(prev); if (n.has(auditId)) n.delete(auditId); else n.add(auditId); return n;
   });
   const [viewMode, setViewMode] = useState<'timeline' | 'table'>('timeline');
@@ -743,7 +740,7 @@ export function AuditLogs() {
               {/* Timeline entries */}
               <div className="relative ml-4 pl-6 border-l-2 border-gray-200 dark:border-gray-700 space-y-3">
                 {dayLogs.map((log) => {
-                  const isExpanded = expandedLog === log.audit_id;
+                  const isExpanded = expandedLogs.has(log.audit_id || '');
                   const changes = log.operation === 'UPDATE'
                     ? getChangedFields(log.old_data, log.new_data).filter(c => !NOISE_FIELDS.has(c.key))
                     : [];
@@ -762,7 +759,7 @@ export function AuditLogs() {
                               ? 'border-blue-300 dark:border-blue-600 shadow-md'
                               : 'border-gray-100 dark:border-gray-700'
                         }`}
-                        onClick={() => setExpandedLog(isExpanded ? null : log.audit_id || null)}
+                        onClick={() => toggleExpanded(log.audit_id || '')}
                       >
                         <div className="p-4">
                           <div className="flex items-start justify-between gap-3">
@@ -789,7 +786,7 @@ export function AuditLogs() {
                                     {OP_ICONS[log.operation]} {log.operation}
                                   </span>
                                   <span className="text-xs text-gray-500 dark:text-gray-500">
-                                    by {log.deleted_by || 'system'}
+                                    by {getActor(log)}
                                   </span>
                                   {log.deleted_at && (
                                     <span className="text-xs text-gray-400 dark:text-gray-500">
@@ -852,10 +849,7 @@ export function AuditLogs() {
                                   <DataSummaryGrid
                                     tableName={log.table_name}
                                     data={log.old_data as Record<string, unknown>}
-                                    auditId={log.audit_id || ''}
                                     color="red"
-                                    showAllFields={showAllFields}
-                                    onToggle={toggleShowAll}
                                   />
                                 </div>
                               )}
@@ -867,18 +861,12 @@ export function AuditLogs() {
                                   <DataSummaryGrid
                                     tableName={log.table_name}
                                     data={log.new_data as Record<string, unknown>}
-                                    auditId={log.audit_id || ''}
                                     color="green"
-                                    showAllFields={showAllFields}
-                                    onToggle={toggleShowAll}
                                   />
                                 </div>
                               )}
 
-                              <div className="flex items-center justify-between">
-                                <div className="text-[10px] text-gray-400 dark:text-gray-600 font-mono">
-                                  ID: {log.record_id}
-                                </div>
+                              <div className="flex items-center justify-end">
                                 {isAdmin && (
                                   <button
                                     onClick={(e) => { e.stopPropagation(); setDeletingLog(log); }}
@@ -931,7 +919,7 @@ export function AuditLogs() {
                 </thead>
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {pagedLogs.map((log) => {
-                    const isExpanded = expandedLog === log.audit_id;
+                    const isExpanded = expandedLogs.has(log.audit_id || '');
                     const changes = log.operation === 'UPDATE'
                       ? getChangedFields(log.old_data, log.new_data).filter(c => !NOISE_FIELDS.has(c.key))
                       : [];
@@ -940,11 +928,11 @@ export function AuditLogs() {
                       <React.Fragment key={log.audit_id}>
                         <tr
                           className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer focus-within:ring-2 focus-within:ring-blue-500"
-                          onClick={() => setExpandedLog(isExpanded ? null : log.audit_id || null)}
+                          onClick={() => toggleExpanded(log.audit_id || '')}
                           tabIndex={0}
                           role="button"
                           aria-expanded={isExpanded}
-                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedLog(isExpanded ? null : log.audit_id || null); } }}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleExpanded(log.audit_id || ''); } }}
                         >
                           {isAdmin && (
                             <td className="px-4 py-3 w-10" onClick={(e) => e.stopPropagation()}>
@@ -970,7 +958,7 @@ export function AuditLogs() {
                             {describeAction(log)}
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
-                            {log.deleted_by || 'system'}
+                            {getActor(log)}
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
@@ -1013,23 +1001,16 @@ export function AuditLogs() {
                                   <DataSummaryGrid
                                     tableName={log.table_name}
                                     data={log.old_data as Record<string, unknown>}
-                                    auditId={log.audit_id || ''}
                                     color="red"
-                                    showAllFields={showAllFields}
-                                    onToggle={toggleShowAll}
                                   />
                                 )}
                                 {log.operation === 'INSERT' && log.new_data && (
                                   <DataSummaryGrid
                                     tableName={log.table_name}
                                     data={log.new_data as Record<string, unknown>}
-                                    auditId={log.audit_id || ''}
                                     color="green"
-                                    showAllFields={showAllFields}
-                                    onToggle={toggleShowAll}
                                   />
                                 )}
-                                <p className="text-[10px] text-gray-400 dark:text-gray-600 font-mono">ID: {log.record_id}</p>
                               </div>
                             </td>
                           </tr>
