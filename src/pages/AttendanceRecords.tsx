@@ -363,8 +363,9 @@ const AttendanceRecords = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
 
-  // Earliest attendance date state
+  // Earliest and latest attendance date state
   const [earliestDate, setEarliestDate] = useState<string>('');
+  const [latestDate, setLatestDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
 
   // Filter state
   const [filters, setFilters] = useState<FilterOptions>({
@@ -398,24 +399,33 @@ const AttendanceRecords = () => {
   const [instructors, setInstructors] = useState<{ value: string; label: string }[]>([]);
 
   useEffect(() => {
-    // Initialize: fetch earliest attendance date and then load filters + records
+    // Initialize: fetch earliest and latest attendance dates and then load filters + records
     const init = async () => {
       try {
-        // get earliest attendance_date by ordering ascending and taking first row
-        const { data: earliestData, error: earliestError } = await supabase
-          .from('attendance')
-          .select('attendance_date')
-          .order('attendance_date', { ascending: true })
-          .limit(1)
-          .maybeSingle();
+        // Fetch earliest and latest attendance_date in parallel
+        const [earliestRes, latestRes] = await Promise.all([
+          supabase
+            .from('attendance')
+            .select('attendance_date')
+            .order('attendance_date', { ascending: true })
+            .limit(1)
+            .maybeSingle(),
+          supabase
+            .from('attendance')
+            .select('attendance_date')
+            .order('attendance_date', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        ]);
 
-        if (earliestError) {
-          console.warn('Failed to fetch earliest attendance date, falling back to 1 year ago', earliestError);
+        // Determine start date
+        if (earliestRes.error) {
+          console.warn('Failed to fetch earliest attendance date, falling back to 1 year ago', earliestRes.error);
           const fallback = format(subDays(new Date(), 365), 'yyyy-MM-dd');
           setEarliestDate(fallback);
           setFilters((f) => ({ ...f, startDate: fallback }));
-        } else if (earliestData && earliestData.attendance_date) {
-          const earliest = format(new Date(earliestData.attendance_date), 'yyyy-MM-dd');
+        } else if (earliestRes.data?.attendance_date) {
+          const earliest = format(new Date(earliestRes.data.attendance_date), 'yyyy-MM-dd');
           setEarliestDate(earliest);
           setFilters((f) => ({ ...f, startDate: earliest }));
         } else {
@@ -423,6 +433,15 @@ const AttendanceRecords = () => {
           setEarliestDate(fallback);
           setFilters((f) => ({ ...f, startDate: fallback }));
         }
+
+        // Determine end date: latest of (today, latest attendance_date)
+        const today = format(new Date(), 'yyyy-MM-dd');
+        const latestAttendance = latestRes.data?.attendance_date
+          ? format(new Date(latestRes.data.attendance_date), 'yyyy-MM-dd')
+          : today;
+        const endDate = latestAttendance > today ? latestAttendance : today;
+        setLatestDate(endDate);
+        setFilters((f) => ({ ...f, endDate }));
       } catch (err) {
         console.warn('Error initializing filters, using fallback dates', err);
         const fallback = format(subDays(new Date(), 365), 'yyyy-MM-dd');
@@ -644,20 +663,15 @@ const AttendanceRecords = () => {
         `)
         .not('status', 'is', null);
       
-      // Apply filters at database level to reduce data transfer
+      // Apply student filter at database level for performance
       if (filters.student_ids.length === 1) {
         query = query.eq('student_id', filters.student_ids[0]);
       } else if (filters.student_ids.length > 1) {
         query = query.in('student_id', filters.student_ids);
       }
       
-      if (filters.startDate) {
-        query = query.gte('attendance_date', filters.startDate);
-      }
-      
-      if (filters.endDate) {
-        query = query.lte('attendance_date', filters.endDate);
-      }
+      // NOTE: Date, course, teacher, and status filters are applied client-side
+      // in applyFilters() so that changing filter ranges doesn't require a re-fetch.
       
       // Order and limit
       query = query
@@ -2961,7 +2975,7 @@ const AttendanceRecords = () => {
       teacher_ids: [],
       statuses: [],
       startDate: earliestDate || format(subDays(new Date(), 365), 'yyyy-MM-dd'),
-      endDate: format(new Date(), 'yyyy-MM-dd'),
+      endDate: latestDate,
     });
     setOpenFilterDropdown(null);
   };
