@@ -109,10 +109,14 @@ export function Messages() {
     setStarredCount(data?.length || 0);
   }, [userType, currentUserId]);
 
-  // Load inbox stats independently so they're always available regardless of active tab
+  // Load inbox stats independently via lightweight count query (no sender resolution)
   const loadInboxStats = useCallback(async () => {
     if (!userType || !currentUserId) return;
-    const { data } = await messageService.getInbox(userType, currentUserId);
+    const { data } = await supabase
+      .from('message')
+      .select('message_id, is_read')
+      .eq('recipient_type', userType)
+      .eq('recipient_id', currentUserId);
     if (data) {
       setInboxStats({
         total: data.length,

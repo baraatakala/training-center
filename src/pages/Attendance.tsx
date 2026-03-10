@@ -1041,14 +1041,15 @@ export function Attendance() {
         
         if (status === 'on time' || status === 'late') {
           updates.check_in_time = new Date().toISOString();
-          // Add late_minutes for tiered late scoring
           updates.late_minutes = status === 'late' ? calculateLateMinutes() : null;
+          updates.excuse_reason = null;
         } else if (status === 'excused') {
           updates.excuse_reason = excuseReason[attendanceId];
           updates.late_minutes = null;
         } else {
           updates.check_in_time = null;
           updates.late_minutes = null;
+          updates.excuse_reason = null;
         }
 
         const { error } = await supabase
@@ -1129,14 +1130,15 @@ export function Attendance() {
       
       if (status === 'on time' || status === 'late') {
         updates.check_in_time = new Date().toISOString();
-        // Add late_minutes for tiered late scoring
         updates.late_minutes = status === 'late' ? calculateLateMinutes() : null;
+        updates.excuse_reason = null;
       } else if (status === 'excused') {
         updates.excuse_reason = excuseReason[attendanceId];
         updates.late_minutes = null;
       } else {
         updates.check_in_time = null;
         updates.late_minutes = null;
+        updates.excuse_reason = null;
       }
 
       const { error } = await supabase
@@ -1280,6 +1282,7 @@ export function Attendance() {
         status: string;
         check_in_time?: string | null;
         late_minutes?: number | null;
+        excuse_reason?: string | null;
         check_in_method?: string;
         host_address?: string | null;
         gps_latitude?: number | null;
@@ -1291,7 +1294,8 @@ export function Attendance() {
       } = {
         status: status,
         late_minutes: lateMinutes,
-        check_in_method: 'bulk', // Track bulk marking
+        excuse_reason: null,
+        check_in_method: 'bulk',
         host_address: addressOnly,
         gps_latitude: gpsData?.latitude || null,
         gps_longitude: gpsData?.longitude || null,
@@ -1917,7 +1921,7 @@ export function Attendance() {
                       onClick={handleSelectAll}
                       className="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white border border-white/30 text-xs sm:text-sm"
                     >
-                      Select All ({attendance.length})
+                      Select All ({attendance.filter(a => a.status !== 'not enrolled').length})
                     </Button>
                   )}
                 </div>

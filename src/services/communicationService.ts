@@ -477,15 +477,18 @@ export const messageService = {
 
       if (error) throw error;
 
-      // Fetch recipient details
-      const messagesWithRecipient = await Promise.all(
+      // Fetch sender and recipient details
+      const messagesWithDetails = await Promise.all(
         (data || []).map(async (msg) => {
-          const recipient = await resolveUserName(msg.recipient_type, msg.recipient_id);
-          return { ...msg, recipient };
+          const [sender, recipient] = await Promise.all([
+            resolveUserName(msg.sender_type, msg.sender_id),
+            resolveUserName(msg.recipient_type, msg.recipient_id),
+          ]);
+          return { ...msg, sender, recipient };
         })
       );
 
-      return { data: messagesWithRecipient, error: null };
+      return { data: messagesWithDetails, error: null };
     } catch (error) {
       console.error('Error fetching sent messages:', error);
       return { data: null, error: error as Error };
@@ -642,7 +645,7 @@ export const messageService = {
         .eq('message_id', messageId)
         .eq('user_type', userType)
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
       if (existing) {
         // Unstar
