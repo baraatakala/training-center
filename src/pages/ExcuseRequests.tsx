@@ -584,6 +584,12 @@ function CreateRequestModal({
     return dayMap[session.day.toLowerCase()] ?? null;
   }, [selectedSession, sessions]);
 
+  const isScheduledSessionDate = useCallback((dateStr: string) => {
+    if (!dateStr || sessionDayNum === null) return false;
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, (month || 1) - 1, day || 1).getDay() === sessionDayNum;
+  }, [sessionDayNum]);
+
   // Calendar state
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const now = new Date();
@@ -659,6 +665,11 @@ function CreateRequestModal({
   const handleSubmit = async () => {
     if (!selectedSession || !attendanceDate || !reason) {
       toast.error('Please fill in all required fields');
+      return;
+    }
+
+    if (!isScheduledSessionDate(attendanceDate)) {
+      toast.error('You can only submit an excuse for the scheduled session day');
       return;
     }
 
@@ -826,7 +837,8 @@ function CreateRequestModal({
                             <button
                               key={day}
                               type="button"
-                              onClick={() => setAttendanceDate(dateStr)}
+                              onClick={() => isSessionDay && setAttendanceDate(dateStr)}
+                              disabled={!isSessionDay}
                               className={`h-9 w-full rounded-lg text-sm font-medium relative transition-all ${
                                 isSelected
                                   ? 'bg-blue-600 text-white shadow-md scale-105 ring-2 ring-blue-300 dark:ring-blue-500'
@@ -834,7 +846,7 @@ function CreateRequestModal({
                                     ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-bold ring-1 ring-indigo-300 dark:ring-indigo-600'
                                     : isSessionDay
                                       ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800/40 font-semibold'
-                                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                      : 'text-gray-400 dark:text-gray-600 bg-gray-50 dark:bg-gray-800 cursor-not-allowed opacity-60'
                               }`}
                             >
                               {day}
@@ -866,6 +878,7 @@ function CreateRequestModal({
                       </div>
                     );
                   })()}
+                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Only highlighted session-day dates can be selected.</p>
                 </div>
 
                 {/* Attendance Status Indicator */}
@@ -915,7 +928,7 @@ function CreateRequestModal({
               <Button variant="outline" onClick={onClose}>Cancel</Button>
               <Button
                 onClick={() => setStep(2)}
-                disabled={!selectedSession || !attendanceDate || attendanceStatus?.status === 'excused'}
+                disabled={!selectedSession || !attendanceDate || !isScheduledSessionDate(attendanceDate) || attendanceStatus?.status === 'excused'}
               >
                 Next →
               </Button>

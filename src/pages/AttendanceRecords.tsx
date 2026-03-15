@@ -94,6 +94,8 @@ interface DateAnalytics {
   excusedNames: string[];
   absentNames: string[];
   hostAddress: string | null;
+  isSessionNotHeld: boolean;
+  sessionNotHeldCount: number;
   bookTopic?: string | null;
   bookStartPage?: number | null;
   bookEndPage?: number | null;
@@ -3013,6 +3015,8 @@ const AttendanceRecords = () => {
       }
     }
 
+    const coveredRecords = filteredRecords.filter(r => r.status !== 'not enrolled');
+
     // Filter out 'not enrolled' and cancelled session records from analytics
     const analyticsRecords = filteredRecords.filter(r => 
       r.status !== 'not enrolled' && 
@@ -3020,7 +3024,7 @@ const AttendanceRecords = () => {
     );
     
     // Get unique dates for session-wide analytics (attendance by date)
-    const uniqueDates = [...new Set(analyticsRecords.map(r => r.attendance_date))].sort();
+    const uniqueDates = [...new Set(coveredRecords.map(r => r.attendance_date))].sort();
     
     // Compute GLOBAL total session days from ALL records (unfiltered).
     // Exclude dates where sessions were cancelled ("session not held") so they
@@ -3035,17 +3039,19 @@ const AttendanceRecords = () => {
     ).size;
     
     // Get unique students from filtered records
-    const uniqueStudents = [...new Set(analyticsRecords.map(r => r.student_id))];
+    const uniqueStudents = [...new Set(coveredRecords.map(r => r.student_id))];
 
     // Calculate student analytics
     const studentStats: StudentAnalytics[] = uniqueStudents.map((studentId, _idx) => {
       const studentRecords = analyticsRecords.filter(r => r.student_id === studentId);
-      const studentName = studentRecords[0]?.student_name || 'Unknown';
+      const studentCoveredRecords = coveredRecords.filter(r => r.student_id === studentId);
+      const studentName = studentCoveredRecords[0]?.student_name || 'Unknown';
 
       // Calculate days covered FOR THIS SPECIFIC STUDENT (not all session dates)
-      // Only count dates where the student has records (i.e., dates after enrollment)
-      const studentUniqueDates = [...new Set(studentRecords.map(r => r.attendance_date))].sort();
-      const studentDaysCovered = studentUniqueDates.length;
+      const studentCoveredDates = [...new Set(studentCoveredRecords.map(r => r.attendance_date))].sort();
+      const studentEffectiveDates = [...new Set(studentRecords.map(r => r.attendance_date))].sort();
+      const studentDaysCovered = studentCoveredDates.length;
+      const studentSessionNotHeldCount = notHeldByStudent.get(studentId) || 0;
 
       const presentCount = studentRecords.filter(r => r.status === 'on time').length;
       const excusedCount = studentRecords.filter(r => r.status === 'excused').length;
@@ -3056,7 +3062,7 @@ const AttendanceRecords = () => {
 
       // Calculate rates (no vacation status in AttendanceRecords)
       // Effective base: Student's covered dates minus excused days (only accountable for dates after enrollment)
-      const effectiveBase = studentDaysCovered - excusedCount;
+      const effectiveBase = studentDaysCovered - excusedCount - studentSessionNotHeldCount;
       // Attendance rate: Present (On Time + Late) / Effective Days
       const totalPresent = presentCount + lateCount;
       const attendanceRate = effectiveBase > 0 ? (totalPresent / effectiveBase) * 100 : 0;
@@ -3092,7 +3098,7 @@ const AttendanceRecords = () => {
       const punctualityPercentage = totalPresent > 0 ? (presentCount / totalPresent) * 100 : 0;
       
       // Calculate consistency (informational — NOT part of weighted score)
-      const dailyPattern = studentUniqueDates.map(date => {
+      const dailyPattern = studentEffectiveDates.map(date => {
         const record = studentRecords.find(r => r.attendance_date === date);
         if (!record || record.status === 'excused') return -1; // Exclude excused
         return (record.status === 'on time' || record.status === 'late') ? 1 : 0;
@@ -3143,7 +3149,7 @@ const AttendanceRecords = () => {
         // Count consecutive attendance weeks (7-day windows with at least one present day)
         let consecutiveWeeks = 0;
         let maxConsecutiveWeeks = 0;
-        const sortedDates = studentUniqueDates.sort();
+        const sortedDates = studentEffectiveDates.sort();
         if (sortedDates.length > 0) {
           const weekStart = new Date(sortedDates[0]);
           let currentWeek = 0;
@@ -3178,7 +3184,7 @@ const AttendanceRecords = () => {
       // Cap weighted score at 100 max
       weightedScore = Math.min(100, Math.max(0, weightedScore));
       // Calculate trend using student-specific dates (not all session dates)
-      const cumulativeRates = calculateCumulativeRates(studentId, studentUniqueDates, analyticsRecords);
+      const cumulativeRates = calculateCumulativeRates(studentId, studentEffectiveDates, analyticsRecords);
       const trend = calculateTrend(cumulativeRates.slice(-6)); // Last 6 samples
 
       // Calculate rate change between previous and last cumulative rate
@@ -3193,7 +3199,7 @@ const AttendanceRecords = () => {
       let totalPresentToDate = 0;
       let totalDaysToDate = 0;
       
-      studentUniqueDates.forEach(date => {
+      studentEffectiveDates.forEach(date => {
         const record = studentRecords.find(r => r.attendance_date === date);
         if (record && record.status !== 'excused') {
           totalDaysToDate++;
@@ -3208,7 +3214,7 @@ const AttendanceRecords = () => {
       return {
         student_id: studentId,
         student_name: studentName,
-        totalRecords: studentRecords.length,
+        totalRecords: studentCoveredRecords.length,
         presentCount,
         absentCount,
         excusedCount,
@@ -3235,7 +3241,7 @@ const AttendanceRecords = () => {
         avgLateMinutes: Math.round(avgLateMinutes * 10) / 10,
         maxLateMinutes: Math.round(maxLateMinutes),
         lateScoreAvg: lateRecords.length > 0 ? Math.round((lateScoreSum / lateRecords.length) * 100) / 100 : 0,
-        sessionNotHeldCount: notHeldByStudent.get(studentId) || 0,
+        sessionNotHeldCount: studentSessionNotHeldCount,
       };
     }).sort((a, b) => b.weightedScore - a.weightedScore);
 
@@ -3243,6 +3249,35 @@ const AttendanceRecords = () => {
 
     // Calculate date analytics (exclude 'not enrolled' records)
     const dateStats: DateAnalytics[] = uniqueDates.map(date => {
+      const dateCoveredRecords = coveredRecords.filter(r => r.attendance_date === date);
+      const isSessionNotHeld = dateCoveredRecords.some(r =>
+        r.excuse_reason === 'session not held' || r.host_address === 'SESSION_NOT_HELD'
+      );
+
+      if (isSessionNotHeld) {
+        const totalStudents = new Set(dateCoveredRecords.map(r => r.student_id)).size;
+        return {
+          date,
+          presentCount: 0,
+          unexcusedAbsentCount: 0,
+          excusedAbsentCount: totalStudents,
+          lateCount: 0,
+          attendanceRate: 0,
+          presentNames: [],
+          lateNames: [],
+          excusedNames: ['All Students'],
+          absentNames: [],
+          hostAddress: 'SESSION_NOT_HELD',
+          isSessionNotHeld: true,
+          sessionNotHeldCount: totalStudents,
+          bookTopic: null,
+          bookStartPage: null,
+          bookEndPage: null,
+          totalLateMinutes: 0,
+          avgLateMinutes: 0,
+        };
+      }
+
       const dateRecords = analyticsRecords.filter(r => r.attendance_date === date);
       const presentRecords = dateRecords.filter(r => r.status === 'on time');
       const absentRecords = dateRecords.filter(r => r.status === 'absent');
@@ -3312,6 +3347,8 @@ const AttendanceRecords = () => {
         excusedNames,
         absentNames: [...absentRecords.map(r => r.student_name), ...unmarkedNames],
         hostAddress,
+        isSessionNotHeld: false,
+        sessionNotHeldCount: 0,
         bookTopic: dateRecords[0]?.book_topic || null,
         bookStartPage: dateRecords[0]?.book_start_page || null,
         bookEndPage: dateRecords[0]?.book_end_page || null,
@@ -3479,7 +3516,7 @@ const AttendanceRecords = () => {
             { key: 'absentCount', label: 'Total Absent', labelAr: 'إجمالي الغياب', category: 'attendance', defaultSelected: false },
             { key: 'unexcusedAbsent', label: 'Unexcused Absent', labelAr: 'غياب بدون عذر', category: 'attendance', defaultSelected: true },
             { key: 'excusedCount', label: 'Excused', labelAr: 'معذور', category: 'attendance', defaultSelected: true },
-            { key: 'sessionNotHeldCount', label: 'Not Held', labelAr: 'جلسات لم تعقد', category: 'attendance', defaultSelected: false },
+            { key: 'sessionNotHeldCount', label: 'Not Held', labelAr: 'جلسات لم تعقد', category: 'attendance', defaultSelected: true },
             { key: 'totalRecords', label: 'Total Records', labelAr: 'إجمالي السجلات', category: 'attendance', defaultSelected: false },
           ]
         },
@@ -4877,10 +4914,13 @@ const AttendanceRecords = () => {
                     if (d.hostAddress === 'SESSION_NOT_HELD' || (d.hostAddress && d.hostAddress.toUpperCase() === 'SESSION_NOT_HELD')) {
                       excusedLabel = isArabic ? 'جميع الطلاب' : 'All Students';
                     }
+                    const hostAddressLabel = d.isSessionNotHeld
+                      ? (isArabic ? 'لم تعقد الجلسة' : 'Session Not Held')
+                      : (d.hostAddress || '-');
                     return {
                       date: format(dateObj, 'MMM dd, yyyy'),
                       dayOfWeek: format(dateObj, 'EEEE'),
-                      hostAddress: d.hostAddress || '-',
+                      hostAddress: hostAddressLabel,
                       bookTopic: d.bookTopic || '-',
                       bookPages,
                       bookStartPage: d.bookStartPage || '-',
@@ -5234,6 +5274,11 @@ const AttendanceRecords = () => {
                   const sortedDates = matrixSelectedDates
                     ? allSortedDates.filter(d => matrixSelectedDates.has(d.date))
                     : allSortedDates;
+                  const notHeldDateSet = new Set(
+                    allSortedDates
+                      .filter(d => d.isSessionNotHeld || d.hostAddress === 'SESSION_NOT_HELD')
+                      .map(d => d.date)
+                  );
                   const sortedStudents = sortStudentsForMatrix(studentAnalytics);
 
                   const handleMatrixSort = (field: MatrixSortField) => {
@@ -5257,7 +5302,10 @@ const AttendanceRecords = () => {
                   }
 
                   // Status cell rendering with creative color coding
-                  const getCellStyle = (record: AttendanceRecord | undefined): { bg: string; text: string; icon: string; title: string } => {
+                  const getCellStyle = (record: AttendanceRecord | undefined, dateStr: string): { bg: string; text: string; icon: string; title: string } => {
+                    if (!record && notHeldDateSet.has(dateStr)) {
+                      return { bg: 'bg-purple-100 dark:bg-purple-900/40', text: 'text-purple-700 dark:text-purple-300', icon: 'NH', title: 'Session Not Held' };
+                    }
                     if (!record) return { bg: 'bg-gray-100 dark:bg-gray-700', text: 'text-gray-400 dark:text-gray-500', icon: '—', title: 'No record' };
                     switch (record.status) {
                       case 'on time':
@@ -5313,6 +5361,7 @@ const AttendanceRecords = () => {
                         <span className="flex items-center gap-1 text-gray-700 dark:text-gray-300"><span className="w-3 h-3 rounded bg-red-100 dark:bg-red-900/40 border border-red-300 dark:border-red-700"></span>Late 30m+</span>
                         <span className="flex items-center gap-1 text-gray-700 dark:text-gray-300"><span className="w-3 h-3 rounded bg-red-200 dark:bg-red-900/60 border border-red-400 dark:border-red-600"></span>Absent</span>
                         <span className="flex items-center gap-1 text-gray-700 dark:text-gray-300"><span className="w-3 h-3 rounded bg-blue-100 dark:bg-blue-900/40 border border-blue-300 dark:border-blue-700"></span>Excused</span>
+                        <span className="flex items-center gap-1 text-gray-700 dark:text-gray-300"><span className="w-3 h-3 rounded bg-purple-100 dark:bg-purple-900/40 border border-purple-300 dark:border-purple-700"></span>Session Not Held</span>
                         <span className="flex items-center gap-1 text-gray-700 dark:text-gray-300"><span className="w-3 h-3 rounded bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600"></span>No Record</span>
                       </div>
                       <table className="min-w-full border-collapse">
@@ -5353,7 +5402,7 @@ const AttendanceRecords = () => {
                                 </td>
                                 {sortedDates.map(d => {
                                   const record = studentMap?.get(d.date);
-                                  const cellStyle = getCellStyle(record);
+                                  const cellStyle = getCellStyle(record, d.date);
                                   return (
                                     <td
                                       key={d.date}

@@ -58,7 +58,59 @@ export const EXCUSE_REASONS = [
   { value: 'other', label: 'Other', labelAr: 'أخرى', icon: '📝' },
 ] as const;
 
+const SESSION_DAY_MAP: Record<string, number> = {
+  sunday: 0,
+  monday: 1,
+  tuesday: 2,
+  wednesday: 3,
+  thursday: 4,
+  friday: 5,
+  saturday: 6,
+};
+
+const getWeekdayFromDateString = (dateStr: string) => {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, (month || 1) - 1, day || 1).getDay();
+};
+
 class ExcuseRequestService {
+  private async validateScheduledSessionDate(sessionId: string, attendanceDate: string) {
+    const { data: session, error } = await supabase
+      .from('session')
+      .select('day')
+      .eq('session_id', sessionId)
+      .maybeSingle();
+
+    if (error) {
+      return { valid: false, error: error as Error };
+    }
+
+    if (!session?.day) {
+      return {
+        valid: false,
+        error: new Error('Session schedule day could not be verified'),
+      };
+    }
+
+    const expectedWeekday = SESSION_DAY_MAP[session.day.toLowerCase()];
+    if (expectedWeekday === undefined) {
+      return {
+        valid: false,
+        error: new Error(`Unsupported session day: ${session.day}`),
+      };
+    }
+
+    const actualWeekday = getWeekdayFromDateString(attendanceDate);
+    if (actualWeekday !== expectedWeekday) {
+      return {
+        valid: false,
+        error: new Error(`Excuse requests can only be submitted for scheduled ${session.day} sessions`),
+      };
+    }
+
+    return { valid: true, error: null };
+  }
+
   /**
    * Get pending excuse requests for a specific session + date.
    * Used by Attendance.tsx to show pending badges and allow quick approve/reject.
@@ -168,6 +220,11 @@ class ExcuseRequestService {
    * Checks for existing requests and attendance status before creating.
    */
   async create(request: CreateExcuseRequest) {
+    const scheduleValidation = await this.validateScheduledSessionDate(request.session_id, request.attendance_date);
+    if (!scheduleValidation.valid) {
+      return { data: null, error: scheduleValidation.error };
+    }
+
     // 1. Check for duplicate request (same student + session + date)
     const { data: existing } = await supabase
       .from('excuse_request')
@@ -245,6 +302,13 @@ class ExcuseRequestService {
     // Guard: prevent re-reviewing already-processed requests
     if (request.status !== 'pending') {
       return { data: null, error: new Error(`Request already ${request.status} — cannot review again`) };
+    }
+
+    if (review.status === 'approved') {
+      const scheduleValidation = await this.validateScheduledSessionDate(request.session_id, request.attendance_date);
+      if (!scheduleValidation.valid) {
+        return { data: null, error: scheduleValidation.error };
+      }
     }
 
     // 2. Update the request status

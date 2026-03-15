@@ -15,14 +15,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const initialCheckDone = useRef(false);
+  const userRef = useRef<User | null>(null);
 
   useEffect(() => {
-    // Check if user is already logged in
-    const getSession = async () => {
+    userRef.current = user;
+  }, [user]);
+
+  useEffect(() => {
+    const refreshSession = async (showLoader = false) => {
       try {
-        // Add timeout to prevent infinite loading
+        if (showLoader) {
+          setLoading(true);
+        }
+
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Session check timeout')), 10000)
+          setTimeout(() => reject(new Error('Session check timeout')), 15000)
         );
         
         const sessionPromise = supabase.auth.getSession();
@@ -34,20 +41,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (error) {
           console.error('Error getting session:', error);
-          setUser(null);
+          if (showLoader && !userRef.current) {
+            setUser(null);
+          }
         } else {
-          setUser(data?.session?.user ?? null);
+          const nextUser = data?.session?.user ?? null;
+          if (nextUser || showLoader || !userRef.current) {
+            setUser(nextUser);
+          }
         }
       } catch (error) {
         console.error('Session check failed:', error);
-        setUser(null);
+        if (showLoader && !userRef.current) {
+          setUser(null);
+        }
       } finally {
         initialCheckDone.current = true;
         setLoading(false);
       }
     };
 
-    getSession();
+    refreshSession(true);
+
+    const handleVisibilityOrFocus = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
+      refreshSession(false);
+    };
 
     // Listen for auth state changes
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -58,7 +79,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     });
 
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
       authListener?.subscription.unsubscribe();
     };
   }, []);
