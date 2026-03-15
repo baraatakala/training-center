@@ -1198,6 +1198,12 @@ export function Attendance() {
         return;
       }
 
+      setExcuseReason(prev => {
+        const updated = { ...prev };
+        delete updated[attendanceId];
+        return updated;
+      });
+
       // Optimistically update UI
       setAttendance((prev) => prev.map(a => a.attendance_id === attendanceId ? { ...a, status: 'pending', check_in_time: null } : a));
       // Reload to ensure consistent state
@@ -1324,6 +1330,14 @@ export function Attendance() {
       // Audit log: bulk update
       try { for (const id of realIds) { await logUpdate('attendance', id, {} as Record<string, unknown>, updates as Record<string, unknown>, `Bulk mark: ${status}`); } } catch { /* audit non-critical */ }
     }
+
+    setExcuseReason(prev => {
+      const updated = { ...prev };
+      for (const id of attendanceIds) {
+        delete updated[id];
+      }
+      return updated;
+    });
 
     setSelectedStudents(new Set());
     loadAttendance();

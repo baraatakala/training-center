@@ -639,7 +639,7 @@ export const messageService = {
   async toggleStarred(messageId: string, userType: 'teacher' | 'student' | 'admin', userId: string): Promise<{ isStarred: boolean; error: Error | null }> {
     try {
       // Check if already starred
-      const { data: existing } = await supabase
+      const { data: existing, error: existingError } = await supabase
         .from('message_starred')
         .select('id')
         .eq('message_id', messageId)
@@ -647,18 +647,24 @@ export const messageService = {
         .eq('user_id', userId)
         .maybeSingle();
 
+      if (existingError) throw existingError;
+
       if (existing) {
         // Unstar
-        await supabase
+        const { error } = await supabase
           .from('message_starred')
           .delete()
           .eq('id', existing.id);
+
+        if (error) throw error;
         return { isStarred: false, error: null };
       } else {
         // Star
-        await supabase
+        const { error } = await supabase
           .from('message_starred')
           .insert({ message_id: messageId, user_type: userType, user_id: userId });
+
+        if (error) throw error;
         return { isStarred: true, error: null };
       }
     } catch (error) {

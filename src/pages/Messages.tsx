@@ -105,8 +105,12 @@ export function Messages() {
   // Load starred count separately
   const loadStarredCount = useCallback(async () => {
     if (!userType || !currentUserId) return;
-    const { data } = await messageService.getStarred(userType, currentUserId);
-    setStarredCount(data?.length || 0);
+      const { data } = await supabase
+        .from('message_starred')
+        .select('id')
+        .eq('user_type', userType)
+        .eq('user_id', currentUserId);
+      setStarredCount(data?.length || 0);
   }, [userType, currentUserId]);
 
   // Load inbox stats independently via lightweight count query (no sender resolution)
@@ -162,6 +166,7 @@ export function Messages() {
       if (err) {
         setError('Failed to load messages');
       } else {
+        setError(null);
         setMessages(data || []);
       }
     } catch (err) {
