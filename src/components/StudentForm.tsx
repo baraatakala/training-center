@@ -3,10 +3,7 @@ import { Input } from './ui/Input';
 import { Select } from './ui/Select';
 import { Button } from './ui/Button';
 import type { Student, CreateStudent } from '../types/database.types';
-import {
-  STUDENT_SPECIALIZATION_OPTIONS,
-  normalizeStudentSpecialization,
-} from '../constants/studentSpecializations';
+import { getAll as getAllSpecializations } from '../services/specializationService';
 
 type StudentFormProps = {
   student?: Student;
@@ -15,6 +12,7 @@ type StudentFormProps = {
 };
 
 export function StudentForm({ student, onSubmit, onCancel }: StudentFormProps) {
+  const [specializations, setSpecializations] = useState<string[]>([]);
   const [formData, setFormData] = useState<CreateStudent>({
     name: '',
     email: '',
@@ -45,6 +43,12 @@ export function StudentForm({ student, onSubmit, onCancel }: StudentFormProps) {
       });
     }
   }, [student]);
+
+  useEffect(() => {
+    getAllSpecializations().then(({ data }) => {
+      if (data) setSpecializations(data.map((s: { name: string }) => s.name));
+    });
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -80,7 +84,7 @@ export function StudentForm({ student, onSubmit, onCancel }: StudentFormProps) {
       }
     }
 
-    if (formData.specialization && !normalizeStudentSpecialization(formData.specialization)) {
+    if (formData.specialization && !specializations.includes(formData.specialization)) {
       setError('Please choose a valid specialization from the list');
       setLoading(false);
       return;
@@ -91,7 +95,7 @@ export function StudentForm({ student, onSubmit, onCancel }: StudentFormProps) {
         ...formData,
         name: trimmedName,
         email: formData.email.trim(),
-        specialization: normalizeStudentSpecialization(formData.specialization),
+        specialization: formData.specialization || null,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -158,7 +162,7 @@ export function StudentForm({ student, onSubmit, onCancel }: StudentFormProps) {
         label="Specialization"
         value={formData.specialization || ''}
         onChange={(value) => setFormData({ ...formData, specialization: value || null })}
-        options={STUDENT_SPECIALIZATION_OPTIONS.map((option) => ({ value: option, label: option }))}
+        options={specializations.map((s) => ({ value: s, label: s }))}
         placeholder="Select specialization"
         hint="Used for attendance analytics and specialization-based reporting."
       />

@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { SearchBar } from '../components/ui/SearchBar';
@@ -12,6 +13,7 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useIsTeacher } from '../hooks/useIsTeacher';
 import { useDebounce } from '../hooks/useDebounce';
 import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
+import { buildImportTemplate, importMasterData, parseImportFile } from '../services/masterDataImportService';
 import type { Teacher, CreateTeacher } from '../types/database.types';
 import { TableSkeleton } from '../components/ui/Skeleton';
 
@@ -33,6 +35,8 @@ export function Teachers() {
   const [deletingTeacher, setDeletingTeacher] = useState<Teacher | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
 
   const loadTeachers = useCallback(async () => {
     setLoading(true);
@@ -116,6 +120,33 @@ export function Teachers() {
     toast.success(`Exported ${filteredTeachers.length} teachers to CSV`);
   }, [filteredTeachers]);
 
+  const handleDownloadTemplate = () => {
+    const workbook = buildImportTemplate('teachers');
+    XLSX.writeFile(workbook, 'teachers-import-template.xlsx');
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    setImporting(true);
+    try {
+      const rows = await parseImportFile(file);
+      if (rows.length === 0) { toast.error('File contains no data rows.'); return; }
+      const result = await importMasterData('teachers', rows);
+      if (result.errors.length > 0) {
+        toast.warning(`Import done with ${result.errors.length} error(s): ${result.errors.slice(0, 3).join('; ')}`);
+      } else {
+        toast.success(`${result.created + result.updated} teacher(s) imported successfully.`);
+      }
+      loadTeachers();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Import failed.');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const toggleSort = (field: typeof sortField) => {
     if (sortField === field) {
       setSortDirection(d => d === 'asc' ? 'desc' : 'asc');
@@ -189,12 +220,21 @@ export function Teachers() {
         </div>
         {isTeacher && (
           <div className="flex gap-2 w-full sm:w-auto">
-            <Button onClick={exportToCSV} variant="outline" className="flex-1 sm:flex-initial gap-2" title="Export to CSV">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+            <Button onClick={handleDownloadTemplate} variant="outline" className="flex-1 sm:flex-initial gap-2 text-xs sm:text-sm" title="Download import template">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              Template
+            </Button>
+            <Button onClick={() => fileInputRef.current?.click()} disabled={importing} variant="outline" className="flex-1 sm:flex-initial gap-2 text-xs sm:text-sm" title="Import from CSV/Excel">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+              {importing ? 'Importing...' : 'Import'}
+            </Button>
+            <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImportFile} />
+            <Button onClick={exportToCSV} variant="outline" className="flex-1 sm:flex-initial gap-2 text-xs sm:text-sm" title="Export to CSV">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
               Export
             </Button>
-            <Button onClick={openAddModal} variant="primary" className="flex-1 sm:flex-initial gap-2">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+            <Button onClick={openAddModal} variant="primary" className="flex-1 sm:flex-initial gap-2 text-xs sm:text-sm">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
               Add Teacher
             </Button>
           </div>

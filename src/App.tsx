@@ -16,7 +16,7 @@ const Students = lazy(() => import('./pages/Students').then(m => ({ default: m.S
 const Courses = lazy(() => import('./pages/Courses').then(m => ({ default: m.Courses })));
 const Sessions = lazy(() => import('./pages/Sessions').then(m => ({ default: m.Sessions })));
 const Enrollments = lazy(() => import('./pages/Enrollments').then(m => ({ default: m.Enrollments })));
-const DataImports = lazy(() => import('./pages/DataImports').then(m => ({ default: m.DataImports })));
+const Specializations = lazy(() => import('./pages/Specializations').then(m => ({ default: m.Specializations })));
 const Attendance = lazy(() => import('./pages/Attendance').then(m => ({ default: m.Attendance })));
 const AttendanceRecords = lazy(() => import('./pages/AttendanceRecords'));
 const AuditLogs = lazy(() => import('./pages/AuditLogs').then(m => ({ default: m.AuditLogs })));
@@ -86,7 +86,7 @@ function App() {
                     <Route path="/courses" element={<SafePage><Courses /></SafePage>} />
                     <Route path="/sessions" element={<SafePage><Sessions /></SafePage>} />
                     <Route path="/enrollments" element={<SafePage><Enrollments /></SafePage>} />
-                    <Route path="/data-imports" element={<SafePage><DataImports /></SafePage>} />
+                    <Route path="/specializations" element={<SafePage><Specializations /></SafePage>} />
                     <Route path="/attendance/:sessionId" element={<SafePage><Attendance /></SafePage>} />
                     <Route path="/attendance-records" element={<SafePage><AttendanceRecords /></SafePage>} />
                     <Route path="/audit-logs" element={<SafePage><AuditLogs /></SafePage>} />

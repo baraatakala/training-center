@@ -8,25 +8,13 @@ ALTER TABLE public.student
 ADD CONSTRAINT student_specialization_check CHECK (
   specialization IS NULL OR specialization IN (
     'Computer Science',
-    'Software Engineering',
-    'Information Systems',
-    'Data Science',
-    'Cybersecurity',
-    'Business Administration',
-    'Accounting',
-    'Finance',
-    'Marketing',
-    'Economics',
+    'Engineering',
+    'Business',
     'Medicine',
-    'Pharmacy',
-    'Dentistry',
-    'Nursing',
-    'Civil Engineering',
-    'Architecture',
-    'Mechanical Engineering',
-    'Electrical Engineering',
     'Law',
-    'Psychology'
+    'Arts',
+    'Science',
+    'Education'
   )
 );
 

@@ -6,7 +6,7 @@ import { courseService } from './courseService';
 import { sessionService } from './sessionService';
 import { enrollmentService } from './enrollmentService';
 import { Tables } from '../types/database.types';
-import { normalizeStudentSpecialization, STUDENT_SPECIALIZATION_OPTIONS } from '../constants/studentSpecializations';
+import { getAll as getAllSpecializations } from './specializationService';
 
 export type MasterImportEntity = 'teachers' | 'students' | 'courses' | 'sessions' | 'enrollments';
 
@@ -64,7 +64,7 @@ export const MASTER_IMPORT_CONFIGS: MasterImportConfig[] = [
         location: 'Giza, Egypt',
         nationality: 'Egyptian',
         age: '21',
-        specialization: 'Software Engineering',
+        specialization: 'Engineering',
       },
     ],
   },
@@ -276,14 +276,19 @@ async function importStudents(rows: ImportRow[]): Promise<MasterImportResult> {
   const existingByEmail = new Map((students || []).map((student) => [normalizeLower(student.email), student]));
   const result: MasterImportResult = { entity: 'students', created: 0, updated: 0, skipped: 0, errors: [] };
 
+  // Fetch valid specializations from DB
+  const { data: specRows } = await getAllSpecializations();
+  const validSpecializations = (specRows || []).map((s: { name: string }) => s.name);
+  const specLookup = new Map(validSpecializations.map((n: string) => [n.toLowerCase(), n]));
+
   for (const [index, row] of rows.entries()) {
     const rowIndex = index + 2;
     try {
       const email = getRequired(row, 'email', rowIndex);
       const specializationValue = normalizeText(row.specialization);
-      const specialization = specializationValue ? normalizeStudentSpecialization(specializationValue) : null;
+      const specialization = specializationValue ? (specLookup.get(specializationValue.toLowerCase()) || null) : null;
       if (specializationValue && !specialization) {
-        throw new Error(`Row ${rowIndex}: specialization must be one of ${STUDENT_SPECIALIZATION_OPTIONS.join(', ')}.`);
+        throw new Error(`Row ${rowIndex}: specialization must be one of ${validSpecializations.join(', ')}.`);
       }
 
       const age = parseOptionalNumber(row.age);
