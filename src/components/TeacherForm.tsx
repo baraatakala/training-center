@@ -15,6 +15,7 @@ export function TeacherForm({ teacher, onSubmit, onCancel }: TeacherFormProps) {
     phone: teacher?.phone || '',
     email: teacher?.email || '',
     address: teacher?.address || '',
+    specialization: teacher?.specialization || '',
   });
 
   const [loading, setLoading] = useState(false);
@@ -46,8 +47,20 @@ export function TeacherForm({ teacher, onSubmit, onCancel }: TeacherFormProps) {
       return;
     }
 
+    const trimmedSpecialization = formData.specialization?.trim() || '';
+    if (trimmedSpecialization && (trimmedSpecialization.length < 2 || trimmedSpecialization.length > 150)) {
+      setError('Specialization must be between 2 and 150 characters');
+      setLoading(false);
+      return;
+    }
+
     try {
-      await onSubmit({ ...formData, name: trimmedName, email: formData.email.trim() });
+      await onSubmit({
+        ...formData,
+        name: trimmedName,
+        email: formData.email.trim(),
+        specialization: trimmedSpecialization || null,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -95,6 +108,14 @@ export function TeacherForm({ teacher, onSubmit, onCancel }: TeacherFormProps) {
         value={formData.address || ''}
         onChange={(value) => setFormData({ ...formData, address: value || null })}
         placeholder="Enter address where sessions can be hosted"
+      />
+
+      <Input
+        label="Specialization"
+        type="text"
+        value={formData.specialization || ''}
+        onChange={(value) => setFormData({ ...formData, specialization: value || null })}
+        placeholder="e.g. Mathematics, Machine Learning"
       />
 
       <div className="flex gap-3 justify-end pt-4">

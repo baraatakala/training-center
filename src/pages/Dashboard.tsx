@@ -129,6 +129,8 @@ export function Dashboard() {
           student_id,
           attendance_date,
           status,
+          excuse_reason,
+          host_address,
           session_id,
           student:student_id(name, email, phone),
           session:session_id(course_id, course:course_id(course_name))

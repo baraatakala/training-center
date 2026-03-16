@@ -15,6 +15,8 @@ interface Course {
   teacher_id: string;
   course_name: string;
   category: string;
+  description?: string | null;
+  description_format?: 'markdown' | 'plain_text' | null;
 }
 
 interface CourseFormProps {
@@ -28,6 +30,8 @@ export function CourseForm({ course, onSubmit, onCancel }: CourseFormProps) {
     teacher_id: course?.teacher_id || null,
     course_name: course?.course_name || '',
     category: course?.category || null,
+    description: course?.description || null,
+    description_format: course?.description_format || 'markdown',
   });
 
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -67,11 +71,21 @@ export function CourseForm({ course, onSubmit, onCancel }: CourseFormProps) {
       setError('Please select an instructor.');
       return;
     }
+    const trimmedDescription = formData.description?.trim() || '';
+    if (trimmedDescription.length > 6000) {
+      setError('Description must be 6000 characters or less.');
+      return;
+    }
 
     setLoading(true);
 
     try {
-      await onSubmit({ ...formData, course_name: formData.course_name.trim() });
+      await onSubmit({
+        ...formData,
+        course_name: formData.course_name.trim(),
+        description: trimmedDescription || null,
+        description_format: formData.description_format || 'markdown',
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -113,6 +127,24 @@ export function CourseForm({ course, onSubmit, onCancel }: CourseFormProps) {
         placeholder="Select an instructor"
         required
       />
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Description
+        </label>
+        <textarea
+          value={formData.description || ''}
+          onChange={(e) => setFormData({ ...formData, description: e.target.value || null })}
+          rows={6}
+          maxLength={6000}
+          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder="Markdown supported. Add course goals, scope, requirements, and expected outcomes."
+        />
+        <div className="mt-1 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+          <span>Supports Markdown formatting.</span>
+          <span>{(formData.description || '').length}/6000</span>
+        </div>
+      </div>
 
       <div className="flex gap-3 justify-end pt-4">
         <Button type="button" variant="outline" onClick={onCancel}>

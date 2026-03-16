@@ -31,6 +31,11 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
     time: initialData?.time || null,
     location: initialData?.location || null,
     grace_period_minutes: initialData?.grace_period_minutes ?? 15,
+    learning_method: initialData?.learning_method || 'face_to_face',
+    virtual_provider: initialData?.virtual_provider || null,
+    virtual_meeting_link: initialData?.virtual_meeting_link || null,
+    requires_recording: initialData?.requires_recording ?? false,
+    default_recording_visibility: initialData?.default_recording_visibility || 'course_staff',
   });
 
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -109,11 +114,30 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
       setError('Please select at least one day.');
       return;
     }
+    if (formData.learning_method === 'face_to_face' && formData.virtual_meeting_link) {
+      setError('Face-to-face sessions cannot have a virtual meeting link.');
+      return;
+    }
+    if ((formData.learning_method === 'online' || formData.learning_method === 'hybrid') && formData.virtual_meeting_link) {
+      const isValidUrl = /^https?:\/\//i.test(formData.virtual_meeting_link);
+      if (!isValidUrl) {
+        setError('Virtual meeting link must be a valid URL starting with http:// or https://');
+        return;
+      }
+      if (!formData.virtual_provider) {
+        setError('Please select a virtual provider when a meeting link is used.');
+        return;
+      }
+    }
 
     setLoading(true);
 
     try {
-      await onSubmit(formData);
+      await onSubmit({
+        ...formData,
+        virtual_provider: formData.learning_method === 'face_to_face' ? null : formData.virtual_provider,
+        virtual_meeting_link: formData.learning_method === 'face_to_face' ? null : formData.virtual_meeting_link,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -231,6 +255,75 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
         onChange={(value) => setFormData({ ...formData, location: value || null })}
         placeholder="e.g., Main Campus - Room 202"
       />
+
+      <Select
+        label="Learning Method"
+        value={formData.learning_method || 'face_to_face'}
+        onChange={(value) => setFormData({
+          ...formData,
+          learning_method: value as CreateSession['learning_method'],
+          ...(value === 'face_to_face' ? { virtual_provider: null, virtual_meeting_link: null } : {}),
+        })}
+        options={[
+          { value: 'face_to_face', label: 'Face to Face' },
+          { value: 'online', label: 'Online' },
+          { value: 'hybrid', label: 'Hybrid' },
+        ]}
+        required
+      />
+
+      {formData.learning_method !== 'face_to_face' && (
+        <>
+          <Select
+            label="Virtual Provider"
+            value={formData.virtual_provider || ''}
+            onChange={(value) => setFormData({ ...formData, virtual_provider: (value || null) as CreateSession['virtual_provider'] })}
+            options={[
+              { value: 'zoom', label: 'Zoom' },
+              { value: 'google_meet', label: 'Google Meet' },
+              { value: 'microsoft_teams', label: 'Microsoft Teams' },
+              { value: 'other', label: 'Other' },
+            ]}
+            placeholder="Select a meeting provider"
+          />
+
+          <Input
+            label="Virtual Meeting Link"
+            type="url"
+            value={formData.virtual_meeting_link || ''}
+            onChange={(value) => setFormData({ ...formData, virtual_meeting_link: value || null })}
+            placeholder="https://..."
+          />
+        </>
+      )}
+
+      <div className="space-y-3 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={Boolean(formData.requires_recording)}
+            onChange={(e) => setFormData({ ...formData, requires_recording: e.target.checked })}
+            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+          />
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Session should be recorded</span>
+        </label>
+
+        {formData.requires_recording && (
+          <Select
+            label="Default Recording Visibility"
+            value={formData.default_recording_visibility || 'course_staff'}
+            onChange={(value) => setFormData({ ...formData, default_recording_visibility: (value || 'course_staff') as CreateSession['default_recording_visibility'] })}
+            options={[
+              { value: 'private_staff', label: 'Private Staff' },
+              { value: 'course_staff', label: 'Course Staff' },
+              { value: 'enrolled_students', label: 'Enrolled Students' },
+              { value: 'organization', label: 'Organization' },
+              { value: 'public_link', label: 'Public Link' },
+            ]}
+            required
+          />
+        )}
+      </div>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">

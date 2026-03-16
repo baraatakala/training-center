@@ -6,6 +6,7 @@ export interface Teacher {
   phone: string | null;
   email: string;
   address: string | null;
+  specialization?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -30,6 +31,9 @@ export interface Course {
   teacher_id: string | null;
   course_name: string;
   category: string | null;
+  description?: string | null;
+  description_format?: 'markdown' | 'plain_text' | null;
+  description_updated_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -45,8 +49,36 @@ export interface Session {
   location: string | null;
   grace_period_minutes?: number;
   proximity_radius?: number; // Max distance in meters for check-in (default 50m)
+  learning_method?: 'face_to_face' | 'online' | 'hybrid';
+  virtual_provider?: 'zoom' | 'google_meet' | 'microsoft_teams' | 'other' | null;
+  virtual_meeting_link?: string | null;
+  requires_recording?: boolean;
+  default_recording_visibility?: 'private_staff' | 'course_staff' | 'enrolled_students' | 'organization' | 'public_link' | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface SessionRecording {
+  recording_id: string;
+  session_id: string;
+  attendance_date: string | null;
+  recording_type: 'zoom_recording' | 'google_meet_recording' | 'teacher_mobile_recording' | 'uploaded_recording' | 'external_stream';
+  recording_url: string | null;
+  recording_storage_location: 'supabase_storage' | 'external_link' | 'streaming_link' | 'provider_managed';
+  storage_bucket: string | null;
+  storage_path: string | null;
+  recording_uploaded_by: string | null;
+  recording_visibility: 'private_staff' | 'course_staff' | 'enrolled_students' | 'organization' | 'public_link';
+  title: string | null;
+  duration_seconds: number | null;
+  file_size_bytes: number | null;
+  mime_type: string | null;
+  provider_name: string | null;
+  provider_recording_id: string | null;
+  is_primary: boolean;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
 }
 
 export interface CourseBookReference {
@@ -174,6 +206,9 @@ export type UpdateCourse = Partial<CreateCourse>;
 export type CreateSession = Omit<Session, 'session_id' | 'created_at' | 'updated_at'>;
 export type UpdateSession = Partial<CreateSession>;
 
+export type CreateSessionRecording = Omit<SessionRecording, 'recording_id' | 'created_at' | 'updated_at' | 'deleted_at'>;
+export type UpdateSessionRecording = Partial<CreateSessionRecording>;
+
 export type CreateCourseBookReference = Omit<CourseBookReference, 'reference_id' | 'created_at' | 'updated_at'>;
 export type UpdateCourseBookReference = Partial<CreateCourseBookReference>;
 
@@ -215,6 +250,7 @@ export const Tables = {
   COURSE_BOOK_REFERENCE: 'course_book_reference',
   SESSION_BOOK_COVERAGE: 'session_book_coverage',
   SESSION_DATE_HOST: 'session_date_host',
+  SESSION_RECORDING: 'session_recording',
   COURSE: 'course',
   SESSION: 'session',
   LOCATION: 'location',

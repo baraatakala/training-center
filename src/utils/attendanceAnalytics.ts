@@ -27,9 +27,53 @@ export interface AbsentStudent {
   daysAbsent: number;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function analyzeAttendanceRisk(attendanceRecords: any[]): AbsentStudent[] {
+interface AttendanceAnalyticsRecord {
+  student_id: string;
+  attendance_date: string;
+  status: string;
+  excuse_reason?: string | null;
+  host_address?: string | null;
+  session?: {
+    course_id?: string;
+    course?: {
+      course_name?: string;
+    };
+  } | Array<{
+    course_id?: string;
+    course?: { course_name?: string } | Array<{ course_name?: string }>;
+  }> | null;
+  student?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+  } | Array<{
+    name?: string;
+    email?: string;
+    phone?: string;
+  }> | null;
+}
+
+const PRESENT_STATUSES = new Set(['present', 'on time', 'late']);
+const EXCLUDED_STATUSES = new Set(['excused', 'not enrolled']);
+
+function isSessionNotHeld(record: AttendanceAnalyticsRecord): boolean {
+  return record.excuse_reason === 'session not held' || record.host_address === 'SESSION_NOT_HELD';
+}
+
+function statusPriority(status: string): number {
+  if (status === 'absent') return 5;
+  if (status === 'late') return 4;
+  if (status === 'on time' || status === 'present') return 3;
+  if (status === 'excused') return 2;
+  if (status === 'not enrolled') return 1;
+  return 0;
+}
+
+export function analyzeAttendanceRisk(attendanceRecords: AttendanceAnalyticsRecord[]): AbsentStudent[] {
   if (!attendanceRecords || attendanceRecords.length === 0) return [];
+
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
 
   // Group by student per course with FULL history
   const studentCourseData: {
@@ -40,25 +84,31 @@ export function analyzeAttendanceRisk(attendanceRecords: any[]): AbsentStudent[]
       courses: {
         [courseId: string]: {
           course_name: string;
-          dates: string[];
-          statuses: string[];
+            recordsByDate: Map<string, string>;
         };
       };
     };
   } = {};
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  attendanceRecords.forEach((record: any) => {
+    attendanceRecords.forEach((record) => {
+      if (!record.attendance_date || new Date(record.attendance_date) > today || isSessionNotHeld(record)) {
+        return;
+      }
+
+    const student = Array.isArray(record.student) ? record.student[0] : record.student;
+    const session = Array.isArray(record.session) ? record.session[0] : record.session;
+    const course = Array.isArray(session?.course) ? session?.course[0] : session?.course;
+
     const sid = record.student_id;
-    const courseId = record.session?.course_id;
+    const courseId = session?.course_id;
     if (!courseId) return;
-    const courseName = record.session?.course?.course_name || 'Unknown';
+    const courseName = course?.course_name || 'Unknown';
 
     if (!studentCourseData[sid]) {
       studentCourseData[sid] = {
-        name: record.student?.name || 'Unknown',
-        email: record.student?.email || '',
-        phone: record.student?.phone || '',
+        name: student?.name || 'Unknown',
+        email: student?.email || '',
+        phone: student?.phone || '',
         courses: {},
       };
     }
@@ -66,13 +116,14 @@ export function analyzeAttendanceRisk(attendanceRecords: any[]): AbsentStudent[]
     if (!studentCourseData[sid].courses[courseId]) {
       studentCourseData[sid].courses[courseId] = {
         course_name: courseName,
-        dates: [],
-        statuses: [],
+        recordsByDate: new Map<string, string>(),
       };
     }
 
-    studentCourseData[sid].courses[courseId].dates.push(record.attendance_date);
-    studentCourseData[sid].courses[courseId].statuses.push(record.status);
+    const existingStatus = studentCourseData[sid].courses[courseId].recordsByDate.get(record.attendance_date);
+    if (!existingStatus || statusPriority(record.status) > statusPriority(existingStatus)) {
+      studentCourseData[sid].courses[courseId].recordsByDate.set(record.attendance_date, record.status);
+    }
   });
 
   // Multi-dimensional risk assessment
@@ -81,23 +132,20 @@ export function analyzeAttendanceRisk(attendanceRecords: any[]): AbsentStudent[]
   Object.entries(studentCourseData).forEach(([studentId, studentInfo]) => {
     Object.entries(studentInfo.courses).forEach(([courseId, courseInfo]) => {
       // Sort dates chronologically (newest first)
-      const uniqueDates = [...new Set(courseInfo.dates)].sort(
+      const uniqueDates = [...courseInfo.recordsByDate.keys()].sort(
         (a, b) => new Date(b).getTime() - new Date(a).getTime()
       );
-      const uniqueStatuses = uniqueDates.map((d) => {
-        const idx = courseInfo.dates.indexOf(d);
-        return idx >= 0 ? courseInfo.statuses[idx] : 'absent';
-      });
+      const uniqueStatuses = uniqueDates.map((d) => courseInfo.recordsByDate.get(d) || 'absent');
 
       // === CORE METRICS WITH CONTEXT AWARENESS ===
       const totalDays = uniqueDates.length;
       const presentDays = uniqueStatuses.filter(
-        (s) => s === 'present' || s === 'on time' || s === 'late'
+        (s) => PRESENT_STATUSES.has(s)
       ).length;
       const lateDays = uniqueStatuses.filter((s) => s === 'late').length;
       const daysAbsent = uniqueStatuses.filter((s) => s === 'absent').length;
       const effectiveDays = uniqueStatuses.filter(
-        (s) => s !== 'excused' && s !== 'not enrolled'
+        (s) => !EXCLUDED_STATUSES.has(s)
       ).length;
       const attendanceRate = effectiveDays > 0 ? (presentDays / effectiveDays) * 100 : 0;
 
@@ -112,7 +160,6 @@ export function analyzeAttendanceRisk(attendanceRecords: any[]): AbsentStudent[]
       let ongoingStreak = 0;
       let lastAbsenceDate = '';
       const absentDates: string[] = [];
-      const today = new Date();
       const threeWeeksAgo = new Date(today.getTime() - 21 * 24 * 60 * 60 * 1000);
       const oneWeekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
 
@@ -131,7 +178,7 @@ export function analyzeAttendanceRisk(attendanceRecords: any[]): AbsentStudent[]
           if (idx === 0) {
             ongoingStreak = currentStreak;
           }
-        } else if (status === 'present' || status === 'on time' || status === 'late') {
+        } else if (PRESENT_STATUSES.has(status)) {
           currentStreak = 0;
         }
       });
@@ -160,16 +207,16 @@ export function analyzeAttendanceRisk(attendanceRecords: any[]): AbsentStudent[]
       if (totalDays >= 8) {
         const recentStatuses = uniqueStatuses
           .slice(0, recentWindow)
-          .filter((s) => s !== 'excused' && s !== 'not enrolled');
+          .filter((s) => !EXCLUDED_STATUSES.has(s));
         const olderStatuses = uniqueStatuses
           .slice(recentWindow, recentWindow + olderWindow)
-          .filter((s) => s !== 'excused' && s !== 'not enrolled');
+          .filter((s) => !EXCLUDED_STATUSES.has(s));
 
         const recentPresent = recentStatuses.filter(
-          (s) => s === 'present' || s === 'on time' || s === 'late'
+          (s) => PRESENT_STATUSES.has(s)
         ).length;
         const olderPresent = olderStatuses.filter(
-          (s) => s === 'present' || s === 'on time' || s === 'late'
+          (s) => PRESENT_STATUSES.has(s)
         ).length;
 
         const recentRate = recentStatuses.length > 0 ? recentPresent / recentStatuses.length : 0;
@@ -194,21 +241,21 @@ export function analyzeAttendanceRisk(attendanceRecords: any[]): AbsentStudent[]
         const veryRecentWindow = Math.min(4, Math.floor(recentWindow / 2));
         const veryRecentStatuses = uniqueStatuses
           .slice(0, veryRecentWindow)
-          .filter((s) => s !== 'excused' && s !== 'not enrolled');
+          .filter((s) => !EXCLUDED_STATUSES.has(s));
         const midRecentStatuses = uniqueStatuses
           .slice(veryRecentWindow, recentWindow)
-          .filter((s) => s !== 'excused' && s !== 'not enrolled');
+          .filter((s) => !EXCLUDED_STATUSES.has(s));
 
         const veryRecentRate =
           veryRecentStatuses.length > 0
             ? veryRecentStatuses.filter(
-                (s) => s === 'present' || s === 'on time' || s === 'late'
+                (s) => PRESENT_STATUSES.has(s)
               ).length / veryRecentStatuses.length
             : 0;
         const midRecentRate =
           midRecentStatuses.length > 0
             ? midRecentStatuses.filter(
-                (s) => s === 'present' || s === 'on time' || s === 'late'
+                (s) => PRESENT_STATUSES.has(s)
               ).length / midRecentStatuses.length
             : 0;
 
@@ -432,7 +479,7 @@ export function analyzeAttendanceRisk(attendanceRecords: any[]): AbsentStudent[]
       }
 
       const lastAttendedIndex = uniqueStatuses.findIndex(
-        (s) => s === 'on time' || s === 'late'
+        (s) => PRESENT_STATUSES.has(s)
       );
       const lastAttendedDate =
         lastAttendedIndex >= 0 ? uniqueDates[lastAttendedIndex] : undefined;

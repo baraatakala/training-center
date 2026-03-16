@@ -42,6 +42,9 @@ export interface IssuedCertificate {
   student_id: string;
   session_id: string | null;
   course_id: string | null;
+  signer_teacher_id: string | null;
+  signer_source: 'teacher_specialization' | 'template_default' | 'manual_override';
+  signer_title_snapshot: string | null;
   certificate_number: string;
   verification_code: string;
   final_score: number | null;
@@ -80,6 +83,7 @@ export interface IssueCertificatePayload {
   student_id: string;
   session_id?: string;
   course_id?: string;
+  signer_teacher_id?: string;
   final_score?: number;
   attendance_rate?: number;
   issued_by: string;
@@ -265,30 +269,59 @@ class CertificateService {
     // Get course + teacher info
     let courseName = '';
     let teacherName = '';
+    let teacherId = payload.signer_teacher_id || null;
+    let teacherSpecialization = '';
     if (payload.session_id) {
       const { data: session } = await supabase
         .from('session')
-        .select('course:course_id(course_name), teacher:teacher_id(name)')
+        .select('course:course_id(course_name), teacher:teacher_id(teacher_id, name, specialization)')
         .eq('session_id', payload.session_id)
         .single();
       if (session) {
         const s = session as Record<string, unknown>;
         courseName = (s.course as Record<string, string> | null)?.course_name || '';
-        teacherName = (s.teacher as Record<string, string> | null)?.name || '';
+        const teacher = s.teacher as Record<string, string> | null;
+        teacherName = teacher?.name || '';
+        teacherId = teacherId || teacher?.teacher_id || null;
+        teacherSpecialization = teacher?.specialization || '';
       }
     } else if (payload.course_id) {
       // Resolve course name + teacher from course_id when no session selected
       const { data: course } = await supabase
         .from('course')
-        .select('course_name, teacher:teacher_id(name)')
+        .select('course_name, teacher:teacher_id(teacher_id, name, specialization)')
         .eq('course_id', payload.course_id)
         .single();
       if (course) {
         const c = course as Record<string, unknown>;
         courseName = (c.course_name as string) || '';
-        teacherName = (c.teacher as Record<string, string> | null)?.name || '';
+        const teacher = c.teacher as Record<string, string> | null;
+        teacherName = teacher?.name || '';
+        teacherId = teacherId || teacher?.teacher_id || null;
+        teacherSpecialization = teacher?.specialization || '';
       }
     }
+
+    if (teacherId && (!teacherName || !teacherSpecialization)) {
+      const { data: teacher } = await supabase
+        .from('teacher')
+        .select('teacher_id, name, specialization')
+        .eq('teacher_id', teacherId)
+        .maybeSingle();
+
+      if (teacher) {
+        teacherName = teacherName || teacher.name || '';
+        teacherSpecialization = teacherSpecialization || teacher.specialization || '';
+      }
+    }
+
+    const resolvedSignatureName = payload.signature_name || teacherName || template.signature_name || null;
+    const resolvedSignatureTitle = payload.signature_title || teacherSpecialization || template.signature_title || null;
+    const signerSource = payload.signature_title
+      ? 'manual_override'
+      : teacherSpecialization
+        ? 'teacher_specialization'
+        : 'template_default';
 
     // Resolve template body
     const resolvedBody = resolveTemplate(template.body_template, {
@@ -315,8 +348,11 @@ class CertificateService {
         issued_by: payload.issued_by,
         issued_at: new Date().toISOString(),
         resolved_body: resolvedBody,
-        signature_name: payload.signature_name || template.signature_name || null,
-        signature_title: payload.signature_title || template.signature_title || null,
+        signature_name: resolvedSignatureName,
+        signature_title: resolvedSignatureTitle,
+        signer_teacher_id: teacherId,
+        signer_source: signerSource,
+        signer_title_snapshot: resolvedSignatureTitle,
       })
       .select()
       .single();

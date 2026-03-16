@@ -21,9 +21,22 @@ interface CourseWithTeacher {
   teacher_id: string;
   course_name: string;
   category: string;
+  description?: string | null;
+  description_format?: 'markdown' | 'plain_text' | null;
+  description_updated_at?: string | null;
   teacher: {
     name: string;
   };
+}
+
+function getDescriptionPreview(description?: string | null) {
+  if (!description) return '';
+  return description
+    .replace(/[#*_`>-]+/g, ' ')
+    .replace(/\[(.*?)\]\((.*?)\)/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 140);
 }
 
 export function Courses() {
@@ -78,8 +91,9 @@ export function Courses() {
       result = result.filter(
         (c) =>
           c.course_name.toLowerCase().includes(query) ||
-          c.category.toLowerCase().includes(query) ||
-          (c.teacher?.name && c.teacher.name.toLowerCase().includes(query))
+          (c.category || '').toLowerCase().includes(query) ||
+          (c.teacher?.name && c.teacher.name.toLowerCase().includes(query)) ||
+          (c.description || '').toLowerCase().includes(query)
       );
     }
     result.sort((a, b) => {
@@ -104,11 +118,12 @@ export function Courses() {
   }, [debouncedSearch, sortField, sortDirection, selectedCategory]);
 
   const exportToCSV = useCallback(() => {
-    const headers = ['Course Name', 'Category', 'Teacher'];
+    const headers = ['Course Name', 'Category', 'Teacher', 'Description'];
     const rows = filteredCourses.map(c => [
       c.course_name,
-      c.category,
+      c.category || '',
       c.teacher?.name || '',
+      c.description || '',
     ]);
     const csvContent = [headers, ...rows].map(r => r.map(col => `"${col.replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -264,7 +279,7 @@ export function Courses() {
 
       {loading ? (
         <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700/50 overflow-hidden">
-          <TableSkeleton rows={6} columns={4} />
+          <TableSkeleton rows={6} columns={5} />
         </div>
       ) : (
         <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700/50 overflow-hidden">
@@ -302,12 +317,27 @@ export function Courses() {
                         <div className="flex flex-col">
                           <span>{course.course_name}</span>
                           <span className="text-xs text-gray-500 dark:text-gray-400 md:hidden">{course.teacher?.name || 'No instructor'}</span>
+                          {course.description && (
+                            <span className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                              {getDescriptionPreview(course.description)}
+                              {course.description.length > 140 ? '...' : ''}
+                            </span>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell className="hidden lg:table-cell">
-                        <Badge variant="info">{course.category}</Badge>
+                        <Badge variant="info">{course.category || 'Uncategorized'}</Badge>
                       </TableCell>
-                      <TableCell className="text-gray-600 dark:text-gray-300 hidden md:table-cell min-w-[150px]">{course.teacher?.name || 'No instructor'}</TableCell>
+                      <TableCell className="text-gray-600 dark:text-gray-300 hidden md:table-cell min-w-[150px]">
+                        <div className="flex flex-col">
+                          <span>{course.teacher?.name || 'No instructor'}</span>
+                          {course.description_updated_at && (
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              Description updated {new Date(course.description_updated_at).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <div className="flex gap-1 md:gap-2 justify-end flex-nowrap">
                           {isTeacher && (

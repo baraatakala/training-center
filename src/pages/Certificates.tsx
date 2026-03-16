@@ -16,6 +16,7 @@ import {
   type StyleConfig,
 } from '../services/certificateService';
 import { supabase } from '../lib/supabase';
+import { attendanceService } from '../services/attendanceService';
 
 // =====================================================
 // CONSTANTS
@@ -808,7 +809,7 @@ function IssueModal({
   const [belowThresholdAcknowledged, setBelowThresholdAcknowledged] = useState(false);
 
   // Loaded data
-  const [teachers, setTeachers] = useState<Array<{ teacher_id: string; name: string }>>([]);
+  const [teachers, setTeachers] = useState<Array<{ teacher_id: string; name: string; specialization: string | null }>>([]);
   const [courses, setCourses] = useState<Array<{ course_id: string; course_name: string; teacher_id: string }>>([]);
   const [sessions, setSessions] = useState<Array<{ session_id: string; label: string }>>([]);
   const [students, setStudents] = useState<Array<{ student_id: string; name: string }>>([]);
@@ -818,7 +819,7 @@ function IssueModal({
     const load = async () => {
       const { data } = await supabase
         .from('teacher')
-        .select('teacher_id, name')
+        .select('teacher_id, name, specialization')
         .order('name');
       if (data) setTeachers(data);
     };
@@ -852,9 +853,10 @@ function IssueModal({
       }
     };
     load();
-    // Auto-fill signer name from teacher
+    // Auto-fill signer metadata from teacher
     const t = teachers.find(t => t.teacher_id === teacherId);
     if (t && !signerName) setSignerName(t.name);
+    if (t && !signerTitle && t.specialization) setSignerTitle(t.specialization);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teacherId]);
 
@@ -949,27 +951,10 @@ function IssueModal({
         // If a specific session is selected, use only that one
         const idsToQuery = sessionId ? [sessionId] : sessionIds;
 
-        const { data: records } = await supabase
-          .from('attendance')
-          .select('status, late_minutes')
-          .in('session_id', idsToQuery)
-          .eq('student_id', studentId);
-        if (records && records.length > 0) {
-          const excusedCount = records.filter((r: { status: string }) => r.status === 'excused').length;
-          const accountable = records.length - excusedCount;
-          const present = records.filter((r: { status: string }) => r.status === 'on time' || r.status === 'late').length;
-          const attendRate = accountable > 0 ? Math.round((present / accountable) * 1000) / 10 : 0;
-          let qualitySum = 0;
-          for (const r of records) {
-            if (r.status === 'on time') qualitySum += 1;
-            else if (r.status === 'late') {
-              const mins = (r as { late_minutes?: number }).late_minutes || 0;
-              qualitySum += Math.max(0.05, Math.exp(-mins / 43.3));
-            }
-          }
-          const qualityRate = accountable > 0 ? Math.round((qualitySum / accountable) * 1000) / 10 : 0;
-          setAttendance(attendRate);
-          setScore(qualityRate);
+        const { data: summary } = await attendanceService.getStudentAttendanceSummary(studentId, idsToQuery);
+        if (summary) {
+          setAttendance(summary.rate);
+          setScore(summary.qualityRate);
         } else {
           setAttendance(0);
           setScore(0);
@@ -1016,6 +1001,7 @@ function IssueModal({
         student_id: studentId,
         session_id: sessionId || undefined,
         course_id: courseId || undefined,
+        signer_teacher_id: teacherId || undefined,
         final_score: score,
         attendance_rate: attendance,
         issued_by: userEmail,
@@ -1186,9 +1172,21 @@ function IssueModal({
               type="text"
               value={signerTitle}
               onChange={e => setSignerTitle(e.target.value)}
-              placeholder="e.g. Training Center Director"
+              placeholder="e.g. Mathematics"
               className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
             />
+            {teacherId && !signerTitle && (
+              <button
+                type="button"
+                onClick={() => {
+                  const t = teachers.find(t => t.teacher_id === teacherId);
+                  if (t?.specialization) setSignerTitle(t.specialization);
+                }}
+                className="text-xs text-blue-500 hover:text-blue-700 mt-1"
+              >
+                Use teacher specialization
+              </button>
+            )}
           </div>
         </div>
 

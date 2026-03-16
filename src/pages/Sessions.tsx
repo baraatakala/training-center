@@ -29,6 +29,12 @@ type SessionWithDetails = {
   day: string | null;
   time: string | null;
   location: string | null;
+  grace_period_minutes?: number;
+  learning_method?: 'face_to_face' | 'online' | 'hybrid';
+  virtual_provider?: 'zoom' | 'google_meet' | 'microsoft_teams' | 'other' | null;
+  virtual_meeting_link?: string | null;
+  requires_recording?: boolean;
+  default_recording_visibility?: 'private_staff' | 'course_staff' | 'enrolled_students' | 'organization' | 'public_link' | null;
   course: {
     course_name: string;
     category: string;
@@ -37,6 +43,28 @@ type SessionWithDetails = {
     name: string;
   };
 };
+
+function formatLearningMethod(method?: SessionWithDetails['learning_method']) {
+  if (method === 'online') return 'Online';
+  if (method === 'hybrid') return 'Hybrid';
+  return 'Face to Face';
+}
+
+function formatVirtualProvider(provider?: SessionWithDetails['virtual_provider']) {
+  if (provider === 'google_meet') return 'Google Meet';
+  if (provider === 'microsoft_teams') return 'Microsoft Teams';
+  if (provider === 'zoom') return 'Zoom';
+  if (provider === 'other') return 'Other';
+  return '';
+}
+
+function formatRecordingVisibility(visibility?: SessionWithDetails['default_recording_visibility']) {
+  if (!visibility) return '';
+  return visibility
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
 
 export function Sessions() {
   const navigate = useNavigate();
@@ -129,7 +157,10 @@ export function Sessions() {
       (session) =>
         session.course.course_name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
         session.teacher.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-        session.course.category.toLowerCase().includes(debouncedSearch.toLowerCase())
+        session.course.category.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        formatLearningMethod(session.learning_method).toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        (session.virtual_provider || '').toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        (session.location || '').toLowerCase().includes(debouncedSearch.toLowerCase())
     );
 
     if (statusFilter !== 'all') {
@@ -314,7 +345,7 @@ export function Sessions() {
   }).length;
 
   const exportToCSV = useCallback(() => {
-    const headers = ['Course', 'Category', 'Teacher', 'Start Date', 'End Date', 'Day', 'Time', 'Location', 'Enrolled'];
+    const headers = ['Course', 'Category', 'Teacher', 'Start Date', 'End Date', 'Day', 'Time', 'Location', 'Learning Method', 'Virtual Provider', 'Meeting Link', 'Requires Recording', 'Recording Visibility', 'Enrolled'];
     const rows = filteredSessions.map(s => [
       s.course?.course_name || '',
       s.course?.category || '',
@@ -324,6 +355,11 @@ export function Sessions() {
       s.day || '',
       s.time || '',
       s.location || '',
+      formatLearningMethod(s.learning_method),
+      formatVirtualProvider(s.virtual_provider),
+      s.virtual_meeting_link || '',
+      s.requires_recording ? 'Yes' : 'No',
+      formatRecordingVisibility(s.default_recording_visibility),
       String(enrollmentCounts[s.session_id] || 0),
     ]);
     const csvContent = [headers, ...rows].map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -576,6 +612,29 @@ export function Sessions() {
                           )}
                         </div>
 
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant={session.learning_method === 'online' ? 'info' : session.learning_method === 'hybrid' ? 'warning' : 'default'}>
+                            {formatLearningMethod(session.learning_method)}
+                          </Badge>
+                          {session.virtual_provider && (
+                            <Badge variant="info">{formatVirtualProvider(session.virtual_provider)}</Badge>
+                          )}
+                          {session.requires_recording && (
+                            <Badge variant="success">Recording: {formatRecordingVisibility(session.default_recording_visibility) || 'Enabled'}</Badge>
+                          )}
+                        </div>
+
+                        {session.virtual_meeting_link && (
+                          <a
+                            href={session.virtual_meeting_link}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 truncate"
+                          >
+                            {session.virtual_meeting_link}
+                          </a>
+                        )}
+
                         {/* Dates */}
                         <div className="text-xs text-gray-500 dark:text-gray-500 border-t border-gray-100 dark:border-gray-700 pt-2">
                           {formatDate(session.start_date)} — {formatDate(session.end_date)}
@@ -666,6 +725,7 @@ export function Sessions() {
                 <TableHead>Teacher</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead className="text-center">Enrolled</TableHead>
+                <TableHead>Delivery</TableHead>
                 <TableHead>Day</TableHead>
                 <TableHead>Time</TableHead>
                 <TableHead>Location</TableHead>
@@ -678,7 +738,7 @@ export function Sessions() {
             <TableBody>
               {filteredSessions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center py-16">
+                  <TableCell colSpan={12} className="text-center py-16">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
                         <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
@@ -742,9 +802,40 @@ export function Sessions() {
                           {enrollmentCounts[session.session_id] || 0}
                         </span>
                       </TableCell>
+                      <TableCell className="min-w-[180px]">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            {formatLearningMethod(session.learning_method)}
+                          </span>
+                          {session.virtual_provider && (
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              {formatVirtualProvider(session.virtual_provider)}
+                            </span>
+                          )}
+                          {session.requires_recording && (
+                            <span className="text-xs text-green-600 dark:text-green-400">
+                              Recording: {formatRecordingVisibility(session.default_recording_visibility) || 'Enabled'}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>{session.day || 'N/A'}</TableCell>
                       <TableCell>{session.time || 'N/A'}</TableCell>
-                      <TableCell>{session.location || 'N/A'}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          <span>{session.location || 'N/A'}</span>
+                          {session.virtual_meeting_link && (
+                            <a
+                              href={session.virtual_meeting_link}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 truncate max-w-[220px]"
+                            >
+                              {session.virtual_meeting_link}
+                            </a>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>{formatDate(session.start_date)}</TableCell>
                       <TableCell>{formatDate(session.end_date)}</TableCell>
                       <TableCell>
@@ -842,6 +933,12 @@ export function Sessions() {
                   day: editingSession.day,
                   time: editingSession.time,
                   location: editingSession.location,
+                  grace_period_minutes: editingSession.grace_period_minutes,
+                  learning_method: editingSession.learning_method,
+                  virtual_provider: editingSession.virtual_provider,
+                  virtual_meeting_link: editingSession.virtual_meeting_link,
+                  requires_recording: editingSession.requires_recording,
+                  default_recording_visibility: editingSession.default_recording_visibility,
                 }
               : null
           }

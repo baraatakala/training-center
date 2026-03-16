@@ -25,9 +25,14 @@ export const courseService = {
   },
 
   async create(data: CreateCourse) {
+    const payload = {
+      ...data,
+      description_updated_at: data.description ? new Date().toISOString() : null,
+    };
+
     const result = await supabase
       .from(Tables.COURSE)
-      .insert([data])
+      .insert([payload])
       .select()
       .single();
 
@@ -44,9 +49,14 @@ export const courseService = {
       .eq('course_id', courseId)
       .single();
 
+    const payload = {
+      ...data,
+      ...(data.description !== undefined ? { description_updated_at: new Date().toISOString() } : {}),
+    };
+
     const result = await supabase
       .from(Tables.COURSE)
-      .update(data)
+      .update(payload)
       .eq('course_id', courseId)
       .select()
       .single();

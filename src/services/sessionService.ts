@@ -212,6 +212,11 @@ export const sessionService = {
         location: overrides.location ?? source.location,
         grace_period_minutes: source.grace_period_minutes,
         proximity_radius: source.proximity_radius,
+        learning_method: source.learning_method,
+        virtual_provider: source.virtual_provider,
+        virtual_meeting_link: source.virtual_meeting_link,
+        requires_recording: source.requires_recording,
+        default_recording_visibility: source.default_recording_visibility,
       })
       .select()
       .single();

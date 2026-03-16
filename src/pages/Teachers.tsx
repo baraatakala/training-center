@@ -28,7 +28,7 @@ export function Teachers() {
   const [editingTeacher, setEditingTeacher] = useState<Teacher | undefined>();
   const { isTeacher, isAdmin } = useIsTeacher();
   const [error, setError] = useState<string | null>(null);
-  const [sortField, setSortField] = useState<'name' | 'email' | 'phone' | 'enrolledCount'>('name');
+  const [sortField, setSortField] = useState<'name' | 'email' | 'phone' | 'specialization' | 'enrolledCount'>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [deletingTeacher, setDeletingTeacher] = useState<Teacher | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -70,7 +70,8 @@ export function Teachers() {
         (t) =>
           t.name.toLowerCase().includes(query) ||
           t.email.toLowerCase().includes(query) ||
-          t.phone?.toLowerCase().includes(query)
+          t.phone?.toLowerCase().includes(query) ||
+          t.specialization?.toLowerCase().includes(query)
       );
     }
     result.sort((a, b) => {
@@ -96,11 +97,12 @@ export function Teachers() {
   }, [filteredTeachers, currentPage, itemsPerPage]);
 
   const exportToCSV = useCallback(() => {
-    const headers = ['Name', 'Email', 'Phone', 'Enrolled Students'];
+    const headers = ['Name', 'Email', 'Phone', 'Specialization', 'Enrolled Students'];
     const rows = filteredTeachers.map(t => [
       t.name,
       t.email,
       t.phone || '',
+      t.specialization || '',
       String(t.enrolledCount || 0),
     ]);
     const csvContent = [headers, ...rows].map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -238,7 +240,7 @@ export function Teachers() {
 
       {loading ? (
         <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700/50 overflow-hidden">
-          <TableSkeleton rows={6} columns={5} />
+          <TableSkeleton rows={6} columns={6} />
         </div>
       ) : (
         <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700/50 overflow-hidden">
@@ -263,6 +265,7 @@ export function Teachers() {
                     <TableHead className="whitespace-nowrap cursor-pointer select-none hover:text-blue-600 dark:hover:text-blue-400" onClick={() => toggleSort('name')}>Name{sortIcon('name')}</TableHead>
                     <TableHead className="whitespace-nowrap hidden md:table-cell cursor-pointer select-none hover:text-blue-600 dark:hover:text-blue-400" onClick={() => toggleSort('email')}>Email{sortIcon('email')}</TableHead>
                     <TableHead className="whitespace-nowrap hidden lg:table-cell cursor-pointer select-none hover:text-blue-600 dark:hover:text-blue-400" onClick={() => toggleSort('phone')}>Phone{sortIcon('phone')}</TableHead>
+                    <TableHead className="whitespace-nowrap hidden xl:table-cell cursor-pointer select-none hover:text-blue-600 dark:hover:text-blue-400" onClick={() => toggleSort('specialization')}>Specialization{sortIcon('specialization')}</TableHead>
                     <TableHead className="whitespace-nowrap hidden sm:table-cell cursor-pointer select-none hover:text-blue-600 dark:hover:text-blue-400" onClick={() => toggleSort('enrolledCount')}>Enrolled Students{sortIcon('enrolledCount')}</TableHead>
                     <TableHead className="text-right whitespace-nowrap">Actions</TableHead>
                   </TableRow>
@@ -274,10 +277,20 @@ export function Teachers() {
                         <div className="flex flex-col">
                           <span>{teacher.name}</span>
                           <span className="text-xs text-gray-500 dark:text-gray-400 md:hidden">{teacher.email}</span>
+                          {teacher.specialization && (
+                            <span className="text-xs text-blue-600 dark:text-blue-400 xl:hidden">{teacher.specialization}</span>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell className="text-gray-600 dark:text-gray-300 hidden md:table-cell min-w-[200px]">{teacher.email}</TableCell>
                       <TableCell className="text-gray-600 dark:text-gray-300 hidden lg:table-cell whitespace-nowrap">{teacher.phone || '-'}</TableCell>
+                      <TableCell className="hidden xl:table-cell text-gray-600 dark:text-gray-300 max-w-[220px]">
+                        {teacher.specialization ? (
+                          <span className="inline-flex rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                            {teacher.specialization}
+                          </span>
+                        ) : '-'}
+                      </TableCell>
                       <TableCell className="hidden sm:table-cell">
                         <Badge variant="info">
                           {teacher.enrolledCount || 0} students

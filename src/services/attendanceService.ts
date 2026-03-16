@@ -6,6 +6,72 @@ import type {
 import { logDelete, logUpdate, logInsert } from './auditService';
 import { Tables } from '../types/database.types';
 
+type AttendanceSummaryRecord = {
+  status: string;
+  attendance_date: string;
+  excuse_reason?: string | null;
+  host_address?: string | null;
+  late_minutes?: number | null;
+};
+
+function isHeldAttendanceRecord(record: AttendanceSummaryRecord) {
+  if (!record.attendance_date) return false;
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+  if (new Date(record.attendance_date) > today) return false;
+  if (record.excuse_reason === 'session not held') return false;
+  if (record.host_address === 'SESSION_NOT_HELD') return false;
+  return true;
+}
+
+function summarizeAttendanceRecords(records: AttendanceSummaryRecord[]) {
+  const filtered = records.filter(isHeldAttendanceRecord);
+  const byDate = new Map<string, AttendanceSummaryRecord>();
+
+  const priority = (status: string) => {
+    if (status === 'absent') return 5;
+    if (status === 'late') return 4;
+    if (status === 'on time' || status === 'present') return 3;
+    if (status === 'excused') return 2;
+    if (status === 'not enrolled') return 1;
+    return 0;
+  };
+
+  for (const record of filtered) {
+    const existing = byDate.get(record.attendance_date);
+    if (!existing || priority(record.status) > priority(existing.status)) {
+      byDate.set(record.attendance_date, record);
+    }
+  }
+
+  const unique = [...byDate.values()];
+  const held = unique.length;
+  const excused = unique.filter((record) => record.status === 'excused').length;
+  const present = unique.filter((record) => record.status === 'on time' || record.status === 'late' || record.status === 'present').length;
+  const late = unique.filter((record) => record.status === 'late').length;
+  const absent = unique.filter((record) => record.status === 'absent').length;
+  const accountable = unique.filter((record) => record.status !== 'excused' && record.status !== 'not enrolled').length;
+
+  let qualitySum = 0;
+  for (const record of unique) {
+    if (record.status === 'on time' || record.status === 'present') qualitySum += 1;
+    else if (record.status === 'late') {
+      qualitySum += Math.max(0.05, Math.exp(-((record.late_minutes || 0) / 43.3)));
+    }
+  }
+
+  return {
+    held,
+    present,
+    late,
+    excused,
+    absent,
+    accountable,
+    attendanceRate: accountable > 0 ? Math.round((present / accountable) * 1000) / 10 : 0,
+    qualityRate: accountable > 0 ? Math.round((qualitySum / accountable) * 1000) / 10 : 0,
+  };
+}
+
 export const attendanceService = {
   // Get all attendance records
   async getAll() {
@@ -175,27 +241,58 @@ export const attendanceService = {
   async getStudentAttendanceRate(studentId: string, sessionId: string) {
     const { data, error } = await supabase
       .from(Tables.ATTENDANCE)
-      .select('status')
+      .select('status, attendance_date, excuse_reason, host_address, late_minutes')
       .eq('student_id', studentId)
       .eq('session_id', sessionId);
 
     if (error) return { data: null, error };
 
-    const total = data.length;
-    // Note: Status can be 'on time', 'late', 'absent', 'excused', 'not enrolled'
-    const present = data.filter((a: { status: string }) => a.status === 'on time' || a.status === 'late').length;
-    const excused = data.filter((a: { status: string }) => a.status === 'excused').length;
-    const rate = total > 0 ? (present / total) * 100 : 0;
+    const summary = summarizeAttendanceRecords((data || []) as AttendanceSummaryRecord[]);
 
     return { 
       data: { 
-        total, 
-        present, 
-        excused,
-        absent: total - present - excused,
-        rate: Math.round(rate * 100) / 100 
+        total: summary.held,
+        present: summary.present,
+        excused: summary.excused,
+        absent: summary.absent,
+        late: summary.late,
+        accountable: summary.accountable,
+        rate: summary.attendanceRate,
+        qualityRate: summary.qualityRate,
       }, 
       error: null 
+    };
+  },
+
+  async getStudentAttendanceSummary(studentId: string, sessionIds: string[]) {
+    if (sessionIds.length === 0) {
+      return {
+        data: { total: 0, present: 0, excused: 0, absent: 0, late: 0, accountable: 0, rate: 0, qualityRate: 0 },
+        error: null,
+      };
+    }
+
+    const { data, error } = await supabase
+      .from(Tables.ATTENDANCE)
+      .select('status, attendance_date, excuse_reason, host_address, late_minutes')
+      .eq('student_id', studentId)
+      .in('session_id', sessionIds);
+
+    if (error) return { data: null, error };
+
+    const summary = summarizeAttendanceRecords((data || []) as AttendanceSummaryRecord[]);
+    return {
+      data: {
+        total: summary.held,
+        present: summary.present,
+        excused: summary.excused,
+        absent: summary.absent,
+        late: summary.late,
+        accountable: summary.accountable,
+        rate: summary.attendanceRate,
+        qualityRate: summary.qualityRate,
+      },
+      error: null,
     };
   },
 };
