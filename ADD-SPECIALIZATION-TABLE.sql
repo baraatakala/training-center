@@ -18,10 +18,17 @@ CREATE POLICY "Anyone can read specializations"
   ON public.specialization FOR SELECT
   USING (true);
 
-CREATE POLICY "Teachers can manage specializations"
+CREATE POLICY "Teachers and admins can manage specializations"
   ON public.specialization FOR ALL
   USING (
-    EXISTS (SELECT 1 FROM public.teacher WHERE email = auth.jwt()->>'email')
+    EXISTS (SELECT 1 FROM public.teacher WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
+    OR
+    EXISTS (SELECT 1 FROM public.admin WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
+  )
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM public.teacher WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
+    OR
+    EXISTS (SELECT 1 FROM public.admin WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
   );
 
 -- 3. Seed with sensible defaults (skip duplicates)

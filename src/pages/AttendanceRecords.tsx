@@ -228,6 +228,29 @@ const AttendanceRecords = () => {
     localStorage.setItem('exportFieldSelections', JSON.stringify(savedFieldSelections));
   }, [savedFieldSelections]);
 
+  // Reconcile saved field selections with current definitions:
+  // auto-append newly added fields so they are visible immediately.
+  useEffect(() => {
+    const types = ['studentAnalytics', 'dateAnalytics', 'hostAnalytics'] as const;
+    let changed = false;
+    const next = { ...savedFieldSelections };
+    for (const dt of types) {
+      const saved = next[dt];
+      if (!saved || saved.length === 0) continue;
+      const allKeys = getAllFieldsForType(dt).map(f => f.key);
+      const keySet = new Set(allKeys);
+      const savedSet = new Set(saved);
+      const cleaned = saved.filter(k => keySet.has(k));
+      const newKeys = allKeys.filter(k => !savedSet.has(k));
+      if (newKeys.length > 0 || cleaned.length !== saved.length) {
+        next[dt] = [...cleaned, ...newKeys];
+        changed = true;
+      }
+    }
+    if (changed) setSavedFieldSelections(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     localStorage.setItem('exportSettings', JSON.stringify(savedExportSettings));
   }, [savedExportSettings]);
