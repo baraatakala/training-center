@@ -129,6 +129,9 @@ CREATE TABLE public.course (
   category character varying,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
+  description text CHECK (description IS NULL OR char_length(description) <= 6000),
+  description_format text DEFAULT 'markdown'::text CHECK (description_format = ANY (ARRAY['markdown'::text, 'plain_text'::text])),
+  description_updated_at timestamp with time zone,
   CONSTRAINT course_pkey PRIMARY KEY (course_id),
   CONSTRAINT course_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES public.teacher(teacher_id)
 );
@@ -197,11 +200,17 @@ CREATE TABLE public.issued_certificate (
   resolved_body text,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
+  signature_name text,
+  signature_title text,
+  signer_teacher_id uuid,
+  signer_source text DEFAULT 'template_default'::text CHECK (signer_source = ANY (ARRAY['teacher_specialization'::text, 'template_default'::text, 'manual_override'::text])),
+  signer_title_snapshot text,
   CONSTRAINT issued_certificate_pkey PRIMARY KEY (certificate_id),
   CONSTRAINT issued_certificate_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.certificate_template(template_id),
   CONSTRAINT issued_certificate_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.student(student_id),
   CONSTRAINT issued_certificate_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id),
-  CONSTRAINT issued_certificate_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.course(course_id)
+  CONSTRAINT issued_certificate_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.course(course_id),
+  CONSTRAINT issued_certificate_signer_teacher_id_fkey FOREIGN KEY (signer_teacher_id) REFERENCES public.teacher(teacher_id)
 );
 CREATE TABLE public.late_brackets (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -247,7 +256,7 @@ CREATE TABLE public.message_attachment (
 CREATE TABLE public.message_reaction (
   reaction_id uuid NOT NULL DEFAULT uuid_generate_v4(),
   message_id uuid NOT NULL,
-  reactor_type character varying NOT NULL CHECK (reactor_type::text = ANY (ARRAY['teacher'::character varying, 'student'::character varying]::text[])),
+  reactor_type character varying NOT NULL CHECK (reactor_type::text = ANY (ARRAY['teacher'::text, 'student'::text, 'admin'::text])),
   reactor_id uuid NOT NULL,
   emoji character varying NOT NULL,
   created_at timestamp with time zone DEFAULT now(),
@@ -257,7 +266,7 @@ CREATE TABLE public.message_reaction (
 CREATE TABLE public.message_starred (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   message_id uuid NOT NULL,
-  user_type character varying NOT NULL CHECK (user_type::text = ANY (ARRAY['teacher'::character varying, 'student'::character varying]::text[])),
+  user_type character varying NOT NULL CHECK (user_type::text = ANY (ARRAY['teacher'::text, 'student'::text, 'admin'::text])),
   user_id uuid NOT NULL,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT message_starred_pkey PRIMARY KEY (id),
@@ -265,7 +274,7 @@ CREATE TABLE public.message_starred (
 );
 CREATE TABLE public.notification_preference (
   preference_id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_type character varying NOT NULL CHECK (user_type::text = ANY (ARRAY['teacher'::character varying, 'student'::character varying]::text[])),
+  user_type character varying NOT NULL CHECK (user_type::text = ANY (ARRAY['teacher'::text, 'student'::text, 'admin'::text])),
   user_id uuid NOT NULL,
   email_announcements boolean DEFAULT true,
   email_messages boolean DEFAULT true,
@@ -337,6 +346,11 @@ CREATE TABLE public.session (
   location text,
   grace_period_minutes integer DEFAULT 15 CHECK (grace_period_minutes >= 0 AND grace_period_minutes <= 60),
   proximity_radius integer DEFAULT 50,
+  learning_method text DEFAULT 'face_to_face'::text CHECK (learning_method = ANY (ARRAY['face_to_face'::text, 'online'::text, 'hybrid'::text])),
+  virtual_provider text CHECK (virtual_provider IS NULL OR (virtual_provider = ANY (ARRAY['zoom'::text, 'google_meet'::text, 'microsoft_teams'::text, 'other'::text]))),
+  virtual_meeting_link text,
+  requires_recording boolean NOT NULL DEFAULT false,
+  default_recording_visibility text CHECK (default_recording_visibility IS NULL OR (default_recording_visibility = ANY (ARRAY['private_staff'::text, 'course_staff'::text, 'enrolled_students'::text, 'organization'::text, 'public_link'::text]))),
   CONSTRAINT session_pkey PRIMARY KEY (session_id),
   CONSTRAINT session_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.course(course_id),
   CONSTRAINT session_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES public.teacher(teacher_id)
@@ -378,6 +392,31 @@ CREATE TABLE public.session_day_change (
   CONSTRAINT session_day_change_pkey PRIMARY KEY (change_id),
   CONSTRAINT session_day_change_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
 );
+CREATE TABLE public.session_recording (
+  recording_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  session_id uuid NOT NULL,
+  attendance_date date,
+  recording_type text NOT NULL CHECK (recording_type = ANY (ARRAY['zoom_recording'::text, 'google_meet_recording'::text, 'teacher_mobile_recording'::text, 'uploaded_recording'::text, 'external_stream'::text])),
+  recording_url text,
+  recording_storage_location text NOT NULL CHECK (recording_storage_location = ANY (ARRAY['supabase_storage'::text, 'external_link'::text, 'streaming_link'::text, 'provider_managed'::text])),
+  storage_bucket text,
+  storage_path text,
+  recording_uploaded_by uuid,
+  recording_visibility text NOT NULL DEFAULT 'course_staff'::text CHECK (recording_visibility = ANY (ARRAY['private_staff'::text, 'course_staff'::text, 'enrolled_students'::text, 'organization'::text, 'public_link'::text])),
+  title character varying,
+  duration_seconds integer CHECK (duration_seconds IS NULL OR duration_seconds >= 0),
+  file_size_bytes bigint CHECK (file_size_bytes IS NULL OR file_size_bytes >= 0),
+  mime_type character varying,
+  provider_name text,
+  provider_recording_id text,
+  is_primary boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  deleted_at timestamp with time zone,
+  CONSTRAINT session_recording_pkey PRIMARY KEY (recording_id),
+  CONSTRAINT session_recording_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id),
+  CONSTRAINT session_recording_recording_uploaded_by_fkey FOREIGN KEY (recording_uploaded_by) REFERENCES auth.users(id)
+);
 CREATE TABLE public.student (
   student_id uuid NOT NULL DEFAULT uuid_generate_v4(),
   name character varying NOT NULL,
@@ -404,6 +443,7 @@ CREATE TABLE public.teacher (
   address text,
   address_latitude numeric CHECK (address_latitude IS NULL OR address_latitude >= '-90'::integer::numeric AND address_latitude <= 90::numeric),
   address_longitude numeric CHECK (address_longitude IS NULL OR address_longitude >= '-180'::integer::numeric AND address_longitude <= 180::numeric),
+  specialization character varying CHECK (specialization IS NULL OR char_length(TRIM(BOTH FROM specialization)) >= 2 AND char_length(TRIM(BOTH FROM specialization)) <= 150),
   CONSTRAINT teacher_pkey PRIMARY KEY (teacher_id)
 );
 CREATE TABLE public.teacher_host_schedule (

@@ -8,7 +8,6 @@ import type { ExportCategory, ExportSettings } from '../components/AdvancedExpor
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { wordExportService } from '../services/wordExportService';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/ui/ToastContainer';
@@ -107,14 +106,6 @@ interface DateAnalytics {
   specializationBreakdown?: string[];
 }
 
-interface SpecializationSummary {
-  specialization: string;
-  studentCount: number;
-  averageAttendanceRate: number;
-  averageWeightedScore: number;
-  leadingDates: number;
-}
-
 interface FilterOptions {
   student_ids: string[];
   course_ids: string[];
@@ -154,8 +145,6 @@ const getLateBrackets = () => {
     { min: 61, max: Infinity, name: 'Very Late', color: 'bg-red-200 text-red-900 dark:bg-red-900/50 dark:text-red-200' },
   ];
 };
-
-const SPECIALIZATION_COLORS = ['#2563eb', '#0f766e', '#ea580c', '#7c3aed', '#dc2626', '#0891b2', '#65a30d', '#d97706'];
 
 /**
  * Calculate late score using smooth exponential decay
@@ -744,15 +733,6 @@ const AttendanceRecords = () => {
     showAnalytics: 'عرض التحليلات',
     refresh: 'تحديث',
     summaryStatistics: '📊 إحصائيات ملخصة',
-    specializationInsights: '🧠 رؤى التخصصات',
-    specializationInsightsDesc: 'من حضر أكثر حسب التخصص، وكيف يتغير الحضور عبر الأيام.',
-    mostRepresentedSpecialization: 'أكبر تخصص',
-    mostPresentByDate: 'الأكثر حضوراً عبر الأيام',
-    recentDateWinners: 'أحدث الأيام حسب التخصص',
-    averageAttendanceRateLabel: 'متوسط الحضور',
-    averageScoreLabel: 'متوسط الدرجة',
-    leadingDatesLabel: 'تواريخ متصدرة',
-    specializationFallback: 'غير محدد',
     totalStudents: 'إجمالي الطلاب',
     classAvgRate: 'متوسط معدل الصف',
     avgWeightedScore: 'متوسط الدرجة الموزونة',
@@ -858,15 +838,6 @@ const AttendanceRecords = () => {
     showAnalytics: 'Show Analytics',
     refresh: 'Refresh',
     summaryStatistics: '📊 Summary Statistics',
-    specializationInsights: '🧠 Specialization Insights',
-    specializationInsightsDesc: 'Track which specialization attended most often and how specialization presence shifts by date.',
-    mostRepresentedSpecialization: 'Largest Specialization',
-    mostPresentByDate: 'Most Present By Date',
-    recentDateWinners: 'Recent Date Winners',
-    averageAttendanceRateLabel: 'Avg Attendance',
-    averageScoreLabel: 'Avg Score',
-    leadingDatesLabel: 'Leading Dates',
-    specializationFallback: 'Unspecified',
     totalStudents: 'Total Students',
     classAvgRate: 'Class Avg Rate',
     avgWeightedScore: 'Avg Weighted Score',
@@ -928,69 +899,6 @@ const AttendanceRecords = () => {
     }
     return counts;
   }, [filteredRecords]);
-
-  const specializationInsights = useMemo(() => {
-    const summaryMap = new Map<string, {
-      specialization: string;
-      studentCount: number;
-      totalAttendanceRate: number;
-      totalWeightedScore: number;
-      leadingDates: number;
-    }>();
-
-    studentAnalytics.forEach((student) => {
-      const specialization = student.specialization || t.specializationFallback;
-      const existing = summaryMap.get(specialization) || {
-        specialization,
-        studentCount: 0,
-        totalAttendanceRate: 0,
-        totalWeightedScore: 0,
-        leadingDates: 0,
-      };
-      existing.studentCount += 1;
-      existing.totalAttendanceRate += student.attendanceRate;
-      existing.totalWeightedScore += student.weightedScore;
-      summaryMap.set(specialization, existing);
-    });
-
-    dateAnalytics.forEach((date) => {
-      if (!date.topSpecialization) return;
-      const specialization = date.topSpecialization || t.specializationFallback;
-      const existing = summaryMap.get(specialization);
-      if (existing) {
-        existing.leadingDates += 1;
-      }
-    });
-
-    const summaries: SpecializationSummary[] = [...summaryMap.values()]
-      .map((entry) => ({
-        specialization: entry.specialization,
-        studentCount: entry.studentCount,
-        averageAttendanceRate: entry.studentCount > 0 ? entry.totalAttendanceRate / entry.studentCount : 0,
-        averageWeightedScore: entry.studentCount > 0 ? entry.totalWeightedScore / entry.studentCount : 0,
-        leadingDates: entry.leadingDates,
-      }))
-      .sort((left, right) => {
-        if (right.studentCount !== left.studentCount) return right.studentCount - left.studentCount;
-        return right.leadingDates - left.leadingDates;
-      });
-
-    return {
-      summaries,
-      chartData: summaries.slice(0, 8).map((item, index) => ({
-        name: item.specialization,
-        shortName: item.specialization.length > 20 ? `${item.specialization.slice(0, 18)}...` : item.specialization,
-        attendanceRate: Math.round(item.averageAttendanceRate * 10) / 10,
-        studentCount: item.studentCount,
-        leadingDates: item.leadingDates,
-        fill: SPECIALIZATION_COLORS[index % SPECIALIZATION_COLORS.length],
-      })),
-      recentWinners: dateAnalytics
-        .filter((date) => date.topSpecialization)
-        .slice(-6)
-        .reverse(),
-    };
-  }, [dateAnalytics, studentAnalytics, t.specializationFallback]);
 
   const sortedRecords = useMemo(() => {
     const settings = savedExportSettings.records;
@@ -1548,6 +1456,7 @@ const AttendanceRecords = () => {
         lateNames: dateData.lateNames.join(', ') || '-',
         excusedNames: excusedLabel,
         absentNames: dateData.absentNames.join(', ') || '-',
+        topSpecialization: dateData.topSpecialization || '-',
       };
     });
     
@@ -1790,6 +1699,7 @@ const AttendanceRecords = () => {
         lateNames: d.lateNames.join(', ') || '-',
         excusedNames: d.excusedNames.join(', ') || '-',
         absentNames: d.absentNames.join(', ') || '-',
+        topSpecialization: d.topSpecialization || '-',
       };
     });
     const dateDataObjects = filterExcludedDateRows(sortDataBySettings(dateDataObjectsUnsorted, 'dateAnalytics'));
@@ -2180,6 +2090,7 @@ const AttendanceRecords = () => {
         lateNames: dateData.lateNames.join(', ') || '-',
         excusedNames: excusedLabel,
         absentNames: dateData.absentNames.join(', ') || '-',
+        topSpecialization: dateData.topSpecialization || '-',
       };
     });
     
@@ -2654,6 +2565,7 @@ const AttendanceRecords = () => {
         lateNames: d.lateNames.join(', ') || '-',
         excusedNames,
         absentNames: d.absentNames.join(', ') || '-',
+        topSpecialization: d.topSpecialization || '-',
       };
     });
     
@@ -3778,6 +3690,7 @@ const AttendanceRecords = () => {
         // Late Duration
         { key: 'totalLateMinutes', label: 'Total Late (min)', labelAr: 'مجموع التأخير (دقيقة)' },
         { key: 'avgLateMinutes', label: 'Avg Late (min)', labelAr: 'متوسط التأخير' },
+        { key: 'topSpecialization', label: 'Most Present Specialization', labelAr: 'التخصص الأكثر حضوراً' },
       );
     } else if (dataType === 'hostAnalytics') {
       // Host fields
@@ -4066,6 +3979,7 @@ const AttendanceRecords = () => {
           lateNames: dateData.lateNames.join(', ') || '-',
           excusedNames: dateData.excusedNames.join(', ') || '-',
           absentNames: dateData.absentNames.join(', ') || '-',
+          topSpecialization: dateData.topSpecialization || '-',
         };
       });
     } else if (exportDataType === 'hostAnalytics') {
@@ -4391,70 +4305,7 @@ const AttendanceRecords = () => {
           </div>
           )}
 
-          {specializationInsights.summaries.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-2xl shadow-lg dark:shadow-gray-900/30 border border-cyan-100 dark:border-cyan-900/40">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h2 className="text-base sm:text-lg font-semibold dark:text-white flex items-center gap-2">
-                  <svg className="w-5 h-5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-6m4 6V7m4 10v-3M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                  {t.specializationInsights}
-                </h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{t.specializationInsightsDesc}</p>
-              </div>
-            </div>
 
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
-              <div className="bg-gradient-to-br from-cyan-50 to-blue-50 dark:from-cyan-900/20 dark:to-blue-900/20 p-4 rounded-xl border border-cyan-100 dark:border-cyan-800/40">
-                <div className="text-xs sm:text-sm text-cyan-700 dark:text-cyan-300 font-medium">{t.mostRepresentedSpecialization}</div>
-                <div className="mt-2 text-lg sm:text-xl font-bold text-cyan-950 dark:text-cyan-100">{specializationInsights.summaries[0]?.specialization || t.specializationFallback}</div>
-                <div className="mt-1 text-sm text-cyan-700 dark:text-cyan-300">{specializationInsights.summaries[0]?.studentCount || 0} {t.students}</div>
-              </div>
-              <div className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 p-4 rounded-xl border border-emerald-100 dark:border-emerald-800/40">
-                <div className="text-xs sm:text-sm text-emerald-700 dark:text-emerald-300 font-medium">{t.mostPresentByDate}</div>
-                <div className="mt-2 text-lg sm:text-xl font-bold text-emerald-950 dark:text-emerald-100">{specializationInsights.summaries.slice().sort((left, right) => right.leadingDates - left.leadingDates)[0]?.specialization || t.specializationFallback}</div>
-                <div className="mt-1 text-sm text-emerald-700 dark:text-emerald-300">{specializationInsights.summaries.slice().sort((left, right) => right.leadingDates - left.leadingDates)[0]?.leadingDates || 0} {t.leadingDatesLabel}</div>
-              </div>
-              <div className="bg-gradient-to-br from-violet-50 to-fuchsia-50 dark:from-violet-900/20 dark:to-fuchsia-900/20 p-4 rounded-xl border border-violet-100 dark:border-violet-800/40">
-                <div className="text-xs sm:text-sm text-violet-700 dark:text-violet-300 font-medium">{t.averageAttendanceRateLabel}</div>
-                <div className="mt-2 text-lg sm:text-xl font-bold text-violet-950 dark:text-violet-100">{specializationInsights.chartData[0] ? `${specializationInsights.chartData[0].attendanceRate.toFixed(1)}%` : '0.0%'}</div>
-                <div className="mt-1 text-sm text-violet-700 dark:text-violet-300">{t.averageScoreLabel}: {specializationInsights.summaries[0] ? specializationInsights.summaries[0].averageWeightedScore.toFixed(1) : '0.0'}</div>
-              </div>
-            </div>
-
-            <div className="mt-5 grid grid-cols-1 xl:grid-cols-[minmax(0,1.65fr)_minmax(280px,1fr)] gap-4">
-              <div className="h-72 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/30 p-3">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={specializationInsights.chartData} margin={{ top: 10, right: 12, left: 0, bottom: 44 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" vertical={false} />
-                    <XAxis dataKey="shortName" angle={-20} textAnchor="end" interval={0} height={56} tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={(value: number, name: string) => [value, name === 'attendanceRate' ? t.averageAttendanceRateLabel : t.totalStudents]} />
-                    <Bar dataKey="attendanceRate" radius={[8, 8, 0, 0]}>
-                      {specializationInsights.chartData.map((entry) => (
-                        <Cell key={entry.name} fill={entry.fill} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/30 p-4">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{t.recentDateWinners}</h3>
-                <div className="mt-3 space-y-3">
-                  {specializationInsights.recentWinners.map((entry) => (
-                    <div key={entry.date} className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
-                      <div className="text-sm font-medium text-gray-900 dark:text-white">{format(new Date(entry.date), 'MMM dd, yyyy')}</div>
-                      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{entry.topSpecialization} • {entry.topSpecializationCount || 0} present/late</div>
-                      {entry.specializationBreakdown && entry.specializationBreakdown.length > 0 && (
-                        <div className="mt-2 text-xs text-gray-600 dark:text-gray-300">{entry.specializationBreakdown.slice(0, 3).join(' • ')}</div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-          )}
 
           {/* Export Analytics Bar - Right after summary, easy access */}
           <div className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 rounded-2xl shadow-lg p-4 border border-indigo-100 dark:border-indigo-800">
@@ -4872,6 +4723,7 @@ const AttendanceRecords = () => {
                       lateNames: d.lateNames.join(', ') || '-',
                       excusedNames: excusedLabel,
                       absentNames: d.absentNames.join(', ') || '-',
+                      topSpecialization: d.topSpecialization || '-',
                     } as Record<string, unknown>;
                   });
                   const sorted = sortDataBySettings(dataObjects, 'dateAnalytics');
