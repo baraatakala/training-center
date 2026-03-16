@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 export interface AttendanceRecordsPageRecord {
   attendance_id: string;
   student_id: string;
+  student_specialization?: string | null;
   session_id: string;
   attendance_date: string;
   status: 'on time' | 'absent' | 'late' | 'excused' | 'not enrolled';
@@ -51,7 +52,7 @@ export async function loadAttendanceRecordsPageData(studentIds: string[]) {
       marked_by,
       marked_at,
       host_address,
-      student:student_id (name),
+      student:student_id (name, specialization),
       enrollment:enrollment_id (enrollment_date),
       session:session_id (
         location,
@@ -201,6 +202,7 @@ export async function loadAttendanceRecordsPageData(studentIds: string[]) {
     return {
       attendance_id: record.attendance_id as string,
       student_id: record.student_id as string,
+      student_specialization: (student.specialization as string | null) || null,
       session_id: record.session_id as string,
       attendance_date: record.attendance_date as string,
       status: finalStatus,

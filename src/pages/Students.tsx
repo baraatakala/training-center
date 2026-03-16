@@ -29,7 +29,7 @@ export function Students() {
   const [itemsPerPage, setItemsPerPage] = useState(25);
   const { isTeacher, isAdmin } = useIsTeacher();
   const [error, setError] = useState<string | null>(null);
-  const [sortField, setSortField] = useState<'name' | 'email' | 'phone' | 'nationality' | 'age'>('name');
+  const [sortField, setSortField] = useState<'name' | 'email' | 'phone' | 'nationality' | 'specialization' | 'age'>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [deletingStudent, setDeletingStudent] = useState<Student | null>(null);
 
@@ -61,7 +61,8 @@ export function Students() {
           s.name.toLowerCase().includes(query) ||
           s.email.toLowerCase().includes(query) ||
           s.phone?.toLowerCase().includes(query) ||
-          s.nationality?.toLowerCase().includes(query)
+          s.nationality?.toLowerCase().includes(query) ||
+          s.specialization?.toLowerCase().includes(query)
       );
     }
     result.sort((a, b) => {
@@ -214,7 +215,7 @@ export function Students() {
         <SearchBar
           value={searchQuery}
           onChange={setSearchQuery}
-          placeholder="Search students by name, email, phone, or nationality..."
+          placeholder="Search students by name, email, phone, nationality, or specialization..."
         />
       </div>
 
@@ -243,6 +244,7 @@ export function Students() {
                   <TableHead className="whitespace-nowrap hidden md:table-cell cursor-pointer select-none hover:text-blue-600 dark:hover:text-blue-400" onClick={() => toggleSort('email')}>Email{sortIcon('email')}</TableHead>
                   <TableHead className="whitespace-nowrap hidden lg:table-cell cursor-pointer select-none hover:text-blue-600 dark:hover:text-blue-400" onClick={() => toggleSort('phone')}>Phone{sortIcon('phone')}</TableHead>
                   <TableHead className="whitespace-nowrap hidden lg:table-cell cursor-pointer select-none hover:text-blue-600 dark:hover:text-blue-400" onClick={() => toggleSort('nationality')}>Nationality{sortIcon('nationality')}</TableHead>
+                  <TableHead className="whitespace-nowrap hidden xl:table-cell cursor-pointer select-none hover:text-blue-600 dark:hover:text-blue-400" onClick={() => toggleSort('specialization')}>Specialization{sortIcon('specialization')}</TableHead>
                   <TableHead className="whitespace-nowrap hidden xl:table-cell cursor-pointer select-none hover:text-blue-600 dark:hover:text-blue-400" onClick={() => toggleSort('age')}>Age{sortIcon('age')}</TableHead>
                   <TableHead className="text-right whitespace-nowrap">Actions</TableHead>
                 </TableRow>
@@ -263,11 +265,15 @@ export function Students() {
                         <div className="flex flex-col">
                           <span>{student.name}</span>
                           <span className="text-xs text-gray-500 dark:text-gray-400 md:hidden">{student.email}</span>
+                          {student.specialization && (
+                            <span className="text-xs text-blue-600 dark:text-blue-400 xl:hidden">{student.specialization}</span>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell className="text-gray-600 dark:text-gray-300 hidden md:table-cell min-w-[200px]">{student.email}</TableCell>
                       <TableCell className="text-gray-600 dark:text-gray-300 hidden lg:table-cell whitespace-nowrap">{student.phone || '-'}</TableCell>
                       <TableCell className="text-gray-600 dark:text-gray-300 hidden lg:table-cell whitespace-nowrap">{student.nationality || '-'}</TableCell>
+                      <TableCell className="text-gray-600 dark:text-gray-300 hidden xl:table-cell whitespace-nowrap">{student.specialization || '-'}</TableCell>
                       <TableCell className="text-gray-600 dark:text-gray-300 hidden xl:table-cell">{student.age || '-'}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-1 md:gap-2 justify-end flex-nowrap">

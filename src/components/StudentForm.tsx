@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Input } from './ui/Input';
+import { Select } from './ui/Select';
 import { Button } from './ui/Button';
 import type { Student, CreateStudent } from '../types/database.types';
+import {
+  STUDENT_SPECIALIZATION_OPTIONS,
+  normalizeStudentSpecialization,
+} from '../constants/studentSpecializations';
 
 type StudentFormProps = {
   student?: Student;
@@ -18,6 +23,7 @@ export function StudentForm({ student, onSubmit, onCancel }: StudentFormProps) {
     location: '',
     nationality: '',
     age: null,
+    specialization: null,
     photo_url: null,
   });
 
@@ -34,6 +40,7 @@ export function StudentForm({ student, onSubmit, onCancel }: StudentFormProps) {
         location: student.location || '',
         nationality: student.nationality || '',
         age: student.age,
+        specialization: student.specialization || null,
         photo_url: student.photo_url || null,
       });
     }
@@ -73,8 +80,19 @@ export function StudentForm({ student, onSubmit, onCancel }: StudentFormProps) {
       }
     }
 
+    if (formData.specialization && !normalizeStudentSpecialization(formData.specialization)) {
+      setError('Please choose a valid specialization from the list');
+      setLoading(false);
+      return;
+    }
+
     try {
-      await onSubmit({ ...formData, name: trimmedName, email: formData.email.trim() });
+      await onSubmit({
+        ...formData,
+        name: trimmedName,
+        email: formData.email.trim(),
+        specialization: normalizeStudentSpecialization(formData.specialization),
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -134,6 +152,15 @@ export function StudentForm({ student, onSubmit, onCancel }: StudentFormProps) {
         value={formData.nationality || ''}
         onChange={(value) => setFormData({ ...formData, nationality: value })}
         placeholder="USA"
+      />
+
+      <Select
+        label="Specialization"
+        value={formData.specialization || ''}
+        onChange={(value) => setFormData({ ...formData, specialization: value || null })}
+        options={STUDENT_SPECIALIZATION_OPTIONS.map((option) => ({ value: option, label: option }))}
+        placeholder="Select specialization"
+        hint="Used for attendance analytics and specialization-based reporting."
       />
 
       <Input
