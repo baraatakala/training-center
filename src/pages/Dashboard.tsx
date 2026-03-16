@@ -494,7 +494,6 @@ Please contact the training center.
     loadStats();
     loadPendingExcuses();
     // loadAttendanceAlerts is called by the [startDate, endDate] effect on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Reload alerts when date filters change (including when cleared)

@@ -38,6 +38,17 @@ interface ExtendedMessage extends Message {
   reaction?: string;
 }
 
+const getRoleFallbackName = (userType: 'teacher' | 'student' | 'admin') => {
+  switch (userType) {
+    case 'admin':
+      return 'Admin';
+    case 'teacher':
+      return 'Teacher';
+    case 'student':
+      return 'Student';
+  }
+};
+
 export function Messages() {
   const [messages, setMessages] = useState<ExtendedMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -666,7 +677,10 @@ export function Messages() {
                       ? 'bg-gradient-to-br from-purple-500 to-pink-600'
                       : 'bg-gradient-to-br from-blue-500 to-cyan-600'
                   }`}>
-                    {(activeTab === 'inbox' ? message.sender?.name : message.recipient?.name)?.charAt(0).toUpperCase() || '?'}
+                    {(
+                      (activeTab === 'inbox' ? message.sender?.name : message.recipient?.name) ||
+                      getRoleFallbackName(activeTab === 'inbox' ? message.sender_type : message.recipient_type)
+                    ).charAt(0).toUpperCase()}
                   </div>
                   
                   <div className="flex-1 min-w-0">
@@ -677,8 +691,8 @@ export function Messages() {
                         )}
                         <span className="font-semibold dark:text-white truncate">
                           {activeTab === 'inbox' 
-                            ? message.sender?.name || 'Unknown'
-                            : message.recipient?.name || 'Unknown'
+                            ? message.sender?.name || getRoleFallbackName(message.sender_type)
+                            : message.recipient?.name || getRoleFallbackName(message.recipient_type)
                           }
                         </span>
                         <Badge variant={(activeTab === 'inbox' ? message.sender_type : message.recipient_type) === 'teacher' ? 'info' : 'default'} className="text-xs flex-shrink-0">
@@ -778,9 +792,9 @@ export function Messages() {
               <p className="text-gray-500 dark:text-gray-400 text-xs mb-1">Replying to:</p>
               <div className="flex items-center gap-2 mb-1">
                 <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
-                  {replyingTo.sender?.name?.charAt(0).toUpperCase() || '?'}
+                  {(replyingTo.sender?.name || getRoleFallbackName(replyingTo.sender_type)).charAt(0).toUpperCase()}
                 </div>
-                <p className="font-medium dark:text-white">{replyingTo.sender?.name}</p>
+                <p className="font-medium dark:text-white">{replyingTo.sender?.name || getRoleFallbackName(replyingTo.sender_type)}</p>
               </div>
               <p className="text-gray-600 dark:text-gray-300 line-clamp-2">{replyingTo.content}</p>
             </div>
@@ -907,13 +921,16 @@ export function Messages() {
                     ? 'bg-gradient-to-br from-purple-500 to-pink-600'
                     : 'bg-gradient-to-br from-blue-500 to-cyan-600'
                 }`}>
-                  {(activeTab === 'inbox' ? viewingMessage.sender?.name : viewingMessage.recipient?.name)?.charAt(0).toUpperCase() || '?'}
+                  {(
+                    (activeTab === 'inbox' ? viewingMessage.sender?.name : viewingMessage.recipient?.name) ||
+                    getRoleFallbackName(activeTab === 'inbox' ? viewingMessage.sender_type : viewingMessage.recipient_type)
+                  ).charAt(0).toUpperCase()}
                 </div>
                 <div>
                   <p className="font-semibold dark:text-white text-lg">
                     {activeTab === 'inbox' 
-                      ? viewingMessage.sender?.name
-                      : viewingMessage.recipient?.name
+                      ? viewingMessage.sender?.name || getRoleFallbackName(viewingMessage.sender_type)
+                      : viewingMessage.recipient?.name || getRoleFallbackName(viewingMessage.recipient_type)
                     }
                   </p>
                   <p className="text-sm text-gray-500 dark:text-gray-400" title={format(new Date(viewingMessage.created_at), 'PPpp')}>

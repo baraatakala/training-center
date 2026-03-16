@@ -151,6 +151,13 @@ async function resolveUserName(
   } else if (userType === 'admin') {
     const { data } = await supabase.from('admin').select('name, email').eq('admin_id', userId).maybeSingle();
     if (data) return data;
+
+    const { data: adminByAuthUser } = await supabase
+      .from('admin')
+      .select('name, email')
+      .eq('auth_user_id', userId)
+      .maybeSingle();
+    if (adminByAuthUser) return adminByAuthUser;
   }
 
   // Fallback: UUID may belong to a different table than declared sender_type.
@@ -164,6 +171,13 @@ async function resolveUserName(
     const { data } = await supabase.from(table).select('name, email').eq(idCol, userId).maybeSingle();
     if (data) return data;
   }
+
+  const { data: legacyAdmin } = await supabase
+    .from('admin')
+    .select('name, email')
+    .eq('auth_user_id', userId)
+    .maybeSingle();
+  if (legacyAdmin) return legacyAdmin;
 
   return null;
 }
