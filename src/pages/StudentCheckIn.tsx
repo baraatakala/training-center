@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, lazy, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Tables } from '../types/database.types';
@@ -7,6 +7,9 @@ import { Button } from '../components/ui/Button';
 import { format } from 'date-fns';
 import { isWithinProximity, formatDistance } from '../services/geocodingService';
 import { logInsert } from '../services/auditService';
+import { feedbackService } from '../services/feedbackService';
+
+const SessionFeedbackForm = lazy(() => import('../components/SessionFeedbackForm'));
 
 type CheckInData = {
   session_id: string;
@@ -44,6 +47,8 @@ export function StudentCheckIn() {
   const [studentInfo, setStudentInfo] = useState<{ student_id: string; name: string; email: string } | null>(null);
   const [hostAddresses, setHostAddresses] = useState<HostInfo[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<string>('');
+  const [feedbackEnabled, setFeedbackEnabled] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
   const successTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
@@ -590,9 +595,18 @@ export function StudentCheckIn() {
       setWasLate(attendanceStatus === 'late');
       setCheckedInAfterSession(checkInAfterSession);
       setSuccess(true);
-      successTimerRef.current = setTimeout(() => {
-        navigate('/');
-      }, 3000);
+
+      // Check if session has feedback enabled
+      const { enabled } = await feedbackService.isEnabled(checkInData.session_id);
+      if (enabled) {
+        setFeedbackEnabled(true);
+        // Show feedback after a short delay so student sees success first
+        setTimeout(() => setShowFeedback(true), 1200);
+      } else {
+        successTimerRef.current = setTimeout(() => {
+          navigate('/');
+        }, 3000);
+      }
     } catch (err: unknown) {
       console.error('Check-in error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to check in. Please try again.';
@@ -667,10 +681,26 @@ export function StudentCheckIn() {
               <p className="text-gray-600 dark:text-gray-300 mb-4">
                 Your attendance has been recorded for {checkInData?.session?.course?.course_name}
               </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Redirecting to home page...
-              </p>
+              {!feedbackEnabled && (
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Redirecting to home page...
+                </p>
+              )}
             </div>
+
+            {/* Feedback Form */}
+            {feedbackEnabled && showFeedback && checkInData && studentInfo && (
+              <Suspense fallback={<div className="text-center p-4 text-sm text-gray-500">Loading...</div>}>
+                <SessionFeedbackForm
+                  sessionId={checkInData.session_id}
+                  studentId={studentInfo.student_id}
+                  attendanceDate={checkInData.attendance_date}
+                  checkInMethod="qr_code"
+                  onComplete={() => navigate('/')}
+                  onSkip={() => navigate('/')}
+                />
+              </Suspense>
+            )}
           </CardContent>
         </Card>
       </div>

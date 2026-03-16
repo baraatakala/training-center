@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { format, subDays } from 'date-fns';
@@ -16,6 +16,8 @@ import { loadConfigSync, calcLateScore as calcLateScoreFromConfig, calcCoverageF
 import { LocationMap } from '../components/LocationMap';
 import { parseCoordinates, calculateDistance, formatDistance } from '../services/geocodingService';
 import { loadAttendanceRecordsPageData } from '../services/attendanceRecordsPageService';
+
+const AttendanceCharts = lazy(() => import('../components/AttendanceCharts'));
 
 interface AttendanceRecord {
   attendance_id: string;
@@ -4544,6 +4546,21 @@ const AttendanceRecords = () => {
               )}
             </div>
           </div>
+
+          {/* Interactive Charts Section */}
+          {(studentAnalytics.length > 0 || dateAnalytics.length > 0) && (
+            <Suspense fallback={
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-500 mx-auto mb-3" />
+                <p className="text-sm text-gray-500 dark:text-gray-400">Loading charts...</p>
+              </div>
+            }>
+              <AttendanceCharts
+                studentAnalytics={studentAnalytics}
+                dateAnalytics={dateAnalytics}
+              />
+            </Suspense>
+          )}
 
           {/* Student Performance Table — Dynamic columns from field selections */}
           {includedTables.student && (

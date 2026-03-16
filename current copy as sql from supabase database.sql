@@ -182,6 +182,28 @@ CREATE TABLE public.excuse_request (
   CONSTRAINT excuse_request_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.student(student_id),
   CONSTRAINT excuse_request_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
 );
+CREATE TABLE public.feedback_question (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  session_id uuid NOT NULL,
+  question_text text NOT NULL,
+  question_type text NOT NULL DEFAULT 'rating'::text CHECK (question_type = ANY (ARRAY['rating'::text, 'text'::text, 'emoji'::text, 'multiple_choice'::text])),
+  options jsonb DEFAULT '[]'::jsonb,
+  sort_order integer NOT NULL DEFAULT 0,
+  is_required boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT feedback_question_pkey PRIMARY KEY (id),
+  CONSTRAINT feedback_question_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
+);
+CREATE TABLE public.feedback_template (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  description text,
+  questions jsonb NOT NULL DEFAULT '[]'::jsonb,
+  is_default boolean DEFAULT false,
+  created_by uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT feedback_template_pkey PRIMARY KEY (id)
+);
 CREATE TABLE public.issued_certificate (
   certificate_id uuid NOT NULL DEFAULT gen_random_uuid(),
   template_id uuid NOT NULL,
@@ -351,6 +373,8 @@ CREATE TABLE public.session (
   virtual_meeting_link text,
   requires_recording boolean NOT NULL DEFAULT false,
   default_recording_visibility text CHECK (default_recording_visibility IS NULL OR (default_recording_visibility = ANY (ARRAY['private_staff'::text, 'course_staff'::text, 'enrolled_students'::text, 'organization'::text, 'public_link'::text]))),
+  feedback_enabled boolean DEFAULT false,
+  feedback_anonymous_allowed boolean DEFAULT true,
   CONSTRAINT session_pkey PRIMARY KEY (session_id),
   CONSTRAINT session_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.course(course_id),
   CONSTRAINT session_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES public.teacher(teacher_id)
@@ -391,6 +415,21 @@ CREATE TABLE public.session_day_change (
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT session_day_change_pkey PRIMARY KEY (change_id),
   CONSTRAINT session_day_change_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
+);
+CREATE TABLE public.session_feedback (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  session_id uuid NOT NULL,
+  attendance_date date NOT NULL,
+  student_id uuid,
+  is_anonymous boolean DEFAULT false,
+  overall_rating integer CHECK (overall_rating >= 1 AND overall_rating <= 5),
+  comment text,
+  responses jsonb DEFAULT '{}'::jsonb,
+  check_in_method text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT session_feedback_pkey PRIMARY KEY (id),
+  CONSTRAINT session_feedback_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id),
+  CONSTRAINT session_feedback_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.student(student_id)
 );
 CREATE TABLE public.session_recording (
   recording_id uuid NOT NULL DEFAULT gen_random_uuid(),

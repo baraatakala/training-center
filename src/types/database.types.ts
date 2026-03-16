@@ -55,6 +55,8 @@ export interface Session {
   virtual_meeting_link?: string | null;
   requires_recording?: boolean;
   default_recording_visibility?: 'private_staff' | 'course_staff' | 'enrolled_students' | 'organization' | 'public_link' | null;
+  feedback_enabled?: boolean;
+  feedback_anonymous_allowed?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -258,4 +260,7 @@ export const Tables = {
   SESSION_LOCATION: 'session_location',
   ENROLLMENT: 'enrollment',
   ATTENDANCE: 'attendance',
+  SESSION_FEEDBACK: 'session_feedback',
+  FEEDBACK_QUESTION: 'feedback_question',
+  FEEDBACK_TEMPLATE: 'feedback_template',
 } as const;

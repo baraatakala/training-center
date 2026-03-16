@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, lazy, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Tables } from '../types/database.types';
@@ -9,6 +9,9 @@ import { format } from 'date-fns';
 import * as faceapi from 'face-api.js';
 import { isWithinProximity, formatDistance } from '../services/geocodingService';
 import { logInsert } from '../services/auditService';
+import { feedbackService } from '../services/feedbackService';
+
+const SessionFeedbackForm = lazy(() => import('../components/SessionFeedbackForm'));
 
 type CheckInData = {
   session_id: string;
@@ -56,6 +59,8 @@ export function PhotoCheckIn() {
   const [signedPhotoUrl, setSignedPhotoUrl] = useState<string | null>(null); // Signed URL for display/comparison
   const [hostAddresses, setHostAddresses] = useState<HostInfo[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<string>('');
+  const [feedbackEnabled, setFeedbackEnabled] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
   
   // Camera states
   const [showCamera, setShowCamera] = useState(false);
@@ -858,7 +863,14 @@ export function PhotoCheckIn() {
       setCheckedInAfterSession(checkInAfterSession);
       setSuccess(true);
       
-      successTimerRef.current = setTimeout(() => navigate('/'), 3000);
+      // Check if session has feedback enabled
+      const { enabled } = await feedbackService.isEnabled(checkInData.session_id);
+      if (enabled) {
+        setFeedbackEnabled(true);
+        setTimeout(() => setShowFeedback(true), 1200);
+      } else {
+        successTimerRef.current = setTimeout(() => navigate('/'), 3000);
+      }
     } catch (err) {
       console.error('Check-in error:', err);
       setError(err instanceof Error ? err.message : 'Failed to check in. Please try again.');
@@ -937,10 +949,26 @@ export function PhotoCheckIn() {
               <p className="text-gray-600 dark:text-gray-300 mb-4">
                 Your attendance has been recorded for {checkInData?.session?.course?.course_name}
               </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Redirecting to home page...
-              </p>
+              {!feedbackEnabled && (
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Redirecting to home page...
+                </p>
+              )}
             </div>
+
+            {/* Feedback Form */}
+            {feedbackEnabled && showFeedback && checkInData && studentInfo && (
+              <Suspense fallback={<div className="text-center p-4 text-sm text-gray-500">Loading...</div>}>
+                <SessionFeedbackForm
+                  sessionId={checkInData.session_id}
+                  studentId={studentInfo.student_id}
+                  attendanceDate={checkInData.attendance_date}
+                  checkInMethod="photo"
+                  onComplete={() => navigate('/')}
+                  onSkip={() => navigate('/')}
+                />
+              </Suspense>
+            )}
           </CardContent>
         </Card>
       </div>

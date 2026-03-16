@@ -36,6 +36,8 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
     virtual_meeting_link: initialData?.virtual_meeting_link || null,
     requires_recording: initialData?.requires_recording ?? false,
     default_recording_visibility: initialData?.default_recording_visibility || 'course_staff',
+    feedback_enabled: initialData?.feedback_enabled ?? false,
+    feedback_anonymous_allowed: initialData?.feedback_anonymous_allowed ?? true,
   });
 
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -323,6 +325,36 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
             required
           />
         )}
+      </div>
+
+      {/* Feedback Settings */}
+      <div className="space-y-3 rounded-lg border border-purple-200 dark:border-purple-700 p-4 bg-purple-50/50 dark:bg-purple-900/20">
+        <p className="text-sm font-semibold text-purple-700 dark:text-purple-300 flex items-center gap-2">
+          <span>💜</span> Post Check-In Feedback
+        </p>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={Boolean(formData.feedback_enabled)}
+            onChange={(e) => setFormData({ ...formData, feedback_enabled: e.target.checked })}
+            className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+          />
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Enable feedback after check-in</span>
+        </label>
+        {formData.feedback_enabled && (
+          <label className="flex items-center gap-2 cursor-pointer ml-6">
+            <input
+              type="checkbox"
+              checked={Boolean(formData.feedback_anonymous_allowed)}
+              onChange={(e) => setFormData({ ...formData, feedback_anonymous_allowed: e.target.checked })}
+              className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+            />
+            <span className="text-sm text-gray-600 dark:text-gray-400">Allow anonymous submissions</span>
+          </label>
+        )}
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          Students will see an optional feedback form after successful QR/face check-in
+        </p>
       </div>
 
       <div>

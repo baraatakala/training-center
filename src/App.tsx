@@ -26,6 +26,7 @@ const Messages = lazy(() => import('./pages/Messages').then(m => ({ default: m.M
 const ScoringConfiguration = lazy(() => import('./pages/ScoringConfiguration'));
 const ExcuseRequests = lazy(() => import('./pages/ExcuseRequests'));
 const Certificates = lazy(() => import('./pages/Certificates'));
+const FeedbackAnalytics = lazy(() => import('./pages/FeedbackAnalytics').then(m => ({ default: m.FeedbackAnalytics })));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 function PageLoader() {
@@ -93,6 +94,7 @@ function App() {
                     <Route path="/scoring-config" element={<SafePage><ScoringConfiguration /></SafePage>} />
                     <Route path="/excuse-requests" element={<SafePage><ExcuseRequests /></SafePage>} />
                     <Route path="/certificates" element={<SafePage><Certificates /></SafePage>} />
+                    <Route path="/feedback-analytics" element={<SafePage><FeedbackAnalytics /></SafePage>} />
                     <Route path="*" element={<SafePage><NotFound /></SafePage>} />
                   </Routes>
                 </Layout>
