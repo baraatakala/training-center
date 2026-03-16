@@ -417,6 +417,12 @@ CREATE TABLE public.session_recording (
   CONSTRAINT session_recording_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id),
   CONSTRAINT session_recording_recording_uploaded_by_fkey FOREIGN KEY (recording_uploaded_by) REFERENCES auth.users(id)
 );
+CREATE TABLE public.specialization (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL UNIQUE,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT specialization_pkey PRIMARY KEY (id)
+);
 CREATE TABLE public.student (
   student_id uuid NOT NULL DEFAULT uuid_generate_v4(),
   name character varying NOT NULL,
@@ -431,6 +437,7 @@ CREATE TABLE public.student (
   photo_url text,
   address_latitude numeric CHECK (address_latitude IS NULL OR address_latitude >= '-90'::integer::numeric AND address_latitude <= 90::numeric),
   address_longitude numeric CHECK (address_longitude IS NULL OR address_longitude >= '-180'::integer::numeric AND address_longitude <= 180::numeric),
+  specialization text,
   CONSTRAINT student_pkey PRIMARY KEY (student_id)
 );
 CREATE TABLE public.teacher (

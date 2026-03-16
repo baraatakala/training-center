@@ -17,8 +17,12 @@ import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
 import { buildImportTemplate, importMasterData, parseImportFile } from '../services/masterDataImportService';
 import type { Student, CreateStudent } from '../types/database.types';
 import { TableSkeleton } from '../components/ui/Skeleton';
+import { Specializations } from './Specializations';
+
+type Tab = 'students' | 'specializations';
 
 export function Students() {
+  const [activeTab, setActiveTab] = useState<Tab>('students');
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -200,9 +204,16 @@ export function Students() {
     setIsModalOpen(true);
   }
 
-  if (loading) {
+  if (loading && activeTab === 'students') {
     return (
       <div className="space-y-6">
+        {/* Tabs */}
+        <div className="border-b border-gray-200 dark:border-gray-700">
+          <nav className="flex gap-4" aria-label="Tabs">
+            <button onClick={() => setActiveTab('students')} className="px-1 pb-3 text-sm font-semibold border-b-2 border-blue-500 text-blue-600 dark:text-blue-400">Students</button>
+            <button onClick={() => setActiveTab('specializations')} className="px-1 pb-3 text-sm font-medium border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300">Specializations</button>
+          </nav>
+        </div>
         <div className="flex justify-between items-center animate-pulse">
           <div className="space-y-2">
             <div className="h-8 w-56 bg-gray-200 dark:bg-gray-700 rounded" />
@@ -219,6 +230,44 @@ export function Students() {
 
   return (
     <div className="space-y-6">
+      {/* Tab Navigation */}
+      <div className="border-b border-gray-200 dark:border-gray-700">
+        <nav className="flex gap-4" aria-label="Tabs">
+          <button
+            onClick={() => setActiveTab('students')}
+            className={`px-1 pb-3 text-sm font-semibold border-b-2 transition-colors ${
+              activeTab === 'students'
+                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+              Students
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab('specializations')}
+            className={`px-1 pb-3 text-sm font-semibold border-b-2 transition-colors ${
+              activeTab === 'specializations'
+                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" /></svg>
+              Specializations
+            </span>
+          </button>
+        </nav>
+      </div>
+
+      {/* Specializations Tab */}
+      {activeTab === 'specializations' && <Specializations />}
+
+      {/* Students Tab */}
+      {activeTab === 'students' && (
+      <>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
@@ -466,6 +515,8 @@ export function Students() {
         onConfirm={handleDeleteStudent}
         onCancel={() => setDeletingStudent(null)}
       />
+      </>
+      )}
     </div>
   );
 }

@@ -1,7 +1,33 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+
+// ---- Types ----
+interface NavItem {
+  path: string;
+  label: string;
+  icon: React.ReactNode;
+}
+
+interface NavGroup {
+  key: string;
+  label: string;
+  icon: React.ReactNode;
+  items: NavItem[];
+}
+
+// ---- Helpers ----
+function loadExpandedGroups(): Record<string, boolean> {
+  try {
+    const saved = localStorage.getItem('sidebar-groups');
+    return saved ? JSON.parse(saved) : {};
+  } catch { return {}; }
+}
+
+function saveExpandedGroups(state: Record<string, boolean>) {
+  localStorage.setItem('sidebar-groups', JSON.stringify(state));
+}
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -45,7 +71,168 @@ export function Layout({ children }: { children: React.ReactNode }) {
   };
 
   const isActive = (path: string) => location.pathname === path;
+  const isGroupActive = (group: NavGroup) => group.items.some(item => isActive(item.path));
 
+  // Collapsible group state
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => loadExpandedGroups());
+  const toggleGroup = useCallback((key: string) => {
+    setExpandedGroups(prev => {
+      const next = { ...prev, [key]: !prev[key] };
+      saveExpandedGroups(next);
+      return next;
+    });
+  }, []);
+
+  // Auto-expand the group containing the current route
+  useEffect(() => {
+    for (const group of navGroups) {
+      if (group.items.some(item => isActive(item.path)) && !expandedGroups[group.key]) {
+        setExpandedGroups(prev => {
+          const next = { ...prev, [group.key]: true };
+          saveExpandedGroups(next);
+          return next;
+        });
+        break;
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
+
+  // Dashboard is always pinned at the top
+  const dashboardLink: NavItem = {
+    path: '/', label: 'Dashboard', icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+      </svg>
+    )
+  };
+
+  const navGroups: NavGroup[] = [
+    {
+      key: 'people',
+      label: 'People',
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+      ),
+      items: [
+        { path: '/students', label: 'Students', icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+        )},
+        { path: '/teachers', label: 'Teachers', icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+          </svg>
+        )},
+      ],
+    },
+    {
+      key: 'academic',
+      label: 'Academic',
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        </svg>
+      ),
+      items: [
+        { path: '/courses', label: 'Courses', icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+          </svg>
+        )},
+        { path: '/sessions', label: 'Sessions', icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        )},
+        { path: '/enrollments', label: 'Enrollments', icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+          </svg>
+        )},
+      ],
+    },
+    {
+      key: 'attendance',
+      label: 'Attendance',
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+      items: [
+        { path: '/attendance-records', label: 'Records', icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        )},
+        { path: '/excuse-requests', label: 'Excuse Requests', icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        )},
+        { path: '/scoring-config', label: 'Scoring', icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+          </svg>
+        )},
+      ],
+    },
+    {
+      key: 'communication',
+      label: 'Communication',
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+        </svg>
+      ),
+      items: [
+        { path: '/announcements', label: 'Announcements', icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+          </svg>
+        )},
+        { path: '/messages', label: 'Messages', icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+        )},
+      ],
+    },
+    {
+      key: 'admin',
+      label: 'Administration',
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      ),
+      items: [
+        { path: '/certificates', label: 'Certificates', icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+          </svg>
+        )},
+        { path: '/audit-logs', label: 'Audit Logs', icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+          </svg>
+        )},
+      ],
+    },
+  ];
+
+  // Flatten for mobile component
+  const flatNavLinks = [
+    dashboardLink,
+    ...navGroups.flatMap(g => g.items),
+  ];
+
+  // Click-outside to close user menu
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
@@ -60,79 +247,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [location.pathname]);
-
-  const navLinks = [
-    { path: '/', label: 'Dashboard', icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-      </svg>
-    )},
-    { path: '/teachers', label: 'Teachers', icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-      </svg>
-    )},
-    { path: '/students', label: 'Students', icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-      </svg>
-    )},
-    { path: '/courses', label: 'Courses', icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-      </svg>
-    )},
-    { path: '/sessions', label: 'Sessions', icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-      </svg>
-    )},
-    { path: '/enrollments', label: 'Enrollments', icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-      </svg>
-    )},
-    { path: '/attendance-records', label: 'Attendance', icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    )},
-    { path: '/announcements', label: 'Announcements', icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
-      </svg>
-    )},
-    { path: '/messages', label: 'Messages', icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-      </svg>
-    )},
-    { path: '/scoring-config', label: 'Score Config', icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-      </svg>
-    )},
-    { path: '/specializations', label: 'Specializations', icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
-      </svg>
-    )},
-    { path: '/excuse-requests', label: 'Excuse Requests', icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-      </svg>
-    )},
-    { path: '/certificates', label: 'Certificates', icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-      </svg>
-    )},
-    { path: '/audit-logs', label: 'Audit Logs', icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-      </svg>
-    )},
-  ];
 
   const userDisplayName = user?.email?.split('@')[0] || 'User';
 
@@ -188,7 +302,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" role="button" aria-label="Close menu" tabIndex={-1} onClick={() => setMobileMenuOpen(false)} onKeyDown={(e) => { if (e.key === 'Escape') setMobileMenuOpen(false); }} />
           <div className="absolute left-0 top-0 bottom-0 w-72 bg-white dark:bg-gray-900 shadow-2xl animate-slide-in-right">
             <MobileSidebar 
-              navLinks={navLinks}
+              navLinks={flatNavLinks}
+              navGroups={navGroups}
+              dashboardLink={dashboardLink}
               isActive={isActive}
               userDisplayName={userDisplayName}
               userEmail={user?.email || ''}
@@ -235,28 +351,73 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
           {/* Navigation */}
           <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-            {navLinks.map((link) => (
-              <Link
-                key={link.path}
-                to={link.path}
-                className={`flex items-center px-3 py-2.5 rounded-xl transition-all duration-200 group ${
-                  isActive(link.path)
-                    ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/25'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
-                } ${sidebarCollapsed ? 'justify-center' : ''}`}
-                title={sidebarCollapsed ? link.label : undefined}
-              >
-                <span className={`flex-shrink-0 ${isActive(link.path) ? '' : 'group-hover:scale-110 transition-transform'}`}>
-                  {link.icon}
-                </span>
-                {!sidebarCollapsed && (
-                  <span className="ml-3 font-medium">{link.label}</span>
-                )}
-                {isActive(link.path) && !sidebarCollapsed && (
-                  <span className="ml-auto w-1.5 h-1.5 rounded-full bg-white"></span>
-                )}
-              </Link>
-            ))}
+            {/* Dashboard - always pinned */}
+            <Link
+              to={dashboardLink.path}
+              className={`flex items-center px-3 py-2.5 rounded-xl transition-all duration-200 group ${
+                isActive(dashboardLink.path)
+                  ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/25'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
+              } ${sidebarCollapsed ? 'justify-center' : ''}`}
+              title={sidebarCollapsed ? dashboardLink.label : undefined}
+            >
+              <span className="flex-shrink-0">{dashboardLink.icon}</span>
+              {!sidebarCollapsed && <span className="ml-3 font-medium">{dashboardLink.label}</span>}
+              {isActive(dashboardLink.path) && !sidebarCollapsed && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-white" />}
+            </Link>
+
+            {/* Grouped navigation */}
+            {navGroups.map((group) => {
+              const isExpanded = !!expandedGroups[group.key];
+              const groupHasActive = isGroupActive(group);
+
+              return (
+                <div key={group.key} className="pt-1">
+                  {/* Group header */}
+                  <button
+                    onClick={() => toggleGroup(group.key)}
+                    className={`w-full flex items-center px-3 py-2 rounded-xl transition-all duration-200 group ${
+                      groupHasActive && !isExpanded
+                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                        : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-200'
+                    } ${sidebarCollapsed ? 'justify-center' : ''}`}
+                    title={sidebarCollapsed ? group.label : undefined}
+                  >
+                    <span className="flex-shrink-0">{group.icon}</span>
+                    {!sidebarCollapsed && (
+                      <>
+                        <span className="ml-3 text-xs font-semibold uppercase tracking-wider">{group.label}</span>
+                        <svg className={`ml-auto w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </>
+                    )}
+                  </button>
+
+                  {/* Group items */}
+                  {(isExpanded || sidebarCollapsed) && (
+                    <div className={`space-y-0.5 ${sidebarCollapsed ? 'mt-0.5' : 'mt-1 ml-3 border-l-2 border-gray-200 dark:border-gray-700 pl-2'}`}>
+                      {group.items.map((item) => (
+                        <Link
+                          key={item.path}
+                          to={item.path}
+                          className={`flex items-center px-3 py-2 rounded-lg transition-all duration-200 group ${
+                            isActive(item.path)
+                              ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-md shadow-blue-500/25'
+                              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
+                          } ${sidebarCollapsed ? 'justify-center' : ''}`}
+                          title={sidebarCollapsed ? item.label : undefined}
+                        >
+                          <span className="flex-shrink-0">{item.icon}</span>
+                          {!sidebarCollapsed && <span className="ml-2.5 text-sm font-medium">{item.label}</span>}
+                          {isActive(item.path) && !sidebarCollapsed && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-white" />}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </nav>
 
           {/* Bottom Section */}
@@ -355,7 +516,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
 // Mobile Sidebar Component
 function MobileSidebar({
-  navLinks,
+  navGroups,
+  dashboardLink,
   isActive,
   userDisplayName,
   userEmail,
@@ -364,7 +526,9 @@ function MobileSidebar({
   handleLogout,
   onClose,
 }: {
-  navLinks: { path: string; label: string; icon: React.ReactNode }[];
+  navLinks: NavItem[];
+  navGroups: NavGroup[];
+  dashboardLink: NavItem;
   isActive: (path: string) => boolean;
   userDisplayName: string;
   userEmail: string;
@@ -373,6 +537,17 @@ function MobileSidebar({
   handleLogout: () => void;
   onClose: () => void;
 }) {
+  const [mobileExpanded, setMobileExpanded] = useState<Record<string, boolean>>(() => {
+    // Auto-expand the group containing the active route
+    const state: Record<string, boolean> = {};
+    for (const group of navGroups) {
+      if (group.items.some(item => isActive(item.path))) {
+        state[group.key] = true;
+      }
+    }
+    return state;
+  });
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -411,21 +586,61 @@ function MobileSidebar({
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-        {navLinks.map((link) => (
-          <Link
-            key={link.path}
-            to={link.path}
-            onClick={onClose}
-            className={`flex items-center px-4 py-3 rounded-xl transition-all ${
-              isActive(link.path)
-                ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
-                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
-            }`}
-          >
-            <span className="flex-shrink-0">{link.icon}</span>
-            <span className="ml-3 font-medium">{link.label}</span>
-          </Link>
-        ))}
+        {/* Dashboard pinned */}
+        <Link
+          to={dashboardLink.path}
+          onClick={onClose}
+          className={`flex items-center px-4 py-3 rounded-xl transition-all ${
+            isActive(dashboardLink.path)
+              ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
+              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+          }`}
+        >
+          <span className="flex-shrink-0">{dashboardLink.icon}</span>
+          <span className="ml-3 font-medium">{dashboardLink.label}</span>
+        </Link>
+
+        {/* Groups */}
+        {navGroups.map((group) => {
+          const isExp = !!mobileExpanded[group.key];
+          return (
+            <div key={group.key} className="pt-1">
+              <button
+                onClick={() => setMobileExpanded(prev => ({ ...prev, [group.key]: !prev[group.key] }))}
+                className={`w-full flex items-center px-4 py-2.5 rounded-xl transition-all ${
+                  group.items.some(i => isActive(i.path)) && !isExp
+                    ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                    : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                }`}
+              >
+                <span className="flex-shrink-0">{group.icon}</span>
+                <span className="ml-3 text-xs font-semibold uppercase tracking-wider">{group.label}</span>
+                <svg className={`ml-auto w-4 h-4 transition-transform duration-200 ${isExp ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+              {isExp && (
+                <div className="mt-1 ml-4 border-l-2 border-gray-200 dark:border-gray-700 pl-2 space-y-0.5">
+                  {group.items.map((item) => (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      onClick={onClose}
+                      className={`flex items-center px-3 py-2.5 rounded-lg transition-all ${
+                        isActive(item.path)
+                          ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-md'
+                          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                      }`}
+                    >
+                      <span className="flex-shrink-0">{item.icon}</span>
+                      <span className="ml-2.5 text-sm font-medium">{item.label}</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </nav>
 
       {/* Bottom Actions */}
