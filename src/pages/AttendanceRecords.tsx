@@ -16,6 +16,7 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { loadConfigSync, calcLateScore as calcLateScoreFromConfig, calcCoverageFactor as calcCoverageFromConfig } from '../services/scoringConfigService';
 import { LocationMap } from '../components/LocationMap';
 import { parseCoordinates, calculateDistance, formatDistance } from '../services/geocodingService';
+import { loadAttendanceRecordsPageData } from '../services/attendanceRecordsPageService';
 
 interface AttendanceRecord {
   attendance_id: string;
@@ -69,17 +70,15 @@ interface StudentAnalytics {
   avgRate: number;
   minRate: number;
   maxRate: number;
-  // Score transparency fields
   qualityAdjustedRate: number;
   rawWeightedScore: number;
   coverageFactor: number;
   punctualityRate: number;
-  // Late duration fields
   totalLateMinutes: number;
   avgLateMinutes: number;
   maxLateMinutes: number;
-  lateScoreAvg: number;  // Average late score weight (0-1)
-  sessionNotHeldCount: number;  // Sessions cancelled (excuse_reason = 'session not held')
+  lateScoreAvg: number;
+  sessionNotHeldCount: number;
 }
 
 interface DateAnalytics {
@@ -99,7 +98,6 @@ interface DateAnalytics {
   bookTopic?: string | null;
   bookStartPage?: number | null;
   bookEndPage?: number | null;
-  // Late duration fields
   totalLateMinutes: number;
   avgLateMinutes: number;
 }
@@ -167,10 +165,10 @@ const getLateBracketInfo = (lateMinutes: number | null | undefined): { name: str
   if (lateMinutes <= 0) {
     return { name: 'On Time', color: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' };
   }
-  
+
   const brackets = getLateBrackets();
   const bracket = brackets.find(b => lateMinutes >= b.min && lateMinutes <= b.max);
-  return bracket 
+  return bracket
     ? { name: bracket.name, color: bracket.color }
     : { name: 'Very Late', color: 'bg-red-200 text-red-900 dark:bg-red-900/50 dark:text-red-200' };
 };
@@ -192,7 +190,7 @@ const AttendanceRecords = () => {
   // Advanced Export Builder state
   const [showAdvancedExport, setShowAdvancedExport] = useState(false);
   const [exportDataType, setExportDataType] = useState<'records' | 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics'>('records');
-  
+
   // Load saved field selections from localStorage
   const [savedFieldSelections, setSavedFieldSelections] = useState<{
     records: string[];
@@ -206,7 +204,7 @@ const AttendanceRecords = () => {
     } catch { /* ignore */ }
     return { records: [], studentAnalytics: [], dateAnalytics: [], hostAnalytics: [] };
   });
-  
+
   // Load saved export settings from localStorage (includes sort, coloring options)
   const [savedExportSettings, setSavedExportSettings] = useState<{
     records: ExportSettings;
@@ -221,13 +219,11 @@ const AttendanceRecords = () => {
     const defaultSettings: ExportSettings = { fields: [], enableConditionalColoring: true, coloringTheme: 'default' };
     return { records: defaultSettings, studentAnalytics: defaultSettings, dateAnalytics: defaultSettings, hostAnalytics: defaultSettings };
   });
-  
-  // Persist field selections to localStorage
+
   useEffect(() => {
     localStorage.setItem('exportFieldSelections', JSON.stringify(savedFieldSelections));
   }, [savedFieldSelections]);
-  
-  // Persist export settings to localStorage
+
   useEffect(() => {
     localStorage.setItem('exportSettings', JSON.stringify(savedExportSettings));
   }, [savedExportSettings]);
@@ -245,7 +241,6 @@ const AttendanceRecords = () => {
   const [reportLanguage, setReportLanguage] = useState<'en' | 'ar'>('en');
   const [showArabicPdfConfirm, setShowArabicPdfConfirm] = useState(false);
 
-  // Collapse state for analytics sections
   const [collapseStudentTable, setCollapseStudentTable] = useState(false);
   const [collapseDateTable, setCollapseDateTable] = useState(false);
   const [collapseHostTable, setCollapseHostTable] = useState(false);
@@ -631,231 +626,11 @@ const AttendanceRecords = () => {
   const loadRecords = async () => {
     setLoading(true);
     try {
-      // Build query with filters at database level for better performance
-      let query = supabase
-        .from('attendance')
-        .select(`
-          attendance_id,
-          student_id,
-          session_id,
-          enrollment_id,
-          attendance_date,
-          status,
-          excuse_reason,
-          late_minutes,
-          early_minutes,
-          check_in_method,
-          distance_from_host,
-          gps_latitude,
-          gps_longitude,
-          gps_accuracy,
-          gps_timestamp,
-          marked_by,
-          marked_at,
-          host_address,
-          student:student_id (name),
-          enrollment:enrollment_id (enrollment_date),
-          session:session_id (
-            location,
-            course_id,
-            teacher_id,
-            course:course_id (course_name),
-            teacher:teacher_id (name)
-          )
-        `)
-        .not('status', 'is', null);
-      
-      // Apply student filter at database level for performance
-      if (filters.student_ids.length === 1) {
-        query = query.eq('student_id', filters.student_ids[0]);
-      } else if (filters.student_ids.length > 1) {
-        query = query.in('student_id', filters.student_ids);
-      }
-      
-      // NOTE: Date, course, teacher, and status filters are applied client-side
-      // in applyFilters() so that changing filter ranges doesn't require a re-fetch.
-      
-      // Order and limit
-      query = query
-        .order('attendance_date', { ascending: false })
-        .order('marked_at', { ascending: false })
-        .limit(5000); // Safety limit to prevent loading too much data
-
-      const { data, error } = await query;
-
+      const { data, error, hostGpsLookup, warnings } = await loadAttendanceRecordsPageData(filters.student_ids);
       if (error) throw error;
-
-      // Get unique session IDs and dates to load book coverage and host addresses
-      const sessionDatePairs = [...new Set(data?.map(r => `${r.session_id}|${r.attendance_date}`) || [])];
-      
-      // Load book coverage and host addresses in parallel
-      const [coverageRes, hostRes] = await Promise.all([
-        sessionDatePairs.length > 0 
-          ? supabase
-              .from('session_book_coverage')
-              .select(`
-                session_id,
-                attendance_date,
-                course_book_reference!inner (
-                  topic,
-                  start_page,
-                  end_page
-                )
-              `)
-          : Promise.resolve({ data: null, error: null }),
-        sessionDatePairs.length > 0
-          ? supabase
-              .from('session_date_host')
-              .select('session_id, attendance_date, host_address, host_id, host_type, host_latitude, host_longitude')
-          : Promise.resolve({ data: null, error: null })
-      ]);
-
-      // Log errors from parallel queries (non-blocking)
-      if (coverageRes.error) {
-        console.warn('Failed to load book coverage data:', coverageRes.error);
-      }
-      if (hostRes.error) {
-        console.warn('Failed to load host address data:', hostRes.error);
-      }
-
-      // Create lookup maps for O(1) access
-      const bookCoverageMap = new Map<string, { topic: string; start_page: number; end_page: number }>();
-      const hostAddressMap = new Map<string, string>();
-      const newHostGpsLookup = new Map<string, { lat: number; lon: number }>();
-      
-      if (coverageRes.data) {
-        coverageRes.data.forEach((cov: { session_id: string; attendance_date: string; course_book_reference: Array<{ topic: string; start_page: number; end_page: number }> }) => {
-          const key = `${cov.session_id}|${cov.attendance_date}`;
-          const ref = Array.isArray(cov.course_book_reference) ? cov.course_book_reference[0] : cov.course_book_reference;
-          if (ref) {
-            bookCoverageMap.set(key, {
-              topic: ref.topic,
-              start_page: ref.start_page,
-              end_page: ref.end_page
-            });
-          }
-        });
-      }
-
-      if (hostRes.data) {
-        // Collect unique host IDs by type to batch-query their GPS from profile tables
-        const studentHostIds = new Set<string>();
-        const teacherHostIds = new Set<string>();
-        const hostEntries: Array<{ session_id: string; attendance_date: string; host_address: string; host_id: string | null; host_type: string | null; host_latitude: number | null; host_longitude: number | null }> = hostRes.data;
-
-        hostEntries.forEach(h => {
-          const key = `${h.session_id}|${h.attendance_date}`;
-          hostAddressMap.set(key, h.host_address);
-          // Use session_date_host GPS columns if populated
-          if (h.host_latitude != null && h.host_longitude != null) {
-            newHostGpsLookup.set(h.host_address, { lat: h.host_latitude, lon: h.host_longitude });
-          }
-          // Collect host IDs for profile lookup
-          if (h.host_id) {
-            if (h.host_type === 'teacher') teacherHostIds.add(h.host_id);
-            else studentHostIds.add(h.host_id);
-          }
-        });
-
-        // Batch-fetch GPS from host profiles (student/teacher address_latitude/address_longitude)
-        const [studentGpsRes, teacherGpsRes] = await Promise.all([
-          studentHostIds.size > 0
-            ? supabase.from('student').select('student_id, address_latitude, address_longitude').in('student_id', [...studentHostIds])
-            : Promise.resolve({ data: null }),
-          teacherHostIds.size > 0
-            ? supabase.from('teacher').select('teacher_id, address_latitude, address_longitude').in('teacher_id', [...teacherHostIds])
-            : Promise.resolve({ data: null }),
-        ]);
-
-        // Build host_id → GPS lookup from profiles
-        const hostIdGps = new Map<string, { lat: number; lon: number }>();
-        if (studentGpsRes.data) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          studentGpsRes.data.forEach((s: any) => {
-            if (s.address_latitude && s.address_longitude) {
-              hostIdGps.set(s.student_id, { lat: Number(s.address_latitude), lon: Number(s.address_longitude) });
-            }
-          });
-        }
-        if (teacherGpsRes.data) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          teacherGpsRes.data.forEach((t: any) => {
-            if (t.address_latitude && t.address_longitude) {
-              hostIdGps.set(t.teacher_id, { lat: Number(t.address_latitude), lon: Number(t.address_longitude) });
-            }
-          });
-        }
-
-        // Fill in GPS from host profiles where session_date_host didn't have it
-        hostEntries.forEach(h => {
-          if (!newHostGpsLookup.has(h.host_address) && h.host_id) {
-            const profileGps = hostIdGps.get(h.host_id);
-            if (profileGps) {
-              newHostGpsLookup.set(h.host_address, profileGps);
-            }
-          }
-        });
-      }
-      hostGpsLookupRef.current = newHostGpsLookup;
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const formattedRecords: AttendanceRecord[] = (data || []).map((record: any) => {
-        const bookKey = `${record.session_id}|${record.attendance_date}`;
-        const bookInfo = bookCoverageMap.get(bookKey);
-        // Use host address from session_date_host (new), fallback to attendance.host_address (old)
-        const hostAddress = hostAddressMap.get(bookKey) || record.host_address || null;
-        const session = record.session || {};
-        const student = record.student || {};
-        const course = session.course || {};
-        const teacher = session.teacher || {};
-        
-        // Handle enrollment - could be object, array, or null from Supabase
-        let enrollmentDate: string | null = null;
-        if (record.enrollment) {
-          if (Array.isArray(record.enrollment) && record.enrollment.length > 0) {
-            enrollmentDate = record.enrollment[0].enrollment_date;
-          } else if (typeof record.enrollment === 'object') {
-            enrollmentDate = record.enrollment.enrollment_date;
-          }
-        }
-        
-        // Auto-detect 'not enrolled' status: if attendance_date is before enrollment_date
-        let finalStatus = record.status;
-        if (enrollmentDate && record.attendance_date < enrollmentDate) {
-          finalStatus = 'not enrolled';
-        }
-        
-        return {
-          attendance_id: record.attendance_id,
-          student_id: record.student_id,
-          session_id: record.session_id,
-          attendance_date: record.attendance_date,
-          status: finalStatus,
-          excuse_reason: record.excuse_reason || null,
-          late_minutes: record.late_minutes || null,
-          early_minutes: record.early_minutes || null,
-          check_in_method: record.check_in_method || null,
-          distance_from_host: record.distance_from_host || null,
-          gps_latitude: record.gps_latitude,
-          gps_longitude: record.gps_longitude,
-          gps_accuracy: record.gps_accuracy,
-          gps_timestamp: record.gps_timestamp,
-          marked_by: record.marked_by,
-          marked_at: record.marked_at,
-          host_address: hostAddress, // Use host from session_date_host table (new) or attendance (fallback)
-          student_name: student.name || 'Unknown',
-          course_id: session.course_id || '',
-          course_name: course.course_name || 'Unknown',
-          teacher_id: session.teacher_id || '',
-          instructor_name: teacher.name || 'Unknown',
-          session_location: session.location || null,
-          book_topic: bookInfo?.topic || null,
-          book_start_page: bookInfo?.start_page || null,
-          book_end_page: bookInfo?.end_page || null,
-        };
-      });
-
-      setRecords(formattedRecords);
+      warnings.forEach((message) => console.warn(message));
+      hostGpsLookupRef.current = hostGpsLookup;
+      setRecords((data || []) as AttendanceRecord[]);
     } catch (error) {
       console.error('Error loading records:', error);
       showError('Failed to load attendance records. Please try again.');

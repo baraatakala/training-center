@@ -3,6 +3,28 @@ import type { CreateSession, UpdateSession } from '../types/database.types';
 import { Tables } from '../types/database.types';
 import { logDelete, logUpdate, logInsert } from './auditService';
 
+function normalizeSessionMutationError(error: { message?: string; details?: string; hint?: string } | null) {
+  if (!error) return null;
+
+  const text = `${error.message || ''} ${error.details || ''} ${error.hint || ''}`.toLowerCase();
+  const isMissingDeliveryField = [
+    'learning_method',
+    'virtual_provider',
+    'virtual_meeting_link',
+    'requires_recording',
+    'default_recording_visibility',
+  ].some((field) => text.includes(field));
+
+  if (isMissingDeliveryField) {
+    return {
+      ...error,
+      message: 'Session delivery fields are enabled in the app, but your database is missing the new session columns. Run ADD-SESSION-DELIVERY-RECORDINGS-AND-SPECIALIZATION.sql in Supabase, then retry creating the session.',
+    };
+  }
+
+  return error;
+}
+
 export const sessionService = {
   // Get all sessions
   async getAll() {
@@ -105,6 +127,10 @@ export const sessionService = {
       .select()
       .single();
 
+    if (result.error) {
+      return { ...result, error: normalizeSessionMutationError(result.error) };
+    }
+
     if (result.data) {
       try { await logInsert('session', result.data.session_id, result.data as Record<string, unknown>); } catch { /* audit non-critical */ }
     }
@@ -125,6 +151,10 @@ export const sessionService = {
       .eq('session_id', id)
       .select()
       .single();
+
+    if (result.error) {
+      return { ...result, error: normalizeSessionMutationError(result.error) };
+    }
 
     if (oldData && result.data) {
       try { await logUpdate('session', id, oldData as Record<string, unknown>, result.data as Record<string, unknown>); } catch { /* audit non-critical */ }
@@ -222,7 +252,7 @@ export const sessionService = {
       .single();
 
     if (createErr || !newSession) {
-      return { data: null, error: createErr, copied: 0 };
+      return { data: null, error: normalizeSessionMutationError(createErr), copied: 0 };
     }
 
     try { await logInsert('session', newSession.session_id, newSession as Record<string, unknown>); } catch { /* audit non-critical */ }

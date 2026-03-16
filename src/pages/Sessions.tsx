@@ -224,7 +224,8 @@ export function Sessions() {
     const { error } = await sessionService.create(data);
 
     if (error) {
-      toast.error('Error creating session: ' + error.message);
+      const message = error.message || 'Unknown session creation error';
+      toast.error(message.startsWith('Session delivery fields are enabled') ? message : 'Error creating session: ' + message, 7000);
     } else {
       toast.success('Session created successfully');
       setIsModalOpen(false);
@@ -238,7 +239,8 @@ export function Sessions() {
     const { error } = await sessionService.update(editingSession.session_id, data);
 
     if (error) {
-      toast.error('Error updating session: ' + error.message);
+      const message = error.message || 'Unknown session update error';
+      toast.error(message.startsWith('Session delivery fields are enabled') ? message : 'Error updating session: ' + message, 7000);
     } else {
       toast.success('Session updated successfully');
       setIsModalOpen(false);
