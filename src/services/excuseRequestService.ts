@@ -311,7 +311,7 @@ class ExcuseRequestService {
       }
     }
 
-    // 2. Update the request status
+    // 2. Update the request status (atomic: only update if still pending to prevent race condition)
     const { data: updated, error: updateError } = await supabase
       .from('excuse_request')
       .update({
@@ -321,10 +321,17 @@ class ExcuseRequestService {
         review_note: review.review_note || null,
       })
       .eq('request_id', requestId)
+      .eq('status', 'pending')
       .select()
       .single();
 
-    if (updateError) return { data: null, error: updateError };
+    if (updateError) {
+      // If no rows matched, another reviewer likely processed it first
+      if (updateError.code === 'PGRST116') {
+        return { data: null, error: new Error('This request was already reviewed by another user') as unknown as typeof updateError };
+      }
+      return { data: null, error: updateError };
+    }
 
     // 3. If approved, upsert attendance to 'excused'
     if (review.status === 'approved') {
@@ -416,7 +423,7 @@ class ExcuseRequestService {
       .from('excuse_request')
       .select('*')
       .eq('request_id', requestId)
-      .single();
+      .maybeSingle();
 
     const { error } = await supabase
       .from('excuse_request')

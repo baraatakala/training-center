@@ -242,7 +242,7 @@ class CertificateService {
         course:course_id(course_id, course_name)
       `)
       .eq('verification_code', code.toUpperCase())
-      .single();
+      .maybeSingle();
 
     return { data: data as IssuedCertificate | null, error };
   }

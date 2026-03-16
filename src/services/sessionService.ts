@@ -117,7 +117,7 @@ export const sessionService = {
       .from(Tables.SESSION)
       .select('*')
       .eq('session_id', id)
-      .single();
+      .maybeSingle();
 
     const result = await supabase
       .from(Tables.SESSION)
@@ -153,7 +153,7 @@ export const sessionService = {
       .from(Tables.SESSION)
       .select('*')
       .eq('session_id', id)
-      .single();
+      .maybeSingle();
 
     // Log the deletion
     if (session) {
