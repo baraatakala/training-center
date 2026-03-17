@@ -10,6 +10,7 @@ import { SearchBar } from '../components/ui/SearchBar';
 import { Pagination } from '../components/ui/Pagination';
 import { PageSkeleton } from '../components/ui/Skeleton';
 import { SessionForm } from '../components/SessionForm';
+import { SessionRecordingsManager } from '../components/SessionRecordingsManager';
 import BulkScheduleTable from '../components/BulkScheduleTable';
 import { supabase } from '../lib/supabase';
 import { sessionService } from '../services/sessionService';
@@ -82,6 +83,7 @@ export function Sessions() {
   const [editingSession, setEditingSession] = useState<SessionWithDetails | null>(null);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [selectedSessionForSchedule, setSelectedSessionForSchedule] = useState<SessionWithDetails | null>(null);
+  const [selectedSessionForRecordings, setSelectedSessionForRecordings] = useState<SessionWithDetails | null>(null);
   const [enrollmentCounts, setEnrollmentCounts] = useState<Record<string, number>>({});
   const { isTeacher, isAdmin } = useIsTeacher();
   const [error, setError] = useState<string | null>(null);
@@ -386,12 +388,12 @@ export function Sessions() {
           <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1">Manage training sessions and schedules</p>
         </div>
         {isTeacher && (
-          <div className="flex gap-2 w-full sm:w-auto">
-            <Button onClick={exportToCSV} variant="outline" className="gap-2" title="Export to CSV">
+          <div className="grid grid-cols-2 sm:flex gap-2 w-full sm:w-auto">
+            <Button onClick={exportToCSV} variant="outline" className="w-full min-w-0 gap-2" title="Export to CSV">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-              Export
+              <span className="truncate">Export</span>
             </Button>
-            <Button onClick={openAddModal} className="flex-1 sm:flex-initial">+ Add Session</Button>
+            <Button onClick={openAddModal} className="w-full min-w-0"><span className="truncate">+ Add Session</span></Button>
           </div>
         )}
       </div>
@@ -665,6 +667,14 @@ export function Sessions() {
                               >
                                 📅 Host Schedule
                               </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setSelectedSessionForRecordings(session)}
+                                className="flex-1 min-w-0"
+                              >
+                                🎥 Recordings
+                              </Button>
                             </>
                           )}
                           {isAdmin && (
@@ -683,6 +693,13 @@ export function Sessions() {
                                 onClick={() => openEditModal(session)}
                               >
                                 ✏️ Edit
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setSelectedSessionForRecordings(session)}
+                              >
+                                🎥 Recordings
                               </Button>
                               <button
                                 onClick={() => setDeletingSession(session)}
@@ -860,6 +877,9 @@ export function Sessions() {
                               <Button size="sm" variant="outline" onClick={() => { setSelectedSessionForSchedule(session); setIsScheduleModalOpen(true); }}>
                                 Host Schedule
                               </Button>
+                              <Button size="sm" variant="outline" onClick={() => setSelectedSessionForRecordings(session)}>
+                                Recordings
+                              </Button>
                             </>
                           )}
                           {isAdmin && (
@@ -873,6 +893,9 @@ export function Sessions() {
                                 onClick={() => openEditModal(session)}
                               >
                                 Edit
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => setSelectedSessionForRecordings(session)}>
+                                Recordings
                               </Button>
                               <button
                                 onClick={() => setDeletingSession(session)}
@@ -973,6 +996,22 @@ export function Sessions() {
               setIsScheduleModalOpen(false);
               setSelectedSessionForSchedule(null);
             }}
+          />
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={!!selectedSessionForRecordings}
+        onClose={() => setSelectedSessionForRecordings(null)}
+        title={selectedSessionForRecordings ? `Session Recordings - ${selectedSessionForRecordings.course?.course_name}` : 'Session Recordings'}
+        size="xl"
+      >
+        {selectedSessionForRecordings && (
+          <SessionRecordingsManager
+            sessionId={selectedSessionForRecordings.session_id}
+            courseName={selectedSessionForRecordings.course?.course_name || 'this session'}
+            requiresRecording={selectedSessionForRecordings.requires_recording}
+            defaultVisibility={selectedSessionForRecordings.default_recording_visibility || 'course_staff'}
           />
         )}
       </Modal>
