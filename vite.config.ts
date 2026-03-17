@@ -13,12 +13,38 @@ export default defineConfig({
     // Improve chunk splitting
     rollupOptions: {
       output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'supabase': ['@supabase/supabase-js'],
-          'ui-libs': ['date-fns', 'recharts'],
-          'export-libs': ['jspdf', 'jspdf-autotable', 'xlsx', 'docx', 'file-saver'],
-          'face-recognition': ['face-api.js'],
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined
+
+          if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
+            return 'react-vendor'
+          }
+
+          if (id.includes('@supabase/supabase-js')) {
+            return 'supabase'
+          }
+
+          if (id.includes('recharts') || id.includes('date-fns')) {
+            return 'ui-libs'
+          }
+
+          if (id.includes('face-api.js')) {
+            return 'face-recognition'
+          }
+
+          if (id.includes('jspdf') || id.includes('jspdf-autotable')) {
+            return 'pdf-libs'
+          }
+
+          if (id.includes('xlsx') || id.includes('file-saver')) {
+            return 'spreadsheet-libs'
+          }
+
+          if (id.includes('docx')) {
+            return 'word-libs'
+          }
+
+          return undefined
         },
       },
     },

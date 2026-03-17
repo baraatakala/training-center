@@ -1,12 +1,10 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import * as XLSX from 'xlsx';
+import { useEffect, useState, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { SearchBar } from '../components/ui/SearchBar';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
 import { Pagination } from '../components/ui/Pagination';
 import { StudentForm } from '../components/StudentForm';
-import { PhotoUpload } from '../components/PhotoUpload';
 import { PhotoAvatar } from '../components/PhotoAvatar';
 import { studentService } from '../services/studentService';
 import { toast } from '../components/ui/toastUtils';
@@ -14,10 +12,11 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useIsTeacher } from '../hooks/useIsTeacher';
 import { useDebounce } from '../hooks/useDebounce';
 import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
-import { buildImportTemplate, importMasterData, parseImportFile } from '../services/masterDataImportService';
 import type { Student, CreateStudent } from '../types/database.types';
 import { TableSkeleton } from '../components/ui/Skeleton';
 import { Specializations } from './Specializations';
+
+const PhotoUpload = lazy(() => import('../components/PhotoUpload').then((module) => ({ default: module.PhotoUpload })));
 
 type Tab = 'students' | 'specializations';
 
@@ -135,7 +134,11 @@ export function Students() {
     toast.success(`Exported ${filteredStudents.length} students to CSV`);
   }, [filteredStudents]);
 
-  const handleDownloadTemplate = () => {
+  const handleDownloadTemplate = async () => {
+    const [{ buildImportTemplate }, XLSX] = await Promise.all([
+      import('../services/masterDataImportService'),
+      import('xlsx'),
+    ]);
     const workbook = buildImportTemplate('students');
     XLSX.writeFile(workbook, 'students-import-template.xlsx');
   };
@@ -146,6 +149,7 @@ export function Students() {
     e.target.value = '';
     setImporting(true);
     try {
+      const { parseImportFile, importMasterData } = await import('../services/masterDataImportService');
       const rows = await parseImportFile(file);
       if (rows.length === 0) { toast.error('File contains no data rows.'); return; }
       const result = await importMasterData('students', rows);
@@ -565,22 +569,24 @@ export function Students() {
         title={`Photo for ${photoStudent?.name || 'Student'}`}
       >
         {photoStudent && (
-          <PhotoUpload
-            studentId={photoStudent.student_id}
-            currentPhotoUrl={photoStudent.photo_url}
-            onPhotoUploaded={(url) => {
-              // Update local state
-              setStudents(prev => 
-                prev.map(s => 
-                  s.student_id === photoStudent.student_id 
-                    ? { ...s, photo_url: url || null }
-                    : s
-                )
-              );
-              // Update photoStudent for the modal
-              setPhotoStudent(prev => prev ? { ...prev, photo_url: url || null } : undefined);
-            }}
-          />
+          <Suspense fallback={<div className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">Loading photo tools...</div>}>
+            <PhotoUpload
+              studentId={photoStudent.student_id}
+              currentPhotoUrl={photoStudent.photo_url}
+              onPhotoUploaded={(url) => {
+                // Update local state
+                setStudents(prev => 
+                  prev.map(s => 
+                    s.student_id === photoStudent.student_id 
+                      ? { ...s, photo_url: url || null }
+                      : s
+                  )
+                );
+                // Update photoStudent for the modal
+                setPhotoStudent(prev => prev ? { ...prev, photo_url: url || null } : undefined);
+              }}
+            />
+          </Suspense>
         )}
       </Modal>
 

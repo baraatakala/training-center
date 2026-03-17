@@ -1,5 +1,4 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import * as XLSX from 'xlsx';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { SearchBar } from '../components/ui/SearchBar';
@@ -13,7 +12,6 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useIsTeacher } from '../hooks/useIsTeacher';
 import { useDebounce } from '../hooks/useDebounce';
 import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
-import { buildImportTemplate, importMasterData, parseImportFile } from '../services/masterDataImportService';
 import type { Teacher, CreateTeacher } from '../types/database.types';
 import { TableSkeleton } from '../components/ui/Skeleton';
 
@@ -120,7 +118,11 @@ export function Teachers() {
     toast.success(`Exported ${filteredTeachers.length} teachers to CSV`);
   }, [filteredTeachers]);
 
-  const handleDownloadTemplate = () => {
+  const handleDownloadTemplate = async () => {
+    const [{ buildImportTemplate }, XLSX] = await Promise.all([
+      import('../services/masterDataImportService'),
+      import('xlsx'),
+    ]);
     const workbook = buildImportTemplate('teachers');
     XLSX.writeFile(workbook, 'teachers-import-template.xlsx');
   };
@@ -131,6 +133,7 @@ export function Teachers() {
     e.target.value = '';
     setImporting(true);
     try {
+      const { parseImportFile, importMasterData } = await import('../services/masterDataImportService');
       const rows = await parseImportFile(file);
       if (rows.length === 0) { toast.error('File contains no data rows.'); return; }
       const result = await importMasterData('teachers', rows);
