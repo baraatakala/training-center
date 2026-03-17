@@ -280,23 +280,23 @@ export function Students() {
           <p className="text-sm md:text-base text-gray-500 dark:text-gray-400 mt-1">{students.length} total students</p>
         </div>
         {isTeacher && (
-          <div className="flex gap-2 w-full sm:w-auto">
-            <Button onClick={handleDownloadTemplate} variant="outline" className="flex-1 sm:flex-initial gap-2 text-xs sm:text-sm" title="Download import template">
+          <div className="grid grid-cols-2 sm:flex gap-2 w-full sm:w-auto">
+            <Button onClick={handleDownloadTemplate} variant="outline" className="w-full min-w-0 gap-2 text-xs sm:text-sm" title="Download import template">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-              Template
+              <span className="truncate">Template</span>
             </Button>
-            <Button onClick={() => fileInputRef.current?.click()} disabled={importing} variant="outline" className="flex-1 sm:flex-initial gap-2 text-xs sm:text-sm" title="Import from CSV/Excel">
+            <Button onClick={() => fileInputRef.current?.click()} disabled={importing} variant="outline" className="w-full min-w-0 gap-2 text-xs sm:text-sm" title="Import from CSV/Excel">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-              {importing ? 'Importing...' : 'Import'}
+              <span className="truncate">{importing ? 'Importing...' : 'Import'}</span>
             </Button>
             <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImportFile} />
-            <Button onClick={exportToCSV} variant="outline" className="flex-1 sm:flex-initial gap-2 text-xs sm:text-sm" title="Export to CSV">
+            <Button onClick={exportToCSV} variant="outline" className="w-full min-w-0 gap-2 text-xs sm:text-sm" title="Export to CSV">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-              Export
+              <span className="truncate">Export</span>
             </Button>
-            <Button onClick={openAddModal} variant="primary" className="flex-1 sm:flex-initial gap-2 text-xs sm:text-sm">
+            <Button onClick={openAddModal} variant="primary" className="w-full min-w-0 gap-2 text-xs sm:text-sm">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-              Add Student
+              <span className="truncate">Add Student</span>
             </Button>
           </div>
         )}
@@ -336,7 +336,7 @@ export function Students() {
         <SearchBar
           value={searchQuery}
           onChange={setSearchQuery}
-          placeholder="Search students by name, email, phone, nationality, or specialization..."
+          placeholder="Search students, email, phone, or specialization..."
         />
       </div>
 
@@ -358,7 +358,7 @@ export function Students() {
         <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700/50 overflow-hidden">
           <div className="md:hidden divide-y divide-gray-100 dark:divide-gray-700">
             {paginatedStudents.map((student) => (
-              <div key={student.student_id} className="p-4 space-y-4">
+              <div key={student.student_id} className="p-4 space-y-4 overflow-hidden">
                 <div className="flex items-start gap-3">
                   <PhotoAvatar
                     photoPath={student.photo_url}
@@ -366,13 +366,13 @@ export function Students() {
                     size="md"
                   />
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex flex-col gap-2">
                       <div className="min-w-0">
                         <p className="font-semibold text-gray-900 dark:text-white truncate">{student.name}</p>
                         <p className="text-sm text-gray-500 dark:text-gray-400 break-all">{student.email}</p>
                       </div>
                       {student.specialization && (
-                        <span className="shrink-0 rounded-full bg-blue-50 dark:bg-blue-900/20 px-2 py-1 text-[11px] font-medium text-blue-600 dark:text-blue-300">
+                        <span className="w-fit max-w-full rounded-full bg-blue-50 dark:bg-blue-900/20 px-2 py-1 text-[11px] font-medium text-blue-600 dark:text-blue-300 break-words">
                           {student.specialization}
                         </span>
                       )}
@@ -380,11 +380,11 @@ export function Students() {
                     <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-500 dark:text-gray-400">
                       <div className="rounded-lg bg-gray-50 dark:bg-gray-700/50 px-3 py-2">
                         <p className="text-[10px] uppercase tracking-wide">Phone</p>
-                        <p className="mt-1 text-sm text-gray-800 dark:text-gray-200">{student.phone || '-'}</p>
+                        <p className="mt-1 text-sm text-gray-800 dark:text-gray-200 break-words">{student.phone || '-'}</p>
                       </div>
                       <div className="rounded-lg bg-gray-50 dark:bg-gray-700/50 px-3 py-2">
                         <p className="text-[10px] uppercase tracking-wide">Nationality</p>
-                        <p className="mt-1 text-sm text-gray-800 dark:text-gray-200">{student.nationality || '-'}</p>
+                        <p className="mt-1 text-sm text-gray-800 dark:text-gray-200 break-words">{student.nationality || '-'}</p>
                       </div>
                       <div className="rounded-lg bg-gray-50 dark:bg-gray-700/50 px-3 py-2">
                         <p className="text-[10px] uppercase tracking-wide">Age</p>
@@ -398,7 +398,7 @@ export function Students() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
+                <div className="grid grid-cols-1 gap-2">
                   {isAdmin && (
                     <>
                       <button
@@ -406,7 +406,7 @@ export function Students() {
                           setPhotoStudent(student);
                           setIsPhotoModalOpen(true);
                         }}
-                        className={`flex-1 min-w-[110px] px-3 py-2 text-sm rounded-lg border ${
+                        className={`w-full px-3 py-2 text-sm rounded-lg border ${
                           student.photo_url
                             ? 'text-green-600 border-green-300 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:border-green-700 dark:bg-green-900/20 dark:hover:bg-green-900/40'
                             : 'text-orange-600 border-orange-300 bg-orange-50 hover:bg-orange-100 dark:text-orange-400 dark:border-orange-700 dark:bg-orange-900/20 dark:hover:bg-orange-900/40'
@@ -414,12 +414,12 @@ export function Students() {
                       >
                         {student.photo_url ? 'Update Photo' : 'Add Photo'}
                       </button>
-                      <Button size="sm" variant="secondary" onClick={() => openEditModal(student)} className="flex-1 min-w-[110px] justify-center">
+                      <Button size="sm" variant="secondary" onClick={() => openEditModal(student)} className="w-full justify-center">
                         Edit Student
                       </Button>
                       <button
                         onClick={() => setDeletingStudent(student)}
-                        className="flex-1 min-w-[110px] px-3 py-2 text-sm rounded-lg border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
+                        className="w-full px-3 py-2 text-sm rounded-lg border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
                       >
                         Delete
                       </button>

@@ -34,6 +34,13 @@ export interface FeedbackTemplate {
   created_at: string;
 }
 
+export interface FeedbackTemplateInput {
+  name: string;
+  description?: string | null;
+  questions: Array<{ type: string; text: string; required: boolean; options?: string[] }>;
+  is_default?: boolean;
+}
+
 export interface FeedbackStats {
   totalResponses: number;
   averageRating: number;
@@ -178,6 +185,48 @@ export const feedbackService = {
       .order('is_default', { ascending: false });
 
     return { data: data as FeedbackTemplate[] | null, error };
+  },
+
+  async createTemplate(template: FeedbackTemplateInput) {
+    const { data, error } = await supabase
+      .from('feedback_template')
+      .insert({
+        name: template.name,
+        description: template.description || null,
+        questions: template.questions,
+        is_default: template.is_default ?? false,
+      })
+      .select()
+      .single();
+
+    return { data: data as FeedbackTemplate | null, error: normalizeFeedbackError(error) };
+  },
+
+  async updateTemplate(templateId: string, updates: Partial<FeedbackTemplateInput>) {
+    const payload: Record<string, unknown> = {};
+
+    if (updates.name !== undefined) payload.name = updates.name;
+    if (updates.description !== undefined) payload.description = updates.description || null;
+    if (updates.questions !== undefined) payload.questions = updates.questions;
+    if (updates.is_default !== undefined) payload.is_default = updates.is_default;
+
+    const { data, error } = await supabase
+      .from('feedback_template')
+      .update(payload)
+      .eq('id', templateId)
+      .select()
+      .single();
+
+    return { data: data as FeedbackTemplate | null, error: normalizeFeedbackError(error) };
+  },
+
+  async deleteTemplate(templateId: string) {
+    const { error } = await supabase
+      .from('feedback_template')
+      .delete()
+      .eq('id', templateId);
+
+    return { error: normalizeFeedbackError(error) };
   },
 
   async applyTemplateToSession(templateId: string, sessionId: string) {

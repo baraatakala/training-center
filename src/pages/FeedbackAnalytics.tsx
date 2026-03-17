@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Select } from '../components/ui/Select';
 import { Button } from '../components/ui/Button';
-import { feedbackService, type SessionFeedback, type FeedbackStats, type FeedbackQuestion, type FeedbackTemplate } from '../services/feedbackService';
+import { feedbackService, type SessionFeedback, type FeedbackStats, type FeedbackQuestion, type FeedbackTemplate, type FeedbackTemplateInput } from '../services/feedbackService';
 import {
   ResponsiveContainer,
   BarChart,
@@ -38,13 +38,21 @@ export function FeedbackAnalytics() {
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [savingQuestion, setSavingQuestion] = useState(false);
   const [applyingTemplate, setApplyingTemplate] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
   const [questionError, setQuestionError] = useState<string | null>(null);
+  const [templateError, setTemplateError] = useState<string | null>(null);
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [questionDraft, setQuestionDraft] = useState({
     question_text: '',
     question_type: 'text' as FeedbackQuestion['question_type'],
     optionsText: '',
     is_required: false,
+  });
+  const [templateDraft, setTemplateDraft] = useState({
+    name: '',
+    description: '',
+    is_default: false,
   });
   const [loading, setLoading] = useState(false);
 
@@ -55,6 +63,15 @@ export function FeedbackAnalytics() {
       question_type: 'text',
       optionsText: '',
       is_required: false,
+    });
+  };
+
+  const resetTemplateDraft = () => {
+    setEditingTemplateId(null);
+    setTemplateDraft({
+      name: '',
+      description: '',
+      is_default: false,
     });
   };
 
@@ -267,6 +284,87 @@ export function FeedbackAnalytics() {
     setApplyingTemplate(false);
   };
 
+  const handleEditTemplate = (template: FeedbackTemplate) => {
+    setEditingTemplateId(template.id);
+    setTemplateError(null);
+    setSelectedTemplateId(template.id);
+    setTemplateDraft({
+      name: template.name,
+      description: template.description || '',
+      is_default: template.is_default,
+    });
+  };
+
+  const handleSubmitTemplate = async () => {
+    const trimmedName = templateDraft.name.trim();
+
+    if (!trimmedName) {
+      setTemplateError('Template name is required.');
+      return;
+    }
+
+    if (questions.length === 0) {
+      setTemplateError('Add at least one session question before saving a template.');
+      return;
+    }
+
+    setSavingTemplate(true);
+    setTemplateError(null);
+
+    const payload: FeedbackTemplateInput = {
+      name: trimmedName,
+      description: templateDraft.description.trim() || null,
+      is_default: templateDraft.is_default,
+      questions: questions.map((question) => ({
+        type: question.question_type,
+        text: question.question_text,
+        required: question.is_required,
+        options: question.options.length > 0 ? question.options : undefined,
+      })),
+    };
+
+    const result = editingTemplateId
+      ? await feedbackService.updateTemplate(editingTemplateId, payload)
+      : await feedbackService.createTemplate(payload);
+
+    if (result.error) {
+      setTemplateError(result.error.message || 'Unable to save template.');
+      setSavingTemplate(false);
+      return;
+    }
+
+    const refreshed = await feedbackService.getTemplates();
+    const nextTemplates = refreshed.data || [];
+    setTemplates(nextTemplates);
+    if (result.data?.id) {
+      setSelectedTemplateId(result.data.id);
+    } else if (nextTemplates.length > 0) {
+      setSelectedTemplateId(nextTemplates[0].id);
+    }
+    resetTemplateDraft();
+    setSavingTemplate(false);
+  };
+
+  const handleDeleteTemplate = async (templateId: string) => {
+    const result = await feedbackService.deleteTemplate(templateId);
+    if (result.error) {
+      setTemplateError(result.error.message || 'Unable to delete template.');
+      return;
+    }
+
+    const refreshed = await feedbackService.getTemplates();
+    const nextTemplates = refreshed.data || [];
+    setTemplates(nextTemplates);
+
+    if (selectedTemplateId === templateId) {
+      setSelectedTemplateId(nextTemplates[0]?.id || '');
+    }
+
+    if (editingTemplateId === templateId) {
+      resetTemplateDraft();
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -313,7 +411,7 @@ export function FeedbackAnalytics() {
       {!loading && stats && (
         <>
           {/* KPI Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
             <div className="bg-gradient-to-br from-purple-50 to-violet-50 dark:from-purple-900/30 dark:to-violet-900/30 p-4 rounded-xl border border-purple-100 dark:border-purple-800/50">
               <p className="text-xs font-medium text-purple-600 dark:text-purple-400">Total Responses</p>
               <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">{stats.totalResponses}</p>
@@ -424,7 +522,7 @@ export function FeedbackAnalytics() {
             </Card>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-[1.2fr,0.8fr] gap-6">
+          <div className="grid grid-cols-1 2xl:grid-cols-[1.15fr,0.85fr] gap-6">
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">🧩 Session Questions</CardTitle>
@@ -540,6 +638,59 @@ export function FeedbackAnalytics() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
+                  {templateError && (
+                    <div className="rounded-lg border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+                      {templateError}
+                    </div>
+                  )}
+
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Template Name</label>
+                      <input
+                        value={templateDraft.name}
+                        onChange={(e) => setTemplateDraft((prev) => ({ ...prev, name: e.target.value }))}
+                        placeholder="Weekly session check-in"
+                        className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Description</label>
+                      <textarea
+                        value={templateDraft.description}
+                        onChange={(e) => setTemplateDraft((prev) => ({ ...prev, description: e.target.value }))}
+                        rows={3}
+                        placeholder="Use this after regular teaching sessions to measure clarity, pacing, and satisfaction."
+                        className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                      />
+                    </div>
+
+                    <label className="flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2">
+                      <input
+                        type="checkbox"
+                        checked={templateDraft.is_default}
+                        onChange={(e) => setTemplateDraft((prev) => ({ ...prev, is_default: e.target.checked }))}
+                      />
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Mark as default template</span>
+                    </label>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" onClick={handleSubmitTemplate} disabled={savingTemplate || questions.length === 0}>
+                        {savingTemplate ? 'Saving...' : editingTemplateId ? 'Update Template' : 'Save Current Questions as Template'}
+                      </Button>
+                      {editingTemplateId && (
+                        <Button type="button" variant="outline" onClick={resetTemplateDraft}>
+                          Cancel Edit
+                        </Button>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Saving a template copies the current session questions from the left panel into the template library.
+                    </p>
+                  </div>
+
                   <Select
                     label="Template"
                     value={selectedTemplateId}
@@ -554,6 +705,54 @@ export function FeedbackAnalytics() {
                   <Button type="button" onClick={handleApplyTemplate} disabled={!selectedTemplateId || applyingTemplate}>
                     {applyingTemplate ? 'Applying...' : 'Apply Template To Session'}
                   </Button>
+
+                  <div className="space-y-3">
+                    {templates.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 px-4 py-6 text-sm text-gray-500 dark:text-gray-400 text-center">
+                        No feedback templates yet. Save the current session questions as your first reusable template.
+                      </div>
+                    ) : (
+                      templates.map((template) => (
+                        <div
+                          key={template.id}
+                          className={`rounded-xl border p-4 ${selectedTemplateId === template.id
+                            ? 'border-violet-300 dark:border-violet-700 bg-violet-50/70 dark:bg-violet-900/20'
+                            : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50'
+                          }`}
+                        >
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-sm font-semibold text-gray-900 dark:text-white">{template.name}</p>
+                                {template.is_default && (
+                                  <span className="text-xs px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300">
+                                    Default
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                {template.description || 'No description provided.'}
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                {template.questions.length} question{template.questions.length === 1 ? '' : 's'}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Button type="button" variant="outline" onClick={() => setSelectedTemplateId(template.id)}>
+                                Preview
+                              </Button>
+                              <Button type="button" variant="outline" onClick={() => handleEditTemplate(template)}>
+                                Edit
+                              </Button>
+                              <Button type="button" variant="outline" onClick={() => handleDeleteTemplate(template.id)}>
+                                Delete
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
 
                   {templatePreview ? (
                     <div className="rounded-xl border border-violet-200 dark:border-violet-700 bg-violet-50/60 dark:bg-violet-900/20 p-4">
