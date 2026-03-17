@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Select } from '../components/ui/Select';
-import { feedbackService, type SessionFeedback, type FeedbackStats } from '../services/feedbackService';
+import { Button } from '../components/ui/Button';
+import { feedbackService, type SessionFeedback, type FeedbackStats, type FeedbackQuestion, type FeedbackTemplate } from '../services/feedbackService';
 import {
   ResponsiveContainer,
   BarChart,
@@ -32,7 +33,30 @@ export function FeedbackAnalytics() {
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
   const [feedbacks, setFeedbacks] = useState<SessionFeedback[]>([]);
   const [stats, setStats] = useState<FeedbackStats | null>(null);
+  const [questions, setQuestions] = useState<FeedbackQuestion[]>([]);
+  const [templates, setTemplates] = useState<FeedbackTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [savingQuestion, setSavingQuestion] = useState(false);
+  const [applyingTemplate, setApplyingTemplate] = useState(false);
+  const [questionError, setQuestionError] = useState<string | null>(null);
+  const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
+  const [questionDraft, setQuestionDraft] = useState({
+    question_text: '',
+    question_type: 'text' as FeedbackQuestion['question_type'],
+    optionsText: '',
+    is_required: false,
+  });
   const [loading, setLoading] = useState(false);
+
+  const resetQuestionDraft = () => {
+    setEditingQuestionId(null);
+    setQuestionDraft({
+      question_text: '',
+      question_type: 'text',
+      optionsText: '',
+      is_required: false,
+    });
+  };
 
   // Load sessions
   useEffect(() => {
@@ -67,18 +91,28 @@ export function FeedbackAnalytics() {
     let cancelled = false;
     async function load() {
       setLoading(true);
-      const [fbResult, statsResult] = await Promise.all([
+      const [fbResult, statsResult, questionsResult, templatesResult] = await Promise.all([
         feedbackService.getBySession(selectedSessionId),
         feedbackService.getStats(selectedSessionId),
+        feedbackService.getQuestions(selectedSessionId),
+        feedbackService.getTemplates(),
       ]);
       if (cancelled) return;
       setFeedbacks(fbResult.data || []);
       setStats(statsResult.data);
+      setQuestions(questionsResult.data || []);
+      setTemplates(templatesResult.data || []);
+      setSelectedTemplateId((current) => current || templatesResult.data?.[0]?.id || '');
       setLoading(false);
     }
     load();
     return () => { cancelled = true; };
   }, [selectedSessionId]);
+
+  const templatePreview = useMemo(
+    () => templates.find((template) => template.id === selectedTemplateId) || null,
+    [selectedTemplateId, templates]
+  );
 
   // ─── Derived Data for Charts ─────────────────────────────
   const ratingDistributionData = useMemo(() => {
@@ -139,6 +173,99 @@ export function FeedbackAnalytics() {
     const detractors = withRating.filter(f => f.overall_rating! <= 2).length;
     return Math.round(((promoters - detractors) / withRating.length) * 100);
   }, [feedbacks]);
+
+  const handleSubmitQuestion = async () => {
+    if (!selectedSessionId) return;
+
+    const trimmedText = questionDraft.question_text.trim();
+    if (!trimmedText) {
+      setQuestionError('Question text is required.');
+      return;
+    }
+
+    const parsedOptions = questionDraft.question_type === 'multiple_choice'
+      ? questionDraft.optionsText.split(',').map((option) => option.trim()).filter(Boolean)
+      : [];
+
+    if (questionDraft.question_type === 'multiple_choice' && parsedOptions.length < 2) {
+      setQuestionError('Multiple choice questions need at least two comma-separated options.');
+      return;
+    }
+
+    setSavingQuestion(true);
+    setQuestionError(null);
+
+    const payload = {
+      question_text: trimmedText,
+      question_type: questionDraft.question_type,
+      options: parsedOptions,
+      is_required: questionDraft.is_required,
+    };
+
+    const result = editingQuestionId
+      ? await feedbackService.updateQuestion(editingQuestionId, payload)
+      : await feedbackService.createQuestion({
+          session_id: selectedSessionId,
+          sort_order: questions.length,
+          ...payload,
+        });
+
+    if (result.error) {
+      setQuestionError(result.error.message || 'Unable to save question.');
+      setSavingQuestion(false);
+      return;
+    }
+
+    const refreshed = await feedbackService.getQuestions(selectedSessionId);
+    setQuestions(refreshed.data || []);
+    resetQuestionDraft();
+    setSavingQuestion(false);
+  };
+
+  const handleEditQuestion = (question: FeedbackQuestion) => {
+    setEditingQuestionId(question.id);
+    setQuestionError(null);
+    setQuestionDraft({
+      question_text: question.question_text,
+      question_type: question.question_type,
+      optionsText: question.options.join(', '),
+      is_required: question.is_required,
+    });
+  };
+
+  const handleDeleteQuestion = async (questionId: string) => {
+    if (!selectedSessionId) return;
+
+    const result = await feedbackService.deleteQuestion(questionId);
+    if (result.error) {
+      setQuestionError(result.error.message || 'Unable to delete question.');
+      return;
+    }
+
+    const refreshed = await feedbackService.getQuestions(selectedSessionId);
+    setQuestions(refreshed.data || []);
+    if (editingQuestionId === questionId) {
+      resetQuestionDraft();
+    }
+  };
+
+  const handleApplyTemplate = async () => {
+    if (!selectedSessionId || !selectedTemplateId) return;
+
+    setApplyingTemplate(true);
+    setQuestionError(null);
+    const result = await feedbackService.applyTemplateToSession(selectedTemplateId, selectedSessionId);
+    if (result.error) {
+      setQuestionError(result.error.message || 'Unable to apply template.');
+      setApplyingTemplate(false);
+      return;
+    }
+
+    const refreshed = await feedbackService.getQuestions(selectedSessionId);
+    setQuestions(refreshed.data || []);
+    resetQuestionDraft();
+    setApplyingTemplate(false);
+  };
 
   return (
     <div className="space-y-6">
@@ -293,6 +420,169 @@ export function FeedbackAnalytics() {
                     <Tooltip />
                   </PieChart>
                 </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-[1.2fr,0.8fr] gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">🧩 Session Questions</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {questionError && (
+                    <div className="rounded-lg border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+                      {questionError}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Question Text</label>
+                      <input
+                        value={questionDraft.question_text}
+                        onChange={(e) => setQuestionDraft((prev) => ({ ...prev, question_text: e.target.value }))}
+                        placeholder="What should students answer after check-in?"
+                        className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Question Type</label>
+                      <select
+                        value={questionDraft.question_type}
+                        onChange={(e) => setQuestionDraft((prev) => ({ ...prev, question_type: e.target.value as FeedbackQuestion['question_type'] }))}
+                        className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                      >
+                        <option value="text">Text</option>
+                        <option value="emoji">Emoji</option>
+                        <option value="rating">Rating</option>
+                        <option value="multiple_choice">Multiple Choice</option>
+                      </select>
+                    </div>
+
+                    <label className="flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 mt-5">
+                      <input
+                        type="checkbox"
+                        checked={questionDraft.is_required}
+                        onChange={(e) => setQuestionDraft((prev) => ({ ...prev, is_required: e.target.checked }))}
+                      />
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Required question</span>
+                    </label>
+
+                    {questionDraft.question_type === 'multiple_choice' && (
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Options</label>
+                        <input
+                          value={questionDraft.optionsText}
+                          onChange={(e) => setQuestionDraft((prev) => ({ ...prev, optionsText: e.target.value }))}
+                          placeholder="Comma separated options, e.g. Clear, Fast, Too advanced"
+                          className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" onClick={handleSubmitQuestion} disabled={savingQuestion}>
+                      {savingQuestion ? 'Saving...' : editingQuestionId ? 'Update Question' : 'Add Question'}
+                    </Button>
+                    {editingQuestionId && (
+                      <Button type="button" variant="outline" onClick={resetQuestionDraft}>
+                        Cancel Edit
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    {questions.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 px-4 py-6 text-sm text-gray-500 dark:text-gray-400 text-center">
+                        No custom questions yet. Apply a template or create your own session-specific prompts.
+                      </div>
+                    ) : (
+                      questions.map((question, index) => (
+                        <div key={question.id} className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800/50">
+                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2 mb-1">
+                                <span className="text-xs font-semibold text-violet-600 dark:text-violet-400">Q{index + 1}</span>
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300">
+                                  {question.question_type.replace('_', ' ')}
+                                </span>
+                                {question.is_required && (
+                                  <span className="text-xs px-2 py-0.5 rounded-full bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-600 dark:text-red-300">
+                                    Required
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm text-gray-900 dark:text-white">{question.question_text}</p>
+                              {question.options.length > 0 && (
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Options: {question.options.join(', ')}</p>
+                              )}
+                            </div>
+                            <div className="flex gap-2">
+                              <Button type="button" variant="outline" onClick={() => handleEditQuestion(question)}>Edit</Button>
+                              <Button type="button" variant="outline" onClick={() => handleDeleteQuestion(question.id)}>Delete</Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">🧪 Templates</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <Select
+                    label="Template"
+                    value={selectedTemplateId}
+                    onChange={setSelectedTemplateId}
+                    options={templates.map((template) => ({
+                      value: template.id,
+                      label: template.is_default ? `${template.name} (Default)` : template.name,
+                    }))}
+                    placeholder="Select template..."
+                  />
+
+                  <Button type="button" onClick={handleApplyTemplate} disabled={!selectedTemplateId || applyingTemplate}>
+                    {applyingTemplate ? 'Applying...' : 'Apply Template To Session'}
+                  </Button>
+
+                  {templatePreview ? (
+                    <div className="rounded-xl border border-violet-200 dark:border-violet-700 bg-violet-50/60 dark:bg-violet-900/20 p-4">
+                      <p className="text-sm font-semibold text-violet-700 dark:text-violet-300">{templatePreview.name}</p>
+                      {templatePreview.description && (
+                        <p className="text-xs text-violet-600/80 dark:text-violet-300/80 mt-1">{templatePreview.description}</p>
+                      )}
+                      <div className="mt-3 space-y-2">
+                        {templatePreview.questions.map((question, index) => (
+                          <div key={`${templatePreview.id}-${index}`} className="rounded-lg bg-white/80 dark:bg-gray-900/40 px-3 py-2 border border-violet-100 dark:border-violet-800">
+                            <p className="text-sm text-gray-900 dark:text-white">{index + 1}. {question.text}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                              {question.type.replace('_', ' ')}{question.required ? ' • required' : ''}
+                              {question.options?.length ? ` • ${question.options.join(', ')}` : ''}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 px-4 py-6 text-sm text-gray-500 dark:text-gray-400 text-center">
+                      No template selected.
+                    </div>
+                  )}
+
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Applying a template replaces the current session questions, then you can fine-tune them from the Session Questions panel.
+                  </p>
+                </div>
               </CardContent>
             </Card>
           </div>

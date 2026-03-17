@@ -87,6 +87,11 @@ export function Students() {
     return result;
   }, [debouncedSearch, students, sortField, sortDirection]);
 
+  const paginatedStudents = useMemo(
+    () => filteredStudents.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage),
+    [filteredStudents, currentPage, itemsPerPage]
+  );
+
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
@@ -351,7 +356,84 @@ export function Students() {
         </div>
       ) : (
         <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700/50 overflow-hidden">
-          <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+          <div className="md:hidden divide-y divide-gray-100 dark:divide-gray-700">
+            {paginatedStudents.map((student) => (
+              <div key={student.student_id} className="p-4 space-y-4">
+                <div className="flex items-start gap-3">
+                  <PhotoAvatar
+                    photoPath={student.photo_url}
+                    name={student.name}
+                    size="md"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-gray-900 dark:text-white truncate">{student.name}</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 break-all">{student.email}</p>
+                      </div>
+                      {student.specialization && (
+                        <span className="shrink-0 rounded-full bg-blue-50 dark:bg-blue-900/20 px-2 py-1 text-[11px] font-medium text-blue-600 dark:text-blue-300">
+                          {student.specialization}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-500 dark:text-gray-400">
+                      <div className="rounded-lg bg-gray-50 dark:bg-gray-700/50 px-3 py-2">
+                        <p className="text-[10px] uppercase tracking-wide">Phone</p>
+                        <p className="mt-1 text-sm text-gray-800 dark:text-gray-200">{student.phone || '-'}</p>
+                      </div>
+                      <div className="rounded-lg bg-gray-50 dark:bg-gray-700/50 px-3 py-2">
+                        <p className="text-[10px] uppercase tracking-wide">Nationality</p>
+                        <p className="mt-1 text-sm text-gray-800 dark:text-gray-200">{student.nationality || '-'}</p>
+                      </div>
+                      <div className="rounded-lg bg-gray-50 dark:bg-gray-700/50 px-3 py-2">
+                        <p className="text-[10px] uppercase tracking-wide">Age</p>
+                        <p className="mt-1 text-sm text-gray-800 dark:text-gray-200">{student.age || '-'}</p>
+                      </div>
+                      <div className="rounded-lg bg-gray-50 dark:bg-gray-700/50 px-3 py-2">
+                        <p className="text-[10px] uppercase tracking-wide">Status</p>
+                        <p className="mt-1 text-sm text-gray-800 dark:text-gray-200">{student.photo_url ? 'Photo ready' : 'No photo'}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {isAdmin && (
+                    <>
+                      <button
+                        onClick={() => {
+                          setPhotoStudent(student);
+                          setIsPhotoModalOpen(true);
+                        }}
+                        className={`flex-1 min-w-[110px] px-3 py-2 text-sm rounded-lg border ${
+                          student.photo_url
+                            ? 'text-green-600 border-green-300 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:border-green-700 dark:bg-green-900/20 dark:hover:bg-green-900/40'
+                            : 'text-orange-600 border-orange-300 bg-orange-50 hover:bg-orange-100 dark:text-orange-400 dark:border-orange-700 dark:bg-orange-900/20 dark:hover:bg-orange-900/40'
+                        }`}
+                      >
+                        {student.photo_url ? 'Update Photo' : 'Add Photo'}
+                      </button>
+                      <Button size="sm" variant="secondary" onClick={() => openEditModal(student)} className="flex-1 min-w-[110px] justify-center">
+                        Edit Student
+                      </Button>
+                      <button
+                        onClick={() => setDeletingStudent(student)}
+                        className="flex-1 min-w-[110px] px-3 py-2 text-sm rounded-lg border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
+                  {!isTeacher && (
+                    <span className="text-xs text-gray-400 dark:text-gray-500 px-2 py-2">View only</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden md:block overflow-x-auto max-h-[600px] overflow-y-auto">
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-gray-50/95 dark:bg-gray-700/95 backdrop-blur-sm">
                 <TableRow>
@@ -366,9 +448,7 @@ export function Students() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredStudents
-                  .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-                  .map((student) => (
+                {paginatedStudents.map((student) => (
                     <TableRow key={student.student_id}>
                       <TableCell className="w-12">
                         <PhotoAvatar 

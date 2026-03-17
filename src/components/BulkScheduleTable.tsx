@@ -194,6 +194,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       const { data: sessionData, error: sessionError } = await supabase
         .from(Tables.SESSION)
         .select(`
+          teacher_can_host,
           teacher_id,
           teacher:teacher_id (
             teacher_id,
@@ -268,7 +269,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
 
       // Add teacher as potential host if they have an address
       const teacher = Array.isArray(sessionData?.teacher) ? sessionData?.teacher[0] : sessionData?.teacher;
-      if (teacher?.address && teacher.address.trim() !== '') {
+      if ((sessionData?.teacher_can_host ?? true) && teacher?.address && teacher.address.trim() !== '') {
         // Load teacher's hosting date from teacher_host_schedule table
         const { data: teacherHostData } = await supabase
           .from('teacher_host_schedule')
@@ -285,7 +286,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
             address: teacher.address,
             phone: teacher.phone
           },
-          can_host: true, // Teacher always can host
+          can_host: sessionData?.teacher_can_host ?? true,
           host_date: teacherHostData?.host_date || null,
           status: 'active',
           is_teacher: true
@@ -325,9 +326,29 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
   const toggleHost = async (enrollmentId: string, value: boolean) => {
     const enrollment = enrollments.find(e => e.enrollment_id === enrollmentId);
     
-    // Prevent toggling teacher hosting status
     if (enrollment?.is_teacher) {
-      toast.info('Teacher is always available to host. You cannot change this setting.');
+      const { error } = await supabase
+        .from(Tables.SESSION)
+        .update({ teacher_can_host: value })
+        .eq('session_id', sessionId);
+
+      if (error) {
+        console.error('Failed to update teacher_can_host:', error);
+        toast.error('Failed to update teacher host availability: ' + error.message);
+        loadEnrollments();
+        return;
+      }
+
+      if (!value) {
+        setHostDateMap((prev) => {
+          const next = { ...prev };
+          delete next[enrollmentId];
+          return next;
+        });
+      }
+
+      toast.success(value ? 'Teacher can host this session.' : 'Teacher hosting disabled for this session.');
+      loadEnrollments();
       return;
     }
     

@@ -38,6 +38,7 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
     default_recording_visibility: initialData?.default_recording_visibility || 'course_staff',
     feedback_enabled: initialData?.feedback_enabled ?? false,
     feedback_anonymous_allowed: initialData?.feedback_anonymous_allowed ?? true,
+    teacher_can_host: initialData?.teacher_can_host ?? true,
   });
 
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -86,6 +87,28 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
     loadTeachers();
     loadCourses();
   }, []);
+
+  useEffect(() => {
+    setFormData({
+      course_id: initialData?.course_id || '',
+      teacher_id: initialData?.teacher_id || '',
+      start_date: initialData?.start_date || '',
+      end_date: initialData?.end_date || '',
+      day: initialData?.day || null,
+      time: initialData?.time || null,
+      location: initialData?.location || null,
+      grace_period_minutes: initialData?.grace_period_minutes ?? 15,
+      learning_method: initialData?.learning_method || 'face_to_face',
+      virtual_provider: initialData?.virtual_provider || null,
+      virtual_meeting_link: initialData?.virtual_meeting_link || null,
+      requires_recording: initialData?.requires_recording ?? false,
+      default_recording_visibility: initialData?.default_recording_visibility || 'course_staff',
+      feedback_enabled: initialData?.feedback_enabled ?? false,
+      feedback_anonymous_allowed: initialData?.feedback_anonymous_allowed ?? true,
+      teacher_can_host: initialData?.teacher_can_host ?? true,
+    });
+    setSelectedDays(initialData?.day ? initialData.day.split(',').map(d => d.trim()) : []);
+  }, [initialData]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -327,6 +350,24 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
         )}
       </div>
 
+      <div className="space-y-3 rounded-lg border border-emerald-200 dark:border-emerald-700 p-4 bg-emerald-50/50 dark:bg-emerald-900/20">
+        <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+          <span>🏠</span> Session Host Control
+        </p>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={Boolean(formData.teacher_can_host)}
+            onChange={(e) => setFormData({ ...formData, teacher_can_host: e.target.checked })}
+            className="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-gray-300 rounded"
+          />
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Teacher can host this session</span>
+        </label>
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          Turn this off when hosting should be limited to enrolled students only.
+        </p>
+      </div>
+
       {/* Feedback Settings */}
       <div className="space-y-3 rounded-lg border border-purple-200 dark:border-purple-700 p-4 bg-purple-50/50 dark:bg-purple-900/20">
         <p className="text-sm font-semibold text-purple-700 dark:text-purple-300 flex items-center gap-2">
@@ -353,7 +394,7 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
           </label>
         )}
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          Students will see an optional feedback form after successful QR/face check-in
+          Students will see an optional feedback form after successful QR or face check-in.
         </p>
       </div>
 

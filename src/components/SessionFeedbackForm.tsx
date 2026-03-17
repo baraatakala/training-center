@@ -46,19 +46,23 @@ export default function SessionFeedbackForm({
   const [customQuestions, setCustomQuestions] = useState<FeedbackQuestion[]>([]);
   const [responses, setResponses] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(true);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const [alreadySubmitted, setAlreadySubmitted] = useState(false);
 
   // Load feedback config and questions
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      const [configResult, questionsResult] = await Promise.all([
+      const [configResult, questionsResult, hasSubmittedResult] = await Promise.all([
         feedbackService.isEnabled(sessionId),
         feedbackService.getQuestions(sessionId),
+        feedbackService.hasSubmitted(sessionId, studentId, attendanceDate),
       ]);
 
       if (cancelled) return;
 
       setAnonymousAllowed(configResult.anonymousAllowed);
+      setAlreadySubmitted(hasSubmittedResult.alreadySubmitted);
       if (questionsResult.data) {
         setCustomQuestions(questionsResult.data);
       }
@@ -66,7 +70,7 @@ export default function SessionFeedbackForm({
     }
     load();
     return () => { cancelled = true; };
-  }, [sessionId]);
+  }, [attendanceDate, sessionId, studentId]);
 
   const handleSetResponse = useCallback((questionId: string, value: unknown) => {
     setResponses(prev => ({ ...prev, [questionId]: value }));
@@ -74,6 +78,7 @@ export default function SessionFeedbackForm({
 
   const handleSubmit = async () => {
     if (rating === 0) return;
+    setSubmissionError(null);
     setSubmitting(true);
     const { error } = await feedbackService.submit({
       session_id: sessionId,
@@ -88,6 +93,9 @@ export default function SessionFeedbackForm({
 
     if (error) {
       console.error('Feedback submission error:', error);
+      setSubmissionError(error.message || 'Unable to save feedback right now.');
+      setSubmitting(false);
+      return;
     }
     setSubmitted(true);
     setSubmitting(false);
@@ -119,6 +127,22 @@ export default function SessionFeedbackForm({
     );
   }
 
+  if (alreadySubmitted) {
+    return (
+      <div className="animate-fade-in mt-6 p-4 rounded-2xl border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 text-center">
+        <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">Feedback already submitted for this session date.</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">You can continue without submitting again.</p>
+        <button
+          type="button"
+          onClick={onSkip}
+          className="mt-3 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+        >
+          Continue →
+        </button>
+      </div>
+    );
+  }
+
   const activeRating = hoveredRating || rating;
 
   return (
@@ -133,6 +157,12 @@ export default function SessionFeedbackForm({
       </div>
 
       <div className="bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-2xl p-5 border border-purple-100 dark:border-purple-800/50">
+        {submissionError && (
+          <div className="mb-4 rounded-xl border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+            {submissionError}
+          </div>
+        )}
+
         {/* Star/Emoji Rating */}
         <div className="text-center mb-4">
           <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
@@ -287,7 +317,7 @@ export default function SessionFeedbackForm({
             onClick={onSkip}
             className="flex-1 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
           >
-            Skip →
+            Skip for now →
           </button>
           <Button
             onClick={handleSubmit}

@@ -35,6 +35,9 @@ type SessionWithDetails = {
   virtual_meeting_link?: string | null;
   requires_recording?: boolean;
   default_recording_visibility?: 'private_staff' | 'course_staff' | 'enrolled_students' | 'organization' | 'public_link' | null;
+  feedback_enabled?: boolean;
+  feedback_anonymous_allowed?: boolean;
+  teacher_can_host?: boolean;
   course: {
     course_name: string;
     category: string;
@@ -941,6 +944,9 @@ export function Sessions() {
                   virtual_meeting_link: editingSession.virtual_meeting_link,
                   requires_recording: editingSession.requires_recording,
                   default_recording_visibility: editingSession.default_recording_visibility,
+                  feedback_enabled: editingSession.feedback_enabled,
+                  feedback_anonymous_allowed: editingSession.feedback_anonymous_allowed,
+                  teacher_can_host: editingSession.teacher_can_host,
                 }
               : null
           }

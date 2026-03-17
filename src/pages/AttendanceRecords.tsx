@@ -240,17 +240,83 @@ const AttendanceRecords = () => {
   const [loading, setLoading] = useState(false);
   const [exportingWord, setExportingWord] = useState(false);
   const [, setIsTeacher] = useState(false);
-  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(() => {
+    try {
+      return localStorage.getItem('attendance_showAnalytics') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [studentAnalytics, setStudentAnalytics] = useState<StudentAnalytics[]>([]);
   const [dateAnalytics, setDateAnalytics] = useState<DateAnalytics[]>([]);
   const [reportLanguage, setReportLanguage] = useState<'en' | 'ar'>('en');
   const [showArabicPdfConfirm, setShowArabicPdfConfirm] = useState(false);
 
-  const [collapseStudentTable, setCollapseStudentTable] = useState(false);
-  const [collapseDateTable, setCollapseDateTable] = useState(false);
-  const [collapseHostTable, setCollapseHostTable] = useState(false);
-  const [collapseCrosstabTable, setCollapseCrosstabTable] = useState(false);
-  const [collapseScoreExplainer, setCollapseScoreExplainer] = useState(true);
+  const [collapseStudentTable, setCollapseStudentTable] = useState(() => {
+    try {
+      return localStorage.getItem('attendance_collapseStudentTable') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [collapseDateTable, setCollapseDateTable] = useState(() => {
+    try {
+      return localStorage.getItem('attendance_collapseDateTable') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [collapseHostTable, setCollapseHostTable] = useState(() => {
+    try {
+      return localStorage.getItem('attendance_collapseHostTable') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [collapseCrosstabTable, setCollapseCrosstabTable] = useState(() => {
+    try {
+      return localStorage.getItem('attendance_collapseCrosstabTable') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [collapseScoreExplainer, setCollapseScoreExplainer] = useState(() => {
+    try {
+      const saved = localStorage.getItem('attendance_collapseScoreExplainer');
+      return saved === null ? true : saved === 'true';
+    } catch {
+      return true;
+    }
+  });
+  const [collapseChartsSection, setCollapseChartsSection] = useState(() => {
+    try {
+      return localStorage.getItem('attendance_collapseChartsSection') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('attendance_showAnalytics', String(showAnalytics));
+      localStorage.setItem('attendance_collapseStudentTable', String(collapseStudentTable));
+      localStorage.setItem('attendance_collapseDateTable', String(collapseDateTable));
+      localStorage.setItem('attendance_collapseHostTable', String(collapseHostTable));
+      localStorage.setItem('attendance_collapseCrosstabTable', String(collapseCrosstabTable));
+      localStorage.setItem('attendance_collapseScoreExplainer', String(collapseScoreExplainer));
+      localStorage.setItem('attendance_collapseChartsSection', String(collapseChartsSection));
+    } catch {
+      /* ignore localStorage errors */
+    }
+  }, [
+    showAnalytics,
+    collapseStudentTable,
+    collapseDateTable,
+    collapseHostTable,
+    collapseCrosstabTable,
+    collapseScoreExplainer,
+    collapseChartsSection,
+  ]);
 
   // Table include/exclude toggles for exports — persisted in localStorage
   const [includedTables, setIncludedTables] = useState<{
@@ -4549,17 +4615,39 @@ const AttendanceRecords = () => {
 
           {/* Interactive Charts Section */}
           {(studentAnalytics.length > 0 || dateAnalytics.length > 0) && (
-            <Suspense fallback={
-              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-500 mx-auto mb-3" />
-                <p className="text-sm text-gray-500 dark:text-gray-400">Loading charts...</p>
-              </div>
-            }>
-              <AttendanceCharts
-                studentAnalytics={studentAnalytics}
-                dateAnalytics={dateAnalytics}
-              />
-            </Suspense>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
+              <button
+                onClick={() => setCollapseChartsSection(prev => !prev)}
+                className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-violet-50 to-cyan-50 dark:from-violet-900/20 dark:to-cyan-900/20 border-b dark:border-gray-700 flex items-center justify-between hover:from-violet-100 hover:to-cyan-100 dark:hover:from-violet-900/30 dark:hover:to-cyan-900/30 transition-colors cursor-pointer"
+              >
+                <div className="text-left">
+                  <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Interactive Analytics Charts</h2>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Collapse state is now preserved when you leave and return to this page.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">{studentAnalytics.length} students • {dateAnalytics.length} dates</span>
+                  <svg className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${collapseChartsSection ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </button>
+
+              {!collapseChartsSection && (
+                <div className="p-4 sm:p-6">
+                  <Suspense fallback={
+                    <div className="rounded-2xl border border-dashed border-violet-200 dark:border-violet-700 p-8 text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-500 mx-auto mb-3" />
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Loading charts...</p>
+                    </div>
+                  }>
+                    <AttendanceCharts
+                      studentAnalytics={studentAnalytics}
+                      dateAnalytics={dateAnalytics}
+                    />
+                  </Suspense>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Student Performance Table — Dynamic columns from field selections */}

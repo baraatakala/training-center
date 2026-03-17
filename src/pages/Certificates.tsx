@@ -167,10 +167,10 @@ export function Certificates() {
           </p>
         </div>
         {isTeacher && (
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={fetchData}>🔄 Refresh</Button>
-            <Button size="sm" onClick={() => setShowIssueModal(true)}>🎓 Issue Certificate</Button>
-            <Button variant="outline" size="sm" onClick={() => { setEditingTemplate(null); setShowTemplateModal(true); }}>
+          <div className="flex flex-col sm:flex-row w-full sm:w-auto gap-2">
+            <Button variant="outline" size="sm" onClick={fetchData} className="w-full sm:w-auto justify-center">🔄 Refresh</Button>
+            <Button size="sm" onClick={() => setShowIssueModal(true)} className="w-full sm:w-auto justify-center">🎓 Issue Certificate</Button>
+            <Button variant="outline" size="sm" onClick={() => { setEditingTemplate(null); setShowTemplateModal(true); }} className="w-full sm:w-auto justify-center">
               ✏️ New Template
             </Button>
           </div>
@@ -178,8 +178,8 @@ export function Certificates() {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200 dark:border-gray-700">
-        <nav className="flex gap-6">
+      <div className="border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
+        <nav className="flex gap-6 min-w-max">
           {(['certificates', 'templates', 'verify'] as const).map(t => (
             <button
               key={t}
@@ -333,7 +333,7 @@ function CertificatesList({
         {filtered.map(cert => (
           <Card key={cert.certificate_id} className="hover:shadow-md transition-shadow">
             <CardContent className="p-4">
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[cert.status]}`}>
@@ -354,10 +354,10 @@ function CertificatesList({
                     <span>Verify: <code className="font-mono text-blue-500">{cert.verification_code}</code></span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Button variant="outline" size="sm" onClick={() => onPreview(cert)}>👁 Preview</Button>
+                <div className="flex flex-col sm:flex-row gap-2 shrink-0 sm:min-w-[160px]">
+                  <Button variant="outline" size="sm" onClick={() => onPreview(cert)} className="justify-center">👁 Preview</Button>
                   {isTeacher && cert.status === 'issued' && (
-                    <Button variant="outline" size="sm" onClick={() => onRevoke(cert)} className="text-red-500">
+                    <Button variant="outline" size="sm" onClick={() => onRevoke(cert)} className="text-red-500 justify-center">
                       🚫 Revoke
                     </Button>
                   )}
@@ -470,7 +470,7 @@ function VerifyTab({
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Enter the 8-character verification code from a certificate to verify its authenticity.
           </p>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <input
               type="text"
               value={verifyCode}

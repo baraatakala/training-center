@@ -42,6 +42,28 @@ export interface FeedbackStats {
   recentComments: Array<{ comment: string; rating: number; date: string; is_anonymous: boolean }>;
 }
 
+function normalizeFeedbackError(error: { message?: string; details?: string; hint?: string } | null) {
+  if (!error) return null;
+
+  const raw = `${error.message || ''} ${error.details || ''} ${error.hint || ''}`.toLowerCase();
+
+  if (raw.includes('row-level security')) {
+    return {
+      ...error,
+      message: 'Feedback could not be saved because the database rejected the request. Check the session_feedback policies and authentication state.',
+    };
+  }
+
+  if (raw.includes('duplicate') || raw.includes('unique')) {
+    return {
+      ...error,
+      message: 'Feedback was already submitted for this session date.',
+    };
+  }
+
+  return error;
+}
+
 // ─── Feedback Submission ─────────────────────────────────────
 export const feedbackService = {
   /** Submit feedback after check-in */
@@ -72,7 +94,7 @@ export const feedbackService = {
       .select()
       .single();
 
-    return { data, error };
+    return { data, error: normalizeFeedbackError(error) };
   },
 
   /** Check if student already submitted feedback for this session+date */
@@ -123,7 +145,18 @@ export const feedbackService = {
       .select()
       .single();
 
-    return { data, error };
+    return { data, error: normalizeFeedbackError(error) };
+  },
+
+  async updateQuestion(questionId: string, updates: Partial<Omit<FeedbackQuestion, 'id' | 'created_at' | 'session_id'>>) {
+    const { data, error } = await supabase
+      .from('feedback_question')
+      .update(updates)
+      .eq('id', questionId)
+      .select()
+      .single();
+
+    return { data, error: normalizeFeedbackError(error) };
   },
 
   /** Delete a question */
@@ -133,7 +166,7 @@ export const feedbackService = {
       .delete()
       .eq('id', questionId);
 
-    return { error };
+    return { error: normalizeFeedbackError(error) };
   },
 
   // ─── Templates ───────────────────────────────────────────
@@ -145,6 +178,47 @@ export const feedbackService = {
       .order('is_default', { ascending: false });
 
     return { data: data as FeedbackTemplate[] | null, error };
+  },
+
+  async applyTemplateToSession(templateId: string, sessionId: string) {
+    const { data: template, error: templateError } = await supabase
+      .from('feedback_template')
+      .select('questions')
+      .eq('id', templateId)
+      .single();
+
+    if (templateError || !template) {
+      return { error: normalizeFeedbackError(templateError) };
+    }
+
+    const { error: deleteError } = await supabase
+      .from('feedback_question')
+      .delete()
+      .eq('session_id', sessionId);
+
+    if (deleteError) {
+      return { error: normalizeFeedbackError(deleteError) };
+    }
+
+    const questions = Array.isArray(template.questions) ? template.questions : [];
+    if (questions.length === 0) {
+      return { error: null };
+    }
+
+    const { error } = await supabase
+      .from('feedback_question')
+      .insert(
+        questions.map((question, index) => ({
+          session_id: sessionId,
+          question_text: question.text,
+          question_type: question.type,
+          options: question.options || [],
+          sort_order: index,
+          is_required: Boolean(question.required),
+        }))
+      );
+
+    return { error: normalizeFeedbackError(error) };
   },
 
   // ─── Analytics ───────────────────────────────────────────
@@ -269,7 +343,7 @@ export const feedbackService = {
       .update({ feedback_enabled: enabled })
       .eq('session_id', sessionId);
 
-    return { error };
+    return { error: normalizeFeedbackError(error) };
   },
 
   /** Update anonymous allowed setting */
@@ -279,6 +353,6 @@ export const feedbackService = {
       .update({ feedback_anonymous_allowed: allowed })
       .eq('session_id', sessionId);
 
-    return { error };
+    return { error: normalizeFeedbackError(error) };
   },
 };

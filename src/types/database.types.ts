@@ -57,6 +57,7 @@ export interface Session {
   default_recording_visibility?: 'private_staff' | 'course_staff' | 'enrolled_students' | 'organization' | 'public_link' | null;
   feedback_enabled?: boolean;
   feedback_anonymous_allowed?: boolean;
+  teacher_can_host?: boolean;
   created_at: string;
   updated_at: string;
 }

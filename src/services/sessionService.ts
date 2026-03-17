@@ -13,12 +13,15 @@ function normalizeSessionMutationError(error: { message?: string; details?: stri
     'virtual_meeting_link',
     'requires_recording',
     'default_recording_visibility',
+    'feedback_enabled',
+    'feedback_anonymous_allowed',
+    'teacher_can_host',
   ].some((field) => text.includes(field));
 
   if (isMissingDeliveryField) {
     return {
       ...error,
-      message: 'Session delivery fields are enabled in the app, but your database is missing the new session columns. Run ADD-SESSION-DELIVERY-RECORDINGS-AND-SPECIALIZATION.sql in Supabase, then retry creating the session.',
+      message: 'The app is saving newer session settings, but your database is missing one or more required session columns. Run the latest session migration SQL files in Supabase, then retry.',
     };
   }
 
@@ -247,6 +250,9 @@ export const sessionService = {
         virtual_meeting_link: source.virtual_meeting_link,
         requires_recording: source.requires_recording,
         default_recording_visibility: source.default_recording_visibility,
+        feedback_enabled: source.feedback_enabled,
+        feedback_anonymous_allowed: source.feedback_anonymous_allowed,
+        teacher_can_host: source.teacher_can_host,
       })
       .select()
       .single();
