@@ -3,21 +3,17 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { format, subDays } from 'date-fns';
 import { Pagination } from '../components/ui/Pagination';
-import { AdvancedExportBuilder } from '../components/AdvancedExportBuilder';
 import type { ExportCategory, ExportSettings } from '../components/AdvancedExportBuilder';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
-import { wordExportService } from '../services/wordExportService';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/ui/ToastContainer';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { loadConfigSync, calcLateScore as calcLateScoreFromConfig, calcCoverageFactor as calcCoverageFromConfig } from '../services/scoringConfigService';
-import { LocationMap } from '../components/LocationMap';
 import { parseCoordinates, calculateDistance, formatDistance } from '../services/geocodingService';
 import { loadAttendanceRecordsPageData } from '../services/attendanceRecordsPageService';
 
 const AttendanceCharts = lazy(() => import('../components/AttendanceCharts'));
+const AdvancedExportBuilder = lazy(() => import('../components/AdvancedExportBuilder').then((module) => ({ default: module.AdvancedExportBuilder })));
+const LocationMap = lazy(() => import('../components/LocationMap').then((module) => ({ default: module.LocationMap })));
 
 interface AttendanceRecord {
   attendance_id: string;
@@ -1341,11 +1337,13 @@ const AttendanceRecords = () => {
     }
   };
 
-  const exportAnalyticsToExcel = () => {
+  const exportAnalyticsToExcel = async () => {
     if (!showAnalytics || studentAnalytics.length === 0) {
       warning('Please show analytics first to export analytics data');
       return;
     }
+
+    const XLSX = await import('xlsx');
 
     const isArabic = reportLanguage === 'ar';
 
@@ -1911,11 +1909,16 @@ const AttendanceRecords = () => {
     URL.revokeObjectURL(url);
   };
 
-  const exportAnalyticsToPDF = (skipArabicCheck = false) => {
+  const exportAnalyticsToPDF = async (skipArabicCheck = false) => {
     if (!showAnalytics || studentAnalytics.length === 0 || dateAnalytics.length === 0) {
       warning('Please show analytics first to export PDF report');
       return;
     }
+
+    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+      import('jspdf'),
+      import('jspdf-autotable'),
+    ]);
 
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
@@ -2498,6 +2501,7 @@ const AttendanceRecords = () => {
 
     setExportingWord(true);
     const isArabic = reportLanguage === 'ar';
+  const { wordExportService } = await import('../services/wordExportService');
 
     // ========== Use saved field selections for Word export ==========
     const studentConfig = filterDataByFields('studentAnalytics', isArabic);
@@ -4198,35 +4202,39 @@ const AttendanceRecords = () => {
       <ToastContainer toasts={toasts} onClose={removeToast} />
       
       {/* Advanced Export Builder Modal */}
-      <AdvancedExportBuilder
-        key={`export-${exportDataType}`}
-        isOpen={showAdvancedExport}
-        onClose={() => setShowAdvancedExport(false)}
-        categories={getExportCategories()}
-        data={getExportData()}
-        defaultTitle={
-          exportDataType === 'studentAnalytics' ? t.studentPerformanceReport :
-          exportDataType === 'dateAnalytics' ? t.attendanceByDateReport :
-          exportDataType === 'hostAnalytics' ? t.hostRankingsReport :
-          t.attendanceRecords
-        }
-        savedFields={savedFieldSelections[exportDataType]}
-        savedSettings={savedExportSettings[exportDataType]}
-        onFieldSelectionChange={(fields) => {
-          setSavedFieldSelections(prev => ({
-            ...prev,
-            [exportDataType]: fields
-          }));
-        }}
-        onSettingsChange={(settings) => {
-          setSavedExportSettings(prev => ({
-            ...prev,
-            [exportDataType]: settings
-          }));
-        }}
-        rowFilterKey={exportDataType === 'dateAnalytics' ? 'date' : undefined}
-        rowFilterLabel={exportDataType === 'dateAnalytics' ? t.dateRowsToExport : undefined}
-      />
+      {showAdvancedExport && (
+        <Suspense fallback={<div className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm" />}>
+          <AdvancedExportBuilder
+            key={`export-${exportDataType}`}
+            isOpen={showAdvancedExport}
+            onClose={() => setShowAdvancedExport(false)}
+            categories={getExportCategories()}
+            data={getExportData()}
+            defaultTitle={
+              exportDataType === 'studentAnalytics' ? t.studentPerformanceReport :
+              exportDataType === 'dateAnalytics' ? t.attendanceByDateReport :
+              exportDataType === 'hostAnalytics' ? t.hostRankingsReport :
+              t.attendanceRecords
+            }
+            savedFields={savedFieldSelections[exportDataType]}
+            savedSettings={savedExportSettings[exportDataType]}
+            onFieldSelectionChange={(fields) => {
+              setSavedFieldSelections(prev => ({
+                ...prev,
+                [exportDataType]: fields
+              }));
+            }}
+            onSettingsChange={(settings) => {
+              setSavedExportSettings(prev => ({
+                ...prev,
+                [exportDataType]: settings
+              }));
+            }}
+            rowFilterKey={exportDataType === 'dateAnalytics' ? 'date' : undefined}
+            rowFilterLabel={exportDataType === 'dateAnalytics' ? t.dateRowsToExport : undefined}
+          />
+        </Suspense>
+      )}
       
       {/* Modern Header with Gradient */}
       <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 text-white shadow-xl">
@@ -4399,15 +4407,15 @@ const AttendanceRecords = () => {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 items-center">
-                <button onClick={exportAnalyticsToExcel} aria-label="Export to Excel" className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md">
+                <button onClick={() => { void exportAnalyticsToExcel(); }} aria-label="Export to Excel" className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                   Excel
                 </button>
-                <button onClick={() => exportAnalyticsToPDF()} aria-label="Export to PDF" className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md">
+                <button onClick={() => { void exportAnalyticsToPDF(); }} aria-label="Export to PDF" className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
                   PDF
                 </button>
-                <button onClick={exportAnalyticsToWord} disabled={exportingWord} aria-label="Export to Word" className={`px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md ${exportingWord ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                <button onClick={() => { void exportAnalyticsToWord(); }} disabled={exportingWord} aria-label="Export to Word" className={`px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-md ${exportingWord ? 'opacity-50 cursor-not-allowed' : ''}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                   {exportingWord ? t.exporting : 'Word'}
                 </button>
@@ -5114,12 +5122,14 @@ const AttendanceRecords = () => {
 
                   <div id="location-map-body">
                     {/* Location Map Embed — includes location selector, map, details, Google Maps & Directions links */}
-                    <LocationMap
-                      locations={locationPoints}
-                      showEmbed={true}
-                      showDistanceMatrix={locationPoints.length > 1}
-                      zoom={13}
-                    />
+                    <Suspense fallback={<div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 px-4 py-8 text-sm text-gray-500 dark:text-gray-400 text-center">Loading map...</div>}>
+                      <LocationMap
+                        locations={locationPoints}
+                        showEmbed={true}
+                        showDistanceMatrix={locationPoints.length > 1}
+                        zoom={13}
+                      />
+                    </Suspense>
 
                       {/* Distance is shown inside LocationMap's built-in distance matrix toggle */}
                     </div>
@@ -6417,7 +6427,7 @@ const AttendanceRecords = () => {
         title="Arabic PDF Export"
         message="PDF export works best in English. For full Arabic support with proper formatting, please use CSV Export. Continue with English PDF?"
         confirmText="Continue"
-        onConfirm={() => { setShowArabicPdfConfirm(false); exportAnalyticsToPDF(true); }}
+        onConfirm={() => { setShowArabicPdfConfirm(false); void exportAnalyticsToPDF(true); }}
         onCancel={() => setShowArabicPdfConfirm(false)}
       />
     </div>
