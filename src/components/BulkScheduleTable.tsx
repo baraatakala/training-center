@@ -267,17 +267,23 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
           };
         });
 
-      // Add teacher as potential host if they have an address
+      // Always show teacher row so admin can toggle can_host on/off
       const teacher = Array.isArray(sessionData?.teacher) ? sessionData?.teacher[0] : sessionData?.teacher;
-      if ((sessionData?.teacher_can_host ?? true) && teacher?.address && teacher.address.trim() !== '') {
+      if (teacher) {
         // Load teacher's hosting date from teacher_host_schedule table
-        const { data: teacherHostData } = await supabase
-          .from('teacher_host_schedule')
-          .select('host_date')
-          .eq('teacher_id', teacher.teacher_id)
-          .eq('session_id', sessionId)
-          .maybeSingle();
+        let teacherHostDate: string | null = null;
+        if (teacher.teacher_id) {
+          const { data: teacherHostData } = await supabase
+            .from('teacher_host_schedule')
+            .select('host_date')
+            .eq('teacher_id', teacher.teacher_id)
+            .eq('session_id', sessionId)
+            .maybeSingle();
+          teacherHostDate = teacherHostData?.host_date || null;
+        }
 
+        const canHost = sessionData?.teacher_can_host ?? true;
+        const hasAddress = !!(teacher.address && teacher.address.trim());
         const teacherRow: EnrollmentRow = {
           enrollment_id: `teacher-${teacher.teacher_id}`,
           student_id: teacher.teacher_id,
@@ -286,8 +292,8 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
             address: teacher.address,
             phone: teacher.phone
           },
-          can_host: sessionData?.teacher_can_host ?? true,
-          host_date: teacherHostData?.host_date || null,
+          can_host: canHost,
+          host_date: canHost && hasAddress ? teacherHostDate : null,
           status: 'active',
           is_teacher: true
         };

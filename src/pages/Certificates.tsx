@@ -151,13 +151,13 @@ export function Certificates() {
   // =====================================================
 
   if (roleLoading) {
-    return <div className="p-6"><TableSkeleton /></div>;
+    return <div className="p-4 md:p-6"><TableSkeleton /></div>;
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
             🏆 Certificates
@@ -178,8 +178,8 @@ export function Certificates() {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
-        <nav className="flex gap-6 min-w-max">
+      <div className="border-b border-gray-200 dark:border-gray-700 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+        <nav className="flex gap-4 sm:gap-6 min-w-max">
           {(['certificates', 'templates', 'verify'] as const).map(t => (
             <button
               key={t}
@@ -348,10 +348,10 @@ function CertificatesList({
                     {cert.course?.course_name || cert.session?.course?.course_name || 'Unknown Course'}
                     {cert.issued_at && ` · Issued ${format(parseISO(cert.issued_at), 'MMM d, yyyy')}`}
                   </p>
-                  <div className="mt-1.5 flex items-center gap-3 text-xs text-gray-400">
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-gray-400">
                     {cert.final_score != null && <span>Score: <strong>{cert.final_score.toFixed(1)}%</strong></span>}
                     {cert.attendance_rate != null && <span>Attendance: <strong>{cert.attendance_rate.toFixed(1)}%</strong></span>}
-                    <span>Verify: <code className="font-mono text-blue-500">{cert.verification_code}</code></span>
+                    <span className="break-all">Verify: <code className="font-mono text-blue-500">{cert.verification_code}</code></span>
                   </div>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2 shrink-0 sm:min-w-[160px]">
@@ -418,7 +418,7 @@ function TemplatesList({
                 </span>
               </div>
 
-              <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-500 dark:text-gray-400">
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-500 dark:text-gray-400">
                 <div className={tmpl.min_score > 0 ? 'text-blue-600 dark:text-blue-400 font-medium' : ''}>
                   Min Score: <strong>{tmpl.min_score > 0 ? `${tmpl.min_score}%` : 'None'}</strong>
                 </div>
@@ -496,7 +496,7 @@ function VerifyTab({
                 {result.status === 'issued' ? 'Certificate Verified!' : 'Certificate Revoked'}
               </h3>
             </div>
-            <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               <div>
                 <span className="text-xs text-gray-400">Student</span>
                 <p className="font-medium text-gray-900 dark:text-white">{result.student?.name}</p>
@@ -620,7 +620,7 @@ function TemplateModal({
 
   return (
     <Modal isOpen={true} onClose={onClose} title={isEditing ? 'Edit Template' : 'New Certificate Template'} size="xl">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-h-[70vh] overflow-y-auto">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 max-h-[75vh] overflow-y-auto">
         {/* Left: Form */}
         <div className="space-y-4">
           <div>
@@ -647,7 +647,7 @@ function TemplateModal({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
               <select
@@ -674,7 +674,7 @@ function TemplateModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Min Score (%)
@@ -707,7 +707,7 @@ function TemplateModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Accent Color</label>
               <input
@@ -1104,7 +1104,7 @@ function IssueModal({
         </div>
 
         {/* Scores */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Final Score (%) {loadingStats && <span className="text-xs text-blue-500">loading...</span>}
@@ -1143,7 +1143,7 @@ function IssueModal({
         </div>
 
         {/* Signer Info */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Signer Name</label>
             <input
