@@ -694,13 +694,15 @@ export function Sessions() {
                               >
                                 ✏️ Edit
                               </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => setSelectedSessionForRecordings(session)}
-                              >
-                                🎥 Recordings
-                              </Button>
+                              {!isTeacher && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setSelectedSessionForRecordings(session)}
+                                >
+                                  🎥 Recordings
+                                </Button>
+                              )}
                               <button
                                 onClick={() => setDeletingSession(session)}
                                 className="px-3 py-1 text-sm rounded border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
@@ -894,9 +896,11 @@ export function Sessions() {
                               >
                                 Edit
                               </Button>
-                              <Button size="sm" variant="outline" onClick={() => setSelectedSessionForRecordings(session)}>
-                                Recordings
-                              </Button>
+                              {!isTeacher && (
+                                <Button size="sm" variant="outline" onClick={() => setSelectedSessionForRecordings(session)}>
+                                  Recordings
+                                </Button>
+                              )}
                               <button
                                 onClick={() => setDeletingSession(session)}
                                 className="px-2 md:px-3 py-1 text-xs md:text-sm rounded border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
@@ -1010,8 +1014,6 @@ export function Sessions() {
           <SessionRecordingsManager
             sessionId={selectedSessionForRecordings.session_id}
             courseName={selectedSessionForRecordings.course?.course_name || 'this session'}
-            requiresRecording={selectedSessionForRecordings.requires_recording}
-            defaultVisibility={selectedSessionForRecordings.default_recording_visibility || 'course_staff'}
           />
         )}
       </Modal>

@@ -23,6 +23,7 @@ export interface SessionFeedback {
   responses: Record<string, unknown>;
   check_in_method: string | null;
   created_at: string;
+  student_name?: string | null;
 }
 
 export interface FeedbackTemplate {
@@ -275,23 +276,33 @@ export const feedbackService = {
   async getBySession(sessionId: string) {
     const { data, error } = await supabase
       .from('session_feedback')
-      .select('*')
+      .select('*, student:student_id(name)')
       .eq('session_id', sessionId)
       .order('created_at', { ascending: false });
 
-    return { data: data as SessionFeedback[] | null, error };
+    const mapped = data?.map((row: Record<string, unknown>) => {
+      const student = row.student as { name: string } | null;
+      return { ...row, student_name: student?.name ?? null, student: undefined } as unknown as SessionFeedback;
+    }) ?? null;
+
+    return { data: mapped, error };
   },
 
   /** Get feedback for a specific session+date */
   async getByDate(sessionId: string, date: string) {
     const { data, error } = await supabase
       .from('session_feedback')
-      .select('*')
+      .select('*, student:student_id(name)')
       .eq('session_id', sessionId)
       .eq('attendance_date', date)
       .order('created_at', { ascending: false });
 
-    return { data: data as SessionFeedback[] | null, error };
+    const mapped = data?.map((row: Record<string, unknown>) => {
+      const student = row.student as { name: string } | null;
+      return { ...row, student_name: student?.name ?? null, student: undefined } as unknown as SessionFeedback;
+    }) ?? null;
+
+    return { data: mapped, error };
   },
 
   /** Get aggregate stats for a session */

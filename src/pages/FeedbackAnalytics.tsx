@@ -76,11 +76,12 @@ function exportFeedbackCSV(
   questions: FeedbackQuestion[],
   courseName: string
 ) {
-  const headers = ['Date', 'Overall Rating', 'Comment', 'Anonymous', 'Check-In Method'];
+  const headers = ['Student', 'Date', 'Overall Rating', 'Comment', 'Anonymous', 'Check-In Method'];
   for (const q of questions) headers.push(q.question_text);
   
   const rows = feedbacks.map(fb => {
     const base = [
+      fb.is_anonymous ? 'Anonymous' : (fb.student_name || 'Unknown'),
       fb.attendance_date,
       fb.overall_rating != null ? String(fb.overall_rating) : '',
       fb.comment || '',
@@ -759,295 +760,272 @@ export function FeedbackAnalytics() {
           {/* TAB: QUESTIONS & TEMPLATES                         */}
           {/* ═══════════════════════════════════════════════════ */}
           {activeTab === 'questions' && (
-            <div className="grid grid-cols-1 xl:grid-cols-[1.15fr,0.85fr] gap-4 md:gap-6">
-              {/* Session Questions */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">🧩 Session Questions</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {questionError && (
-                      <div className="rounded-lg border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-700 dark:text-red-300">
-                        {questionError}
-                      </div>
-                    )}
+            <div className="space-y-4 md:space-y-6">
+              {questionError && (
+                <div className="rounded-lg border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+                  {questionError}
+                </div>
+              )}
 
-                    {/* Question Form */}
-                    <div className="rounded-xl border border-purple-200 dark:border-purple-700 bg-purple-50/50 dark:bg-purple-900/10 p-4 space-y-3">
-                      <p className="text-xs font-semibold text-purple-700 dark:text-purple-300 uppercase tracking-wider">
-                        {editingQuestionId ? '✏️ Edit Question' : '➕ New Question'}
+              <div className="grid grid-cols-1 xl:grid-cols-[1.1fr,0.9fr] gap-4 md:gap-6">
+                {/* ── LEFT: Form Builder ─────────────────────── */}
+                <div className="space-y-4">
+                  {/* Quick-add form */}
+                  <div className="rounded-2xl border border-purple-200 dark:border-purple-700 bg-gradient-to-br from-purple-50/80 to-violet-50/80 dark:from-purple-900/20 dark:to-violet-900/20 p-4 sm:p-5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-purple-800 dark:text-purple-200">
+                        {editingQuestionId ? '✏️ Edit Question' : '➕ Add Question'}
                       </p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="sm:col-span-2">
-                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Question Text</label>
-                          <input
-                            value={questionDraft.question_text}
-                            onChange={(e) => setQuestionDraft(prev => ({ ...prev, question_text: e.target.value }))}
-                            placeholder="e.g. How clear was the instructor's explanation?"
-                            className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Type</label>
-                          <select
-                            value={questionDraft.question_type}
-                            onChange={(e) => setQuestionDraft(prev => ({ ...prev, question_type: e.target.value as FeedbackQuestion['question_type'] }))}
-                            className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
-                          >
-                            <option value="text">📝 Text</option>
-                            <option value="emoji">😊 Emoji</option>
-                            <option value="rating">⭐ Rating (1-5)</option>
-                            <option value="multiple_choice">📋 Multiple Choice</option>
-                          </select>
-                        </div>
-                        <label className="flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 cursor-pointer sm:mt-5">
-                          <input
-                            type="checkbox"
-                            checked={questionDraft.is_required}
-                            onChange={(e) => setQuestionDraft(prev => ({ ...prev, is_required: e.target.checked }))}
-                            className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                          />
-                          <span className="text-sm text-gray-700 dark:text-gray-300">Required</span>
-                        </label>
-                        {questionDraft.question_type === 'multiple_choice' && (
-                          <div className="sm:col-span-2">
-                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Options (comma-separated)</label>
-                            <input
-                              value={questionDraft.optionsText}
-                              onChange={(e) => setQuestionDraft(prev => ({ ...prev, optionsText: e.target.value }))}
-                              placeholder="Clear, Average, Confusing"
-                              className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                            />
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button type="button" onClick={handleSubmitQuestion} disabled={savingQuestion} size="sm">
-                          {savingQuestion ? 'Saving...' : editingQuestionId ? '💾 Update' : '➕ Add Question'}
-                        </Button>
-                        {editingQuestionId && (
-                          <Button type="button" variant="outline" onClick={resetQuestionDraft} size="sm">Cancel</Button>
-                        )}
-                      </div>
+                      <span className="text-[10px] bg-purple-200/60 dark:bg-purple-800/40 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full">
+                        {questions.length} question{questions.length === 1 ? '' : 's'}
+                      </span>
                     </div>
 
-                    {/* Question List */}
-                    <div className="space-y-2">
-                      {questions.length === 0 ? (
-                        <div className="rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 px-4 py-8 text-center">
-                          <span className="text-3xl block mb-2">🧩</span>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">No questions yet</p>
-                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Add questions above or apply a template from the right panel.</p>
-                        </div>
-                      ) : (
-                        questions.map((question, index) => (
-                          <div key={question.id} className="group rounded-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 bg-white dark:bg-gray-800/50 hover:border-purple-200 dark:hover:border-purple-700 transition-colors">
-                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                                  <span className="text-xs font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 px-1.5 py-0.5 rounded">Q{index + 1}</span>
-                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 capitalize">
-                                    {question.question_type === 'multiple_choice' ? '📋 MC' : question.question_type === 'rating' ? '⭐ Rating' : question.question_type === 'emoji' ? '😊 Emoji' : '📝 Text'}
-                                  </span>
-                                  {question.is_required && (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300">Required</span>
-                                  )}
-                                </div>
-                                <p className="text-sm text-gray-900 dark:text-white">{question.question_text}</p>
-                                {question.options.length > 0 && (
-                                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Options: {question.options.join(' · ')}</p>
-                                )}
-                              </div>
-                              <div className="flex gap-1.5 shrink-0">
-                                <button
-                                  type="button"
-                                  onClick={() => handleEditQuestion(question)}
-                                  className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                                >
-                                  ✏️ Edit
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteQuestion(question.id)}
-                                  className="text-xs px-2.5 py-1.5 rounded-lg border border-red-200 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                                >
-                                  🗑
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        ))
+                    <input
+                      value={questionDraft.question_text}
+                      onChange={(e) => setQuestionDraft(prev => ({ ...prev, question_text: e.target.value }))}
+                      placeholder="Type your question here..."
+                      className="w-full rounded-xl border border-purple-200 dark:border-purple-600 bg-white dark:bg-gray-800 px-4 py-3 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent placeholder:text-gray-400"
+                      onKeyDown={e => { if (e.key === 'Enter' && questionDraft.question_text.trim()) handleSubmitQuestion(); }}
+                    />
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Type chips */}
+                      {(['rating', 'emoji', 'text', 'multiple_choice'] as const).map(t => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => setQuestionDraft(prev => ({ ...prev, question_type: t }))}
+                          className={`text-xs px-3 py-1.5 rounded-full border transition-all ${
+                            questionDraft.question_type === t
+                              ? 'border-purple-500 bg-purple-600 text-white shadow-sm'
+                              : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:border-purple-300'
+                          }`}
+                        >
+                          {t === 'rating' ? '⭐ Rating' : t === 'emoji' ? '😊 Emoji' : t === 'text' ? '📝 Text' : '📋 Multiple Choice'}
+                        </button>
+                      ))}
+                      <label className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer ml-auto">
+                        <input
+                          type="checkbox"
+                          checked={questionDraft.is_required}
+                          onChange={(e) => setQuestionDraft(prev => ({ ...prev, is_required: e.target.checked }))}
+                          className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 h-3.5 w-3.5"
+                        />
+                        Required
+                      </label>
+                    </div>
+
+                    {questionDraft.question_type === 'multiple_choice' && (
+                      <input
+                        value={questionDraft.optionsText}
+                        onChange={(e) => setQuestionDraft(prev => ({ ...prev, optionsText: e.target.value }))}
+                        placeholder="Options separated by commas: Clear, Average, Confusing"
+                        className="w-full rounded-xl border border-purple-200 dark:border-purple-600 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent placeholder:text-gray-400"
+                      />
+                    )}
+
+                    <div className="flex gap-2">
+                      <Button type="button" onClick={handleSubmitQuestion} disabled={savingQuestion || !questionDraft.question_text.trim()} size="sm">
+                        {savingQuestion ? 'Saving...' : editingQuestionId ? '💾 Update' : '➕ Add'}
+                      </Button>
+                      {editingQuestionId && (
+                        <Button type="button" variant="outline" onClick={resetQuestionDraft} size="sm">Cancel</Button>
                       )}
                     </div>
                   </div>
-                </CardContent>
-              </Card>
 
-              {/* Templates */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">📋 Templates</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {templateError && (
-                      <div className="rounded-lg border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-700 dark:text-red-300">
-                        {templateError}
+                  {/* Question cards */}
+                  <div className="space-y-2">
+                    {questions.length === 0 ? (
+                      <div className="rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700 p-8 text-center">
+                        <span className="text-4xl block mb-3">📋</span>
+                        <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Your form is empty</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 max-w-xs mx-auto">
+                          Add questions above or apply a template to get started. Students see this form after checking in.
+                        </p>
                       </div>
+                    ) : (
+                      questions.map((question, index) => (
+                        <div key={question.id} className="group rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 hover:border-purple-200 dark:hover:border-purple-700 transition-all hover:shadow-sm overflow-hidden">
+                          <div className="flex items-stretch">
+                            {/* Color bar */}
+                            <div className={`w-1 shrink-0 ${
+                              question.question_type === 'rating' ? 'bg-yellow-400'
+                                : question.question_type === 'emoji' ? 'bg-green-400'
+                                : question.question_type === 'multiple_choice' ? 'bg-blue-400'
+                                : 'bg-gray-300 dark:bg-gray-600'
+                            }`} />
+                            <div className="flex-1 p-3 sm:p-4">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                                    <span className="text-xs font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 px-1.5 py-0.5 rounded">{index + 1}</span>
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                                      {question.question_type === 'multiple_choice' ? '📋 Multiple Choice' : question.question_type === 'rating' ? '⭐ Rating' : question.question_type === 'emoji' ? '😊 Emoji' : '📝 Text'}
+                                    </span>
+                                    {question.is_required && (
+                                      <span className="text-[10px] text-red-500">*required</span>
+                                    )}
+                                  </div>
+                                  <p className="text-sm font-medium text-gray-900 dark:text-white">{question.question_text}</p>
+                                  {/* Inline preview of answer format */}
+                                  <div className="mt-2">
+                                    {question.question_type === 'rating' && (
+                                      <div className="flex gap-1">{[1,2,3,4,5].map(s => <span key={s} className="text-lg text-gray-300 dark:text-gray-600">★</span>)}</div>
+                                    )}
+                                    {question.question_type === 'emoji' && (
+                                      <div className="flex gap-2 text-lg opacity-40">😴 🤔 😐 😊 🔥</div>
+                                    )}
+                                    {question.question_type === 'text' && (
+                                      <div className="rounded-lg border border-dashed border-gray-200 dark:border-gray-600 px-3 py-2 text-xs text-gray-300 dark:text-gray-600">Student types answer here...</div>
+                                    )}
+                                    {question.question_type === 'multiple_choice' && question.options.length > 0 && (
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {question.options.map((opt, oi) => (
+                                          <span key={oi} className="text-xs px-2.5 py-1 rounded-full border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800">{opt}</span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button type="button" onClick={() => handleEditQuestion(question)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" title="Edit">✏️</button>
+                                  <button type="button" onClick={() => handleDeleteQuestion(question.id)} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500" title="Delete">🗑</button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))
                     )}
+                  </div>
+                </div>
 
-                    {/* Save as template */}
-                    <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 space-y-3">
-                      <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
-                        {editingTemplateId ? '✏️ Edit Template' : '💾 Save as Template'}
-                      </p>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Name</label>
-                        <input
-                          value={templateDraft.name}
-                          onChange={(e) => setTemplateDraft(prev => ({ ...prev, name: e.target.value }))}
-                          placeholder="Weekly session check-in"
-                          className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Description</label>
-                        <textarea
-                          value={templateDraft.description}
-                          onChange={(e) => setTemplateDraft(prev => ({ ...prev, description: e.target.value }))}
-                          rows={2}
-                          placeholder="Describe when to use this template..."
-                          className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white resize-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                        />
-                      </div>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={templateDraft.is_default}
-                          onChange={(e) => setTemplateDraft(prev => ({ ...prev, is_default: e.target.checked }))}
-                          className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                        />
-                        <span className="text-sm text-gray-700 dark:text-gray-300">Default template</span>
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        <Button type="button" onClick={handleSubmitTemplate} disabled={savingTemplate || questions.length === 0} size="sm">
-                          {savingTemplate ? 'Saving...' : editingTemplateId ? '💾 Update' : '💾 Save Template'}
-                        </Button>
-                        {editingTemplateId && (
-                          <Button type="button" variant="outline" onClick={resetTemplateDraft} size="sm">Cancel</Button>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-gray-400">
-                        Copies current session questions into a reusable template.
-                      </p>
+                {/* ── RIGHT: Templates ───────────────────────── */}
+                <div className="space-y-4">
+                  {templateError && (
+                    <div className="rounded-lg border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+                      {templateError}
                     </div>
+                  )}
 
-                    {/* Apply Template */}
-                    <div className="rounded-xl border border-violet-200 dark:border-violet-700 bg-violet-50/50 dark:bg-violet-900/10 p-4 space-y-3">
-                      <p className="text-xs font-semibold text-violet-700 dark:text-violet-300 uppercase tracking-wider">
-                        📥 Apply Template
-                      </p>
+                  {/* Apply Template (primary action) */}
+                  {templates.length > 0 && (
+                    <div className="rounded-2xl border border-violet-200 dark:border-violet-700 bg-gradient-to-br from-violet-50/80 to-indigo-50/80 dark:from-violet-900/20 dark:to-indigo-900/20 p-4 sm:p-5 space-y-3">
+                      <p className="text-sm font-semibold text-violet-800 dark:text-violet-200">📥 Quick Apply Template</p>
                       <Select
                         label=""
                         value={selectedTemplateId}
                         onChange={setSelectedTemplateId}
-                        options={templates.map(t => ({ value: t.id, label: t.is_default ? `${t.name} (Default)` : t.name }))}
+                        options={templates.map(t => ({ value: t.id, label: t.is_default ? `${t.name} ★` : t.name }))}
                         placeholder="Choose template..."
                       />
                       <Button type="button" onClick={handleApplyTemplate} disabled={!selectedTemplateId || applyingTemplate} size="sm" className="w-full justify-center">
-                        {applyingTemplate ? 'Applying...' : '📥 Apply to Session'}
+                        {applyingTemplate ? 'Applying...' : '📥 Apply to This Session'}
                       </Button>
-                      <p className="text-[10px] text-gray-400">
-                        Replaces current questions with the template's questions.
-                      </p>
+                      <p className="text-[10px] text-gray-400">Replaces all current questions with the template&apos;s questions.</p>
                     </div>
+                  )}
 
-                    {/* Template List */}
-                    <div className="space-y-2">
-                      {templates.length === 0 ? (
-                        <div className="rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 px-4 py-6 text-center">
-                          <p className="text-sm text-gray-400">No templates saved yet.</p>
-                        </div>
-                      ) : (
-                        templates.map(template => (
-                          <div
-                            key={template.id}
-                            className={`rounded-xl border p-3 transition-colors ${
-                              selectedTemplateId === template.id
-                                ? 'border-violet-300 dark:border-violet-600 bg-violet-50/70 dark:bg-violet-900/20'
-                                : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 hover:border-gray-300 dark:hover:border-gray-600'
-                            }`}
-                          >
-                            <div className="flex flex-col gap-2">
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="min-w-0">
-                                  <div className="flex flex-wrap items-center gap-1.5">
-                                    <p className="text-sm font-semibold text-gray-900 dark:text-white">{template.name}</p>
-                                    {template.is_default && (
-                                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300">Default</span>
-                                    )}
-                                  </div>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-1">
-                                    {template.description || 'No description'}
-                                  </p>
-                                  <p className="text-[10px] text-gray-400 mt-1">
-                                    {template.questions.length} question{template.questions.length === 1 ? '' : 's'}
-                                  </p>
-                                </div>
-                                <div className="flex gap-1 shrink-0">
-                                  <button
-                                    type="button"
-                                    onClick={() => { setSelectedTemplateId(template.id); }}
-                                    className="text-[10px] px-2 py-1 rounded border border-gray-200 dark:border-gray-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700"
-                                  >
-                                    👁
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleEditTemplate(template)}
-                                    className="text-[10px] px-2 py-1 rounded border border-gray-200 dark:border-gray-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700"
-                                  >
-                                    ✏️
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteTemplate(template.id)}
-                                    className="text-[10px] px-2 py-1 rounded border border-red-200 dark:border-red-700 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-                                  >
-                                    🗑
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
+                  {/* Template preview */}
+                  {templatePreview && (
+                    <div className="rounded-2xl border border-violet-100 dark:border-violet-800 bg-white dark:bg-gray-800/50 p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">{templatePreview.name}</p>
+                        <span className="text-[10px] text-gray-400">{templatePreview.questions.length} Q</span>
+                      </div>
+                      <div className="space-y-1.5 max-h-[280px] overflow-y-auto">
+                        {templatePreview.questions.map((q, i) => (
+                          <div key={`${templatePreview.id}-${i}`} className="rounded-lg bg-gray-50 dark:bg-gray-900/40 px-3 py-2 border border-gray-100 dark:border-gray-700">
+                            <p className="text-sm text-gray-800 dark:text-gray-200">{i + 1}. {q.text}</p>
+                            <p className="text-[10px] text-gray-400 mt-0.5">
+                              {q.type === 'rating' ? '⭐' : q.type === 'emoji' ? '😊' : q.type === 'multiple_choice' ? '📋' : '📝'} {q.type.replace('_', ' ')}{q.required ? ' · required' : ''}
+                              {q.options?.length ? ` · ${q.options.join(', ')}` : ''}
+                            </p>
                           </div>
-                        ))
-                      )}
+                        ))}
+                      </div>
                     </div>
+                  )}
 
-                    {/* Template Preview */}
-                    {templatePreview && (
-                      <div className="rounded-xl border border-violet-200 dark:border-violet-700 bg-violet-50/50 dark:bg-violet-900/10 p-4">
-                        <p className="text-sm font-semibold text-violet-700 dark:text-violet-300 mb-2">{templatePreview.name}</p>
-                        {templatePreview.description && (
-                          <p className="text-xs text-violet-600/80 dark:text-violet-300/80 mb-3">{templatePreview.description}</p>
+                  {/* Save current questions as template */}
+                  <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-4 sm:p-5 space-y-3">
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                      {editingTemplateId ? '✏️ Edit Template' : '💾 Save Current as Template'}
+                    </p>
+                    <input
+                      value={templateDraft.name}
+                      onChange={(e) => setTemplateDraft(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="Template name..."
+                      className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    />
+                    <textarea
+                      value={templateDraft.description}
+                      onChange={(e) => setTemplateDraft(prev => ({ ...prev, description: e.target.value }))}
+                      rows={2}
+                      placeholder="Description (optional)..."
+                      className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white resize-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    />
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-1.5 cursor-pointer text-xs text-gray-600 dark:text-gray-400">
+                        <input
+                          type="checkbox"
+                          checked={templateDraft.is_default}
+                          onChange={(e) => setTemplateDraft(prev => ({ ...prev, is_default: e.target.checked }))}
+                          className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 h-3.5 w-3.5"
+                        />
+                        Default
+                      </label>
+                      <div className="flex gap-2">
+                        {editingTemplateId && (
+                          <Button type="button" variant="outline" onClick={resetTemplateDraft} size="sm">Cancel</Button>
                         )}
-                        <div className="space-y-1.5">
-                          {templatePreview.questions.map((q, i) => (
-                            <div key={`${templatePreview.id}-${i}`} className="rounded-lg bg-white/80 dark:bg-gray-900/40 px-3 py-2 border border-violet-100 dark:border-violet-800">
-                              <p className="text-sm text-gray-900 dark:text-white">{i + 1}. {q.text}</p>
+                        <Button type="button" onClick={handleSubmitTemplate} disabled={savingTemplate || questions.length === 0} size="sm">
+                          {savingTemplate ? 'Saving...' : editingTemplateId ? 'Update' : '💾 Save'}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Existing templates list */}
+                  {templates.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider px-1">Saved Templates</p>
+                      {templates.map(template => (
+                        <div
+                          key={template.id}
+                          onClick={() => setSelectedTemplateId(template.id)}
+                          className={`rounded-xl border p-3 cursor-pointer transition-all ${
+                            selectedTemplateId === template.id
+                              ? 'border-violet-300 dark:border-violet-600 bg-violet-50 dark:bg-violet-900/20 shadow-sm'
+                              : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 hover:border-gray-300'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{template.name}</p>
+                                {template.is_default && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-300">★</span>
+                                )}
+                              </div>
                               <p className="text-[10px] text-gray-400 mt-0.5">
-                                {q.type.replace('_', ' ')}{q.required ? ' · required' : ''}
-                                {q.options?.length ? ` · ${q.options.join(', ')}` : ''}
+                                {template.questions.length} question{template.questions.length === 1 ? '' : 's'}
+                                {template.description ? ` · ${template.description}` : ''}
                               </p>
                             </div>
-                          ))}
+                            <div className="flex gap-1 shrink-0">
+                              <button type="button" onClick={(e) => { e.stopPropagation(); handleEditTemplate(template); }} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600" title="Edit">✏️</button>
+                              <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteTemplate(template.id); }} className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500" title="Delete">🗑</button>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -1095,7 +1073,7 @@ export function FeedbackAnalytics() {
                 </Card>
               ) : (
                 <div className="space-y-2">
-                  {filteredFeedbacks.map((fb, idx) => {
+                  {filteredFeedbacks.map((fb) => {
                     const isExpanded = expandedResponseId === fb.id;
                     const hasCustomResponses = Object.keys(fb.responses || {}).length > 0;
                     return (
@@ -1119,6 +1097,10 @@ export function FeedbackAnalytics() {
                           </span>
 
                           <div className="flex-1 min-w-0">
+                            {/* Student name */}
+                            <p className="text-sm font-medium text-gray-900 dark:text-white mb-0.5">
+                              {fb.is_anonymous ? '🕵️ Anonymous' : (fb.student_name || 'Unknown Student')}
+                            </p>
                             <div className="flex flex-wrap items-center gap-2">
                               {/* Stars */}
                               {fb.overall_rating && (
@@ -1129,9 +1111,6 @@ export function FeedbackAnalytics() {
                                 </div>
                               )}
                               <span className="text-[10px] text-gray-400">{fb.attendance_date}</span>
-                              {fb.is_anonymous && (
-                                <span className="text-[10px] bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded">🕵️</span>
-                              )}
                               <span className="text-[10px] text-gray-400">
                                 {fb.check_in_method === 'qr_code' ? '📱 QR' : fb.check_in_method === 'photo' ? '📷 Photo' : ''}
                               </span>
@@ -1172,9 +1151,9 @@ export function FeedbackAnalytics() {
                                 </span>
                               </div>
                               <div>
-                                <span className="text-gray-400 block">Response #{idx + 1}</span>
+                                <span className="text-gray-400 block">Student</span>
                                 <span className="font-medium text-gray-700 dark:text-gray-300">
-                                  {fb.is_anonymous ? '🕵️ Anonymous' : 'Identified'}
+                                  {fb.is_anonymous ? '🕵️ Anonymous' : (fb.student_name || 'Unknown')}
                                 </span>
                               </div>
                             </div>
