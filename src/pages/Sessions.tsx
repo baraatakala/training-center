@@ -1008,7 +1008,7 @@ export function Sessions() {
         isOpen={!!selectedSessionForRecordings}
         onClose={() => setSelectedSessionForRecordings(null)}
         title={selectedSessionForRecordings ? `Session Recordings - ${selectedSessionForRecordings.course?.course_name}` : 'Session Recordings'}
-        size="xl"
+        size="lg"
       >
         {selectedSessionForRecordings && (
           <SessionRecordingsManager

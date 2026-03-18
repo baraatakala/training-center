@@ -16,6 +16,7 @@ import { logDelete, logInsert, logUpdate } from '../services/auditService';
 import { toast } from '../components/ui/toastUtils';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { excuseRequestService, EXCUSE_REASONS as SERVICE_EXCUSE_REASONS, type ExcuseRequest } from '../services/excuseRequestService';
+import { sessionRecordingService } from '../services/sessionRecordingService';
 
 type AttendanceRecord = {
   attendance_id: string;
@@ -139,6 +140,11 @@ export function Attendance() {
 
   // Pending excuse requests for current session+date
   const [pendingExcuseRequests, setPendingExcuseRequests] = useState<ExcuseRequest[]>([]);
+
+  // Recording URL for this attendance date
+  const [recordingUrl, setRecordingUrl] = useState('');
+  const [recordingId, setRecordingId] = useState<string | null>(null);
+  const [savingRecording, setSavingRecording] = useState(false);
 
   // GPS Geolocation capture function
   const captureGPSLocation = (): Promise<{
@@ -774,6 +780,7 @@ export function Attendance() {
       loadAttendance();
       loadSelectedBookReference();
       loadPendingExcuseRequests();
+      loadRecordingForDate();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);
@@ -886,6 +893,60 @@ export function Attendance() {
         .eq('session_id', sessionId)
         .eq('attendance_date', selectedDate);
     }
+  };
+
+  // Load recording URL for the selected date
+  const loadRecordingForDate = useCallback(async () => {
+    if (!sessionId || !selectedDate) { setRecordingUrl(''); setRecordingId(null); return; }
+    const { data } = await sessionRecordingService.getBySession(sessionId, selectedDate);
+    if (data && data.length > 0) {
+      setRecordingUrl(data[0].recording_url || '');
+      setRecordingId(data[0].recording_id);
+    } else {
+      setRecordingUrl('');
+      setRecordingId(null);
+    }
+  }, [sessionId, selectedDate]);
+
+  const saveRecordingUrl = async () => {
+    if (!sessionId || !selectedDate) return;
+    const url = recordingUrl.trim();
+    setSavingRecording(true);
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (recordingId) {
+      if (!url) {
+        // Delete if emptied
+        await sessionRecordingService.softDelete(recordingId);
+        setRecordingId(null);
+        toast.success('Recording link removed.');
+      } else {
+        await sessionRecordingService.update(recordingId, { recording_url: url });
+        toast.success('Recording link updated.');
+      }
+    } else if (url) {
+      const result = await sessionRecordingService.create({
+        session_id: sessionId,
+        attendance_date: selectedDate,
+        recording_type: 'external_stream',
+        recording_url: url,
+        recording_storage_location: 'external_link',
+        storage_bucket: null,
+        storage_path: null,
+        recording_uploaded_by: user?.email || null,
+        recording_visibility: 'enrolled_students',
+        title: null,
+        duration_seconds: null,
+        file_size_bytes: null,
+        mime_type: null,
+        provider_name: null,
+        provider_recording_id: null,
+        is_primary: false,
+      });
+      if (result.data) setRecordingId(result.data.recording_id);
+      toast.success('Recording link saved.');
+    }
+    setSavingRecording(false);
   };
 
   // Save host address immediately when selected (single source of truth)
@@ -1890,6 +1951,41 @@ export function Attendance() {
               <p className="mt-2 text-xs text-gray-500">
                 💡 Tip: Select which topic was covered in today's session for better tracking
               </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Recording Link (optional per date) */}
+      {selectedDate && !sessionNotHeld && (
+        <Card>
+          <CardHeader>
+            <CardTitle>🎥 Recording Link</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-2">
+              <input
+                type="url"
+                value={recordingUrl}
+                onChange={e => setRecordingUrl(e.target.value)}
+                placeholder="Paste session recording link (YouTube, Zoom, Drive, etc.)..."
+                className="flex-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                onKeyDown={e => { if (e.key === 'Enter') saveRecordingUrl(); }}
+              />
+              <Button
+                onClick={saveRecordingUrl}
+                disabled={savingRecording}
+                size="sm"
+                variant={recordingId ? 'outline' : 'primary'}
+              >
+                {savingRecording ? '...' : recordingId ? '💾 Update' : '💾 Save'}
+              </Button>
+            </div>
+            {recordingId && recordingUrl.trim() && (
+              <a href={recordingUrl.trim()} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 mt-2 text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                🔗 Open recording link
+              </a>
             )}
           </CardContent>
         </Card>

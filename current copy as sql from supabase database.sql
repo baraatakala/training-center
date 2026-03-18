@@ -375,6 +375,7 @@ CREATE TABLE public.session (
   default_recording_visibility text CHECK (default_recording_visibility IS NULL OR (default_recording_visibility = ANY (ARRAY['private_staff'::text, 'course_staff'::text, 'enrolled_students'::text, 'organization'::text, 'public_link'::text]))),
   feedback_enabled boolean DEFAULT false,
   feedback_anonymous_allowed boolean DEFAULT true,
+  teacher_can_host boolean DEFAULT true,
   CONSTRAINT session_pkey PRIMARY KEY (session_id),
   CONSTRAINT session_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.course(course_id),
   CONSTRAINT session_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES public.teacher(teacher_id)
