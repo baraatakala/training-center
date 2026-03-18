@@ -324,6 +324,10 @@ export function Sessions() {
     setIsModalOpen(true);
   };
 
+  const openFeedbackAnalytics = useCallback((sessionId: string) => {
+    navigate(`/feedback-analytics?session=${sessionId}`);
+  }, [navigate]);
+
   const handleDeleteSession = async () => {
     if (!deletingSession) return;
     const { error } = await sessionService.delete(deletingSession.session_id);
@@ -741,7 +745,7 @@ export function Sessions() {
                         {/* Action Buttons */}
                         <div className="pt-1 space-y-2">
                           {isTeacher && (
-                            <div className="grid grid-cols-2 xl:grid-cols-3 gap-2">
+                            <div className="grid grid-cols-2 xl:grid-cols-4 gap-2">
                               <Button
                                 size="sm"
                                 variant="success"
@@ -761,6 +765,14 @@ export function Sessions() {
                               <Button
                                 size="sm"
                                 variant="outline"
+                                onClick={() => openFeedbackAnalytics(session.session_id)}
+                                className="w-full min-h-[36px] justify-center"
+                              >
+                                {session.feedback_enabled ? '💜 Feedback' : '🧩 Feedback Setup'}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
                                 onClick={() => setSelectedSessionForRecordings(session)}
                                 className="w-full min-h-[36px] justify-center"
                               >
@@ -769,7 +781,7 @@ export function Sessions() {
                             </div>
                           )}
                           {isAdmin && (
-                            <div className="grid grid-cols-2 xl:grid-cols-4 gap-2">
+                            <div className="grid grid-cols-2 xl:grid-cols-5 gap-2">
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -778,6 +790,14 @@ export function Sessions() {
                                 className="w-full min-h-[36px] justify-center"
                               >
                                 📋 Clone
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openFeedbackAnalytics(session.session_id)}
+                                className="w-full min-h-[36px] justify-center"
+                              >
+                                {session.feedback_enabled ? '💜 Feedback' : '🧩 Feedback Setup'}
                               </Button>
                               <Button
                                 size="sm"
@@ -993,6 +1013,9 @@ export function Sessions() {
                               <Button size="sm" variant="outline" onClick={() => { setSelectedSessionForSchedule(session); setIsScheduleModalOpen(true); }} className="min-h-[36px]">
                                 Host Schedule
                               </Button>
+                              <Button size="sm" variant="outline" onClick={() => openFeedbackAnalytics(session.session_id)} className="min-h-[36px]">
+                                {session.feedback_enabled ? 'Feedback' : 'Feedback Setup'}
+                              </Button>
                               <Button size="sm" variant="outline" onClick={() => setSelectedSessionForRecordings(session)} className="min-h-[36px]">
                                 Recordings
                               </Button>
@@ -1010,6 +1033,9 @@ export function Sessions() {
                                 className="min-h-[36px]"
                               >
                                 Edit
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => openFeedbackAnalytics(session.session_id)} className="min-h-[36px]">
+                                {session.feedback_enabled ? 'Feedback' : 'Feedback Setup'}
                               </Button>
                               {!isTeacher && (
                                 <Button size="sm" variant="outline" onClick={() => setSelectedSessionForRecordings(session)} className="min-h-[36px]">

@@ -48,6 +48,8 @@ export default function SessionFeedbackForm({
   const [loading, setLoading] = useState(true);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
+  const [feedbackEnabled, setFeedbackEnabled] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Load feedback config and questions
   useEffect(() => {
@@ -61,8 +63,19 @@ export default function SessionFeedbackForm({
 
       if (cancelled) return;
 
+      const configError = configResult.error as { message?: string } | null;
+      const questionError = questionsResult.error as { message?: string } | null;
+      const submittedError = hasSubmittedResult.error as { message?: string } | null;
+
+      setFeedbackEnabled(configResult.enabled);
       setAnonymousAllowed(configResult.anonymousAllowed);
       setAlreadySubmitted(hasSubmittedResult.alreadySubmitted);
+      setLoadError(
+        configError?.message ||
+        questionError?.message ||
+        submittedError?.message ||
+        null
+      );
       if (questionsResult.data) {
         setCustomQuestions(questionsResult.data);
       }
@@ -129,6 +142,38 @@ export default function SessionFeedbackForm({
           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-500" />
           <span className="text-sm">Loading feedback form...</span>
         </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="animate-fade-in mt-6 p-4 rounded-2xl border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 text-center">
+        <p className="text-sm font-semibold text-red-700 dark:text-red-300">Unable to load the feedback form right now.</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{loadError}</p>
+        <button
+          type="button"
+          onClick={onSkip}
+          className="mt-3 text-sm text-red-600 dark:text-red-400 hover:underline"
+        >
+          Continue without feedback
+        </button>
+      </div>
+    );
+  }
+
+  if (!feedbackEnabled) {
+    return (
+      <div className="animate-fade-in mt-6 p-4 rounded-2xl border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-center">
+        <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">Feedback is not available for this session right now.</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">The session setting was turned off before this form loaded.</p>
+        <button
+          type="button"
+          onClick={onSkip}
+          className="mt-3 text-sm text-amber-600 dark:text-amber-400 hover:underline"
+        >
+          Continue →
+        </button>
       </div>
     );
   }
