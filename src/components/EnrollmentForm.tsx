@@ -98,7 +98,11 @@ export function EnrollmentForm({ onSubmit, onCancel, initialData = null }: Enrol
       setFilteredSessions(sessions);
 
       // Load student's enrollments
-      enrollmentService.getByStudent(formData.student_id).then(({ data }) => {
+      enrollmentService.getByStudent(formData.student_id).then(({ data, error }) => {
+        if (error) {
+          console.error('Failed to load student enrollments:', error.message);
+          return;
+        }
         if (data) {
           setStudentEnrollments(data);
         }
@@ -112,7 +116,11 @@ export function EnrollmentForm({ onSubmit, onCancel, initialData = null }: Enrol
   // Check session capacity when session is selected
   useEffect(() => {
     if (formData.session_id) {
-      enrollmentService.getSessionCapacity(formData.session_id).then(({ data }) => {
+      enrollmentService.getSessionCapacity(formData.session_id).then(({ data, error }) => {
+        if (error) {
+          console.error('Failed to load session capacity:', error.message);
+          return;
+        }
         setSessionCapacity(data);
       });
     } else {

@@ -365,9 +365,9 @@ function CertificatesList({
                   </div>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2 shrink-0 sm:min-w-[160px]">
-                  <Button variant="outline" size="sm" onClick={() => onPreview(cert)} className="justify-center">👁 Preview</Button>
+                  <Button variant="outline" size="sm" onClick={() => onPreview(cert)} className="justify-center min-h-[36px]">👁 Preview</Button>
                   {isTeacher && cert.status === 'issued' && (
-                    <Button variant="outline" size="sm" onClick={() => onRevoke(cert)} className="text-red-500 justify-center">
+                    <Button variant="outline" size="sm" onClick={() => onRevoke(cert)} className="text-red-500 justify-center min-h-[36px]">
                       🚫 Revoke
                     </Button>
                   )}
@@ -441,8 +441,8 @@ function TemplatesList({
 
               {isTeacher && (
                 <div className="mt-3 flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => onEdit(tmpl)} className="flex-1">✏️ Edit</Button>
-                  <Button variant="outline" size="sm" onClick={() => onDelete(tmpl)} className="text-red-500">🗑</Button>
+                  <Button variant="outline" size="sm" onClick={() => onEdit(tmpl)} className="flex-1 min-h-[36px]">✏️ Edit</Button>
+                  <Button variant="outline" size="sm" onClick={() => onDelete(tmpl)} className="text-red-500 min-h-[36px]" aria-label={`Delete template ${tmpl.name}`}>🗑</Button>
                 </div>
               )}
             </CardContent>
@@ -827,10 +827,14 @@ function IssueModal({
   // Load teachers on mount
   useEffect(() => {
     const load = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('teacher')
         .select('teacher_id, name, specialization')
         .order('name');
+      if (error) {
+        toast.error('Failed to load teachers: ' + error.message);
+        return;
+      }
       if (data) setTeachers(data);
     };
     load();
@@ -847,10 +851,14 @@ function IssueModal({
     if (!teacherId) return;
     const load = async () => {
       // Get courses that have sessions taught by this teacher
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('session')
         .select('course_id, course:course_id(course_id, course_name)')
         .eq('teacher_id', teacherId);
+      if (error) {
+        toast.error('Failed to load courses: ' + error.message);
+        return;
+      }
       if (data) {
         const unique = new Map<string, { course_id: string; course_name: string; teacher_id: string }>();
         for (const s of data) {
@@ -879,12 +887,16 @@ function IssueModal({
     if (!courseId || !teacherId) return;
     const load = async () => {
       // Get sessions for this course+teacher
-      const { data: sessData } = await supabase
+      const { data: sessData, error: sessError } = await supabase
         .from('session')
         .select('session_id, day, time, start_date')
         .eq('course_id', courseId)
         .eq('teacher_id', teacherId)
         .order('start_date', { ascending: false });
+      if (sessError) {
+        toast.error('Failed to load sessions: ' + sessError.message);
+        return;
+      }
       if (sessData) {
         setSessions(sessData.map(s => {
           const parts: string[] = [];
@@ -897,11 +909,15 @@ function IssueModal({
         // Get enrolled students across ALL sessions for this course+teacher
         const sessionIds = sessData.map(s => s.session_id);
         if (sessionIds.length > 0) {
-          const { data: enrollData } = await supabase
+          const { data: enrollData, error: enrollError } = await supabase
             .from('enrollment')
             .select('student:student_id(student_id, name)')
             .in('session_id', sessionIds)
             .eq('status', 'active');
+          if (enrollError) {
+            toast.error('Failed to load students: ' + enrollError.message);
+            return;
+          }
           if (enrollData) {
             const unique = new Map<string, { student_id: string; name: string }>();
             for (const e of enrollData) {
@@ -923,11 +939,15 @@ function IssueModal({
     if (!sessionId || !courseId || !teacherId) return;
     setStudentId('');
     const load = async () => {
-      const { data: enrollData } = await supabase
+      const { data: enrollData, error: enrollError } = await supabase
         .from('enrollment')
         .select('student:student_id(student_id, name)')
         .eq('session_id', sessionId)
         .eq('status', 'active');
+      if (enrollError) {
+        toast.error('Failed to load students: ' + enrollError.message);
+        return;
+      }
       if (enrollData) {
         const unique = new Map<string, { student_id: string; name: string }>();
         for (const e of enrollData) {
@@ -950,11 +970,16 @@ function IssueModal({
       setLoadingStats(true);
       try {
         // Get all session IDs for this course+teacher
-        const { data: sessData } = await supabase
+        const { data: sessData, error: sessErr } = await supabase
           .from('session')
           .select('session_id')
           .eq('course_id', courseId)
           .eq('teacher_id', teacherId);
+        if (sessErr) {
+          toast.error('Failed to load attendance data');
+          setLoadingStats(false);
+          return;
+        }
         const sessionIds = sessData?.map(s => s.session_id) || [];
         if (sessionIds.length === 0) { setLoadingStats(false); return; }
 

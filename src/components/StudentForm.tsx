@@ -45,7 +45,11 @@ export function StudentForm({ student, onSubmit, onCancel }: StudentFormProps) {
   }, [student]);
 
   useEffect(() => {
-    getAllSpecializations().then(({ data }) => {
+    getAllSpecializations().then(({ data, error }) => {
+      if (error) {
+        console.error('Failed to load specializations:', error.message);
+        return;
+      }
       if (data) setSpecializations(data.map((s: { name: string }) => s.name));
     });
   }, []);

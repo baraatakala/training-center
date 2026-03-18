@@ -94,7 +94,11 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
       .not('location', 'is', null)
       .order('created_at', { ascending: false })
       .limit(50)
-      .then(({ data }) => {
+      .then(({ data, error: locErr }) => {
+        if (locErr) {
+          console.error('Failed to load recent locations:', locErr.message);
+          return;
+        }
         if (data) {
           const unique = [...new Set(data.map(d => d.location).filter(Boolean) as string[])];
           setRecentLocations(unique.slice(0, 10));
@@ -237,7 +241,7 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
           <button
             type="button"
             onClick={() => setFormData(prev => ({ ...prev, start_date: suggestedStartDate }))}
-            className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline mt-0.5"
+            className="text-xs text-blue-600 dark:text-blue-400 hover:underline py-1.5 px-2 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20"
           >
             Use today ({suggestedStartDate})
           </button>

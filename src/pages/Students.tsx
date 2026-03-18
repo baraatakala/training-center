@@ -585,6 +585,7 @@ export function Students() {
                 );
                 // Update photoStudent for the modal
                 setPhotoStudent(prev => prev ? { ...prev, photo_url: url || null } : undefined);
+                toast.success(url ? 'Photo updated successfully' : 'Photo removed');
               }}
             />
           </Suspense>

@@ -458,25 +458,25 @@ function RequestCard({
           </div>
 
           {/* Right: Actions */}
-          <div className="flex items-center gap-2 sm:flex-col sm:items-end shrink-0">
-            <Button variant="outline" size="sm" onClick={onViewDetail}>
+          <div className="flex flex-wrap items-center gap-2 sm:flex-col sm:items-end shrink-0">
+            <Button variant="outline" size="sm" onClick={onViewDetail} className="min-h-[36px]">
               👁 Details
             </Button>
             {isTeacher && isPending && (
               <>
-                <Button size="sm" onClick={onQuickApprove} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                <Button size="sm" onClick={onQuickApprove} className="bg-emerald-600 hover:bg-emerald-700 text-white min-h-[36px]">
                   ✅ Approve
                 </Button>
-                <Button size="sm" variant="outline" onClick={onQuickReject} className="text-red-600 border-red-300 hover:bg-red-50 dark:text-red-400 dark:border-red-700 dark:hover:bg-red-900/20">
+                <Button size="sm" variant="outline" onClick={onQuickReject} className="text-red-600 border-red-300 hover:bg-red-50 dark:text-red-400 dark:border-red-700 dark:hover:bg-red-900/20 min-h-[36px]">
                   ❌ Reject
                 </Button>
-                <Button size="sm" variant="outline" onClick={onReview} className="text-gray-600 dark:text-gray-400">
-                  📝 Review with Note
+                <Button size="sm" variant="outline" onClick={onReview} className="text-gray-600 dark:text-gray-400 min-h-[36px]">
+                  📝 Review
                 </Button>
               </>
             )}
             {isAdmin && (
-              <Button size="sm" variant="outline" onClick={onDelete} className="text-red-500 hover:text-red-700">
+              <Button size="sm" variant="outline" onClick={onDelete} className="text-red-500 hover:text-red-700 min-h-[36px]" aria-label="Delete excuse request">
                 🗑
               </Button>
             )}
@@ -612,21 +612,21 @@ function CreateRequestModal({
       setLoadingSessions(true);
       try {
         // Get student by email
-        const { data: student } = await supabase
+        const { data: student, error: studentError } = await supabase
           .from('student')
           .select('student_id')
           .ilike('email', userEmail)
           .single();
 
-        if (!student) {
-          toast.error('Student profile not found');
+        if (studentError || !student) {
+          toast.error(studentError ? `Failed to load profile: ${studentError.message}` : 'Student profile not found');
           onClose();
           return;
         }
         setStudentId(student.student_id);
 
         // Get enrolled sessions
-        const { data: enrollments } = await supabase
+        const { data: enrollments, error: enrollError } = await supabase
           .from('enrollment')
           .select(`
             session_id,
@@ -639,6 +639,12 @@ function CreateRequestModal({
           `)
           .eq('student_id', student.student_id)
           .eq('status', 'active');
+
+        if (enrollError) {
+          toast.error(`Failed to load sessions: ${enrollError.message}`);
+          setSessions([]);
+          return;
+        }
 
         if (enrollments) {
           const sessionList = enrollments
@@ -984,12 +990,22 @@ function CreateRequestModal({
               <input
                 type="file"
                 accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                onChange={e => setDocument(e.target.files?.[0] || null)}
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (file && file.size > 10 * 1024 * 1024) {
+                    toast.error(`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum is 10MB.`);
+                    e.target.value = '';
+                    setDocument(null);
+                    return;
+                  }
+                  setDocument(file || null);
+                }}
                 className="w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 dark:file:bg-blue-900/20 dark:file:text-blue-300 hover:file:bg-blue-100"
               />
               {document && (
                 <p className="text-xs text-gray-400 mt-1">📎 {document.name} ({(document.size / 1024).toFixed(1)} KB)</p>
               )}
+              <p className="text-xs text-gray-400 mt-1">Max 10MB. Accepted: PDF, images, Office docs</p>
             </div>
 
             <div className="flex justify-between pt-2">

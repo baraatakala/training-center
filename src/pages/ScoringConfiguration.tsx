@@ -770,7 +770,10 @@ export function ScoringConfiguration() {
   // Load existing config
   useEffect(() => {
     const load = async () => {
-      const { data } = await getScoringConfig();
+      const { data, error } = await getScoringConfig();
+      if (error) {
+        showError(`Failed to load scoring config: ${error.message}`);
+      }
       if (data) {
         setConfig(data);
       }
@@ -872,7 +875,7 @@ export function ScoringConfiguration() {
     setShowResetConfirm(false);
     const { error } = await resetScoringConfig();
     if (error) {
-      showError('Reset failed');
+      showError(`Reset failed: ${error.message}`);
     } else {
       setConfig(DEFAULT_SCORING_CONFIG);
       setHasChanges(false);
@@ -1029,11 +1032,13 @@ export function ScoringConfiguration() {
               <button
                 key={sec.id}
                 onClick={() => setActiveSection(sec.id)}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all
+                className={`flex items-center gap-1.5 px-3 py-2 min-h-[36px] rounded-lg text-sm font-medium whitespace-nowrap transition-all
                   ${activeSection === sec.id
                     ? 'bg-white dark:bg-gray-700 shadow-sm text-indigo-700 dark:text-indigo-300'
                     : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                   }`}
+                aria-label={sec.label}
+                title={sec.label}
               >
                 <span>{sec.icon}</span>
                 <span className="hidden sm:inline">{sec.label}</span>
@@ -1363,7 +1368,8 @@ export function ScoringConfiguration() {
                             const newBrackets = config.late_brackets.filter((_, i) => i !== idx);
                             updateField('late_brackets', newBrackets);
                           }}
-                          className="text-red-400 hover:text-red-600 p-1"
+                          className="text-red-400 hover:text-red-600 p-1.5 min-h-[36px] min-w-[36px] flex items-center justify-center rounded"
+                          aria-label={`Delete bracket ${bracket.name}`}
                         >
                           ✕
                         </button>

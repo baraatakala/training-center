@@ -53,17 +53,20 @@ const getAnnouncementImageUrl = async (filePath: string): Promise<string | null>
   if (filePath.startsWith('http')) return filePath;
 
   // Try announcement-images bucket first
-  const { data } = await supabase.storage
+  const { data, error: imgErr } = await supabase.storage
     .from('announcement-images')
     .createSignedUrl(filePath, 60 * 60);
   
   if (data?.signedUrl) return data.signedUrl;
 
   // Fallback to student-photos bucket
-  const { data: fallback } = await supabase.storage
+  const { data: fallback, error: fallbackErr } = await supabase.storage
     .from('student-photos')
     .createSignedUrl(filePath, 60 * 60);
   
+  if (!fallback?.signedUrl && (imgErr || fallbackErr)) {
+    console.error('Failed to get image URL:', imgErr?.message || fallbackErr?.message);
+  }
   return fallback?.signedUrl || null;
 };
 
@@ -477,10 +480,11 @@ export function Announcements() {
   }, [loadReactionsForAllAnnouncements]);
 
   const loadCourses = useCallback(async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('course')
       .select('course_id, course_name')
       .order('course_name');
+    if (error) console.error('Failed to load courses:', error.message);
     setCourses(data || []);
   }, []);
 
