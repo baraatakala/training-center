@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -146,6 +146,17 @@ export function Attendance() {
   const [recordingUrl, setRecordingUrl] = useState('');
   const [recordingId, setRecordingId] = useState<string | null>(null);
   const [savingRecording, setSavingRecording] = useState(false);
+
+  // Memoized attendance stats to avoid re-filtering on every render
+  const attendanceStats = useMemo(() => ({
+    total: attendance.filter(a => a.status !== 'not enrolled').length,
+    onTime: attendance.filter(a => a.status === 'on time').length,
+    absent: attendance.filter(a => a.status === 'absent').length,
+    late: attendance.filter(a => a.status === 'late').length,
+    excused: attendance.filter(a => a.status === 'excused').length,
+    pending: attendance.filter(a => a.status === 'pending').length,
+    notEnrolled: attendance.filter(a => a.status === 'not enrolled').length,
+  }), [attendance]);
 
   // GPS Geolocation capture function
   const captureGPSLocation = (): Promise<{
@@ -2050,7 +2061,7 @@ export function Attendance() {
                       onClick={handleSelectAll}
                       className="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white border border-white/30 text-xs sm:text-sm"
                     >
-                      Select All ({attendance.filter(a => a.status !== 'not enrolled').length})
+                      Select All ({attendanceStats.total})
                     </Button>
                   )}
                 </div>
@@ -2067,43 +2078,43 @@ export function Attendance() {
                   <div className="grid grid-cols-3 sm:grid-cols-7 gap-2 sm:gap-3">
                     <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-700 rounded-xl p-3 text-center shadow-sm border border-slate-200 dark:border-slate-600">
                       <div className="text-2xl sm:text-3xl font-bold text-slate-800 dark:text-white">
-                        {attendance.filter(a => a.status !== 'not enrolled').length}
+                        {attendanceStats.total}
                       </div>
                       <div className="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">👥 Total</div>
                     </div>
                     <div className="bg-gradient-to-br from-emerald-50 to-green-100 dark:from-emerald-900/30 dark:to-green-800/30 rounded-xl p-3 text-center shadow-sm border border-emerald-200 dark:border-emerald-700">
                       <div className="text-2xl sm:text-3xl font-bold text-emerald-600 dark:text-emerald-400">
-                        {attendance.filter(a => a.status === 'on time').length}
+                        {attendanceStats.onTime}
                       </div>
                       <div className="text-xs font-medium text-emerald-700 dark:text-emerald-400 mt-1">✅ On Time</div>
                     </div>
                     <div className="bg-gradient-to-br from-red-50 to-rose-100 dark:from-red-900/30 dark:to-rose-800/30 rounded-xl p-3 text-center shadow-sm border border-red-200 dark:border-red-700">
                       <div className="text-2xl sm:text-3xl font-bold text-red-600 dark:text-red-400">
-                        {attendance.filter(a => a.status === 'absent').length}
+                        {attendanceStats.absent}
                       </div>
                       <div className="text-xs font-medium text-red-700 dark:text-red-400 mt-1">❌ Absent</div>
                     </div>
                     <div className="bg-gradient-to-br from-amber-50 to-yellow-100 dark:from-amber-900/30 dark:to-yellow-800/30 rounded-xl p-3 text-center shadow-sm border border-amber-200 dark:border-amber-700">
                       <div className="text-2xl sm:text-3xl font-bold text-amber-600 dark:text-amber-400">
-                        {attendance.filter(a => a.status === 'late').length}
+                        {attendanceStats.late}
                       </div>
                       <div className="text-xs font-medium text-amber-700 dark:text-amber-400 mt-1">⏰ Late</div>
                     </div>
                     <div className="bg-gradient-to-br from-blue-50 to-sky-100 dark:from-blue-900/30 dark:to-sky-800/30 rounded-xl p-3 text-center shadow-sm border border-blue-200 dark:border-blue-700">
                       <div className="text-2xl sm:text-3xl font-bold text-blue-600 dark:text-blue-400">
-                        {attendance.filter(a => a.status === 'excused').length}
+                        {attendanceStats.excused}
                       </div>
                       <div className="text-xs font-medium text-blue-700 dark:text-blue-400 mt-1">📝 Excused</div>
                     </div>
                     <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 rounded-xl p-3 text-center shadow-sm border border-gray-200 dark:border-gray-600">
                       <div className="text-2xl sm:text-3xl font-bold text-gray-400 dark:text-gray-500">
-                        {attendance.filter(a => a.status === 'pending').length}
+                        {attendanceStats.pending}
                       </div>
                       <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1">⬜ Not Marked</div>
                     </div>
                     <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 rounded-xl p-3 text-center shadow-sm border border-gray-200 dark:border-gray-600">
                       <div className="text-2xl sm:text-3xl font-bold text-gray-500 dark:text-gray-400">
-                        {attendance.filter(a => a.status === 'not enrolled').length}
+                        {attendanceStats.notEnrolled}
                       </div>
                       <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1">🚫 Not Enrolled</div>
                     </div>
@@ -2159,8 +2170,8 @@ export function Attendance() {
                     <input
                       type="checkbox"
                       checked={
-                        attendance.filter(a => a.status !== 'not enrolled').length > 0 &&
-                        selectedStudents.size === attendance.filter(a => a.status !== 'not enrolled').length
+                        attendanceStats.total > 0 &&
+                        selectedStudents.size === attendanceStats.total
                       }
                       onChange={handleSelectAll}
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-500 rounded"

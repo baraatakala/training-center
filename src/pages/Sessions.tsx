@@ -685,6 +685,16 @@ export function Sessions() {
                               >
                                 🎥 Recordings
                               </Button>
+                              {session.feedback_enabled && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => navigate(`/feedback-analytics?session=${session.session_id}`)}
+                                  className="flex-1 min-w-0"
+                                >
+                                  💬 Feedback
+                                </Button>
+                              )}
                             </>
                           )}
                           {isAdmin && (
@@ -711,6 +721,15 @@ export function Sessions() {
                                   onClick={() => setSelectedSessionForRecordings(session)}
                                 >
                                   🎥 Recordings
+                                </Button>
+                              )}
+                              {session.feedback_enabled && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => navigate(`/feedback-analytics?session=${session.session_id}`)}
+                                >
+                                  💬 Feedback
                                 </Button>
                               )}
                               <button
@@ -892,6 +911,11 @@ export function Sessions() {
                               <Button size="sm" variant="outline" onClick={() => setSelectedSessionForRecordings(session)}>
                                 Recordings
                               </Button>
+                              {session.feedback_enabled && (
+                                <Button size="sm" variant="outline" onClick={() => navigate(`/feedback-analytics?session=${session.session_id}`)}>
+                                  Feedback
+                                </Button>
+                              )}
                             </>
                           )}
                           {isAdmin && (
@@ -909,6 +933,11 @@ export function Sessions() {
                               {!isTeacher && (
                                 <Button size="sm" variant="outline" onClick={() => setSelectedSessionForRecordings(session)}>
                                   Recordings
+                                </Button>
+                              )}
+                              {session.feedback_enabled && (
+                                <Button size="sm" variant="outline" onClick={() => navigate(`/feedback-analytics?session=${session.session_id}`)}>
+                                  Feedback
                                 </Button>
                               )}
                               <button

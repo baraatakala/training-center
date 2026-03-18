@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Select } from '../components/ui/Select';
 import { Button } from '../components/ui/Button';
@@ -113,6 +114,8 @@ function exportFeedbackCSV(
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════
 export function FeedbackAnalytics() {
+  const [searchParams] = useSearchParams();
+  const sessionParam = searchParams.get('session');
   const [sessions, setSessions] = useState<SessionOption[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
   const [feedbacks, setFeedbacks] = useState<SessionFeedback[]>([]);
@@ -176,7 +179,11 @@ export function FeedbackAnalytics() {
           return { session_id: s.session_id as string, course_name: courseName ?? 'Unknown Course' };
         });
         setSessions(mapped);
-        if (mapped.length > 0) setSelectedSessionId(mapped[0].session_id);
+        if (sessionParam && mapped.some(s => s.session_id === sessionParam)) {
+          setSelectedSessionId(sessionParam);
+        } else if (mapped.length > 0) {
+          setSelectedSessionId(mapped[0].session_id);
+        }
       }
     }
     loadSessions();
