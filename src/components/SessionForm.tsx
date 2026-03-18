@@ -195,6 +195,15 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
       setError('Please select at least one day.');
       return;
     }
+    const timeParts = (formData.time || '').split('-').map(part => part.trim()).filter(Boolean);
+    if (timeParts.length === 1) {
+      setError('Please select both a start and end time, or leave the time range empty.');
+      return;
+    }
+    if (timeParts.length === 2 && timeParts[1] <= timeParts[0]) {
+      setError('End time must be later than start time.');
+      return;
+    }
     if (formData.learning_method === 'face_to_face' && formData.virtual_meeting_link) {
       setError('Face-to-face sessions cannot have a virtual meeting link.');
       return;

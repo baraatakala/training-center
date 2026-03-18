@@ -83,6 +83,22 @@ function formatLocalDate(value: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function buildConflictMessage(conflicts: Awaited<ReturnType<typeof sessionService.checkScheduleConflicts>>['data']) {
+  if (!conflicts || conflicts.length === 0) return '';
+
+  const preview = conflicts.slice(0, 3).map((conflict) => {
+    const timePart = conflict.existingTime ? ` at ${conflict.existingTime}` : '';
+    return `${conflict.conflictDate}: ${conflict.courseName}${timePart}`;
+  });
+  const remaining = conflicts.length - preview.length;
+
+  return [
+    'This teacher already has another session on overlapping teaching dates/times.',
+    ...preview,
+    remaining > 0 ? `+ ${remaining} more conflict${remaining === 1 ? '' : 's'}` : '',
+  ].filter(Boolean).join('\n');
+}
+
 export function Sessions() {
   const navigate = useNavigate();
   const [sessions, setSessions] = useState<SessionWithDetails[]>([]);
@@ -163,6 +179,23 @@ export function Sessions() {
     setLoading(false);
   }, []);
 
+  const ensureNoScheduleConflicts = useCallback(async (input: {
+    teacherId: string;
+    startDate: string;
+    endDate: string;
+    day: string | null;
+    time?: string | null;
+    excludeSessionId?: string;
+  }) => {
+    const { data, error } = await sessionService.checkScheduleConflicts(input);
+    if (error) {
+      throw new Error(error.message || 'Unable to validate schedule conflicts right now.');
+    }
+    if (data.length > 0) {
+      throw new Error(buildConflictMessage(data));
+    }
+  }, []);
+
   useRefreshOnFocus(loadSessions);
 
   useEffect(() => {
@@ -241,6 +274,14 @@ export function Sessions() {
   // Removed unused toggleSort function - sorting is handled by dropdown and toggle button
 
   const handleAddSession = async (data: CreateSession) => {
+    await ensureNoScheduleConflicts({
+      teacherId: data.teacher_id,
+      startDate: data.start_date,
+      endDate: data.end_date,
+      day: data.day,
+      time: data.time,
+    });
+
     const { error } = await sessionService.create(data);
 
     if (error) {
@@ -255,6 +296,15 @@ export function Sessions() {
 
   const handleUpdateSession = async (data: CreateSession) => {
     if (!editingSession) return;
+
+    await ensureNoScheduleConflicts({
+      teacherId: data.teacher_id,
+      startDate: data.start_date,
+      endDate: data.end_date,
+      day: data.day,
+      time: data.time,
+      excludeSessionId: editingSession.session_id,
+    });
 
     const { error } = await sessionService.update(editingSession.session_id, data);
 
@@ -326,6 +376,14 @@ export function Sessions() {
     }
     setCloning(true);
     try {
+      await ensureNoScheduleConflicts({
+        teacherId: cloneSource.teacher_id,
+        startDate: cloneForm.start_date,
+        endDate: cloneForm.end_date,
+        day: selectedCloneDays.join(', ') || null,
+        time: cloneForm.time || null,
+      });
+
       const { error, copied } = await sessionService.cloneSession(
         cloneSource.session_id,
         {
@@ -654,7 +712,7 @@ export function Sessions() {
                             <Badge variant="success">🎥 {formatRecordingVisibility(session.default_recording_visibility) || 'Recording'}</Badge>
                           )}
                           {session.feedback_enabled && (
-                            <Badge variant="info">💜 Feedback</Badge>
+                            <Badge variant="info">💜 {!isTeacher && !isAdmin ? 'After Check-In' : 'Feedback'}</Badge>
                           )}
                           {session.grace_period_minutes != null && session.grace_period_minutes > 0 && (
                             <Badge variant="default">⏱ {session.grace_period_minutes}m grace</Badge>
@@ -749,7 +807,8 @@ export function Sessions() {
                             </div>
                           )}
                           {!isTeacher && !isAdmin && (
-                            <div className="flex flex-wrap items-center gap-2">
+                            <div className="space-y-2">
+                              <div className="flex flex-wrap items-center gap-2">
                               {session.requires_recording && (
                                 <Button
                                   size="sm"
@@ -761,6 +820,12 @@ export function Sessions() {
                                 </Button>
                               )}
                               <span className="text-xs text-gray-400 px-2 py-1">View only</span>
+                              </div>
+                              <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/70 px-3 py-2 text-xs text-gray-600 dark:text-gray-300">
+                                <p>Check-in opens from the teacher&apos;s QR or face link on the session date.</p>
+                                {session.feedback_enabled && <p className="mt-1">Feedback appears after successful check-in.</p>}
+                                {session.requires_recording && <p className="mt-1">Replay links appear here after staff publish them for a date.</p>}
+                              </div>
                             </div>
                           )}
                         </div>
@@ -962,14 +1027,19 @@ export function Sessions() {
                             </>
                           )}
                           {!isTeacher && !isAdmin && (
-                            <>
+                            <div className="flex flex-col items-end gap-2">
+                              <div className="flex flex-wrap gap-2 justify-end">
                               {session.requires_recording && (
                                 <Button size="sm" variant="outline" onClick={() => setSelectedSessionForRecordings(session)} className="min-h-[36px]">
                                   View Recordings
                                 </Button>
                               )}
                               <span className="text-xs text-gray-400 px-2 self-center">View only</span>
-                            </>
+                              </div>
+                              <div className="max-w-[260px] text-right text-xs text-gray-500 dark:text-gray-400">
+                                Check-in comes from the teacher&apos;s QR or face link. Feedback shows only after a successful check-in.
+                              </div>
+                            </div>
                           )}
                         </div>
                       </TableCell>

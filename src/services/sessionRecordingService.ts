@@ -6,6 +6,20 @@ import {
 } from '../types/database.types';
 import { logDelete, logInsert, logUpdate } from './auditService';
 
+function normalizeRecordingError(error: { message?: string; details?: string; hint?: string; code?: string } | null) {
+  if (!error) return null;
+
+  const raw = `${error.message || ''} ${error.details || ''} ${error.hint || ''} ${error.code || ''}`.toLowerCase();
+  if (raw.includes('row-level security') || raw.includes('forbidden') || raw.includes('42501')) {
+    return {
+      ...error,
+      message: 'Recording access was rejected by the database. Run the latest session_recording RLS migration so admins, teachers, and enrolled students have the correct permissions.',
+    };
+  }
+
+  return error;
+}
+
 export const sessionRecordingService = {
   async getBySession(sessionId: string, attendanceDate?: string) {
     let query = supabase
@@ -20,7 +34,8 @@ export const sessionRecordingService = {
       query = query.eq('attendance_date', attendanceDate);
     }
 
-    return await query;
+    const result = await query;
+    return { ...result, error: normalizeRecordingError(result.error) };
   },
 
   async create(recording: CreateSessionRecording) {
@@ -34,7 +49,7 @@ export const sessionRecordingService = {
       try { await logInsert('session_recording', result.data.recording_id, result.data as Record<string, unknown>); } catch { /* audit non-critical */ }
     }
 
-    return result;
+    return { ...result, error: normalizeRecordingError(result.error) };
   },
 
   async update(recordingId: string, updates: UpdateSessionRecording) {
@@ -55,7 +70,7 @@ export const sessionRecordingService = {
       try { await logUpdate('session_recording', recordingId, oldData as Record<string, unknown>, result.data as Record<string, unknown>); } catch { /* audit non-critical */ }
     }
 
-    return result;
+    return { ...result, error: normalizeRecordingError(result.error) };
   },
 
   async softDelete(recordingId: string) {
@@ -76,6 +91,6 @@ export const sessionRecordingService = {
       try { await logDelete('session_recording', recordingId, oldData as Record<string, unknown>, 'Soft deleted recording'); } catch { /* audit non-critical */ }
     }
 
-    return result;
+    return { ...result, error: normalizeRecordingError(result.error) };
   },
 };

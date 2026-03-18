@@ -949,6 +949,11 @@ export function PhotoCheckIn() {
               <p className="text-gray-600 dark:text-gray-300 mb-4">
                 Your attendance has been recorded for {checkInData?.session?.course?.course_name}
               </p>
+              <div className="mb-4 rounded-lg border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 px-4 py-3 text-left">
+                <p className="text-sm font-medium text-blue-800 dark:text-blue-300">What happens next</p>
+                <p className="mt-1 text-xs text-blue-700 dark:text-blue-400">Feedback appears below only when this session has post check-in feedback enabled.</p>
+                <p className="mt-1 text-xs text-blue-700 dark:text-blue-400">Replay links, when staff publish them for this attendance date, appear in Sessions under Recordings.</p>
+              </div>
               {!feedbackEnabled && (
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   Redirecting to home page...

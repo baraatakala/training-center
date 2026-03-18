@@ -3,6 +3,94 @@ import type { CreateSession, UpdateSession } from '../types/database.types';
 import { Tables } from '../types/database.types';
 import { logDelete, logUpdate, logInsert } from './auditService';
 
+export interface SessionScheduleConflict {
+  sessionId: string;
+  courseName: string;
+  conflictDate: string;
+  requestedTime: string | null;
+  existingTime: string | null;
+  reason: string;
+}
+
+function parseLocalDate(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
+function parseDayString(dayString?: string | null) {
+  if (!dayString) return new Set<number>();
+
+  const dayMap: Record<string, number> = {
+    sunday: 0,
+    monday: 1,
+    tuesday: 2,
+    wednesday: 3,
+    thursday: 4,
+    friday: 5,
+    saturday: 6,
+  };
+
+  return new Set(
+    dayString
+      .split(',')
+      .map((value) => value.trim().toLowerCase())
+      .map((value) => dayMap[value])
+      .filter((value): value is number => typeof value === 'number')
+  );
+}
+
+function enumerateSessionDates(startDate: string, endDate: string, dayString?: string | null) {
+  const start = parseLocalDate(startDate);
+  const end = parseLocalDate(endDate);
+  if (!start || !end || end < start) return [] as string[];
+
+  const allowedDays = parseDayString(dayString);
+  const dates: string[] = [];
+
+  for (let date = new Date(start); date <= end; date = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1)) {
+    if (allowedDays.size > 0 && !allowedDays.has(date.getDay())) {
+      continue;
+    }
+
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    dates.push(`${year}-${month}-${day}`);
+  }
+
+  return dates;
+}
+
+function parseTimeValue(value: string) {
+  const [hours, minutes] = value.split(':').map(Number);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
+  return (hours * 60) + minutes;
+}
+
+function parseTimeRange(value?: string | null) {
+  if (!value) return null;
+
+  const [rawStart, rawEnd] = value.split('-').map((part) => part.trim()).filter(Boolean);
+  const start = rawStart ? parseTimeValue(rawStart) : null;
+  const end = rawEnd ? parseTimeValue(rawEnd) : null;
+
+  if (start == null) return null;
+  if (end == null || end <= start) {
+    return { start, end: start + 60 };
+  }
+
+  return { start, end };
+}
+
+function rangesOverlap(
+  left: ReturnType<typeof parseTimeRange>,
+  right: ReturnType<typeof parseTimeRange>
+) {
+  if (!left || !right) return true;
+  return left.start < right.end && right.start < left.end;
+}
+
 function normalizeSessionMutationError(error: { message?: string; details?: string; hint?: string } | null) {
   if (!error) return null;
 
@@ -213,6 +301,71 @@ export const sessionService = {
     }
 
     return await query;
+  },
+
+  async checkScheduleConflicts(input: {
+    teacherId: string;
+    startDate: string;
+    endDate: string;
+    day: string | null;
+    time?: string | null;
+    excludeSessionId?: string;
+  }) {
+    const requestedDates = enumerateSessionDates(input.startDate, input.endDate, input.day);
+    if (requestedDates.length === 0) {
+      return { data: [] as SessionScheduleConflict[], error: null };
+    }
+
+    let query = supabase
+      .from(Tables.SESSION)
+      .select('session_id, day, start_date, end_date, time, course:course_id(course_name)')
+      .eq('teacher_id', input.teacherId)
+      .lte('start_date', input.endDate)
+      .gte('end_date', input.startDate);
+
+    if (input.excludeSessionId) {
+      query = query.neq('session_id', input.excludeSessionId);
+    }
+
+    const { data, error } = await query;
+    if (error || !data) {
+      return { data: [] as SessionScheduleConflict[], error };
+    }
+
+    const requestedDateSet = new Set(requestedDates);
+    const requestedRange = parseTimeRange(input.time ?? null);
+    const conflicts: SessionScheduleConflict[] = [];
+
+    for (const session of data as Array<{
+      session_id: string;
+      day: string | null;
+      start_date: string;
+      end_date: string;
+      time: string | null;
+      course?: { course_name?: string } | { course_name?: string }[] | null;
+    }>) {
+      const existingDates = enumerateSessionDates(session.start_date, session.end_date, session.day);
+      const existingRange = parseTimeRange(session.time);
+      const course = Array.isArray(session.course) ? session.course[0] : session.course;
+
+      for (const conflictDate of existingDates) {
+        if (!requestedDateSet.has(conflictDate)) continue;
+        if (!rangesOverlap(requestedRange, existingRange)) continue;
+
+        conflicts.push({
+          sessionId: session.session_id,
+          courseName: course?.course_name || 'another session',
+          conflictDate,
+          requestedTime: input.time ?? null,
+          existingTime: session.time,
+          reason: requestedRange && existingRange
+            ? 'The teacher is already assigned during an overlapping time range.'
+            : 'The teacher is already assigned on the same teaching date, and at least one session has no complete time range.',
+        });
+      }
+    }
+
+    return { data: conflicts, error: null };
   },
 
   // Clone a session (same course/teacher, new dates/day/time) and optionally copy enrollments
