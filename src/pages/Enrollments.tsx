@@ -432,6 +432,7 @@ export function Enrollments() {
                                 if (error) {
                                   toast.error('Failed to update host status: ' + error.message);
                                 } else {
+                                  toast.success(`Host status ${newValue ? 'enabled' : 'disabled'}`);
                                   loadEnrollments();
                                 }
                               }}
@@ -460,7 +461,7 @@ export function Enrollments() {
                                       {isAdmin && (
                                         <>
                                           <button
-                                            className="text-sm border dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
+                                            className="text-sm border dark:border-gray-600 rounded px-2.5 py-1.5 min-h-[36px] bg-white dark:bg-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
                                             onClick={() => {
                                               setEditingEnrollment(enrollment);
                                               setIsModalOpen(true);
@@ -470,7 +471,7 @@ export function Enrollments() {
                                           </button>
                                           <select
                                             aria-label={`Change status for ${enrollment.student?.name || 'student'}`}
-                                            className="text-sm border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded px-2 py-1"
+                                            className="text-sm border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded px-2.5 py-1.5 min-h-[36px]"
                                             value={enrollment.status}
                                             onChange={(e) => handleUpdateStatus(enrollment.enrollment_id, e.target.value)}
                                           >
@@ -480,7 +481,7 @@ export function Enrollments() {
                                         <option value="dropped">Dropped</option>
                                       </select>
                                           <button
-                                            className="text-sm border border-red-300 dark:border-red-700 rounded px-2 py-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30"
+                                            className="text-sm border border-red-300 dark:border-red-700 rounded px-2.5 py-1.5 min-h-[36px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30"
                                             onClick={() => handleDelete(enrollment.enrollment_id)}
                                             aria-label={`Delete enrollment for ${enrollment.student?.name || 'student'}`}
                                           >

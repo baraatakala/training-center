@@ -387,7 +387,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
           <span className="shrink-0 text-[10px] text-gray-400 dark:text-gray-500 tabular-nums">
             {sub.start_page}–{sub.end_page} <span className="text-gray-300 dark:text-gray-600">·</span> {pages}p
           </span>
-          <div className="flex gap-0.5 opacity-0 group-hover/sub:opacity-100 transition-opacity shrink-0">
+          <div className="flex gap-0.5 sm:opacity-0 sm:group-hover/sub:opacity-100 transition-opacity shrink-0">
             <button
               onClick={() => setEditingId(sub.reference_id)}
               className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"

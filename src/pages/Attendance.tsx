@@ -172,6 +172,7 @@ export function Attendance() {
         },
         (error) => {
           console.error('Error getting location:', error.message);
+          toast.error('Failed to capture GPS location');
           resolve(null);
         },
         {
@@ -346,10 +347,12 @@ export function Attendance() {
       const sessionData = sessionResult.data;
       if (sessionResult.error) {
         console.error('Error loading session teacher:', sessionResult.error);
+        toast.error('Failed to load session teacher data');
       }
 
       if (enrollmentResult.error) {
         console.error('Error loading enrolled hosts:', enrollmentResult.error);
+        toast.error('Failed to load host addresses');
         setHostAddresses([]);
         return;
       }
@@ -407,6 +410,7 @@ export function Attendance() {
     setHostAddresses([...teacherHost, ...studentHosts]);
     } catch (err) {
       console.error('Unexpected error loading host addresses:', err);
+      toast.error('Unexpected error loading host addresses');
       setHostAddresses([]);
     }
   }, [sessionId]);
@@ -921,12 +925,13 @@ export function Attendance() {
     if (recordingId) {
       if (!url) {
         // Delete if emptied
-        await sessionRecordingService.softDelete(recordingId);
-        setRecordingId(null);
-        toast.success('Recording link removed.');
+        const { error } = await sessionRecordingService.softDelete(recordingId);
+        if (error) { toast.error('Failed to remove recording link.'); }
+        else { setRecordingId(null); toast.success('Recording link removed.'); }
       } else {
-        await sessionRecordingService.update(recordingId, { recording_url: url });
-        toast.success('Recording link updated.');
+        const { error } = await sessionRecordingService.update(recordingId, { recording_url: url });
+        if (error) toast.error('Failed to update recording link.');
+        else toast.success('Recording link updated.');
       }
     } else if (url) {
       const result = await sessionRecordingService.create({
@@ -937,7 +942,7 @@ export function Attendance() {
         recording_storage_location: 'external_link',
         storage_bucket: null,
         storage_path: null,
-        recording_uploaded_by: user?.email || null,
+        recording_uploaded_by: user?.id || null,
         recording_visibility: 'enrolled_students',
         title: null,
         duration_seconds: null,
@@ -947,8 +952,12 @@ export function Attendance() {
         provider_recording_id: null,
         is_primary: false,
       });
-      if (result.data) setRecordingId(result.data.recording_id);
-      toast.success('Recording link saved.');
+      if (result.error) {
+        toast.error('Failed to save recording link.');
+      } else {
+        if (result.data) setRecordingId(result.data.recording_id);
+        toast.success('Recording link saved.');
+      }
     }
     setSavingRecording(false);
   };

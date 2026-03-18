@@ -61,6 +61,11 @@ export function SessionRecordingsManager({ sessionId, courseName }: Props) {
     if (!url) { toast.error('Recording link is required.'); return; }
     setSaving(true);
     const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.id) {
+      toast.error('You must be logged in to manage recordings');
+      setSaving(false);
+      return;
+    }
     const provider = detectProvider(url);
 
     if (editingId) {
@@ -81,7 +86,7 @@ export function SessionRecordingsManager({ sessionId, courseName }: Props) {
         recording_storage_location: 'external_link',
         storage_bucket: null,
         storage_path: null,
-        recording_uploaded_by: user?.email || null,
+        recording_uploaded_by: user?.id || null,
         recording_visibility: 'enrolled_students',
         title: formTitle.trim() || null,
         duration_seconds: null,

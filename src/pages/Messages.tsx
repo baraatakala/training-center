@@ -726,7 +726,7 @@ export function Messages() {
                     </p>
                     
                     {/* Quick actions */}
-                    <div className="flex items-center gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-2 mt-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={(e) => handleToggleStar(message.message_id, e)}
                         className={`p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${

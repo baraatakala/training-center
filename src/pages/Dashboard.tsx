@@ -182,6 +182,10 @@ export function Dashboard() {
         return;
       }
 
+      if (coursesResult.error) {
+        console.error('Failed to load courses:', coursesResult.error);
+      }
+
       const attendanceRecords = attendanceResult.data;
       const coursesData = coursesResult.data;
 
