@@ -42,6 +42,7 @@ export function Teachers() {
     const { data, error: fetchError } = await teacherService.getAll();
     if (fetchError) {
       setError('Failed to load teachers. Please try again.');
+      toast.error('Failed to load teachers');
       console.error('Load teachers error:', fetchError);
       setLoading(false);
       return;

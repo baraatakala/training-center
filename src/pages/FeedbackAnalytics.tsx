@@ -2,6 +2,9 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Select } from '../components/ui/Select';
 import { Button } from '../components/ui/Button';
+import { toast } from '../components/ui/toastUtils';
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
+import { Breadcrumb } from '../components/ui/Breadcrumb';
 import { feedbackService, type SessionFeedback, type FeedbackStats, type FeedbackQuestion, type FeedbackTemplate, type FeedbackTemplateInput } from '../services/feedbackService';
 import {
   ResponsiveContainer,
@@ -203,6 +206,15 @@ export function FeedbackAnalytics() {
     return () => { cancelled = true; };
   }, [selectedSessionId]);
 
+  // Refresh feedback data when tab becomes visible
+  const refreshFeedbackData = useCallback(() => {
+    if (selectedSessionId) {
+      feedbackService.getBySession(selectedSessionId).then(r => { if (r.data) setFeedbacks(r.data); });
+      feedbackService.getStats(selectedSessionId).then(r => { if (r.data) setStats(r.data); });
+    }
+  }, [selectedSessionId]);
+  useRefreshOnFocus(refreshFeedbackData);
+
   // ─── Derived data ──────────────────────────────────────────
   const ratingDistributionData = useMemo(() => {
     if (!stats) return [];
@@ -310,7 +322,7 @@ export function FeedbackAnalytics() {
       ? await feedbackService.updateQuestion(editingQuestionId, payload)
       : await feedbackService.createQuestion({ session_id: selectedSessionId, sort_order: questions.length, ...payload });
 
-    if (result.error) { setQuestionError(result.error.message || 'Unable to save.'); setSavingQuestion(false); return; }
+    if (result.error) { setQuestionError(result.error.message || 'Unable to save.'); toast.error(result.error.message || 'Unable to save question'); setSavingQuestion(false); return; }
     const refreshed = await feedbackService.getQuestions(selectedSessionId);
     setQuestions(refreshed.data || []);
     resetQuestionDraft();
@@ -402,6 +414,11 @@ export function FeedbackAnalytics() {
   // ═══════════════════════════════════════════════════════════
   return (
     <div className="space-y-5">
+      {/* Breadcrumb Navigation */}
+      <Breadcrumb items={[
+        { label: 'Dashboard', path: '/' },
+        { label: 'Feedback Analytics' },
+      ]} />
       {/* ─── Header ─────────────────────────────────────────── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">

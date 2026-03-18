@@ -16,6 +16,7 @@ import {
   type CreateExcuseRequest,
 } from '../services/excuseRequestService';
 import { supabase } from '../lib/supabase';
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
 
 // =====================================================
 // CONSTANTS
@@ -110,6 +111,8 @@ export function ExcuseRequests() {
   useEffect(() => {
     if (!roleLoading) fetchRequests();
   }, [fetchRequests, roleLoading]);
+
+  useRefreshOnFocus(fetchRequests);
 
   const refresh = () => setRefreshKey(k => k + 1);
 

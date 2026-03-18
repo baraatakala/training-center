@@ -122,6 +122,7 @@ export function Sessions() {
 
     if (fetchError) {
       setError('Failed to load sessions. Please try again.');
+      toast.error('Failed to load sessions');
       console.error('Load sessions error:', fetchError);
       setLoading(false);
       return;

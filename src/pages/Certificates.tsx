@@ -17,6 +17,7 @@ import {
 } from '../services/certificateService';
 import { supabase } from '../lib/supabase';
 import { attendanceService } from '../services/attendanceService';
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
 
 // =====================================================
 // CONSTANTS
@@ -92,14 +93,23 @@ export function Certificates() {
 
       if (certRes.data) setCertificates(certRes.data);
       if (tmplRes.data) setTemplates(tmplRes.data);
-      if (certRes.error) console.error('Certs error:', certRes.error);
-      if (tmplRes.error) console.error('Templates error:', tmplRes.error);
+      if (certRes.error) {
+        console.error('Certs error:', certRes.error);
+        toast.error('Failed to load certificates');
+      }
+      if (tmplRes.error) {
+        console.error('Templates error:', tmplRes.error);
+        toast.error('Failed to load certificate templates');
+      }
     } catch (err) {
       console.error(err);
+      toast.error('Unexpected error loading certificate data');
     } finally {
       setLoading(false);
     }
   }, []);
+
+  useRefreshOnFocus(fetchData);
 
   useEffect(() => {
     if (!roleLoading) fetchData();

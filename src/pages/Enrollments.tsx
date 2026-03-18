@@ -56,6 +56,7 @@ export function Enrollments() {
     const { data, error: fetchError } = await enrollmentService.getAll();
     if (fetchError) {
       setError('Failed to load enrollments. Please try again.');
+      toast.error('Failed to load enrollments');
       console.error('Load enrollments error:', fetchError);
     } else if (data) {
       setEnrollments(data as EnrollmentWithDetails[]);

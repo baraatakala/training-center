@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { useDebounce } from '../hooks/useDebounce';
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
 import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
@@ -182,6 +183,7 @@ export function Messages() {
       }
     } catch (err) {
       console.error('Error loading messages:', err);
+      toast.error('Failed to load messages');
       setError('Failed to load messages');
     } finally {
       setLoading(false);
@@ -257,6 +259,7 @@ export function Messages() {
       await loadRecipients();
     } catch (err) {
       console.error('Error:', err);
+      toast.error('Failed to load user data');
       setError('Failed to load data');
     }
   }, [loadRecipients]);
@@ -272,6 +275,9 @@ export function Messages() {
       loadInboxStats();
     }
   }, [currentUserId, userType, loadMessages, loadStarredCount, loadInboxStats]);
+
+  // Refresh messages when tab becomes visible
+  useRefreshOnFocus(loadMessages);
 
   // Cooldown timer for student rate limiting
   useEffect(() => {
@@ -407,6 +413,7 @@ export function Messages() {
     
     if (error) {
       console.error('Failed to toggle star:', error);
+      toast.error('Failed to toggle star');
       return;
     }
     
@@ -437,6 +444,7 @@ export function Messages() {
       const { error } = await messageService.removeReaction(messageId, userType, currentUserId);
       if (error) {
         console.error('Failed to remove reaction:', error);
+        toast.error('Failed to update reaction');
         return;
       }
       
@@ -452,6 +460,7 @@ export function Messages() {
       const { error } = await messageService.addReaction(messageId, userType, currentUserId, emoji);
       if (error) {
         console.error('Failed to add reaction:', error);
+        toast.error('Failed to update reaction');
         return;
       }
       

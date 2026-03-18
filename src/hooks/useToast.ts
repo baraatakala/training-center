@@ -18,8 +18,8 @@ export function useToast() {
   const addToast = useCallback((message: string, type: ToastType = 'info', duration?: number) => {
     const id = `toast-${Date.now()}-${Math.random()}`;
     setToasts((prev) => [...prev, { id, message, type, duration }]);
-    // Auto-dismiss: errors 6s, warnings 5s, success/info 4s
-    const autoDismiss = duration ?? (type === 'error' ? 6000 : type === 'warning' ? 5000 : 4000);
+    // Auto-dismiss: errors 12s (longer to read), warnings 7s, success/info 4s
+    const autoDismiss = duration ?? (type === 'error' ? 12000 : type === 'warning' ? 7000 : 4000);
     if (autoDismiss > 0) {
       setTimeout(() => removeToast(id), autoDismiss);
     }

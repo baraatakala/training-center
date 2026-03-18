@@ -15,6 +15,7 @@ import { PhotoCheckInModal } from '../components/PhotoCheckInModal';
 import { logDelete, logInsert, logUpdate } from '../services/auditService';
 import { toast } from '../components/ui/toastUtils';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { Breadcrumb } from '../components/ui/Breadcrumb';
 import { excuseRequestService, EXCUSE_REASONS as SERVICE_EXCUSE_REASONS, type ExcuseRequest } from '../services/excuseRequestService';
 import { sessionRecordingService } from '../services/sessionRecordingService';
 
@@ -448,6 +449,7 @@ export function Attendance() {
 
       if (attendanceResult.error) {
         console.error('Error loading attendance:', attendanceResult.error);
+        toast.error('Failed to load attendance records');
         return;
       }
 
@@ -548,6 +550,7 @@ export function Attendance() {
 
       if (enrollmentsError) {
         console.error('Error loading enrollments:', enrollmentsError);
+        toast.error('Failed to load enrolled students');
         setAttendance([]);
         return;
       }
@@ -726,6 +729,7 @@ export function Attendance() {
     }
     } catch (err) {
       console.error('Unexpected error loading attendance:', err);
+      toast.error('Failed to load attendance data');
       setAttendance([]);
     }
   }, [sessionId, selectedDate]);
@@ -1631,6 +1635,12 @@ export function Attendance() {
 
   return (
     <div className="space-y-6 p-4 md:p-6">
+      {/* Breadcrumb Navigation */}
+      <Breadcrumb items={[
+        { label: 'Sessions', path: '/sessions' },
+        { label: courseName },
+        { label: 'Attendance' },
+      ]} />
       {/* Page Header */}
       <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 rounded-2xl p-6 shadow-lg">
         <div className="flex items-center justify-between flex-wrap gap-3">

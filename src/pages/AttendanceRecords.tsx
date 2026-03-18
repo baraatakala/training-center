@@ -10,6 +10,9 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { loadConfigSync, calcLateScore as calcLateScoreFromConfig, calcCoverageFactor as calcCoverageFromConfig } from '../services/scoringConfigService';
 import { parseCoordinates, calculateDistance, formatDistance } from '../services/geocodingService';
 import { loadAttendanceRecordsPageData } from '../services/attendanceRecordsPageService';
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
+import { ATTENDANCE_STATUS } from '../constants/attendance';
+import { Breadcrumb } from '../components/ui/Breadcrumb';
 
 const AttendanceCharts = lazy(() => import('../components/AttendanceCharts'));
 const AdvancedExportBuilder = lazy(() => import('../components/AdvancedExportBuilder').then((module) => ({ default: module.AdvancedExportBuilder })));
@@ -706,13 +709,16 @@ const AttendanceRecords = () => {
     setLoading(false);
   };
 
+  const refreshRecords = useCallback(() => { loadRecords(); }, [filters.student_ids]);
+  useRefreshOnFocus(refreshRecords);
+
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'on time': return 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300';
-      case 'absent': return 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300';
-      case 'late': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300';
-      case 'excused': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300';
-      case 'not enrolled': return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400';
+      case ATTENDANCE_STATUS.ON_TIME: return 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300';
+      case ATTENDANCE_STATUS.ABSENT: return 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300';
+      case ATTENDANCE_STATUS.LATE: return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300';
+      case ATTENDANCE_STATUS.EXCUSED: return 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300';
+      case ATTENDANCE_STATUS.NOT_ENROLLED: return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400';
       default: return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
     }
   };
@@ -720,20 +726,20 @@ const AttendanceRecords = () => {
   const getStatusLabel = (status: string) => {
     if (arabicMode) {
       switch (status) {
-        case 'on time': return 'في الوقت';
-        case 'absent': return 'غائب';
-        case 'late': return 'متأخر';
-        case 'excused': return 'معذور';
-        case 'not enrolled': return 'غير مسجل';
+        case ATTENDANCE_STATUS.ON_TIME: return 'في الوقت';
+        case ATTENDANCE_STATUS.ABSENT: return 'غائب';
+        case ATTENDANCE_STATUS.LATE: return 'متأخر';
+        case ATTENDANCE_STATUS.EXCUSED: return 'معذور';
+        case ATTENDANCE_STATUS.NOT_ENROLLED: return 'غير مسجل';
         default: return status;
       }
     }
     switch (status) {
-      case 'on time': return 'On Time';
-      case 'absent': return 'Absent';
-      case 'late': return 'Late';
-      case 'excused': return 'Excused';
-      case 'not enrolled': return 'Not Enrolled';
+      case ATTENDANCE_STATUS.ON_TIME: return 'On Time';
+      case ATTENDANCE_STATUS.ABSENT: return 'Absent';
+      case ATTENDANCE_STATUS.LATE: return 'Late';
+      case ATTENDANCE_STATUS.EXCUSED: return 'Excused';
+      case ATTENDANCE_STATUS.NOT_ENROLLED: return 'Not Enrolled';
       default: return status;
     }
   };
@@ -4198,6 +4204,13 @@ const AttendanceRecords = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-gray-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900 pb-8">
+      {/* Breadcrumb Navigation */}
+      <div className="px-4 pt-4">
+        <Breadcrumb items={[
+          { label: 'Dashboard', path: '/' },
+          { label: 'Attendance Records' },
+        ]} />
+      </div>
       {/* Toast Container */}
       <ToastContainer toasts={toasts} onClose={removeToast} />
       

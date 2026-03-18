@@ -9,6 +9,8 @@ import { format } from 'date-fns';
 import { analyzeAttendanceRisk } from '../utils/attendanceAnalytics';
 import type { AbsentStudent } from '../utils/attendanceAnalytics';
 import { excuseRequestService } from '../services/excuseRequestService';
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
+import { toast } from '../components/ui/toastUtils';
 
 // Message template types for the composer
 type MessageTemplate = 'attendance_alert' | 'encouragement' | 'reminder' | 'custom';
@@ -59,8 +61,13 @@ export function Dashboard() {
     totalTeachers: 0,
     activeEnrollments: 0,
     totalSessions: 0,
+    todaySessions: 0,
+    totalCourses: 0,
+    pendingFeedback: 0,
+    issuedCertificates: 0,
     loading: true,
   });
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
   const [absentStudents, setAbsentStudents] = useState<AbsentStudent[]>([]);
   const [loadingAlerts, setLoadingAlerts] = useState(false);
@@ -95,34 +102,52 @@ export function Dashboard() {
     watch: filteredStudents.filter(s => s.riskLevel === 'watch').length,
   }), [filteredStudents]);
 
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
+      const today = new Date().toISOString().split('T')[0];
       // Use count-only queries instead of fetching all rows (massive perf win)
-      const [studentsRes, enrollmentsRes, teachersRes, sessionsRes] = await Promise.all([
+      const [studentsRes, enrollmentsRes, teachersRes, sessionsRes, todaySessionsRes, coursesRes] = await Promise.all([
         supabase.from(Tables.STUDENT).select('student_id', { count: 'exact', head: true }),
         supabase.from(Tables.ENROLLMENT).select('enrollment_id', { count: 'exact', head: true }).eq('status', 'active'),
         supabase.from(Tables.TEACHER).select('teacher_id', { count: 'exact', head: true }),
         supabase.from(Tables.SESSION).select('session_id', { count: 'exact', head: true }),
+        supabase.from(Tables.SESSION).select('session_id', { count: 'exact', head: true })
+          .lte('start_date', today).gte('end_date', today),
+        supabase.from(Tables.COURSE).select('course_id', { count: 'exact', head: true }),
       ]);
+
+      // Certificates table may not exist - query separately with error handling
+      let certsCount = 0;
+      try {
+        const certsRes = await supabase.from('issued_certificate').select('certificate_id', { count: 'exact', head: true }).eq('status', 'issued');
+        certsCount = certsRes.count || 0;
+      } catch { /* table may not exist */ }
 
       setStats({
         totalStudents: studentsRes.count || 0,
         totalTeachers: teachersRes.count || 0,
         activeEnrollments: enrollmentsRes.count || 0,
         totalSessions: sessionsRes.count || 0,
+        todaySessions: todaySessionsRes.count || 0,
+        totalCourses: coursesRes.count || 0,
+        pendingFeedback: 0,
+        issuedCertificates: certsCount,
         loading: false,
       });
+      setLastRefresh(new Date());
     } catch (err) {
       console.error('Error loading stats:', err);
       setError('Failed to load dashboard statistics. Please try again.');
+      toast.error('Failed to load dashboard statistics');
       setStats(prev => ({ ...prev, loading: false }));
     }
-  };
+  }, []);
 
-  const loadAttendanceAlerts = async () => {
+  const loadAttendanceAlerts = useCallback(async () => {
     setLoadingAlerts(true);
     try {
       // Get attendance records with session and course info, ordered by date descending
+      // Limit to 5000 records max for performance
       let attendanceQuery = supabase
         .from('attendance')
         .select(`
@@ -134,7 +159,8 @@ export function Dashboard() {
           session_id,
           student:student_id(name, email, phone),
           session:session_id(course_id, course:course_id(course_name))
-        `);
+        `)
+        .limit(5000);
       
       // Apply date filters if set
       if (startDate) {
@@ -149,6 +175,12 @@ export function Dashboard() {
         attendanceQuery.order('attendance_date', { ascending: false }),
         supabase.from('course').select('course_id, course_name').order('course_name'),
       ]);
+
+      if (attendanceResult.error) {
+        toast.error('Failed to load attendance data: ' + attendanceResult.error.message);
+        setLoadingAlerts(false);
+        return;
+      }
 
       const attendanceRecords = attendanceResult.data;
       const coursesData = coursesResult.data;
@@ -169,9 +201,10 @@ export function Dashboard() {
       setAbsentStudents(alertStudents);
     } catch (error) {
       console.error('Error loading attendance alerts:', error);
+      toast.error('Failed to load attendance analytics');
     }
     setLoadingAlerts(false);
-  };
+  }, [startDate, endDate]);
 
   const generateEmailLink = (student: AbsentStudent): string => {
     const riskLevelText = student.riskLevel.toUpperCase();
@@ -462,6 +495,15 @@ Please contact the training center.
     }
   };
 
+  // Combined refresh function for useRefreshOnFocus
+  const refreshAll = useCallback(() => {
+    loadStats();
+    loadPendingExcuses();
+    loadAttendanceAlerts();
+  }, [loadStats, loadAttendanceAlerts]);
+
+  useRefreshOnFocus(refreshAll);
+
   useEffect(() => {
     const init = async () => {
       // Check if current user is a teacher
@@ -495,21 +537,35 @@ Please contact the training center.
     init();
     loadStats();
     loadPendingExcuses();
-    // loadAttendanceAlerts is called by the [startDate, endDate] effect on mount
-  }, []);
+  }, [loadStats]);
 
   // Reload alerts when date filters change (including when cleared)
   useEffect(() => {
     loadAttendanceAlerts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startDate, endDate]);
+  }, [loadAttendanceAlerts]);
 
   return (
     <div className="space-y-6 md:space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-        <p className="text-sm md:text-base text-gray-500 dark:text-gray-400 mt-1">Overview of your training center</p>
+      {/* Header with last-refresh indicator */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+          <p className="text-sm md:text-base text-gray-500 dark:text-gray-400 mt-1">Overview of your training center</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-400 dark:text-gray-500">
+            Last updated: {format(lastRefresh, 'HH:mm:ss')}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { refreshAll(); toast.success('Dashboard refreshed'); }}
+            className="gap-1.5"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Error Display */}
@@ -607,6 +663,62 @@ Please contact the training center.
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Secondary Stats Row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
+        <Link to="/sessions" className="group">
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-cyan-100 dark:bg-cyan-900/40 flex items-center justify-center text-cyan-600 dark:text-cyan-400">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Today's Sessions</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">{stats.loading ? '...' : stats.todaySessions}</p>
+              </div>
+            </div>
+          </div>
+        </Link>
+        <Link to="/courses" className="group">
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Courses</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">{stats.loading ? '...' : stats.totalCourses}</p>
+              </div>
+            </div>
+          </div>
+        </Link>
+        <Link to="/certificates" className="group">
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                🏆
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Certificates</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">{stats.loading ? '...' : stats.issuedCertificates}</p>
+              </div>
+            </div>
+          </div>
+        </Link>
+        <Link to="/feedback-analytics" className="group">
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-rose-100 dark:bg-rose-900/40 flex items-center justify-center text-rose-600 dark:text-rose-400">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Feedback</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">Analytics →</p>
+              </div>
+            </div>
+          </div>
+        </Link>
       </div>
 
       {/* Quick Actions */}

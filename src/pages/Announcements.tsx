@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { useDebounce } from '../hooks/useDebounce';
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
 import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
@@ -550,6 +551,8 @@ export function Announcements() {
     checkUserAndLoadData();
   }, [checkUserAndLoadData]);
 
+  useRefreshOnFocus(checkUserAndLoadData);
+
   // Resolve signed URLs for announcement images
   useEffect(() => {
     const resolveImageUrls = async () => {
@@ -720,6 +723,7 @@ export function Announcements() {
     
     if (error) {
       console.error('Failed to toggle reaction:', error);
+      toast.error('Failed to toggle reaction');
       return;
     }
     
@@ -764,6 +768,7 @@ export function Announcements() {
     const { data, error } = await announcementCommentService.getForAnnouncement(announcementId);
     if (error) {
       console.error('Failed to load comments:', error);
+      toast.error('Failed to load comments');
     }
     setComments(data || []);
     setLoadingComments(false);

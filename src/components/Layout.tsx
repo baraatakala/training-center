@@ -2,6 +2,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { toast } from './ui/toastUtils';
 
 // ---- Types ----
 interface NavItem {
@@ -67,6 +68,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       navigate('/login');
     } catch (error) {
       console.error('Logout failed:', error);
+      toast.error('Logout failed. Please try again.');
     }
   };
 

@@ -9,6 +9,7 @@ import { TableSkeleton } from '../components/ui/Skeleton';
 import { useIsTeacher } from '../hooks/useIsTeacher';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { toast } from '../components/ui/toastUtils';
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
 
 // =====================================================
 // HELPERS
@@ -261,6 +262,7 @@ export function AuditLogs() {
       setLogs(data);
     } catch (error) {
       console.error('Error loading audit logs:', error);
+      toast.error('Failed to load audit logs');
       setError('Failed to load audit logs. Please try again.');
     } finally {
       setLoading(false);
@@ -270,6 +272,8 @@ export function AuditLogs() {
   useEffect(() => {
     loadLogs();
   }, [loadLogs]);
+
+  useRefreshOnFocus(loadLogs);
 
   const handleDeleteLog = async () => {
     if (!deletingLog?.audit_id) return;

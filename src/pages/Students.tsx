@@ -46,6 +46,7 @@ export function Students() {
     const { data, error: fetchError } = await studentService.getAll();
     if (fetchError) {
       setError('Failed to load students. Please try again.');
+      toast.error('Failed to load students');
       console.error('Load students error:', fetchError);
     } else if (data) {
       setStudents(data as Student[]);

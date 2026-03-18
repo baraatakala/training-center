@@ -70,6 +70,7 @@ export function Courses() {
     const { data, error: fetchError } = await courseService.getAll();
     if (fetchError) {
       setError('Failed to load courses. Please try again.');
+      toast.error('Failed to load courses');
       console.error('Load courses error:', fetchError);
     } else if (data) {
       setCourses(data as CourseWithTeacher[]);
