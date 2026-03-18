@@ -70,6 +70,19 @@ function formatRecordingVisibility(visibility?: SessionWithDetails['default_reco
     .join(' ');
 }
 
+function parseLocalDate(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
+function formatLocalDate(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export function Sessions() {
   const navigate = useNavigate();
   const [sessions, setSessions] = useState<SessionWithDetails[]>([]);
@@ -136,7 +149,8 @@ export function Sessions() {
       const { data: enrollments } = await supabase
         .from(Tables.ENROLLMENT)
         .select('session_id')
-        .in('session_id', sessionIds);
+        .in('session_id', sessionIds)
+        .eq('status', 'active');
       
       if (enrollments) {
         const counts: Record<string, number> = {};
@@ -278,12 +292,21 @@ export function Sessions() {
   };
 
   const openCloneModal = (session: SessionWithDetails) => {
+    const sourceStart = parseLocalDate(session.start_date);
+    const sourceEnd = parseLocalDate(session.end_date);
+    const sessionDurationDays = sourceStart && sourceEnd
+      ? Math.max(0, Math.round((sourceEnd.getTime() - sourceStart.getTime()) / (1000 * 60 * 60 * 24)))
+      : 0;
+    const suggestedStart = sourceEnd ? new Date(sourceEnd.getFullYear(), sourceEnd.getMonth(), sourceEnd.getDate() + 1) : null;
+    const suggestedEnd = suggestedStart
+      ? new Date(suggestedStart.getFullYear(), suggestedStart.getMonth(), suggestedStart.getDate() + sessionDurationDays)
+      : null;
     setCloneSource(session);
     const days = session.day ? session.day.split(',').map(d => d.trim()) : [];
     setSelectedCloneDays(days);
     setCloneForm({
-      start_date: '',
-      end_date: '',
+      start_date: suggestedStart ? formatLocalDate(suggestedStart) : '',
+      end_date: suggestedEnd ? formatLocalDate(suggestedEnd) : '',
       day: session.day || '',
       time: session.time || '',
       location: session.location || '',
@@ -297,8 +320,8 @@ export function Sessions() {
       toast.error('Please fill in start date, end date, and select at least one day');
       return;
     }
-    if (new Date(cloneForm.end_date) <= new Date(cloneForm.start_date)) {
-      toast.error('End date must be after start date');
+    if (new Date(cloneForm.end_date) < new Date(cloneForm.start_date)) {
+      toast.error('End date cannot be before start date');
       return;
     }
     setCloning(true);
@@ -1081,6 +1104,9 @@ export function Sessions() {
               <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                 Original: {cloneSource.day} · {cloneSource.time || 'No time set'} · {enrollmentCounts[cloneSource.session_id] || 0} students
               </p>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                Suggested clone starts the day after this session ends and keeps the same duration.
+              </p>
             </div>
 
             {/* New date range */}
@@ -1090,7 +1116,20 @@ export function Sessions() {
                 <input
                   type="date"
                   value={cloneForm.start_date}
-                  onChange={e => setCloneForm(f => ({ ...f, start_date: e.target.value }))}
+                  onChange={e => {
+                    const nextStart = e.target.value;
+                    setCloneForm(f => {
+                      if (!nextStart) return { ...f, start_date: nextStart };
+                      if (f.end_date) return { ...f, start_date: nextStart };
+                      const originalStart = parseLocalDate(cloneSource.start_date);
+                      const originalEnd = parseLocalDate(cloneSource.end_date);
+                      const newStart = parseLocalDate(nextStart);
+                      if (!originalStart || !originalEnd || !newStart) return { ...f, start_date: nextStart };
+                      const durationDays = Math.max(0, Math.round((originalEnd.getTime() - originalStart.getTime()) / (1000 * 60 * 60 * 24)));
+                      const newEnd = new Date(newStart.getFullYear(), newStart.getMonth(), newStart.getDate() + durationDays);
+                      return { ...f, start_date: nextStart, end_date: formatLocalDate(newEnd) };
+                    });
+                  }}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
                 />
               </div>
@@ -1102,12 +1141,35 @@ export function Sessions() {
                   onChange={e => setCloneForm(f => ({ ...f, end_date: e.target.value }))}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
                 />
+                {cloneForm.start_date && !cloneForm.end_date && (
+                  <button
+                    type="button"
+                    onClick={() => setCloneForm(f => ({ ...f, end_date: f.start_date }))}
+                    className="mt-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    Use same day
+                  </button>
+                )}
               </div>
             </div>
 
             {/* Days */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Day(s) <span className="text-red-500">*</span></label>
+              {cloneForm.start_date && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const parsed = parseLocalDate(cloneForm.start_date);
+                    if (!parsed) return;
+                    const matchedDay = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][parsed.getDay()];
+                    setSelectedCloneDays([matchedDay]);
+                  }}
+                  className="mb-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  Match start date day
+                </button>
+              )}
               <div className="flex flex-wrap gap-2">
                 {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => (
                   <label key={day} className="flex items-center gap-1.5 cursor-pointer">
@@ -1166,6 +1228,15 @@ export function Sessions() {
                 placeholder="e.g., Main Campus - Room 202"
                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
               />
+              {cloneSource.location && (
+                <button
+                  type="button"
+                  onClick={() => setCloneForm(f => ({ ...f, location: cloneSource.location || '' }))}
+                  className="mt-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  Reuse original location
+                </button>
+              )}
             </div>
 
             {/* Copy enrollments toggle */}

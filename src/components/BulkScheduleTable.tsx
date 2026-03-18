@@ -118,6 +118,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
     enrollmentStatus: false,
     studentId: false
   });
+  const [bulkUpdating, setBulkUpdating] = useState(false);
 
   // Export dialog focus trap
   const exportDialogRef = useRef<HTMLDivElement>(null);
@@ -386,7 +387,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
   };
 
   // Save host_date to DB for an enrollment
-  const saveHostDate = async (enrollmentId: string, hostDate: string | null) => {
+  const saveHostDate = async (enrollmentId: string, hostDate: string | null, showErrorToast = true) => {
     // Skip if temp enrollment
     if (enrollmentId.startsWith('temp-')) {
       return;
@@ -412,6 +413,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
           
           if (error) {
             console.error('Failed to save teacher host_date:', error);
+            if (showErrorToast) toast.error('Failed to save teacher hosting date: ' + error.message);
           }
         } else {
           // Delete if hostDate is null
@@ -423,11 +425,13 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
           
           if (error) {
             console.error('Failed to delete teacher host_date:', error);
+            if (showErrorToast) toast.error('Failed to clear teacher hosting date: ' + error.message);
           }
         }
       } catch (err) {
         const error = err as Error;
         console.error('Failed to save teacher host_date:', error.message);
+        if (showErrorToast) toast.error('Failed to save teacher hosting date: ' + error.message);
       }
       return;
     }
@@ -436,10 +440,12 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       const { error } = await supabase.from(Tables.ENROLLMENT).update({ host_date: hostDate }).eq('enrollment_id', enrollmentId);
       if (error) {
         console.error('Failed to save host_date:', error);
+        if (showErrorToast) toast.error('Failed to save host date: ' + error.message);
       }
     } catch (err) {
       const error = err as Error;
       console.error('Failed to save host_date:', error.message);
+      if (showErrorToast) toast.error('Failed to save host date: ' + error.message);
     }
   };
 
@@ -1052,10 +1058,11 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
             next[e.enrollment_id] = fullDates[ni];
           }
         }
-        saveHostDate(e.enrollment_id, next[e.enrollment_id]);
+        saveHostDate(e.enrollment_id, next[e.enrollment_id], false);
       });
       return next;
     });
+    toast.success(dir > 0 ? 'Shifted all host dates forward.' : 'Shifted all host dates backward.');
   };
 
   const clearAll = () => {
@@ -1068,10 +1075,11 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       const next: Record<string, string | null> = { ...prev };
       displayedEnrollments.forEach((e) => {
         next[e.enrollment_id] = null;
-        saveHostDate(e.enrollment_id, null);
+        saveHostDate(e.enrollment_id, null, false);
       });
       return next;
     });
+    toast.success('Cleared all host dates.');
   };
 
   const quickFix = () => {
@@ -1090,13 +1098,48 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
         // Keep first, clear rest
         hosts.slice(1).forEach(host => {
           next[host.enrollmentId] = null;
-          saveHostDate(host.enrollmentId, null);
+          saveHostDate(host.enrollmentId, null, false);
         });
       });
       return next;
     });
-    
     toast.success(`Fixed ${duplicateDates.length} duplicate date(s)`);
+  };
+
+  const autoAssignDates = async () => {
+    const assignableDates = fullDates.filter(date => !cancelledDates.has(date));
+    if (assignableDates.length === 0) {
+      toast.warning('No active session dates are available to assign.');
+      return;
+    }
+
+    const eligibleHosts = displayedEnrollments.filter(enrollment => enrollment.can_host);
+    if (eligibleHosts.length === 0) {
+      toast.warning('No hosts are enabled for automatic assignment.');
+      return;
+    }
+
+    setBulkUpdating(true);
+    const nextMap: Record<string, string | null> = { ...hostDateMap };
+    const updates: Array<Promise<void>> = [];
+
+    eligibleHosts.forEach((host, index) => {
+      const assignedDate = assignableDates[Math.min(index, assignableDates.length - 1)] || null;
+      nextMap[host.enrollment_id] = assignedDate;
+      updates.push(saveHostDate(host.enrollment_id, assignedDate, false));
+    });
+
+    displayedEnrollments
+      .filter(enrollment => !eligibleHosts.some(host => host.enrollment_id === enrollment.enrollment_id) && hostDateMap[enrollment.enrollment_id])
+      .forEach(enrollment => {
+        nextMap[enrollment.enrollment_id] = null;
+        updates.push(saveHostDate(enrollment.enrollment_id, null, false));
+      });
+
+    setHostDateMap(nextMap);
+    await Promise.all(updates);
+    setBulkUpdating(false);
+    toast.success(`Auto-assigned ${eligibleHosts.length} host date${eligibleHosts.length === 1 ? '' : 's'}.`);
   };
   
   return (
@@ -1414,6 +1457,14 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
               title="Toggle calendar view"
             >
               📅 {showCalendar ? 'Hide' : 'Show'} Calendar
+            </button>
+            <button
+              className="btn btn-sm bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={autoAssignDates}
+              disabled={bulkUpdating}
+              title="Automatically assign host dates in order"
+            >
+              {bulkUpdating ? 'Assigning...' : '⚡ Auto Assign'}
             </button>
             <button className="btn btn-sm btn-ghost" onClick={() => shiftAll(-1)} title="Shift all host dates one session earlier">
               ← Previous

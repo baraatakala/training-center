@@ -51,6 +51,7 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [recentLocations, setRecentLocations] = useState<string[]>([]);
+  const [showAdvanced, setShowAdvanced] = useState(Boolean(initialData));
 
   const daysOfWeek = [
     'Monday',
@@ -143,7 +144,17 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
       teacher_can_host: initialData?.teacher_can_host ?? true,
     });
     setSelectedDays(initialData?.day ? initialData.day.split(',').map(d => d.trim()) : []);
+    setShowAdvanced(Boolean(initialData));
   }, [initialData]);
+
+  const advancedSummary = useMemo(() => {
+    const parts: string[] = [];
+    parts.push(`${formData.grace_period_minutes ?? 15}m grace`);
+    if (formData.requires_recording) parts.push('recordings on');
+    if (formData.feedback_enabled) parts.push('feedback on');
+    if (formData.teacher_can_host === false) parts.push('student-hosted');
+    return parts.join(' • ');
+  }, [formData.feedback_enabled, formData.grace_period_minutes, formData.requires_recording, formData.teacher_can_host]);
 
   useEffect(() => {
     if (!formData.start_date || initialData || selectedDays.length > 0) return;
@@ -223,67 +234,91 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
         </div>
       )}
 
-      <Select
-        label="Course"
-        value={formData.course_id}
-        onChange={(value) => setFormData({ ...formData, course_id: value })}
-        options={courses.map(c => ({ value: c.course_id, label: c.course_name }))}
-        placeholder="Select a course"
-        required
-      />
-
-      <Select
-        label="Teacher"
-        value={formData.teacher_id}
-        onChange={(value) => setFormData({ ...formData, teacher_id: value })}
-        options={teachers.map(t => ({ value: t.teacher_id, label: t.name }))}
-        placeholder="Select a teacher"
-        required
-      />
-
-      <div>
-        <Input
-          label="Start Date"
-          type="date"
-          value={formData.start_date}
-          onChange={(value) => setFormData({ ...formData, start_date: value })}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Select
+          label="Course"
+          value={formData.course_id}
+          onChange={(value) => setFormData({ ...formData, course_id: value })}
+          options={courses.map(c => ({ value: c.course_id, label: c.course_name }))}
+          placeholder="Select a course"
           required
         />
-        {!initialData && !formData.start_date && suggestedStartDate && (
-          <button
-            type="button"
-            onClick={() => setFormData(prev => ({ ...prev, start_date: suggestedStartDate }))}
-            className="mt-1 text-xs text-blue-600 dark:text-blue-400 hover:underline py-2 px-2.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 min-h-[36px]"
-          >
-            Use today ({suggestedStartDate})
-          </button>
-        )}
+
+        <Select
+          label="Teacher"
+          value={formData.teacher_id}
+          onChange={(value) => setFormData({ ...formData, teacher_id: value })}
+          options={teachers.map(t => ({ value: t.teacher_id, label: t.name }))}
+          placeholder="Select a teacher"
+          required
+        />
       </div>
 
-      <Input
-        label="End Date"
-        type="date"
-        value={formData.end_date}
-        onChange={(value) => setFormData({ ...formData, end_date: value })}
-        required
-      />
-      {!initialData && formData.start_date && !formData.end_date && (
-        <button
-          type="button"
-          onClick={() => setFormData(prev => ({ ...prev, end_date: prev.start_date }))}
-          className="-mt-2 text-xs text-blue-600 dark:text-blue-400 hover:underline py-2 px-2.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 min-h-[36px]"
-        >
-          Use same day as start date
-        </button>
-      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <Input
+            label="Start Date"
+            type="date"
+            value={formData.start_date}
+            onChange={(value) => setFormData({ ...formData, start_date: value })}
+            required
+          />
+          {!initialData && !formData.start_date && suggestedStartDate && (
+            <button
+              type="button"
+              onClick={() => setFormData(prev => ({ ...prev, start_date: suggestedStartDate }))}
+              className="mt-1 text-xs text-blue-600 dark:text-blue-400 hover:underline py-2 px-2.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 min-h-[36px]"
+            >
+              Use today ({suggestedStartDate})
+            </button>
+          )}
+        </div>
+
+        <div>
+          <Input
+            label="End Date"
+            type="date"
+            value={formData.end_date}
+            onChange={(value) => setFormData({ ...formData, end_date: value })}
+            required
+          />
+          {!initialData && formData.start_date && !formData.end_date && (
+            <button
+              type="button"
+              onClick={() => setFormData(prev => ({ ...prev, end_date: prev.start_date }))}
+              className="mt-1 text-xs text-blue-600 dark:text-blue-400 hover:underline py-2 px-2.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 min-h-[36px]"
+            >
+              Use same day as start date
+            </button>
+          )}
+        </div>
+      </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Day(s) <span className="text-red-500">*</span>
-        </label>
-        <div className="space-y-2">
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <label className="block text-sm font-medium text-gray-700 mb-0">
+            Day(s) <span className="text-red-500">*</span>
+          </label>
+          {formData.start_date && (
+            <button
+              type="button"
+              onClick={() => {
+                const parsed = new Date(`${formData.start_date}T00:00:00`);
+                if (Number.isNaN(parsed.getTime())) return;
+                const detectedDay = CALENDAR_DAYS[parsed.getDay()];
+                if (!detectedDay) return;
+                setSelectedDays([detectedDay]);
+                setFormData(prev => ({ ...prev, day: detectedDay }));
+              }}
+              className="text-xs text-blue-600 dark:text-blue-400 hover:underline py-1 px-2 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20"
+            >
+              Match start date
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
           {daysOfWeek.map((day) => (
-            <label key={day} className="flex items-center gap-2 cursor-pointer">
+            <label key={day} className="flex items-center gap-2 cursor-pointer rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 hover:border-blue-300 dark:hover:border-blue-600">
               <input
                 type="checkbox"
                 checked={selectedDays.includes(day)}
@@ -410,111 +445,125 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
         </>
       )}
 
-      <div className="space-y-3 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={Boolean(formData.requires_recording)}
-            onChange={(e) => setFormData({ ...formData, requires_recording: e.target.checked })}
-            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-          />
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Session should be recorded</span>
-        </label>
-
-        {formData.requires_recording && (
-          <>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Recording links are added later from Attendance for each session date, then shown to students from the Sessions page.
-            </p>
-            <Select
-              label="Default Recording Visibility"
-              value={formData.default_recording_visibility || 'course_staff'}
-              onChange={(value) => setFormData({ ...formData, default_recording_visibility: (value || 'course_staff') as CreateSession['default_recording_visibility'] })}
-              options={[
-                { value: 'private_staff', label: 'Private Staff' },
-                { value: 'course_staff', label: 'Course Staff' },
-                { value: 'enrolled_students', label: 'Enrolled Students' },
-                { value: 'organization', label: 'Organization' },
-                { value: 'public_link', label: 'Public Link' },
-              ]}
-              required
-            />
-          </>
-        )}
-      </div>
-
-      <div className="space-y-3 rounded-lg border border-emerald-200 dark:border-emerald-700 p-4 bg-emerald-50/50 dark:bg-emerald-900/20">
-        <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
-          <span>🏠</span> Session Host Control
-        </p>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={Boolean(formData.teacher_can_host)}
-            onChange={(e) => setFormData({ ...formData, teacher_can_host: e.target.checked })}
-            className="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-gray-300 rounded"
-          />
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Teacher can host this session</span>
-        </label>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          Turn this off when hosting should be limited to enrolled students only.
-        </p>
-      </div>
-
-      {/* Feedback Settings */}
-      <div className="space-y-3 rounded-lg border border-purple-200 dark:border-purple-700 p-4 bg-purple-50/50 dark:bg-purple-900/20">
-        <p className="text-sm font-semibold text-purple-700 dark:text-purple-300 flex items-center gap-2">
-          <span>💜</span> Post Check-In Feedback
-        </p>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={Boolean(formData.feedback_enabled)}
-            onChange={(e) => setFormData({ ...formData, feedback_enabled: e.target.checked })}
-            className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
-          />
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Enable feedback after check-in</span>
-        </label>
-        {formData.feedback_enabled && (
-          <label className="flex items-center gap-2 cursor-pointer ml-6">
-            <input
-              type="checkbox"
-              checked={Boolean(formData.feedback_anonymous_allowed)}
-              onChange={(e) => setFormData({ ...formData, feedback_anonymous_allowed: e.target.checked })}
-              className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
-            />
-            <span className="text-sm text-gray-600 dark:text-gray-400">Allow anonymous submissions</span>
-          </label>
-        )}
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          Students will see an optional feedback form after successful QR or face check-in.
-        </p>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Grace Period (minutes)
-          <span className="text-gray-500 dark:text-gray-400 font-normal ml-2">
-            Students can check in without being marked late
-          </span>
-        </label>
-        <select
-          value={formData.grace_period_minutes}
-          onChange={(e) => setFormData({ ...formData, grace_period_minutes: parseInt(e.target.value) })}
-          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setShowAdvanced(prev => !prev)}
+          className="w-full flex items-center justify-between gap-3 px-4 py-3 bg-gray-50 dark:bg-gray-800/70 hover:bg-gray-100 dark:hover:bg-gray-800 text-left"
         >
-          <option value={0}>0 minutes (no grace period)</option>
-          <option value={5}>5 minutes</option>
-          <option value={10}>10 minutes</option>
-          <option value={15}>15 minutes (default)</option>
-          <option value={20}>20 minutes</option>
-          <option value={30}>30 minutes</option>
-          <option value={45}>45 minutes</option>
-          <option value={60}>60 minutes (1 hour)</option>
-        </select>
-        <p className="mt-1 text-sm text-gray-500">
-          Students checking in after this grace period will be marked as late
-        </p>
+          <div>
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">Advanced Session Options</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{advancedSummary}</p>
+          </div>
+          <span className="text-sm text-gray-500 dark:text-gray-400">{showAdvanced ? 'Hide' : 'Show'}</span>
+        </button>
+
+        {showAdvanced && (
+          <div className="space-y-4 p-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Grace Period (minutes)
+                <span className="text-gray-500 dark:text-gray-400 font-normal ml-2">
+                  Students can check in without being marked late
+                </span>
+              </label>
+              <select
+                value={formData.grace_period_minutes}
+                onChange={(e) => setFormData({ ...formData, grace_period_minutes: parseInt(e.target.value) })}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value={0}>0 minutes (no grace period)</option>
+                <option value={5}>5 minutes</option>
+                <option value={10}>10 minutes</option>
+                <option value={15}>15 minutes (default)</option>
+                <option value={20}>20 minutes</option>
+                <option value={30}>30 minutes</option>
+                <option value={45}>45 minutes</option>
+                <option value={60}>60 minutes (1 hour)</option>
+              </select>
+            </div>
+
+            <div className="space-y-3 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(formData.requires_recording)}
+                  onChange={(e) => setFormData({ ...formData, requires_recording: e.target.checked })}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Session should be recorded</span>
+              </label>
+
+              {formData.requires_recording && (
+                <>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Recording links are added later from Attendance for each session date, then shown to students from the Sessions page.
+                  </p>
+                  <Select
+                    label="Default Recording Visibility"
+                    value={formData.default_recording_visibility || 'course_staff'}
+                    onChange={(value) => setFormData({ ...formData, default_recording_visibility: (value || 'course_staff') as CreateSession['default_recording_visibility'] })}
+                    options={[
+                      { value: 'private_staff', label: 'Private Staff' },
+                      { value: 'course_staff', label: 'Course Staff' },
+                      { value: 'enrolled_students', label: 'Enrolled Students' },
+                      { value: 'organization', label: 'Organization' },
+                      { value: 'public_link', label: 'Public Link' },
+                    ]}
+                    required
+                  />
+                </>
+              )}
+            </div>
+
+            <div className="space-y-3 rounded-lg border border-emerald-200 dark:border-emerald-700 p-4 bg-emerald-50/50 dark:bg-emerald-900/20">
+              <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+                <span>🏠</span> Session Host Control
+              </p>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(formData.teacher_can_host)}
+                  onChange={(e) => setFormData({ ...formData, teacher_can_host: e.target.checked })}
+                  className="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-gray-300 rounded"
+                />
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Teacher can host this session</span>
+              </label>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Turn this off when hosting should be limited to enrolled students only.
+              </p>
+            </div>
+
+            <div className="space-y-3 rounded-lg border border-purple-200 dark:border-purple-700 p-4 bg-purple-50/50 dark:bg-purple-900/20">
+              <p className="text-sm font-semibold text-purple-700 dark:text-purple-300 flex items-center gap-2">
+                <span>💜</span> Post Check-In Feedback
+              </p>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(formData.feedback_enabled)}
+                  onChange={(e) => setFormData({ ...formData, feedback_enabled: e.target.checked })}
+                  className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                />
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Enable feedback after check-in</span>
+              </label>
+              {formData.feedback_enabled && (
+                <label className="flex items-center gap-2 cursor-pointer ml-6">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(formData.feedback_anonymous_allowed)}
+                    onChange={(e) => setFormData({ ...formData, feedback_anonymous_allowed: e.target.checked })}
+                    className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                  />
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Allow anonymous submissions</span>
+                </label>
+              )}
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Students will see an optional feedback form after successful QR or face check-in.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex gap-3 justify-end pt-4">
