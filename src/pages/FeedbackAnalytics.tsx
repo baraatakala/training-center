@@ -172,6 +172,9 @@ export function FeedbackAnalytics() {
   const [analyticsSortBy, setAnalyticsSortBy] = useState<'date' | 'rating' | 'responses' | 'rate'>('date');
   const [analyticsSortDir, setAnalyticsSortDir] = useState<'asc' | 'desc'>('desc');
 
+  // Question date scope: '' = show all, 'global' = global-only, 'YYYY-MM-DD' = date-specific
+  const [questionDateScope, setQuestionDateScope] = useState<string>('');
+
   const selectedSession = sessions.find(s => s.session_id === selectedSessionId);
 
   // ─── Resets ────────────────────────────────────────────────
@@ -390,6 +393,26 @@ export function FeedbackAnalytics() {
     return feedbacks.filter(f => f.attendance_date === dateFilter);
   }, [feedbacks, dateFilter]);
 
+  // Questions filtered by date scope for the Questions tab
+  const scopedQuestions = useMemo(() => {
+    if (!questionDateScope) return questions; // show all
+    if (questionDateScope === 'global') return questions.filter(q => !q.attendance_date);
+    return questions.filter(q => !q.attendance_date || q.attendance_date === questionDateScope);
+  }, [questions, questionDateScope]);
+
+  // Distinct dates that have date-specific questions
+  const questionDates = useMemo(() => {
+    const dates = new Set<string>();
+    for (const q of questions) {
+      if (q.attendance_date) dates.add(q.attendance_date);
+    }
+    return [...dates].sort();
+  }, [questions]);
+
+  // Count stats for scope selector
+  const globalQuestionCount = useMemo(() => questions.filter(q => !q.attendance_date).length, [questions]);
+  const dateSpecificQuestionCount = useMemo(() => questions.filter(q => q.attendance_date).length, [questions]);
+
   // Sorted date summaries for Dates tab
   const sortedDateSummaries = useMemo(() => {
     if (!dateComparison) return [];
@@ -512,9 +535,12 @@ export function FeedbackAnalytics() {
       is_required: questionDraft.is_required,
     };
 
+    // Determine attendance_date from scope
+    const scopeDate = questionDateScope && questionDateScope !== 'global' ? questionDateScope : null;
+
     const result = editingQuestionId
       ? await feedbackService.updateQuestion(editingQuestionId, payload)
-      : await feedbackService.createQuestion({ session_id: selectedSessionId, sort_order: questions.length, ...payload });
+      : await feedbackService.createQuestion({ session_id: selectedSessionId, sort_order: questions.length, attendance_date: scopeDate, ...payload });
 
     if (result.error) { setQuestionError(result.error.message || 'Unable to save.'); toast.error(result.error.message || 'Unable to save question'); setSavingQuestion(false); return; }
     const refreshed = await feedbackService.getQuestions(selectedSessionId);
@@ -547,12 +573,15 @@ export function FeedbackAnalytics() {
     if (!selectedSessionId || !selectedTemplateId) return;
     setApplyingTemplate(true);
     setQuestionError(null);
-    const result = await feedbackService.applyTemplateToSession(selectedTemplateId, selectedSessionId);
+    // Determine date scope for template application
+    const scopeDate = questionDateScope && questionDateScope !== 'global' ? questionDateScope : null;
+    const result = await feedbackService.applyTemplateToSession(selectedTemplateId, selectedSessionId, scopeDate);
     if (result.error) { setQuestionError(result.error.message || 'Unable to apply.'); setApplyingTemplate(false); return; }
     const refreshed = await feedbackService.getQuestions(selectedSessionId);
     setQuestions(refreshed.data || []);
     resetQuestionDraft();
     setApplyingTemplate(false);
+    toast.success(scopeDate ? `Template applied for ${scopeDate}` : 'Template applied globally');
   };
 
   const handleEditTemplate = (t: FeedbackTemplate) => {
@@ -1466,10 +1495,50 @@ export function FeedbackAnalytics() {
                 </div>
               )}
 
+              {/* Date Scope Selector for per-date questions */}
+              <div className="rounded-xl bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border border-indigo-200 dark:border-indigo-700 px-4 py-3">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">📅 Question Scope:</span>
+                    <select
+                      value={questionDateScope}
+                      onChange={e => setQuestionDateScope(e.target.value)}
+                      className="text-xs rounded-lg border border-indigo-200 dark:border-indigo-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-gray-900 dark:text-white focus:ring-1 focus:ring-indigo-500"
+                    >
+                      <option value="">All Questions ({questions.length})</option>
+                      <option value="global">🌐 Global Only ({globalQuestionCount})</option>
+                      {uniqueDates.map(d => {
+                        const dateCount = questions.filter(q => q.attendance_date === d).length;
+                        return <option key={d} value={d}>📌 {d} ({dateCount} date-specific)</option>;
+                      })}
+                      {questionDates.filter(d => !uniqueDates.includes(d)).map(d => {
+                        const dateCount = questions.filter(q => q.attendance_date === d).length;
+                        return <option key={d} value={d}>📌 {d} ({dateCount} date-specific)</option>;
+                      })}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] text-indigo-600 dark:text-indigo-400">
+                    <span className="px-1.5 py-0.5 rounded bg-white/60 dark:bg-gray-800/60 border border-indigo-200 dark:border-indigo-700">🌐 {globalQuestionCount} global</span>
+                    {dateSpecificQuestionCount > 0 && (
+                      <span className="px-1.5 py-0.5 rounded bg-white/60 dark:bg-gray-800/60 border border-indigo-200 dark:border-indigo-700">📌 {dateSpecificQuestionCount} date-specific</span>
+                    )}
+                  </div>
+                </div>
+                <p className="text-[10px] text-indigo-500 dark:text-indigo-400 mt-1.5">
+                  {questionDateScope && questionDateScope !== 'global'
+                    ? `New questions/templates will be applied to ${questionDateScope} only. Students on this date see global + date-specific questions.`
+                    : questionDateScope === 'global'
+                      ? 'Showing global questions. These appear on every session date. New questions added here will be global.'
+                      : 'Showing all questions across all dates. Select a specific date to manage date-specific questions.'}
+                </p>
+              </div>
+
               {/* Quick Apply Template - compact bar */}
               {templates.length > 0 && (
                 <div className="flex items-center gap-2 rounded-xl bg-violet-50 dark:bg-violet-900/10 border border-violet-200 dark:border-violet-800 px-3 py-2">
-                  <span className="text-xs font-medium text-violet-700 dark:text-violet-300 shrink-0">Template:</span>
+                  <span className="text-xs font-medium text-violet-700 dark:text-violet-300 shrink-0">
+                    Template {questionDateScope && questionDateScope !== 'global' ? `→ ${questionDateScope}` : '→ Global'}:
+                  </span>
                   <select
                     value={selectedTemplateId}
                     onChange={e => setSelectedTemplateId(e.target.value)}
@@ -1491,7 +1560,7 @@ export function FeedbackAnalytics() {
                   <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
                     {editingQuestionId ? '✏️ Edit Question' : '➕ New Question'}
                   </p>
-                  <span className="text-[10px] text-gray-400">{questions.length} total</span>
+                  <span className="text-[10px] text-gray-400">{scopedQuestions.length} in scope · {questions.length} total</span>
                 </div>
 
                 <input
@@ -1561,15 +1630,15 @@ export function FeedbackAnalytics() {
               </div>
 
               {/* Question list */}
-              {questions.length === 0 ? (
+              {scopedQuestions.length === 0 ? (
                 <div className="rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 p-10 text-center">
                   <span className="text-4xl block mb-2">📋</span>
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-300">No questions yet</p>
-                  <p className="text-xs text-gray-400 mt-1">Add a question above or apply a template to get started.</p>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-300">{questionDateScope === '' ? 'No questions yet' : questionDateScope === 'global' ? 'No global questions' : `No questions for ${questionDateScope}`}</p>
+                  <p className="text-xs text-gray-400 mt-1">{questionDateScope === '' ? 'Add a question above or apply a template to get started.' : 'Switch scope or add questions for this view.'}</p>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {questions.map((question, index) => (
+                  {scopedQuestions.map((question, index) => (
                     <div key={question.id} className="group rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 hover:border-purple-200 dark:hover:border-purple-700 transition-colors overflow-hidden">
                       <div className="flex items-stretch">
                         <div className={`w-1 shrink-0 ${
@@ -1585,6 +1654,9 @@ export function FeedbackAnalytics() {
                                 <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 px-1.5 py-0.5 rounded">{index + 1}</span>
                                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500">
                                   {question.question_type === 'rating' ? '⭐' : question.question_type === 'emoji' ? '😊' : question.question_type === 'multiple_choice' ? '📋' : '📝'} {question.question_type.replace('_', ' ')}
+                                </span>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${question.attendance_date ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'}`}>
+                                  {question.attendance_date ? `📌 ${question.attendance_date}` : '🌐 Global'}
                                 </span>
                                 {question.is_required && <span className="text-[10px] text-red-500">*</span>}
                               </div>

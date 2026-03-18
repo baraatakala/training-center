@@ -88,6 +88,156 @@ export function Dashboard() {
   const [bulkMode, setBulkMode] = useState(false);
   const [pendingExcuses, setPendingExcuses] = useState(0);
 
+  // Data Integrity Health state
+  type HealthCheck = { label: string; status: 'ok' | 'warn' | 'error'; count: number; detail: string; icon: string };
+  const [healthChecks, setHealthChecks] = useState<HealthCheck[]>([]);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [healthLoaded, setHealthLoaded] = useState(false);
+
+  const loadHealthChecks = useCallback(async () => {
+    setHealthLoading(true);
+    try {
+      const checks: HealthCheck[] = [];
+
+      // 1. Sessions with feedback enabled but no questions
+      const { data: fbSessions } = await supabase
+        .from('session')
+        .select('session_id')
+        .eq('feedback_enabled', true);
+      if (fbSessions && fbSessions.length > 0) {
+        const { data: questionsData } = await supabase
+          .from('feedback_question')
+          .select('session_id');
+        const sessionsWithQuestions = new Set((questionsData || []).map(q => q.session_id));
+        const noQuestions = fbSessions.filter(s => !sessionsWithQuestions.has(s.session_id));
+        checks.push({
+          label: 'Feedback-enabled sessions without questions',
+          status: noQuestions.length > 0 ? 'warn' : 'ok',
+          count: noQuestions.length,
+          detail: noQuestions.length > 0 ? `${noQuestions.length} session(s) have feedback enabled but no questions configured` : 'All feedback sessions have questions',
+          icon: noQuestions.length > 0 ? '⚠️' : '✅'
+        });
+      }
+
+      // 2. Active enrollments with no attendance records
+      const { data: enrollments } = await supabase
+        .from('enrollment')
+        .select('student_id, session_id')
+        .eq('status', 'active');
+      if (enrollments && enrollments.length > 0) {
+        const { data: attRecords } = await supabase
+          .from('attendance')
+          .select('student_id, session_id');
+        const attKeys = new Set((attRecords || []).map(a => `${a.student_id}|${a.session_id}`));
+        const noAtt = enrollments.filter(e => !attKeys.has(`${e.student_id}|${e.session_id}`));
+        checks.push({
+          label: 'Enrollments with zero attendance',
+          status: noAtt.length > 5 ? 'warn' : 'ok',
+          count: noAtt.length,
+          detail: noAtt.length > 0 ? `${noAtt.length} active enrollment(s) have no attendance records yet` : 'All enrollments have attendance data',
+          icon: noAtt.length > 5 ? '⚠️' : '✅'
+        });
+      }
+
+      // 3. Sessions with no enrollments
+      const { data: allSessions } = await supabase
+        .from('session')
+        .select('session_id');
+      const { data: enrolledSessions } = await supabase
+        .from('enrollment')
+        .select('session_id');
+      if (allSessions) {
+        const enrolledSet = new Set((enrolledSessions || []).map(e => e.session_id));
+        const orphanSessions = allSessions.filter(s => !enrolledSet.has(s.session_id));
+        checks.push({
+          label: 'Sessions with no enrolled students',
+          status: orphanSessions.length > 0 ? 'warn' : 'ok',
+          count: orphanSessions.length,
+          detail: orphanSessions.length > 0 ? `${orphanSessions.length} session(s) have no students enrolled` : 'All sessions have enrollments',
+          icon: orphanSessions.length > 0 ? '⚠️' : '✅'
+        });
+      }
+
+      // 4. Students with no enrollments
+      const { data: allStudents } = await supabase
+        .from('student')
+        .select('student_id');
+      const { data: enrolledStudents } = await supabase
+        .from('enrollment')
+        .select('student_id');
+      if (allStudents) {
+        const enrolledStudentSet = new Set((enrolledStudents || []).map(e => e.student_id));
+        const unenrolled = allStudents.filter(s => !enrolledStudentSet.has(s.student_id));
+        checks.push({
+          label: 'Students not enrolled in any session',
+          status: unenrolled.length > 3 ? 'warn' : 'ok',
+          count: unenrolled.length,
+          detail: unenrolled.length > 0 ? `${unenrolled.length} student(s) exist but have no enrollments` : 'All students are enrolled',
+          icon: unenrolled.length > 3 ? '⚠️' : '✅'
+        });
+      }
+
+      // 5. Attendance records for dates outside session range
+      const { data: sessionRanges } = await supabase
+        .from('session')
+        .select('session_id, start_date, end_date');
+      if (sessionRanges) {
+        const { data: allAtt } = await supabase
+          .from('attendance')
+          .select('attendance_date, session_id')
+          .limit(5000);
+        if (allAtt) {
+          const rangeMap = new Map(sessionRanges.map(s => [s.session_id, { start: s.start_date, end: s.end_date }]));
+          let outOfRange = 0;
+          for (const att of allAtt) {
+            const range = rangeMap.get(att.session_id);
+            if (range && (att.attendance_date < range.start || att.attendance_date > range.end)) {
+              outOfRange++;
+            }
+          }
+          checks.push({
+            label: 'Attendance outside session dates',
+            status: outOfRange > 0 ? 'error' : 'ok',
+            count: outOfRange,
+            detail: outOfRange > 0 ? `${outOfRange} record(s) have dates outside their session's start/end range` : 'All attendance dates are within session ranges',
+            icon: outOfRange > 0 ? '🚨' : '✅'
+          });
+        }
+      }
+
+      // 6. Duplicate attendance (same student, session, date)
+      {
+        const { data: dupCheck } = await supabase
+          .from('attendance')
+          .select('student_id, session_id, attendance_date')
+          .limit(5000);
+        if (dupCheck) {
+          const seen = new Set<string>();
+          let dupes = 0;
+          for (const r of dupCheck) {
+            const key = `${r.student_id}|${r.session_id}|${r.attendance_date}`;
+            if (seen.has(key)) dupes++;
+            seen.add(key);
+          }
+          checks.push({
+            label: 'Duplicate attendance records',
+            status: dupes > 0 ? 'error' : 'ok',
+            count: dupes,
+            detail: dupes > 0 ? `${dupes} duplicate(s) found (same student + session + date)` : 'No duplicate attendance records',
+            icon: dupes > 0 ? '🚨' : '✅'
+          });
+        }
+      }
+
+      setHealthChecks(checks);
+      setHealthLoaded(true);
+    } catch (err) {
+      console.error('Health check error:', err);
+      toast.error('Failed to run health checks');
+    }
+    setHealthLoading(false);
+  }, []);
+
   // Memoized filtered students and risk counts to avoid recalculation on every render
   const filteredStudents = useMemo(() => {
     return selectedCourse === 'all'
@@ -767,6 +917,70 @@ Please contact the training center.
           </div>
         </CardContent>
       </Card>
+
+      {/* Data Integrity Health Panel (Teachers/Admins Only) */}
+      {isTeacher && (
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <span className="text-lg">🩺</span>
+              Data Integrity Health
+            </CardTitle>
+            <Button size="sm" variant="outline" onClick={loadHealthChecks} disabled={healthLoading}>
+              {healthLoading ? 'Scanning...' : healthLoaded ? '🔄 Re-scan' : '▶️ Run Checks'}
+            </Button>
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Automated validation of data consistency across sessions, enrollments, attendance, and feedback</p>
+        </CardHeader>
+        <CardContent>
+          {!healthLoaded && !healthLoading && (
+            <div className="text-center py-6 text-gray-400">
+              <span className="text-3xl block mb-2">🔍</span>
+              <p className="text-sm">Click <strong>Run Checks</strong> to scan for data issues</p>
+            </div>
+          )}
+          {healthLoading && (
+            <div className="text-center py-6 text-gray-400 animate-pulse">
+              <span className="text-3xl block mb-2">⏳</span>
+              <p className="text-sm">Running integrity checks...</p>
+            </div>
+          )}
+          {healthLoaded && !healthLoading && (
+            <div className="space-y-2">
+              {/* Summary bar */}
+              <div className="flex gap-3 mb-3 text-xs font-medium">
+                <span className="text-emerald-600 dark:text-emerald-400">✅ {healthChecks.filter(c => c.status === 'ok').length} OK</span>
+                <span className="text-amber-600 dark:text-amber-400">⚠️ {healthChecks.filter(c => c.status === 'warn').length} Warnings</span>
+                <span className="text-red-600 dark:text-red-400">🚨 {healthChecks.filter(c => c.status === 'error').length} Errors</span>
+              </div>
+              {healthChecks.map((check, i) => (
+                <div key={i} className={`flex items-start gap-3 rounded-lg border px-3 py-2.5 ${
+                  check.status === 'error' ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20'
+                    : check.status === 'warn' ? 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20'
+                    : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/30'
+                }`}>
+                  <span className="text-lg shrink-0 mt-0.5">{check.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{check.label}</p>
+                      {check.count > 0 && (
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                          check.status === 'error' ? 'bg-red-600 text-white'
+                            : check.status === 'warn' ? 'bg-amber-600 text-white'
+                            : 'bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200'
+                        }`}>{check.count}</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{check.detail}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      )}
 
       {/* Attendance Alerts - Enhanced Analytics (Teachers Only) */}
       {isTeacher && (

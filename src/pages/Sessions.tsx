@@ -766,6 +766,16 @@ export function Sessions() {
                               >
                                 🎥 Recordings
                               </Button>
+                              {session.feedback_enabled && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => navigate(`/feedback-analytics?session=${session.session_id}`)}
+                                  className="w-full min-h-[36px] justify-center"
+                                >
+                                  💜 Feedback
+                                </Button>
+                              )}
                             </div>
                           )}
                           {isAdmin && (
@@ -795,6 +805,16 @@ export function Sessions() {
                                   className="w-full min-h-[36px] justify-center"
                                 >
                                   🎥 Recordings
+                                </Button>
+                              )}
+                              {session.feedback_enabled && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => navigate(`/feedback-analytics?session=${session.session_id}`)}
+                                  className="w-full min-h-[36px] justify-center"
+                                >
+                                  💜 Feedback
                                 </Button>
                               )}
                               <button
@@ -996,6 +1016,11 @@ export function Sessions() {
                               <Button size="sm" variant="outline" onClick={() => setSelectedSessionForRecordings(session)} className="min-h-[36px]">
                                 Recordings
                               </Button>
+                              {session.feedback_enabled && (
+                                <Button size="sm" variant="outline" onClick={() => navigate(`/feedback-analytics?session=${session.session_id}`)} className="min-h-[36px]">
+                                  Feedback
+                                </Button>
+                              )}
                             </>
                           )}
                           {isAdmin && (
@@ -1014,6 +1039,11 @@ export function Sessions() {
                               {!isTeacher && (
                                 <Button size="sm" variant="outline" onClick={() => setSelectedSessionForRecordings(session)} className="min-h-[36px]">
                                   Recordings
+                                </Button>
+                              )}
+                              {session.feedback_enabled && (
+                                <Button size="sm" variant="outline" onClick={() => navigate(`/feedback-analytics?session=${session.session_id}`)} className="min-h-[36px]">
+                                  Feedback
                                 </Button>
                               )}
                               <button

@@ -10,6 +10,7 @@ export interface FeedbackQuestion {
   options: string[];
   sort_order: number;
   is_required: boolean;
+  attendance_date: string | null; // null = global (all dates), set = date-specific
   created_at: string;
 }
 
@@ -196,8 +197,25 @@ export const feedbackService = {
   },
 
   // ─── Questions ───────────────────────────────────────────
-  /** Get custom questions for a session */
-  async getQuestions(sessionId: string) {
+  /**
+   * Get questions for a session.
+   * - No date param: returns ALL questions (global + date-specific)
+   * - With date param: returns global questions (attendance_date IS NULL) + questions for that specific date
+   */
+  async getQuestions(sessionId: string, date?: string) {
+    if (date) {
+      // Return global questions + questions for the specific date
+      const { data, error } = await supabase
+        .from('feedback_question')
+        .select('*')
+        .eq('session_id', sessionId)
+        .or(`attendance_date.is.null,attendance_date.eq.${date}`)
+        .order('sort_order', { ascending: true });
+
+      return { data: data as FeedbackQuestion[] | null, error: normalizeFeedbackError(error) };
+    }
+
+    // No date filter — return all questions for session management
     const { data, error } = await supabase
       .from('feedback_question')
       .select('*')
@@ -207,16 +225,45 @@ export const feedbackService = {
     return { data: data as FeedbackQuestion[] | null, error: normalizeFeedbackError(error) };
   },
 
-  /** Create a question for a session */
-  async createQuestion(question: Omit<FeedbackQuestion, 'id' | 'created_at'>) {
+  /** Get only global questions (attendance_date IS NULL) */
+  async getGlobalQuestions(sessionId: string) {
     const { data, error } = await supabase
       .from('feedback_question')
-      .insert(question)
+      .select('*')
+      .eq('session_id', sessionId)
+      .is('attendance_date', null)
+      .order('sort_order', { ascending: true });
+
+    return { data: data as FeedbackQuestion[] | null, error: normalizeFeedbackError(error) };
+  },
+
+  /** Get only date-specific questions for a specific date */
+  async getDateQuestions(sessionId: string, date: string) {
+    const { data, error } = await supabase
+      .from('feedback_question')
+      .select('*')
+      .eq('session_id', sessionId)
+      .eq('attendance_date', date)
+      .order('sort_order', { ascending: true });
+
+    return { data: data as FeedbackQuestion[] | null, error: normalizeFeedbackError(error) };
+  },
+
+  /** Create a question for a session (optionally scoped to a specific date) */
+  async createQuestion(question: Omit<FeedbackQuestion, 'id' | 'created_at'>) {
+    const payload = {
+      ...question,
+      attendance_date: question.attendance_date || null, // ensure null not undefined
+    };
+    const { data, error } = await supabase
+      .from('feedback_question')
+      .insert(payload)
       .select()
       .single();
 
     if (data) {
-      try { await logInsert('feedback_question', String(data.id), toAuditRecord(data), 'Feedback question created'); } catch { /* audit non-critical */ }
+      const scope = question.attendance_date ? `date-specific (${question.attendance_date})` : 'global';
+      try { await logInsert('feedback_question', String(data.id), toAuditRecord(data), `Feedback question created — ${scope}`); } catch { /* audit non-critical */ }
     }
 
     return { data, error: normalizeFeedbackError(error) };
@@ -340,7 +387,23 @@ export const feedbackService = {
     return { error: normalizeFeedbackError(error) };
   },
 
-  async applyTemplateToSession(templateId: string, sessionId: string) {
+  /**
+   * Apply a template to a session.
+   * - No date: replaces ALL global questions (attendance_date IS NULL)
+   * - With date: replaces only questions for that specific date
+   */
+  async applyTemplateToSession(templateId: string, sessionId: string, attendanceDate?: string | null) {
+    let deleteQuery = supabase
+      .from('feedback_question')
+      .delete()
+      .eq('session_id', sessionId);
+
+    if (attendanceDate) {
+      deleteQuery = deleteQuery.eq('attendance_date', attendanceDate);
+    } else {
+      deleteQuery = deleteQuery.is('attendance_date', null);
+    }
+
     const { data: existingQuestions } = await supabase
       .from('feedback_question')
       .select('id')
@@ -356,10 +419,7 @@ export const feedbackService = {
       return { error: normalizeFeedbackError(templateError) };
     }
 
-    const { error: deleteError } = await supabase
-      .from('feedback_question')
-      .delete()
-      .eq('session_id', sessionId);
+    const { error: deleteError } = await deleteQuery;
 
     if (deleteError) {
       return { error: normalizeFeedbackError(deleteError) };
@@ -380,17 +440,19 @@ export const feedbackService = {
           options: question.options || [],
           sort_order: index,
           is_required: Boolean(question.required),
+          attendance_date: attendanceDate || null,
         }))
       );
 
     if (!error) {
+      const scope = attendanceDate ? `for date ${attendanceDate}` : 'global';
       try {
         await logUpdate(
           'feedback_question',
           sessionId,
           { session_id: sessionId, question_count: existingQuestions?.length || 0 },
-          { session_id: sessionId, question_count: questions.length, template_id: templateId },
-          'Applied feedback template to session'
+          { session_id: sessionId, question_count: questions.length, template_id: templateId, scope },
+          `Applied feedback template to session — ${scope}`
         );
       } catch {
         /* audit non-critical */
