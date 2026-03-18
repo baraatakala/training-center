@@ -649,9 +649,11 @@ export function Announcements() {
       if (editingAnnouncement) {
         const { error: err } = await announcementService.update(editingAnnouncement.announcement_id, data);
         if (err) throw err;
+        toast.success('Announcement updated');
       } else {
         const { error: err } = await announcementService.create(currentUserId, data, isAdminUser ? 'admin' : 'teacher');
         if (err) throw err;
+        toast.success('Announcement created');
       }
 
       await loadAnnouncementsForTeacher(currentUserId!);
@@ -672,6 +674,7 @@ export function Announcements() {
         toast.error(`Failed to delete announcement: ${err.message || 'Permission denied.'}`);
       } else {
         await loadAnnouncementsForTeacher(currentUserId!);
+        toast.success('Announcement deleted');
       }
     } catch (err) {
       console.error('Delete error:', err);
@@ -851,6 +854,7 @@ export function Announcements() {
     }
     
     setDeletingCommentId(null);
+    toast.success('Comment deleted');
     if (viewingAnnouncement) {
       await loadComments(viewingAnnouncement.announcement_id);
       setAnnouncements(prev => prev.map(a => 
@@ -1355,7 +1359,7 @@ export function Announcements() {
                   type="button"
                   onClick={removeImage}
                   aria-label="Remove image"
-                  className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1.5 shadow-lg transition-all opacity-80 group-hover:opacity-100"
+                  className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1.5 shadow-lg transition-all"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
