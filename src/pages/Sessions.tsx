@@ -658,14 +658,14 @@ export function Sessions() {
                         </div>
 
                         {/* Action Buttons */}
-                        <div className="flex flex-wrap gap-2 pt-1">
+                        <div className="pt-1 space-y-2">
                           {isTeacher && (
-                            <>
+                            <div className="grid grid-cols-2 xl:grid-cols-3 gap-2">
                               <Button
                                 size="sm"
                                 variant="success"
                                 onClick={() => navigate(`/attendance/${session.session_id}`)}
-                                className="flex-1 min-w-0"
+                                className="w-full min-h-[36px] justify-center"
                               >
                                 📋 Attendance
                               </Button>
@@ -673,7 +673,7 @@ export function Sessions() {
                                 size="sm"
                                 variant="outline"
                                 onClick={() => { setSelectedSessionForSchedule(session); setIsScheduleModalOpen(true); }}
-                                className="flex-1 min-w-0"
+                                className="w-full min-h-[36px] justify-center"
                               >
                                 📅 Host Schedule
                               </Button>
@@ -681,29 +681,20 @@ export function Sessions() {
                                 size="sm"
                                 variant="outline"
                                 onClick={() => setSelectedSessionForRecordings(session)}
-                                className="flex-1 min-w-0"
+                                className="w-full min-h-[36px] justify-center"
                               >
                                 🎥 Recordings
                               </Button>
-                              {session.feedback_enabled && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => navigate(`/feedback-analytics?session=${session.session_id}`)}
-                                  className="flex-1 min-w-0"
-                                >
-                                  💬 Feedback
-                                </Button>
-                              )}
-                            </>
+                            </div>
                           )}
                           {isAdmin && (
-                            <>
+                            <div className="grid grid-cols-2 xl:grid-cols-4 gap-2">
                               <Button
                                 size="sm"
                                 variant="outline"
                                 onClick={() => openCloneModal(session)}
                                 title="Clone session with new dates and copy all students"
+                                className="w-full min-h-[36px] justify-center"
                               >
                                 📋 Clone
                               </Button>
@@ -711,6 +702,7 @@ export function Sessions() {
                                 size="sm"
                                 variant="outline"
                                 onClick={() => openEditModal(session)}
+                                className="w-full min-h-[36px] justify-center"
                               >
                                 ✏️ Edit
                               </Button>
@@ -719,30 +711,34 @@ export function Sessions() {
                                   size="sm"
                                   variant="outline"
                                   onClick={() => setSelectedSessionForRecordings(session)}
+                                  className="w-full min-h-[36px] justify-center"
                                 >
                                   🎥 Recordings
                                 </Button>
                               )}
-                              {session.feedback_enabled && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => navigate(`/feedback-analytics?session=${session.session_id}`)}
-                                >
-                                  💬 Feedback
-                                </Button>
-                              )}
                               <button
                                 onClick={() => setDeletingSession(session)}
-                                className="px-3 py-1 text-sm rounded border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
+                                className="px-3 py-2 text-sm rounded border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors min-h-[36px]"
                                 title="Delete session"
                               >
                                 🗑️ Delete
                               </button>
-                            </>
+                            </div>
                           )}
-                          {!isTeacher && (
-                            <span className="text-xs text-gray-400 px-2 py-1">View only</span>
+                          {!isTeacher && !isAdmin && (
+                            <div className="flex flex-wrap items-center gap-2">
+                              {session.requires_recording && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setSelectedSessionForRecordings(session)}
+                                  className="min-h-[36px] justify-center"
+                                >
+                                  🎥 View Recordings
+                                </Button>
+                              )}
+                              <span className="text-xs text-gray-400 px-2 py-1">View only</span>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -895,54 +891,46 @@ export function Sessions() {
                         <Badge variant={statusVariant}>{sessionStatus}</Badge>
                       </TableCell>
                       <TableCell>
-                        <div className="flex gap-2 justify-end">
+                        <div className="flex flex-wrap gap-2 justify-end max-w-[380px] ml-auto">
                           {isTeacher && (
                             <>
                               <Button
                                 size="sm"
                                 variant="success"
                                 onClick={() => navigate(`/attendance/${session.session_id}`)}
+                                className="min-h-[36px]"
                               >
                                 Attendance
                               </Button>
-                              <Button size="sm" variant="outline" onClick={() => { setSelectedSessionForSchedule(session); setIsScheduleModalOpen(true); }}>
+                              <Button size="sm" variant="outline" onClick={() => { setSelectedSessionForSchedule(session); setIsScheduleModalOpen(true); }} className="min-h-[36px]">
                                 Host Schedule
                               </Button>
-                              <Button size="sm" variant="outline" onClick={() => setSelectedSessionForRecordings(session)}>
+                              <Button size="sm" variant="outline" onClick={() => setSelectedSessionForRecordings(session)} className="min-h-[36px]">
                                 Recordings
                               </Button>
-                              {session.feedback_enabled && (
-                                <Button size="sm" variant="outline" onClick={() => navigate(`/feedback-analytics?session=${session.session_id}`)}>
-                                  Feedback
-                                </Button>
-                              )}
                             </>
                           )}
                           {isAdmin && (
                             <>
-                              <Button size="sm" variant="outline" onClick={() => openCloneModal(session)}>
+                              <Button size="sm" variant="outline" onClick={() => openCloneModal(session)} className="min-h-[36px]">
                                 Clone
                               </Button>
                               <Button 
                                 size="sm" 
                                 variant="outline" 
                                 onClick={() => openEditModal(session)}
+                                className="min-h-[36px]"
                               >
                                 Edit
                               </Button>
                               {!isTeacher && (
-                                <Button size="sm" variant="outline" onClick={() => setSelectedSessionForRecordings(session)}>
+                                <Button size="sm" variant="outline" onClick={() => setSelectedSessionForRecordings(session)} className="min-h-[36px]">
                                   Recordings
-                                </Button>
-                              )}
-                              {session.feedback_enabled && (
-                                <Button size="sm" variant="outline" onClick={() => navigate(`/feedback-analytics?session=${session.session_id}`)}>
-                                  Feedback
                                 </Button>
                               )}
                               <button
                                 onClick={() => setDeletingSession(session)}
-                                className="px-2 md:px-3 py-1 text-xs md:text-sm rounded border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
+                                className="px-2 md:px-3 py-2 text-xs md:text-sm rounded border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors min-h-[36px]"
                                 title="Delete session"
                                 aria-label={`Delete session ${session.course?.course_name || ''}`}
                               >
@@ -950,8 +938,15 @@ export function Sessions() {
                               </button>
                             </>
                           )}
-                          {!isTeacher && (
-                            <span className="text-xs text-gray-400 px-2">View only</span>
+                          {!isTeacher && !isAdmin && (
+                            <>
+                              {session.requires_recording && (
+                                <Button size="sm" variant="outline" onClick={() => setSelectedSessionForRecordings(session)} className="min-h-[36px]">
+                                  View Recordings
+                                </Button>
+                              )}
+                              <span className="text-xs text-gray-400 px-2 self-center">View only</span>
+                            </>
                           )}
                         </div>
                       </TableCell>
@@ -1053,6 +1048,7 @@ export function Sessions() {
           <SessionRecordingsManager
             sessionId={selectedSessionForRecordings.session_id}
             courseName={selectedSessionForRecordings.course?.course_name || 'this session'}
+            canManageInAttendance={isTeacher || isAdmin}
           />
         )}
       </Modal>

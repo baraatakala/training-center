@@ -21,6 +21,8 @@ interface SessionFormProps {
   initialData?: CreateSession | null;
 }
 
+const CALENDAR_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
+
 export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProps) {
   const [formData, setFormData] = useState<CreateSession>({
     course_id: initialData?.course_id || '',
@@ -143,6 +145,16 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
     setSelectedDays(initialData?.day ? initialData.day.split(',').map(d => d.trim()) : []);
   }, [initialData]);
 
+  useEffect(() => {
+    if (!formData.start_date || initialData || selectedDays.length > 0) return;
+    const parsed = new Date(`${formData.start_date}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) return;
+    const detectedDay = CALENDAR_DAYS[parsed.getDay()];
+    if (!detectedDay) return;
+    setSelectedDays([detectedDay]);
+    setFormData(prev => ({ ...prev, day: detectedDay }));
+  }, [formData.start_date, initialData, selectedDays.length]);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
@@ -164,8 +176,8 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
       setError('End date is required.');
       return;
     }
-    if (new Date(formData.end_date) <= new Date(formData.start_date)) {
-      setError('End date must be after start date.');
+    if (new Date(formData.end_date) < new Date(formData.start_date)) {
+      setError('End date cannot be before start date.');
       return;
     }
     if (selectedDays.length === 0) {
@@ -241,7 +253,7 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
           <button
             type="button"
             onClick={() => setFormData(prev => ({ ...prev, start_date: suggestedStartDate }))}
-            className="text-xs text-blue-600 dark:text-blue-400 hover:underline py-1.5 px-2 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20"
+            className="mt-1 text-xs text-blue-600 dark:text-blue-400 hover:underline py-2 px-2.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 min-h-[36px]"
           >
             Use today ({suggestedStartDate})
           </button>
@@ -255,6 +267,15 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
         onChange={(value) => setFormData({ ...formData, end_date: value })}
         required
       />
+      {!initialData && formData.start_date && !formData.end_date && (
+        <button
+          type="button"
+          onClick={() => setFormData(prev => ({ ...prev, end_date: prev.start_date }))}
+          className="-mt-2 text-xs text-blue-600 dark:text-blue-400 hover:underline py-2 px-2.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 min-h-[36px]"
+        >
+          Use same day as start date
+        </button>
+      )}
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -317,25 +338,6 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
         </p>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Location</label>
-        <input
-          type="text"
-          list="recent-locations"
-          value={formData.location || ''}
-          onChange={(e) => setFormData({ ...formData, location: e.target.value || null })}
-          placeholder="e.g., Main Campus - Room 202"
-          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        />
-        {recentLocations.length > 0 && (
-          <datalist id="recent-locations">
-            {recentLocations.map(loc => (
-              <option key={loc} value={loc} />
-            ))}
-          </datalist>
-        )}
-      </div>
-
       <Select
         label="Learning Method"
         value={formData.learning_method || 'face_to_face'}
@@ -351,6 +353,27 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
         ]}
         required
       />
+
+      {formData.learning_method !== 'online' && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Location</label>
+          <input
+            type="text"
+            list="recent-locations"
+            value={formData.location || ''}
+            onChange={(e) => setFormData({ ...formData, location: e.target.value || null })}
+            placeholder="e.g., Main Campus - Room 202"
+            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          {recentLocations.length > 0 && (
+            <datalist id="recent-locations">
+              {recentLocations.map(loc => (
+                <option key={loc} value={loc} />
+              ))}
+            </datalist>
+          )}
+        </div>
+      )}
 
       {formData.learning_method !== 'face_to_face' && (
         <>
@@ -399,19 +422,24 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
         </label>
 
         {formData.requires_recording && (
-          <Select
-            label="Default Recording Visibility"
-            value={formData.default_recording_visibility || 'course_staff'}
-            onChange={(value) => setFormData({ ...formData, default_recording_visibility: (value || 'course_staff') as CreateSession['default_recording_visibility'] })}
-            options={[
-              { value: 'private_staff', label: 'Private Staff' },
-              { value: 'course_staff', label: 'Course Staff' },
-              { value: 'enrolled_students', label: 'Enrolled Students' },
-              { value: 'organization', label: 'Organization' },
-              { value: 'public_link', label: 'Public Link' },
-            ]}
-            required
-          />
+          <>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Recording links are added later from Attendance for each session date, then shown to students from the Sessions page.
+            </p>
+            <Select
+              label="Default Recording Visibility"
+              value={formData.default_recording_visibility || 'course_staff'}
+              onChange={(value) => setFormData({ ...formData, default_recording_visibility: (value || 'course_staff') as CreateSession['default_recording_visibility'] })}
+              options={[
+                { value: 'private_staff', label: 'Private Staff' },
+                { value: 'course_staff', label: 'Course Staff' },
+                { value: 'enrolled_students', label: 'Enrolled Students' },
+                { value: 'organization', label: 'Organization' },
+                { value: 'public_link', label: 'Public Link' },
+              ]}
+              required
+            />
+          </>
         )}
       </div>
 

@@ -1993,6 +1993,9 @@ export function Attendance() {
             <CardTitle>🎥 Recording Link</CardTitle>
           </CardHeader>
           <CardContent>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+              Save the replay for this attendance date here. Students will see the same dated link in Sessions under Recordings.
+            </p>
             <div className="flex gap-2">
               <input
                 type="url"
