@@ -152,10 +152,30 @@ export function SessionRecordingsManager({ sessionId, courseName }: Props) {
           className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2.5 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
           onKeyDown={e => { if (e.key === 'Enter' && formUrl.trim()) handleSubmit(); }}
         />
-        {formUrl.trim() && detectProvider(formUrl) && (
-          <p className="text-[10px] text-blue-600 dark:text-blue-400 flex items-center gap-1">
-            {getProviderIcon(formUrl)} Detected: {detectProvider(formUrl)}
-          </p>
+        {formUrl.trim() && (
+          <div className="flex items-center gap-2">
+            {detectProvider(formUrl) ? (
+              <span className="text-[10px] text-blue-600 dark:text-blue-400 flex items-center gap-1 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full">
+                {getProviderIcon(formUrl)} {detectProvider(formUrl)}
+              </span>
+            ) : /^https?:\/\//i.test(formUrl.trim()) ? (
+              <span className="text-[10px] text-green-600 dark:text-green-400 flex items-center gap-1 bg-green-50 dark:bg-green-900/20 px-2 py-0.5 rounded-full">
+                🔗 Custom link
+              </span>
+            ) : (
+              <span className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded-full">
+                ⚠️ URL should start with https://
+              </span>
+            )}
+          </div>
+        )}
+        {!formUrl.trim() && !editingId && (
+          <div className="flex flex-wrap gap-1.5">
+            {['YouTube', 'Zoom', 'Google Meet', 'Google Drive', 'MS Teams', 'Loom', 'Vimeo'].map(p => (
+              <span key={p} className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-400">{p}</span>
+            ))}
+            <span className="text-[10px] text-gray-400">+ any URL</span>
+          </div>
         )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <input type="date" value={formDate} onChange={e => setFormDate(e.target.value)}
@@ -202,7 +222,7 @@ export function SessionRecordingsManager({ sessionId, courseName }: Props) {
                           {r.recording_url}
                         </a>
                       </div>
-                      <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex gap-1 shrink-0 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <button type="button" onClick={() => handleEdit(r)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600" title="Edit">✏️</button>
                         <button type="button" onClick={() => handleDelete(r.recording_id)} className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500" title="Delete">🗑</button>
                       </div>

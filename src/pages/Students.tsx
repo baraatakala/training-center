@@ -485,7 +485,7 @@ export function Students() {
                                   setPhotoStudent(student);
                                   setIsPhotoModalOpen(true);
                                 }}
-                                className={`px-2 md:px-3 py-1 text-xs md:text-sm rounded border ${
+                                className={`px-2.5 md:px-3 py-1.5 text-xs md:text-sm rounded border min-h-[36px] ${
                                   student.photo_url 
                                     ? 'text-green-600 border-green-300 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:border-green-700 dark:bg-green-900/20 dark:hover:bg-green-900/40' 
                                     : 'text-orange-600 border-orange-300 bg-orange-50 hover:bg-orange-100 dark:text-orange-400 dark:border-orange-700 dark:bg-orange-900/20 dark:hover:bg-orange-900/40'
@@ -499,14 +499,14 @@ export function Students() {
                                 size="sm" 
                                 variant="secondary" 
                                 onClick={() => openEditModal(student)} 
-                                className="text-xs md:text-sm px-2 md:px-3"
+                                className="text-xs md:text-sm px-2.5 md:px-3 py-1.5 min-h-[36px]"
                                 aria-label={`Edit ${student.name}`}
                               >
                                 Edit
                               </Button>
                               <button
                                 onClick={() => setDeletingStudent(student)}
-                                className="px-2 md:px-3 py-1 text-xs md:text-sm rounded border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
+                                className="px-2.5 md:px-3 py-1.5 text-xs md:text-sm rounded border min-h-[36px] text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
                                 title="Delete student"
                                 aria-label={`Delete ${student.name}`}
                               >

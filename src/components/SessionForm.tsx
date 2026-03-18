@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useMemo, type FormEvent } from 'react';
 import { Input } from './ui/Input';
 import { Select } from './ui/Select';
 import { Button } from './ui/Button';
@@ -48,6 +48,7 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [recentLocations, setRecentLocations] = useState<string[]>([]);
 
   const daysOfWeek = [
     'Monday',
@@ -86,7 +87,35 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
   useEffect(() => {
     loadTeachers();
     loadCourses();
+    // Load recent locations for suggestions
+    supabase
+      .from(Tables.SESSION)
+      .select('location')
+      .not('location', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(50)
+      .then(({ data }) => {
+        if (data) {
+          const unique = [...new Set(data.map(d => d.location).filter(Boolean) as string[])];
+          setRecentLocations(unique.slice(0, 10));
+        }
+      });
   }, []);
+
+  /** Auto-detect virtual provider from pasted URL */
+  const detectProviderFromUrl = (url: string): CreateSession['virtual_provider'] => {
+    const u = url.toLowerCase();
+    if (u.includes('zoom.us') || u.includes('zoom.com')) return 'zoom';
+    if (u.includes('meet.google.com')) return 'google_meet';
+    if (u.includes('teams.microsoft.com') || u.includes('teams.live.com')) return 'microsoft_teams';
+    return 'other';
+  };
+
+  /** Auto-suggest today as start date for new sessions */
+  const suggestedStartDate = useMemo(() => {
+    if (initialData?.start_date) return '';
+    return new Date().toISOString().slice(0, 10);
+  }, [initialData?.start_date]);
 
   useEffect(() => {
     setFormData({
@@ -196,13 +225,24 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
         required
       />
 
-      <Input
-        label="Start Date"
-        type="date"
-        value={formData.start_date}
-        onChange={(value) => setFormData({ ...formData, start_date: value })}
-        required
-      />
+      <div>
+        <Input
+          label="Start Date"
+          type="date"
+          value={formData.start_date}
+          onChange={(value) => setFormData({ ...formData, start_date: value })}
+          required
+        />
+        {!initialData && !formData.start_date && suggestedStartDate && (
+          <button
+            type="button"
+            onClick={() => setFormData(prev => ({ ...prev, start_date: suggestedStartDate }))}
+            className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline mt-0.5"
+          >
+            Use today ({suggestedStartDate})
+          </button>
+        )}
+      </div>
 
       <Input
         label="End Date"
@@ -273,13 +313,24 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
         </p>
       </div>
 
-      <Input
-        label="Location"
-        type="text"
-        value={formData.location || ''}
-        onChange={(value) => setFormData({ ...formData, location: value || null })}
-        placeholder="e.g., Main Campus - Room 202"
-      />
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Location</label>
+        <input
+          type="text"
+          list="recent-locations"
+          value={formData.location || ''}
+          onChange={(e) => setFormData({ ...formData, location: e.target.value || null })}
+          placeholder="e.g., Main Campus - Room 202"
+          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+        {recentLocations.length > 0 && (
+          <datalist id="recent-locations">
+            {recentLocations.map(loc => (
+              <option key={loc} value={loc} />
+            ))}
+          </datalist>
+        )}
+      </div>
 
       <Select
         label="Learning Method"
@@ -316,8 +367,18 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
             label="Virtual Meeting Link"
             type="url"
             value={formData.virtual_meeting_link || ''}
-            onChange={(value) => setFormData({ ...formData, virtual_meeting_link: value || null })}
-            placeholder="https://..."
+            onChange={(value) => {
+              const updates: Partial<CreateSession> = { virtual_meeting_link: value || null };
+              // Auto-detect provider from pasted URL
+              if (value && /^https?:\/\//i.test(value)) {
+                const detected = detectProviderFromUrl(value);
+                if (detected && !formData.virtual_provider) {
+                  updates.virtual_provider = detected;
+                }
+              }
+              setFormData(prev => ({ ...prev, ...updates }));
+            }}
+            placeholder="https://... (provider auto-detected)"
           />
         </>
       )}

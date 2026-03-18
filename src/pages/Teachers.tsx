@@ -348,14 +348,14 @@ export function Teachers() {
                                 size="sm" 
                                 variant="secondary" 
                                 onClick={() => openEditModal(teacher)} 
-                                className="text-xs md:text-sm px-2 md:px-3"
+                                className="text-xs md:text-sm px-2.5 md:px-3 py-1.5 min-h-[36px]"
                                 aria-label={`Edit ${teacher.name}`}
                               >
                                 Edit
                               </Button>
                               <button
                                 onClick={() => setDeletingTeacher(teacher)}
-                                className="px-2 md:px-3 py-1 text-xs md:text-sm rounded border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
+                                className="px-2.5 md:px-3 py-1.5 text-xs md:text-sm rounded border min-h-[36px] text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
                                 title="Delete teacher"
                                 aria-label={`Delete ${teacher.name}`}
                               >

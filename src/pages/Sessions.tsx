@@ -620,7 +620,7 @@ export function Sessions() {
                           )}
                         </div>
 
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-1.5">
                           <Badge variant={session.learning_method === 'online' ? 'info' : session.learning_method === 'hybrid' ? 'warning' : 'default'}>
                             {formatLearningMethod(session.learning_method)}
                           </Badge>
@@ -628,7 +628,16 @@ export function Sessions() {
                             <Badge variant="info">{formatVirtualProvider(session.virtual_provider)}</Badge>
                           )}
                           {session.requires_recording && (
-                            <Badge variant="success">Recording: {formatRecordingVisibility(session.default_recording_visibility) || 'Enabled'}</Badge>
+                            <Badge variant="success">🎥 {formatRecordingVisibility(session.default_recording_visibility) || 'Recording'}</Badge>
+                          )}
+                          {session.feedback_enabled && (
+                            <Badge variant="info">💜 Feedback</Badge>
+                          )}
+                          {session.grace_period_minutes != null && session.grace_period_minutes > 0 && (
+                            <Badge variant="default">⏱ {session.grace_period_minutes}m grace</Badge>
+                          )}
+                          {session.teacher_can_host === false && (
+                            <Badge variant="warning">🔒 Student-hosted</Badge>
                           )}
                         </div>
 

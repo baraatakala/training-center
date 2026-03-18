@@ -21,6 +21,7 @@ interface EnrollmentWithDetails {
   enrollment_date: string;
   status: string;
   can_host?: boolean | null;
+  host_date?: string | null;
   student: {
     name: string;
     email: string;
@@ -200,7 +201,7 @@ export function Enrollments() {
   };
 
   const exportToCSV = useCallback(() => {
-    const headers = ['Student', 'Email', 'Course', 'Enrollment Date', 'Status', 'Can Host'];
+    const headers = ['Student', 'Email', 'Course', 'Enrollment Date', 'Status', 'Can Host', 'Host Date'];
     const rows = filteredEnrollments.map(e => [
       e.student?.name || '',
       e.student?.email || '',
@@ -208,6 +209,7 @@ export function Enrollments() {
       e.enrollment_date,
       e.status,
       e.can_host ? 'Yes' : 'No',
+      e.host_date || '',
     ]);
     const csvContent = [headers, ...rows].map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -422,25 +424,30 @@ export function Enrollments() {
                     <TableCell className="text-center">
                       {isAdmin ? (
                         enrollment.status === 'active' ? (
-                          <button
-                            onClick={async () => {
-                              const newValue = !enrollment.can_host;
-                              const { error } = await enrollmentService.update(enrollment.enrollment_id, { can_host: newValue });
-                              if (error) {
-                                toast.error('Failed to update host status: ' + error.message);
-                              } else {
-                                loadEnrollments();
-                              }
-                            }}
-                            className={`inline-flex items-center justify-center h-8 w-8 rounded-full cursor-pointer transition ${
-                              enrollment.can_host 
-                                ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/60' 
-                                : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600'
-                            }`}
-                            title={enrollment.can_host ? 'Click to mark as former host' : 'Click to mark as active host'}
-                          >
-                            {enrollment.can_host ? '✓' : '—'}
-                          </button>
+                          <div className="flex flex-col items-center gap-0.5">
+                            <button
+                              onClick={async () => {
+                                const newValue = !enrollment.can_host;
+                                const { error } = await enrollmentService.update(enrollment.enrollment_id, { can_host: newValue });
+                                if (error) {
+                                  toast.error('Failed to update host status: ' + error.message);
+                                } else {
+                                  loadEnrollments();
+                                }
+                              }}
+                              className={`inline-flex items-center justify-center h-8 w-8 rounded-full cursor-pointer transition ${
+                                enrollment.can_host 
+                                  ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/60' 
+                                  : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600'
+                              }`}
+                              title={enrollment.can_host ? 'Click to mark as former host' : 'Click to mark as active host'}
+                            >
+                              {enrollment.can_host ? '✓' : '—'}
+                            </button>
+                            {enrollment.can_host && enrollment.host_date && (
+                              <span className="text-[10px] text-green-600 dark:text-green-400">{enrollment.host_date}</span>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-gray-300 dark:text-gray-600" title={`Cannot host (status: ${enrollment.status})`}>✕</span>
                         )

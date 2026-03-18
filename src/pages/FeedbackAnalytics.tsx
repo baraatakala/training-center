@@ -200,6 +200,24 @@ export function FeedbackAnalytics() {
       setQuestions(questionsResult.data || []);
       setTemplates(templatesResult.data || []);
       setSelectedTemplateId((current) => current || templatesResult.data?.[0]?.id || '');
+
+      // Auto-apply default template if session has no questions yet
+      const loadedQuestions = questionsResult.data || [];
+      const loadedTemplates = templatesResult.data || [];
+      if (loadedQuestions.length === 0 && loadedTemplates.length > 0) {
+        const defaultTemplate = loadedTemplates.find(t => t.is_default) || loadedTemplates[0];
+        if (defaultTemplate) {
+          const applyResult = await feedbackService.applyTemplateToSession(defaultTemplate.id, selectedSessionId);
+          if (!applyResult.error) {
+            const refreshed = await feedbackService.getQuestions(selectedSessionId);
+            if (!cancelled) {
+              setQuestions(refreshed.data || []);
+              toast.success(`Auto-applied template "${defaultTemplate.name}" with ${defaultTemplate.questions.length} questions`);
+            }
+          }
+        }
+      }
+
       setLoading(false);
     }
     load();
@@ -302,10 +320,10 @@ export function FeedbackAnalytics() {
     if (!trimmedText) { setQuestionError('Question text is required.'); return; }
 
     const parsedOptions = questionDraft.question_type === 'multiple_choice'
-      ? questionDraft.optionsText.split(',').map(o => o.trim()).filter(Boolean)
+      ? questionDraft.optionsText.split(/[,،]/).map(o => o.trim()).filter(Boolean)
       : [];
     if (questionDraft.question_type === 'multiple_choice' && parsedOptions.length < 2) {
-      setQuestionError('Multiple choice needs at least two comma-separated options.');
+      setQuestionError('Multiple choice needs at least 2 options separated by comma (,) or Arabic comma (،)');
       return;
     }
 
@@ -420,16 +438,16 @@ export function FeedbackAnalytics() {
         { label: 'Feedback Analytics' },
       ]} />
       {/* ─── Header ─────────────────────────────────────────── */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center text-white text-lg shadow-lg shadow-purple-500/20">💜</div>
-          <div>
-            <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Feedback Analytics</h1>
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center text-white text-lg shadow-lg shadow-purple-500/20 shrink-0">💜</div>
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white truncate">Feedback Analytics</h1>
             <p className="text-[11px] text-gray-400 dark:text-gray-500">Student survey insights & form builder</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-52">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <div className="flex-1 min-w-0">
             <Select
               label=""
               value={selectedSessionId}
@@ -443,6 +461,7 @@ export function FeedbackAnalytics() {
               variant="outline"
               size="sm"
               onClick={() => exportFeedbackCSV(feedbacks, questions, selectedSession?.course_name || 'feedback')}
+              className="shrink-0"
             >
               📥 CSV
             </Button>
@@ -470,7 +489,7 @@ export function FeedbackAnalytics() {
       {!loading && selectedSessionId && (
         <>
           {/* ─── Tabs (pill style) ──────────────────────────────── */}
-          <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl w-fit">
+          <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl overflow-x-auto">
             {([
               { key: 'analytics' as ActiveTab, label: 'Analytics', icon: '📊', badge: stats?.totalResponses },
               { key: 'questions' as ActiveTab, label: 'Questions', icon: '🧩', badge: questions.length },
@@ -765,27 +784,28 @@ export function FeedbackAnalytics() {
                 <input
                   value={questionDraft.question_text}
                   onChange={(e) => setQuestionDraft(prev => ({ ...prev, question_text: e.target.value }))}
-                  placeholder="Type your question..."
+                  dir={questionDraft.question_text && /[\u0600-\u06FF]/.test(questionDraft.question_text) ? 'rtl' : 'ltr'}
+                  placeholder="Type your question... / اكتب سؤالك..."
                   className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent placeholder:text-gray-400"
                   onKeyDown={e => { if (e.key === 'Enter' && questionDraft.question_text.trim()) handleSubmitQuestion(); }}
                 />
 
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                   {(['rating', 'emoji', 'text', 'multiple_choice'] as const).map(t => (
                     <button
                       key={t}
                       type="button"
                       onClick={() => setQuestionDraft(prev => ({ ...prev, question_type: t }))}
-                      className={`text-xs px-3 py-1.5 rounded-full border transition-all ${
+                      className={`text-[11px] sm:text-xs px-2.5 sm:px-3 py-1.5 rounded-full border transition-all ${
                         questionDraft.question_type === t
                           ? 'border-purple-500 bg-purple-600 text-white'
                           : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-purple-300'
                       }`}
                     >
-                      {t === 'rating' ? '⭐ Rating' : t === 'emoji' ? '😊 Emoji' : t === 'text' ? '📝 Text' : '📋 Multiple Choice'}
+                      {t === 'rating' ? '⭐ Rating' : t === 'emoji' ? '😊 Emoji' : t === 'text' ? '📝 Text' : '📋 Multi'}
                     </button>
                   ))}
-                  <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer ml-auto">
+                  <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer sm:ml-auto">
                     <input
                       type="checkbox"
                       checked={questionDraft.is_required}
@@ -797,12 +817,24 @@ export function FeedbackAnalytics() {
                 </div>
 
                 {questionDraft.question_type === 'multiple_choice' && (
-                  <input
-                    value={questionDraft.optionsText}
-                    onChange={(e) => setQuestionDraft(prev => ({ ...prev, optionsText: e.target.value }))}
-                    placeholder="Options: Option A, Option B, Option C..."
-                    className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400"
-                  />
+                  <div className="space-y-1.5">
+                    <input
+                      value={questionDraft.optionsText}
+                      onChange={(e) => setQuestionDraft(prev => ({ ...prev, optionsText: e.target.value }))}
+                      dir={questionDraft.optionsText && /[\u0600-\u06FF]/.test(questionDraft.optionsText) ? 'rtl' : 'ltr'}
+                      placeholder="Option A, Option B / الخيار أ، الخيار ب"
+                      className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400"
+                    />
+                    {questionDraft.optionsText && (
+                      <div className="flex flex-wrap gap-1">
+                        {questionDraft.optionsText.split(/[,،]/).map(o => o.trim()).filter(Boolean).map((opt, i) => (
+                          <span key={i} className="text-[11px] px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700">
+                            {opt}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 <div className="flex gap-2">
@@ -843,7 +875,7 @@ export function FeedbackAnalytics() {
                                 </span>
                                 {question.is_required && <span className="text-[10px] text-red-500">*</span>}
                               </div>
-                              <p className="text-sm font-medium text-gray-900 dark:text-white">{question.question_text}</p>
+                              <p className="text-sm font-medium text-gray-900 dark:text-white" dir={/[\u0600-\u06FF]/.test(question.question_text) ? 'rtl' : 'ltr'}>{question.question_text}</p>
                               {/* Inline answer preview */}
                               <div className="mt-1.5">
                                 {question.question_type === 'rating' && (
@@ -864,7 +896,7 @@ export function FeedbackAnalytics() {
                                 )}
                               </div>
                             </div>
-                            <div className="flex gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex gap-0.5 shrink-0 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                               <button type="button" onClick={() => handleEditQuestion(question)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600" title="Edit">✏️</button>
                               <button type="button" onClick={() => handleDeleteQuestion(question.id)} className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500" title="Delete">🗑</button>
                             </div>
@@ -1029,7 +1061,7 @@ export function FeedbackAnalytics() {
 
                         {isExpanded && (
                           <div className="px-3 pb-3 border-t border-gray-100 dark:border-gray-700 pt-2.5 space-y-2.5">
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                            <div className="grid grid-cols-2 gap-2 text-xs">
                               <div className="rounded-lg bg-gray-50 dark:bg-gray-800/60 px-2.5 py-2">
                                 <span className="text-[10px] text-gray-400 block">Rating</span>
                                 <span className="font-semibold text-gray-900 dark:text-white">
