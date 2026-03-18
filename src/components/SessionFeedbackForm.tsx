@@ -146,11 +146,25 @@ export default function SessionFeedbackForm({
     );
   }
 
+  if (submitted) {
+    return (
+      <div className="animate-scale-in mt-6 text-center p-6 bg-purple-50 dark:bg-purple-900/30 rounded-2xl border border-purple-200 dark:border-purple-700">
+        <span className="text-5xl block mb-3">💜</span>
+        <p className="text-lg font-semibold text-purple-700 dark:text-purple-300">
+          Thank you for your feedback!
+        </p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          Your response helps improve future sessions.
+        </p>
+      </div>
+    );
+  }
+
   if (loadError) {
     return (
-      <div className="animate-fade-in mt-6 p-4 rounded-2xl border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 text-center">
+      <div className="animate-fade-in mt-6 rounded-2xl border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 p-4 text-center">
         <p className="text-sm font-semibold text-red-700 dark:text-red-300">Unable to load the feedback form right now.</p>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{loadError}</p>
+        <p className="mt-1 text-xs leading-relaxed break-words text-red-700/80 dark:text-red-300/80">{loadError}</p>
         <button
           type="button"
           onClick={onSkip}
@@ -164,30 +178,16 @@ export default function SessionFeedbackForm({
 
   if (!feedbackEnabled) {
     return (
-      <div className="animate-fade-in mt-6 p-4 rounded-2xl border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-center">
+      <div className="animate-fade-in mt-6 rounded-2xl border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4 text-center">
         <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">Feedback is not available for this session right now.</p>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">The session setting was turned off before this form loaded.</p>
+        <p className="mt-1 text-xs leading-relaxed text-amber-700/80 dark:text-amber-300/80">The session setting was turned off before the form finished loading.</p>
         <button
           type="button"
           onClick={onSkip}
           className="mt-3 text-sm text-amber-600 dark:text-amber-400 hover:underline"
         >
-          Continue →
+          Continue
         </button>
-      </div>
-    );
-  }
-
-  if (submitted) {
-    return (
-      <div className="animate-scale-in mt-6 text-center p-6 bg-purple-50 dark:bg-purple-900/30 rounded-2xl border border-purple-200 dark:border-purple-700">
-        <span className="text-5xl block mb-3">💜</span>
-        <p className="text-lg font-semibold text-purple-700 dark:text-purple-300">
-          Thank you for your feedback!
-        </p>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Your response helps improve future sessions.
-        </p>
       </div>
     );
   }
@@ -224,7 +224,7 @@ export default function SessionFeedbackForm({
       <div className="bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-2xl p-5 border border-purple-100 dark:border-purple-800/50">
         {submissionError && (
           <div className="mb-4 rounded-xl border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-700 dark:text-red-300">
-            {submissionError}
+            <span className="break-words leading-relaxed">{submissionError}</span>
           </div>
         )}
 

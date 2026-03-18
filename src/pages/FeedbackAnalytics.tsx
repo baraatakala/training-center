@@ -171,111 +171,111 @@ export function FeedbackAnalytics() {
     setTemplateDraft({ name: '', description: '', is_default: false });
   }, []);
 
-  const loadSessions = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('session')
-      .select('session_id, start_date, end_date, feedback_enabled, feedback_anonymous_allowed, course:course_id(course_name), teacher:teacher_id(name)')
-      .order('start_date', { ascending: false });
+  // ─── Load sessions ────────────────────────────────────────
+  useEffect(() => {
+    async function loadSessions() {
+      const { data, error } = await supabase
+        .from('session')
+        .select('session_id, start_date, end_date, feedback_enabled, feedback_anonymous_allowed, course:course_id(course_name), teacher:teacher_id(name)')
+        .order('start_date', { ascending: false });
 
-    if (error) {
-      setPageError(error.message || 'Unable to load feedback sessions.');
-      toast.error(error.message || 'Unable to load feedback sessions.', 7000);
-      return;
-    }
-
-    const mapped = (data || []).map((s: Record<string, unknown>) => {
-      const course = s.course as Record<string, string> | Record<string, string>[] | null;
-      const teacher = s.teacher as Record<string, string> | Record<string, string>[] | null;
-      const courseName = Array.isArray(course) ? course[0]?.course_name : course?.course_name;
-      const teacherName = Array.isArray(teacher) ? teacher[0]?.name : teacher?.name;
-      return {
-        session_id: s.session_id as string,
-        course_name: courseName ?? 'Unknown Course',
-        teacher_name: teacherName ?? 'Unknown Teacher',
-        start_date: String(s.start_date || ''),
-        end_date: String(s.end_date || ''),
-        feedback_enabled: Boolean(s.feedback_enabled),
-        feedback_anonymous_allowed: Boolean(s.feedback_anonymous_allowed ?? true),
-      };
-    });
-
-    setSessions(mapped);
-    setPageError(null);
-    setSelectedSessionId((current) => {
-      if (sessionParam && mapped.some((session) => session.session_id === sessionParam)) {
-        return sessionParam;
+      if (error) {
+        const message = error.message || 'Unable to load feedback sessions.';
+        setPageError(message);
+        toast.error(message, 7000);
+        return;
       }
-      if (current && mapped.some((session) => session.session_id === current)) {
-        return current;
-      }
-      return mapped[0]?.session_id || '';
-    });
-  }, [sessionParam]);
 
-  const loadSelectedSessionData = useCallback(async (sessionId: string) => {
-    if (!sessionId) return;
-
-    setLoading(true);
-    const [fbResult, statsResult, questionsResult, templatesResult] = await Promise.all([
-      feedbackService.getBySession(sessionId),
-      feedbackService.getStats(sessionId),
-      feedbackService.getQuestions(sessionId),
-      feedbackService.getTemplates(),
-    ]);
-
-    const feedbackError = fbResult.error as { message?: string } | null;
-    const statsError = statsResult.error as { message?: string } | null;
-    const questionsError = questionsResult.error as { message?: string } | null;
-    const templatesError = templatesResult.error as { message?: string } | null;
-    const combinedError = feedbackError?.message || statsError?.message || questionsError?.message || templatesError?.message || null;
-
-    if (combinedError) {
-      setPageError(combinedError);
-      toast.error(combinedError, 7000);
-    } else {
-      setPageError(null);
-    }
-
-    setFeedbacks(fbResult.data || []);
-    setStats(statsResult.data);
-    setQuestions(questionsResult.data || []);
-    setTemplates(templatesResult.data || []);
-    setSelectedTemplateId((current) => current || templatesResult.data?.[0]?.id || '');
-
-    const loadedQuestions = questionsResult.data || [];
-    const loadedTemplates = templatesResult.data || [];
-    if (!combinedError && loadedQuestions.length === 0 && loadedTemplates.length > 0) {
-      const defaultTemplate = loadedTemplates.find(t => t.is_default) || loadedTemplates[0];
-      if (defaultTemplate) {
-        const applyResult = await feedbackService.applyTemplateToSession(defaultTemplate.id, sessionId);
-        if (!applyResult.error) {
-          const refreshed = await feedbackService.getQuestions(sessionId);
-          setQuestions(refreshed.data || []);
-          toast.success(`Auto-applied template "${defaultTemplate.name}" with ${defaultTemplate.questions.length} questions`);
+      if (data) {
+        const mapped = data.map((s: Record<string, unknown>) => {
+          const course = s.course as Record<string, string> | Record<string, string>[] | null;
+          const teacher = s.teacher as Record<string, string> | Record<string, string>[] | null;
+          const courseName = Array.isArray(course) ? course[0]?.course_name : course?.course_name;
+          const teacherName = Array.isArray(teacher) ? teacher[0]?.name : teacher?.name;
+          return {
+            session_id: s.session_id as string,
+            course_name: courseName ?? 'Unknown Course',
+            teacher_name: teacherName ?? 'Unknown Teacher',
+            start_date: String(s.start_date || ''),
+            end_date: String(s.end_date || ''),
+            feedback_enabled: Boolean(s.feedback_enabled),
+            feedback_anonymous_allowed: Boolean(s.feedback_anonymous_allowed ?? true),
+          };
+        });
+        setSessions(mapped);
+        setPageError(null);
+        if (sessionParam && mapped.some(s => s.session_id === sessionParam)) {
+          setSelectedSessionId(sessionParam);
+        } else if (selectedSessionId && mapped.some(s => s.session_id === selectedSessionId)) {
+          setSelectedSessionId(selectedSessionId);
+        } else if (mapped.length > 0) {
+          setSelectedSessionId(mapped[0].session_id);
         }
       }
     }
-
-    setLoading(false);
-  }, []);
-
-  // ─── Load sessions ────────────────────────────────────────
-  useEffect(() => {
     loadSessions();
-  }, [loadSessions]);
+  }, [selectedSessionId, sessionParam]);
 
   // ─── Load data for selected session ────────────────────────
   useEffect(() => {
-    loadSelectedSessionData(selectedSessionId);
-  }, [loadSelectedSessionData, selectedSessionId]);
+    if (!selectedSessionId) return;
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      const [fbResult, statsResult, questionsResult, templatesResult] = await Promise.all([
+        feedbackService.getBySession(selectedSessionId),
+        feedbackService.getStats(selectedSessionId),
+        feedbackService.getQuestions(selectedSessionId),
+        feedbackService.getTemplates(),
+      ]);
+      if (cancelled) return;
+      const feedbackError = fbResult.error as { message?: string } | null;
+      const statsError = statsResult.error as { message?: string } | null;
+      const questionsError = questionsResult.error as { message?: string } | null;
+      const templatesError = templatesResult.error as { message?: string } | null;
+      const combinedError = feedbackError?.message || statsError?.message || questionsError?.message || templatesError?.message || null;
+
+      setFeedbacks(fbResult.data || []);
+      setStats(statsResult.data);
+      setQuestions(questionsResult.data || []);
+      setTemplates(templatesResult.data || []);
+      setSelectedTemplateId((current) => current || templatesResult.data?.[0]?.id || '');
+      setPageError(combinedError);
+
+      if (combinedError) {
+        toast.error(combinedError, 7000);
+      }
+
+      // Auto-apply default template if session has no questions yet
+      const loadedQuestions = questionsResult.data || [];
+      const loadedTemplates = templatesResult.data || [];
+      if (loadedQuestions.length === 0 && loadedTemplates.length > 0) {
+        const defaultTemplate = loadedTemplates.find(t => t.is_default) || loadedTemplates[0];
+        if (defaultTemplate) {
+          const applyResult = await feedbackService.applyTemplateToSession(defaultTemplate.id, selectedSessionId);
+          if (!applyResult.error) {
+            const refreshed = await feedbackService.getQuestions(selectedSessionId);
+            if (!cancelled) {
+              setQuestions(refreshed.data || []);
+              toast.success(`Auto-applied template "${defaultTemplate.name}" with ${defaultTemplate.questions.length} questions`);
+            }
+          }
+        }
+      }
+
+      setLoading(false);
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [selectedSessionId]);
 
   // Refresh feedback data when tab becomes visible
   const refreshFeedbackData = useCallback(() => {
-    loadSessions();
     if (selectedSessionId) {
-      loadSelectedSessionData(selectedSessionId);
+      feedbackService.getBySession(selectedSessionId).then(r => { if (r.data) setFeedbacks(r.data); });
+      feedbackService.getStats(selectedSessionId).then(r => { if (r.data) setStats(r.data); });
     }
-  }, [loadSelectedSessionData, loadSessions, selectedSessionId]);
+  }, [selectedSessionId]);
   useRefreshOnFocus(refreshFeedbackData);
 
   // ─── Derived data ──────────────────────────────────────────
@@ -578,7 +578,7 @@ export function FeedbackAnalytics() {
       {!loading && selectedSessionId && (
         <>
           {pageError && (
-            <div className="rounded-xl border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+            <div className="rounded-xl border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-300 break-words leading-relaxed">
               {pageError}
             </div>
           )}

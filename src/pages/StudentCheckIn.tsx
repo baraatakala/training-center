@@ -641,7 +641,7 @@ export function StudentCheckIn() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-gray-700 dark:text-gray-300 mb-4">{error}</p>
+            <p className="mb-4 whitespace-pre-line break-words text-sm leading-relaxed text-gray-700 dark:text-gray-300">{error}</p>
             <Button onClick={() => navigate('/')} className="w-full">
               Return to Home
             </Button>

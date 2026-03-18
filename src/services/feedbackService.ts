@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { logDelete, logInsert, logUpdate } from './auditService';
 
 // ─── Types ───────────────────────────────────────────────────
 export interface FeedbackQuestion {
@@ -89,6 +90,10 @@ function normalizeFeedbackError(error: { message?: string; details?: string; hin
   return error;
 }
 
+function toAuditRecord(value: unknown): Record<string, unknown> {
+  return (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
+}
+
 // ─── Feedback Submission ─────────────────────────────────────
 export const feedbackService = {
   /** Submit feedback after check-in */
@@ -128,6 +133,19 @@ export const feedbackService = {
       .select()
       .single();
 
+    if (data) {
+      try {
+        await logInsert(
+          'session_feedback',
+          String(data.id),
+          toAuditRecord(data),
+          `Feedback submitted via ${feedback.check_in_method || 'unknown'} check-in`
+        );
+      } catch {
+        /* audit non-critical */
+      }
+    }
+
     return { data, error: normalizeFeedbackError(error) };
   },
 
@@ -141,7 +159,7 @@ export const feedbackService = {
       .eq('attendance_date', date)
       .maybeSingle();
 
-    return { alreadySubmitted: !!data, error };
+    return { alreadySubmitted: !!data, error: normalizeFeedbackError(error) };
   },
 
   /** Check if session has feedback enabled */
@@ -155,7 +173,7 @@ export const feedbackService = {
     return {
       enabled: data?.feedback_enabled ?? false,
       anonymousAllowed: data?.feedback_anonymous_allowed ?? true,
-      error,
+      error: normalizeFeedbackError(error),
     };
   },
 
@@ -179,10 +197,20 @@ export const feedbackService = {
       .select()
       .single();
 
+    if (data) {
+      try { await logInsert('feedback_question', String(data.id), toAuditRecord(data), 'Feedback question created'); } catch { /* audit non-critical */ }
+    }
+
     return { data, error: normalizeFeedbackError(error) };
   },
 
   async updateQuestion(questionId: string, updates: Partial<Omit<FeedbackQuestion, 'id' | 'created_at' | 'session_id'>>) {
+    const { data: oldData } = await supabase
+      .from('feedback_question')
+      .select('*')
+      .eq('id', questionId)
+      .maybeSingle();
+
     const { data, error } = await supabase
       .from('feedback_question')
       .update(updates)
@@ -190,15 +218,29 @@ export const feedbackService = {
       .select()
       .single();
 
+    if (data) {
+      try { await logUpdate('feedback_question', questionId, toAuditRecord(oldData), toAuditRecord(data), 'Feedback question updated'); } catch { /* audit non-critical */ }
+    }
+
     return { data, error: normalizeFeedbackError(error) };
   },
 
   /** Delete a question */
   async deleteQuestion(questionId: string) {
+    const { data: oldData } = await supabase
+      .from('feedback_question')
+      .select('*')
+      .eq('id', questionId)
+      .maybeSingle();
+
     const { error } = await supabase
       .from('feedback_question')
       .delete()
       .eq('id', questionId);
+
+    if (!error && oldData) {
+      try { await logDelete('feedback_question', questionId, toAuditRecord(oldData), 'Feedback question deleted'); } catch { /* audit non-critical */ }
+    }
 
     return { error: normalizeFeedbackError(error) };
   },
@@ -226,10 +268,20 @@ export const feedbackService = {
       .select()
       .single();
 
+    if (data) {
+      try { await logInsert('feedback_template', String(data.id), toAuditRecord(data), 'Feedback template created'); } catch { /* audit non-critical */ }
+    }
+
     return { data: data as FeedbackTemplate | null, error: normalizeFeedbackError(error) };
   },
 
   async updateTemplate(templateId: string, updates: Partial<FeedbackTemplateInput>) {
+    const { data: oldData } = await supabase
+      .from('feedback_template')
+      .select('*')
+      .eq('id', templateId)
+      .maybeSingle();
+
     const payload: Record<string, unknown> = {};
 
     if (updates.name !== undefined) payload.name = updates.name;
@@ -244,19 +296,38 @@ export const feedbackService = {
       .select()
       .single();
 
+    if (data) {
+      try { await logUpdate('feedback_template', templateId, toAuditRecord(oldData), toAuditRecord(data), 'Feedback template updated'); } catch { /* audit non-critical */ }
+    }
+
     return { data: data as FeedbackTemplate | null, error: normalizeFeedbackError(error) };
   },
 
   async deleteTemplate(templateId: string) {
+    const { data: oldData } = await supabase
+      .from('feedback_template')
+      .select('*')
+      .eq('id', templateId)
+      .maybeSingle();
+
     const { error } = await supabase
       .from('feedback_template')
       .delete()
       .eq('id', templateId);
 
+    if (!error && oldData) {
+      try { await logDelete('feedback_template', templateId, toAuditRecord(oldData), 'Feedback template deleted'); } catch { /* audit non-critical */ }
+    }
+
     return { error: normalizeFeedbackError(error) };
   },
 
   async applyTemplateToSession(templateId: string, sessionId: string) {
+    const { data: existingQuestions } = await supabase
+      .from('feedback_question')
+      .select('id')
+      .eq('session_id', sessionId);
+
     const { data: template, error: templateError } = await supabase
       .from('feedback_template')
       .select('questions')
@@ -293,6 +364,20 @@ export const feedbackService = {
           is_required: Boolean(question.required),
         }))
       );
+
+    if (!error) {
+      try {
+        await logUpdate(
+          'feedback_question',
+          sessionId,
+          { session_id: sessionId, question_count: existingQuestions?.length || 0 },
+          { session_id: sessionId, question_count: questions.length, template_id: templateId },
+          'Applied feedback template to session'
+        );
+      } catch {
+        /* audit non-critical */
+      }
+    }
 
     return { error: normalizeFeedbackError(error) };
   },
@@ -338,7 +423,7 @@ export const feedbackService = {
       .select('student_id, overall_rating, comment, attendance_date, is_anonymous, created_at')
       .eq('session_id', sessionId);
 
-    if (error || !feedbacks) return { data: null, error };
+    if (error || !feedbacks) return { data: null, error: normalizeFeedbackError(error) };
 
     const totalResponses = feedbacks.length;
     if (totalResponses === 0) {
@@ -441,20 +526,60 @@ export const feedbackService = {
 
   /** Toggle feedback for a session */
   async toggleFeedback(sessionId: string, enabled: boolean) {
+    const { data: oldData } = await supabase
+      .from('session')
+      .select('session_id, feedback_enabled, feedback_anonymous_allowed')
+      .eq('session_id', sessionId)
+      .maybeSingle();
+
     const { error } = await supabase
       .from('session')
       .update({ feedback_enabled: enabled })
       .eq('session_id', sessionId);
+
+    if (!error) {
+      try {
+        await logUpdate(
+          'session',
+          sessionId,
+          toAuditRecord(oldData),
+          { ...toAuditRecord(oldData), feedback_enabled: enabled },
+          enabled ? 'Feedback enabled for session' : 'Feedback disabled for session'
+        );
+      } catch {
+        /* audit non-critical */
+      }
+    }
 
     return { error: normalizeFeedbackError(error) };
   },
 
   /** Update anonymous allowed setting */
   async setAnonymousAllowed(sessionId: string, allowed: boolean) {
+    const { data: oldData } = await supabase
+      .from('session')
+      .select('session_id, feedback_enabled, feedback_anonymous_allowed')
+      .eq('session_id', sessionId)
+      .maybeSingle();
+
     const { error } = await supabase
       .from('session')
       .update({ feedback_anonymous_allowed: allowed })
       .eq('session_id', sessionId);
+
+    if (!error) {
+      try {
+        await logUpdate(
+          'session',
+          sessionId,
+          toAuditRecord(oldData),
+          { ...toAuditRecord(oldData), feedback_anonymous_allowed: allowed },
+          allowed ? 'Anonymous feedback enabled for session' : 'Identity retention enabled for session feedback'
+        );
+      } catch {
+        /* audit non-critical */
+      }
+    }
 
     return { error: normalizeFeedbackError(error) };
   },

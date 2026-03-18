@@ -65,6 +65,49 @@ const describeAction = (log: AuditLogEntry): string => {
     }
   }
 
+  if (log.table_name === 'session_feedback') {
+    const date = (data.attendance_date as string) || '';
+    const method = (data.check_in_method as string) || '';
+    const rating = newData.overall_rating ?? oldData.overall_rating;
+    const datePart = date ? ` on ${date}` : '';
+    const methodPart = method ? ` via ${method}` : '';
+    switch (log.operation) {
+      case 'INSERT': return `Session feedback submitted${datePart}${methodPart}${rating ? ` (${rating}/5)` : ''}`;
+      case 'UPDATE': return `Session feedback updated${datePart}`;
+      case 'DELETE': return `Session feedback deleted${datePart}`;
+    }
+  }
+
+  if (log.table_name === 'feedback_question') {
+    const questionText = String(data.question_text || '').trim();
+    const label = questionText ? `Question "${questionText}"` : 'Feedback question';
+    switch (log.operation) {
+      case 'INSERT': return `${label} was created`;
+      case 'UPDATE': return log.reason || `${label} was updated`;
+      case 'DELETE': return `${label} was deleted`;
+    }
+  }
+
+  if (log.table_name === 'feedback_template') {
+    const templateName = String(data.name || '').trim();
+    const label = templateName ? `Feedback template "${templateName}"` : 'Feedback template';
+    switch (log.operation) {
+      case 'INSERT': return `${label} was created`;
+      case 'UPDATE': return `${label} was updated`;
+      case 'DELETE': return `${label} was deleted`;
+    }
+  }
+
+  if (log.table_name === 'session_recording') {
+    const date = (data.attendance_date as string) || '';
+    const datePart = date ? ` for ${date}` : '';
+    switch (log.operation) {
+      case 'INSERT': return `Session recording link was published${datePart}`;
+      case 'UPDATE': return `Session recording link was updated${datePart}`;
+      case 'DELETE': return `Session recording link was removed${datePart}`;
+    }
+  }
+
   switch (log.operation) {
     case 'DELETE':
       return name ? `${entity} "${name}" was deleted` : `${article} ${log.table_name} record was deleted`;
@@ -108,6 +151,10 @@ const TABLE_ICONS: Record<string, string> = {
   session: '📅',
   enrollment: '📋',
   attendance: '✅',
+  session_feedback: '💜',
+  feedback_question: '🧩',
+  feedback_template: '🗂️',
+  session_recording: '🎬',
   announcement: '📢',
   message: '💬',
 };
@@ -129,6 +176,30 @@ const TABLE_SUMMARY_FIELDS: Record<string, { field: string; label: string }[]> =
     { field: 'host_address', label: 'Location' },
     { field: 'excuse_reason', label: 'Excuse' },
     { field: 'notes', label: 'Notes' },
+  ],
+  session_feedback: [
+    { field: 'attendance_date', label: 'Date' },
+    { field: 'overall_rating', label: 'Rating' },
+    { field: 'check_in_method', label: 'Check-In' },
+    { field: 'comment', label: 'Comment' },
+    { field: 'is_anonymous', label: 'Anonymous' },
+  ],
+  feedback_question: [
+    { field: 'question_text', label: 'Question' },
+    { field: 'question_type', label: 'Type' },
+    { field: 'is_required', label: 'Required' },
+    { field: 'sort_order', label: 'Order' },
+  ],
+  feedback_template: [
+    { field: 'name', label: 'Name' },
+    { field: 'description', label: 'Description' },
+    { field: 'is_default', label: 'Default' },
+  ],
+  session_recording: [
+    { field: 'attendance_date', label: 'Date' },
+    { field: 'recording_url', label: 'Recording URL' },
+    { field: 'is_visible_to_students', label: 'Visible To Students' },
+    { field: 'recording_uploaded_by', label: 'Uploaded By' },
   ],
   student: [
     { field: 'name', label: 'Name' },
@@ -594,6 +665,10 @@ export function AuditLogs() {
                   { value: 'session', label: '📅 Session' },
                   { value: 'enrollment', label: '📋 Enrollment' },
                   { value: 'attendance', label: '✅ Attendance' },
+                  { value: 'session_feedback', label: '💜 Session Feedback' },
+                  { value: 'feedback_question', label: '🧩 Feedback Question' },
+                  { value: 'feedback_template', label: '🗂️ Feedback Template' },
+                  { value: 'session_recording', label: '🎬 Session Recording' },
                   { value: 'announcement', label: '📢 Announcement' },
                   { value: 'message', label: '💬 Message' },
                 ]}
