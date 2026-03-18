@@ -54,6 +54,24 @@ export interface FeedbackStats {
   recentComments: Array<{ comment: string; rating: number; date: string; is_anonymous: boolean }>;
 }
 
+export interface FeedbackDateSummary {
+  date: string;
+  responses: number;
+  uniqueStudents: number;
+  averageRating: number;
+  ratingDistribution: Record<number, number>;
+  commentCount: number;
+  responseRate: number;
+}
+
+export interface FeedbackComparison {
+  dates: FeedbackDateSummary[];
+  bestDate: string | null;
+  worstDate: string | null;
+  trendDirection: 'improving' | 'declining' | 'stable' | 'insufficient';
+  overallAvg: number;
+}
+
 function normalizeFeedbackError(error: { message?: string; details?: string; hint?: string } | null) {
   if (!error) return null;
 
@@ -582,5 +600,149 @@ export const feedbackService = {
     }
 
     return { error: normalizeFeedbackError(error) };
+  },
+
+  // ─── Per-Date Analytics ──────────────────────────────────
+  /** Get list of dates that have feedback for a session */
+  async getDateList(sessionId: string): Promise<{ data: string[]; error: unknown }> {
+    const { data, error } = await supabase
+      .from('session_feedback')
+      .select('attendance_date')
+      .eq('session_id', sessionId)
+      .order('attendance_date', { ascending: false });
+
+    if (error || !data) return { data: [], error: normalizeFeedbackError(error) };
+
+    const unique = [...new Set(data.map(r => r.attendance_date))];
+    return { data: unique, error: null };
+  },
+
+  /** Get per-date breakdown with full stats for each date */
+  async getDateComparison(sessionId: string): Promise<{ data: FeedbackComparison | null; error: unknown }> {
+    const { data: feedbacks, error } = await supabase
+      .from('session_feedback')
+      .select('student_id, overall_rating, comment, attendance_date, is_anonymous, created_at')
+      .eq('session_id', sessionId);
+
+    if (error || !feedbacks) return { data: null, error: normalizeFeedbackError(error) };
+
+    // Get enrolled count for response rate
+    const { count: enrolledCount } = await supabase
+      .from('enrollment')
+      .select('enrollment_id', { count: 'exact', head: true })
+      .eq('session_id', sessionId)
+      .eq('status', 'active');
+
+    const byDate = new Map<string, typeof feedbacks>();
+    for (const fb of feedbacks) {
+      const arr = byDate.get(fb.attendance_date) || [];
+      arr.push(fb);
+      byDate.set(fb.attendance_date, arr);
+    }
+
+    const dateSummaries: FeedbackDateSummary[] = [];
+    for (const [date, fbs] of byDate.entries()) {
+      const ratings = fbs.filter(f => f.overall_rating != null).map(f => f.overall_rating!);
+      const avg = ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0;
+      const dist: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+      for (const r of ratings) dist[r] = (dist[r] || 0) + 1;
+      const uniqueStudents = new Set(fbs.map(f => f.student_id).filter(Boolean)).size;
+      const responseRate = enrolledCount ? Math.min(100, Math.round((uniqueStudents / enrolledCount) * 100)) : 0;
+
+      dateSummaries.push({
+        date,
+        responses: fbs.length,
+        uniqueStudents,
+        averageRating: Math.round(avg * 10) / 10,
+        ratingDistribution: dist,
+        commentCount: fbs.filter(f => f.comment).length,
+        responseRate,
+      });
+    }
+
+    dateSummaries.sort((a, b) => a.date.localeCompare(b.date));
+
+    // Determine trend
+    let trendDirection: FeedbackComparison['trendDirection'] = 'insufficient';
+    if (dateSummaries.length >= 3) {
+      const half = Math.floor(dateSummaries.length / 2);
+      const firstHalfAvg = dateSummaries.slice(0, half).reduce((s, d) => s + d.averageRating, 0) / half;
+      const secondHalfAvg = dateSummaries.slice(half).reduce((s, d) => s + d.averageRating, 0) / (dateSummaries.length - half);
+      const diff = secondHalfAvg - firstHalfAvg;
+      trendDirection = diff > 0.2 ? 'improving' : diff < -0.2 ? 'declining' : 'stable';
+    } else if (dateSummaries.length === 2) {
+      const diff = dateSummaries[1].averageRating - dateSummaries[0].averageRating;
+      trendDirection = diff > 0.2 ? 'improving' : diff < -0.2 ? 'declining' : 'stable';
+    }
+
+    const bestDate = dateSummaries.length > 0
+      ? dateSummaries.reduce((best, d) => d.averageRating > best.averageRating ? d : best).date
+      : null;
+    const worstDate = dateSummaries.length > 0
+      ? dateSummaries.reduce((worst, d) => d.averageRating < worst.averageRating ? d : worst).date
+      : null;
+
+    const allRatings = feedbacks.filter(f => f.overall_rating != null).map(f => f.overall_rating!);
+    const overallAvg = allRatings.length > 0
+      ? Math.round((allRatings.reduce((a, b) => a + b, 0) / allRatings.length) * 10) / 10
+      : 0;
+
+    return {
+      data: { dates: dateSummaries, bestDate, worstDate, trendDirection, overallAvg },
+      error: null,
+    };
+  },
+
+  /** Get per-date stats for a single date */
+  async getStatsByDate(sessionId: string, date: string): Promise<{ data: FeedbackStats | null; error: unknown }> {
+    const { data: feedbacks, error } = await supabase
+      .from('session_feedback')
+      .select('student_id, overall_rating, comment, attendance_date, is_anonymous, created_at')
+      .eq('session_id', sessionId)
+      .eq('attendance_date', date);
+
+    if (error || !feedbacks) return { data: null, error: normalizeFeedbackError(error) };
+
+    const totalResponses = feedbacks.length;
+    if (totalResponses === 0) {
+      return {
+        data: {
+          totalResponses: 0, engagedStudents: 0, averageRating: 0,
+          ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+          responseRate: 0, datesCovered: 1, latestResponseDate: date, recentComments: [],
+        },
+        error: null,
+      };
+    }
+
+    const ratings = feedbacks.filter(f => f.overall_rating != null).map(f => f.overall_rating!);
+    const avgRating = ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0;
+    const ratingDistribution: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    for (const r of ratings) ratingDistribution[r] = (ratingDistribution[r] || 0) + 1;
+
+    const engagedStudents = new Set(feedbacks.map(f => f.student_id).filter(Boolean)).size;
+
+    const { count: enrolledCount } = await supabase
+      .from('enrollment')
+      .select('enrollment_id', { count: 'exact', head: true })
+      .eq('session_id', sessionId)
+      .eq('status', 'active');
+
+    const responseRate = enrolledCount ? Math.min(100, Math.round((engagedStudents / enrolledCount) * 100)) : 0;
+
+    const recentComments = feedbacks
+      .filter(f => f.comment)
+      .slice(0, 20)
+      .map(f => ({ comment: f.comment!, rating: f.overall_rating ?? 0, date: f.attendance_date, is_anonymous: f.is_anonymous }));
+
+    return {
+      data: {
+        totalResponses, engagedStudents,
+        averageRating: Math.round(avgRating * 10) / 10,
+        ratingDistribution, responseRate, datesCovered: 1,
+        latestResponseDate: date, recentComments,
+      },
+      error: null,
+    };
   },
 };

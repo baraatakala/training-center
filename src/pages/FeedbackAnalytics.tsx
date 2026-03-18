@@ -6,7 +6,7 @@ import { Button } from '../components/ui/Button';
 import { toast } from '../components/ui/toastUtils';
 import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
 import { Breadcrumb } from '../components/ui/Breadcrumb';
-import { feedbackService, type SessionFeedback, type FeedbackStats, type FeedbackQuestion, type FeedbackTemplate, type FeedbackTemplateInput } from '../services/feedbackService';
+import { feedbackService, type SessionFeedback, type FeedbackStats, type FeedbackQuestion, type FeedbackTemplate, type FeedbackTemplateInput, type FeedbackComparison } from '../services/feedbackService';
 import {
   ResponsiveContainer,
   BarChart,
@@ -21,6 +21,12 @@ import {
   AreaChart,
   Area,
   Line,
+  Legend,
+  RadarChart,
+  Radar,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
 } from 'recharts';
 
 // ─── Constants ─────────────────────────────────────────────
@@ -31,7 +37,7 @@ const MOOD_EMOJIS: Record<string, string> = {
 };
 const PIE_COLORS = ['#8b5cf6', '#06b6d4', '#f59e0b', '#10b981', '#ef4444', '#ec4899', '#6366f1'];
 
-type ActiveTab = 'analytics' | 'questions' | 'responses';
+type ActiveTab = 'analytics' | 'questions' | 'responses' | 'dates';
 
 interface SessionOption {
   session_id: string;
@@ -158,6 +164,14 @@ export function FeedbackAnalytics() {
   const [dateFilter, setDateFilter] = useState('');
   const [expandedResponseId, setExpandedResponseId] = useState<string | null>(null);
 
+  // Date Comparison tab
+  const [dateComparison, setDateComparison] = useState<FeedbackComparison | null>(null);
+  const [selectedAnalyticsDate, setSelectedAnalyticsDate] = useState<string>('');
+  const [dateStats, setDateStats] = useState<FeedbackStats | null>(null);
+  const [loadingDateStats, setLoadingDateStats] = useState(false);
+  const [analyticsSortBy, setAnalyticsSortBy] = useState<'date' | 'rating' | 'responses' | 'rate'>('date');
+  const [analyticsSortDir, setAnalyticsSortDir] = useState<'asc' | 'desc'>('desc');
+
   const selectedSession = sessions.find(s => s.session_id === selectedSessionId);
 
   // ─── Resets ────────────────────────────────────────────────
@@ -274,9 +288,34 @@ export function FeedbackAnalytics() {
     if (selectedSessionId) {
       feedbackService.getBySession(selectedSessionId).then(r => { if (r.data) setFeedbacks(r.data); });
       feedbackService.getStats(selectedSessionId).then(r => { if (r.data) setStats(r.data); });
+      feedbackService.getDateComparison(selectedSessionId).then(r => { if (r.data) setDateComparison(r.data); });
     }
   }, [selectedSessionId]);
   useRefreshOnFocus(refreshFeedbackData);
+
+  // Load date comparison data when session changes
+  useEffect(() => {
+    if (!selectedSessionId) return;
+    let cancelled = false;
+    feedbackService.getDateComparison(selectedSessionId).then(r => {
+      if (!cancelled && r.data) setDateComparison(r.data);
+    });
+    return () => { cancelled = true; };
+  }, [selectedSessionId]);
+
+  // Load per-date stats when a specific date is selected
+  useEffect(() => {
+    if (!selectedSessionId || !selectedAnalyticsDate) { setDateStats(null); return; }
+    let cancelled = false;
+    setLoadingDateStats(true);
+    feedbackService.getStatsByDate(selectedSessionId, selectedAnalyticsDate).then(r => {
+      if (!cancelled) {
+        setDateStats(r.data);
+        setLoadingDateStats(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [selectedSessionId, selectedAnalyticsDate]);
 
   // ─── Derived data ──────────────────────────────────────────
   const ratingDistributionData = useMemo(() => {
@@ -350,6 +389,57 @@ export function FeedbackAnalytics() {
     if (!dateFilter) return feedbacks;
     return feedbacks.filter(f => f.attendance_date === dateFilter);
   }, [feedbacks, dateFilter]);
+
+  // Sorted date summaries for Dates tab
+  const sortedDateSummaries = useMemo(() => {
+    if (!dateComparison) return [];
+    const sorted = [...dateComparison.dates];
+    sorted.sort((a, b) => {
+      let cmp = 0;
+      if (analyticsSortBy === 'date') cmp = a.date.localeCompare(b.date);
+      else if (analyticsSortBy === 'rating') cmp = a.averageRating - b.averageRating;
+      else if (analyticsSortBy === 'responses') cmp = a.responses - b.responses;
+      else if (analyticsSortBy === 'rate') cmp = a.responseRate - b.responseRate;
+      return analyticsSortDir === 'asc' ? cmp : -cmp;
+    });
+    return sorted;
+  }, [dateComparison, analyticsSortBy, analyticsSortDir]);
+
+  // Per-question analytics filtered by selected date
+  const dateFilteredQuestionAnalytics = useMemo(() => {
+    if (!selectedAnalyticsDate) return questionAnalytics;
+    const dateFeedbacks = feedbacks.filter(f => f.attendance_date === selectedAnalyticsDate);
+    return questions.map(q => ({
+      question: q,
+      data: aggregateQuestionResponses(q, dateFeedbacks),
+    }));
+  }, [selectedAnalyticsDate, feedbacks, questions, questionAnalytics]);
+
+  // Radar chart data for date comparison
+  const radarData = useMemo(() => {
+    if (!dateComparison || dateComparison.dates.length < 2) return [];
+    return dateComparison.dates.map(d => {
+      const dateLabel = new Date(`${d.date}T00:00:00`);
+      return {
+        date: `${dateLabel.getMonth() + 1}/${dateLabel.getDate()}`,
+        rating: d.averageRating,
+        responses: d.responses,
+        engagement: d.responseRate,
+      };
+    });
+  }, [dateComparison]);
+
+  // Date heatmap data
+  const dateHeatmapData = useMemo(() => {
+    if (!dateComparison) return [];
+    return dateComparison.dates.map(d => ({
+      date: d.date,
+      label: new Date(`${d.date}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+      rating: d.averageRating,
+      responses: d.responses,
+      rate: d.responseRate,
+    }));
+  }, [dateComparison]);
 
   const latestResponseLabel = stats?.latestResponseDate
     ? `Latest response on ${stats.latestResponseDate}`
@@ -677,6 +767,7 @@ export function FeedbackAnalytics() {
           <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl overflow-x-auto">
             {([
               { key: 'analytics' as ActiveTab, label: 'Analytics', icon: '📊', badge: stats?.totalResponses },
+              { key: 'dates' as ActiveTab, label: 'By Date', icon: '📅', badge: dateComparison?.dates.length },
               { key: 'questions' as ActiveTab, label: 'Questions', icon: '🧩', badge: questions.length },
               { key: 'responses' as ActiveTab, label: 'Responses', icon: '💬', badge: feedbacks.length },
             ]).map(t => (
@@ -709,6 +800,29 @@ export function FeedbackAnalytics() {
           {/* ═══════════════════════════════════════════════════ */}
           {activeTab === 'analytics' && (
             <>
+              {/* Analytics date filter */}
+              {uniqueDates.length > 1 && (
+                <div className="flex items-center gap-2 rounded-xl bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700 px-3 py-2">
+                  <span className="text-xs text-gray-500 shrink-0">📅 Filter analytics:</span>
+                  <select
+                    value={selectedAnalyticsDate}
+                    onChange={e => setSelectedAnalyticsDate(e.target.value)}
+                    className="flex-1 text-xs rounded-lg border-0 bg-white dark:bg-gray-800 px-2 py-1.5 text-gray-900 dark:text-white focus:ring-1 focus:ring-purple-500"
+                  >
+                    <option value="">All dates ({feedbacks.length} total)</option>
+                    {uniqueDates.map(d => {
+                      const count = feedbacks.filter(f => f.attendance_date === d).length;
+                      return <option key={d} value={d}>{d} ({count} responses)</option>;
+                    })}
+                  </select>
+                  {selectedAnalyticsDate && (
+                    <button onClick={() => setSelectedAnalyticsDate('')} className="text-[10px] text-purple-600 hover:text-purple-800 dark:text-purple-400 px-2 py-1 rounded-md hover:bg-purple-50 dark:hover:bg-purple-900/20">
+                      ✕ Clear
+                    </button>
+                  )}
+                </div>
+              )}
+
               {stats && stats.totalResponses > 0 ? (
                 <div className="space-y-5">
                   {/* KPI Strip */}
@@ -920,6 +1034,415 @@ export function FeedbackAnalytics() {
                 </div>
               )}
             </>
+          )}
+
+          {/* ═══════════════════════════════════════════════════ */}
+          {/* TAB: DATES (Per-Date Deep Analytics)              */}
+          {/* ═══════════════════════════════════════════════════ */}
+          {activeTab === 'dates' && (
+            <div className="space-y-5">
+              {/* Trend Overview Banner */}
+              {dateComparison && dateComparison.dates.length >= 2 && (
+                <div className={`rounded-xl border p-4 ${
+                  dateComparison.trendDirection === 'improving' ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-900/10' :
+                  dateComparison.trendDirection === 'declining' ? 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10' :
+                  'border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/10'
+                }`}>
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">
+                      {dateComparison.trendDirection === 'improving' ? '📈' : dateComparison.trendDirection === 'declining' ? '📉' : '➡️'}
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                        Feedback trend: <span className="capitalize">{dateComparison.trendDirection}</span>
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {dateComparison.dates.length} session dates tracked · Overall avg: {dateComparison.overallAvg}/5
+                        {dateComparison.bestDate && ` · Best: ${dateComparison.bestDate}`}
+                        {dateComparison.worstDate && dateComparison.worstDate !== dateComparison.bestDate && ` · Needs attention: ${dateComparison.worstDate}`}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Sort Controls */}
+              <div className="flex flex-wrap items-center gap-2 rounded-xl bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700 px-3 py-2">
+                <span className="text-xs text-gray-500 shrink-0">Sort by:</span>
+                {([
+                  { key: 'date' as const, label: '📅 Date' },
+                  { key: 'rating' as const, label: '⭐ Rating' },
+                  { key: 'responses' as const, label: '📊 Volume' },
+                  { key: 'rate' as const, label: '📈 Engagement' },
+                ] as const).map(s => (
+                  <button
+                    key={s.key}
+                    type="button"
+                    onClick={() => {
+                      if (analyticsSortBy === s.key) setAnalyticsSortDir(d => d === 'asc' ? 'desc' : 'asc');
+                      else { setAnalyticsSortBy(s.key); setAnalyticsSortDir('desc'); }
+                    }}
+                    className={`text-[11px] px-2.5 py-1.5 rounded-full border transition-all ${
+                      analyticsSortBy === s.key
+                        ? 'border-purple-500 bg-purple-600 text-white'
+                        : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-purple-300'
+                    }`}
+                  >
+                    {s.label} {analyticsSortBy === s.key ? (analyticsSortDir === 'asc' ? '↑' : '↓') : ''}
+                  </button>
+                ))}
+                <span className="text-[10px] text-gray-400 ml-auto">{sortedDateSummaries.length} dates</span>
+              </div>
+
+              {/* Date Heatmap */}
+              {dateHeatmapData.length > 0 && (
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/30 p-4">
+                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">🗓️ Rating Heatmap</p>
+                  <div className="flex flex-wrap gap-2">
+                    {dateHeatmapData.map(d => {
+                      const intensity = d.rating > 0 ? Math.max(0.15, d.rating / 5) : 0;
+                      const color = d.rating >= 4 ? `rgba(34,197,94,${intensity})` :
+                        d.rating >= 3 ? `rgba(234,179,8,${intensity})` :
+                        d.rating > 0 ? `rgba(239,68,68,${intensity})` : 'rgba(156,163,175,0.1)';
+                      return (
+                        <button
+                          key={d.date}
+                          type="button"
+                          onClick={() => setSelectedAnalyticsDate(selectedAnalyticsDate === d.date ? '' : d.date)}
+                          title={`${d.date}: ${d.rating}/5 avg · ${d.responses} responses · ${d.rate}% engagement`}
+                          className={`relative rounded-lg px-3 py-2 text-center transition-all min-w-[70px] border ${
+                            selectedAnalyticsDate === d.date
+                              ? 'ring-2 ring-purple-500 border-purple-400 dark:border-purple-600 shadow-md'
+                              : 'border-transparent hover:border-gray-300 dark:hover:border-gray-600'
+                          }`}
+                          style={{ backgroundColor: color }}
+                        >
+                          <p className="text-[10px] font-medium text-gray-700 dark:text-gray-200">{d.label}</p>
+                          <p className="text-lg font-bold text-gray-900 dark:text-white">{d.rating > 0 ? d.rating : '—'}</p>
+                          <p className="text-[10px] text-gray-500 dark:text-gray-400">{d.responses}r · {d.rate}%</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-2">Click a date to drill down into its feedback details.</p>
+                </div>
+              )}
+
+              {/* Selected Date Detail Panel */}
+              {selectedAnalyticsDate && (
+                <div className="rounded-xl border-2 border-purple-200 dark:border-purple-700 bg-purple-50/30 dark:bg-purple-900/10 p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">📅</span>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">{selectedAnalyticsDate}</p>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                          {new Date(`${selectedAnalyticsDate}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAnalyticsDate('')}
+                      className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 px-2 py-1 rounded-md hover:bg-purple-100 dark:hover:bg-purple-900/30"
+                    >
+                      ✕ Close
+                    </button>
+                  </div>
+
+                  {loadingDateStats ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-6 w-6 border-2 border-purple-500 border-t-transparent" />
+                    </div>
+                  ) : dateStats ? (
+                    <>
+                      {/* Per-date KPI strip */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div className="p-3 rounded-xl border border-purple-200 dark:border-purple-800 bg-white dark:bg-gray-800/50">
+                          <p className="text-[11px] uppercase tracking-wide text-gray-400">Responses</p>
+                          <p className="text-xl font-bold text-gray-900 dark:text-white mt-0.5">{dateStats.totalResponses}</p>
+                        </div>
+                        <div className="p-3 rounded-xl border border-purple-200 dark:border-purple-800 bg-white dark:bg-gray-800/50">
+                          <p className="text-[11px] uppercase tracking-wide text-gray-400">Students</p>
+                          <p className="text-xl font-bold text-gray-900 dark:text-white mt-0.5">{dateStats.engagedStudents}</p>
+                          <p className="text-[10px] text-gray-400">{dateStats.responseRate}% engagement</p>
+                        </div>
+                        <div className="p-3 rounded-xl border border-purple-200 dark:border-purple-800 bg-white dark:bg-gray-800/50">
+                          <p className="text-[11px] uppercase tracking-wide text-gray-400">Avg Rating</p>
+                          <p className="text-xl font-bold text-gray-900 dark:text-white mt-0.5">
+                            {dateStats.averageRating} {RATING_EMOJIS[Math.round(dateStats.averageRating) - 1] || ''}
+                          </p>
+                        </div>
+                        <div className="p-3 rounded-xl border border-purple-200 dark:border-purple-800 bg-white dark:bg-gray-800/50">
+                          <p className="text-[11px] uppercase tracking-wide text-gray-400">vs Overall</p>
+                          {stats && (
+                            <p className={`text-xl font-bold mt-0.5 ${
+                              dateStats.averageRating > stats.averageRating ? 'text-emerald-600 dark:text-emerald-400' :
+                              dateStats.averageRating < stats.averageRating ? 'text-red-600 dark:text-red-400' :
+                              'text-gray-600 dark:text-gray-300'
+                            }`}>
+                              {dateStats.averageRating > stats.averageRating ? '+' : ''}
+                              {(dateStats.averageRating - stats.averageRating).toFixed(1)}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Per-date rating distribution */}
+                      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/30 p-4">
+                        <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">⭐ Rating Distribution for {selectedAnalyticsDate}</p>
+                        <ResponsiveContainer width="100%" height={180}>
+                          <BarChart data={[1,2,3,4,5].map(r => ({ rating: `${RATING_EMOJIS[r-1]} ${r}`, count: dateStats.ratingDistribution[r] || 0, fill: RATING_COLORS[r-1] }))}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.4} />
+                            <XAxis dataKey="rating" tick={{ fontSize: 11 }} stroke="#9ca3af" />
+                            <YAxis tick={{ fontSize: 10 }} stroke="#9ca3af" allowDecimals={false} />
+                            <Tooltip />
+                            <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={32}>
+                              {[1,2,3,4,5].map((_, i) => (
+                                <Cell key={i} fill={RATING_COLORS[i]} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+
+                      {/* Per-date question breakdown */}
+                      {dateFilteredQuestionAnalytics.length > 0 && (
+                        <div className="space-y-3">
+                          <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">🔍 Question Breakdown for {selectedAnalyticsDate}</p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {dateFilteredQuestionAnalytics.map(({ question, data: qData }, qi) => (
+                              <div key={question.id} className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/30 p-3">
+                                <div className="flex items-start gap-2 mb-2">
+                                  <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 px-1.5 py-0.5 rounded shrink-0">Q{qi + 1}</span>
+                                  <p className="text-xs font-medium text-gray-800 dark:text-gray-200 line-clamp-2">{question.question_text}</p>
+                                </div>
+                                {qData.total === 0 ? (
+                                  <p className="text-xs text-gray-400 text-center py-3">No responses for this date</p>
+                                ) : qData.type === 'rating' ? (
+                                  <div className="space-y-1">
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                      <span className="text-lg font-bold text-purple-600 dark:text-purple-400">{qData.avg}</span>
+                                      <span>{RATING_EMOJIS[Math.round(qData.avg) - 1] || ''}</span>
+                                      <span className="text-[10px] text-gray-400 ml-auto">{qData.total} resp.</span>
+                                    </div>
+                                    {[5,4,3,2,1].map(r => {
+                                      const count = qData.distribution[r] || 0;
+                                      const pct = qData.total > 0 ? (count / qData.total) * 100 : 0;
+                                      return (
+                                        <div key={r} className="flex items-center gap-1.5">
+                                          <span className="text-[10px] w-4 text-right">{r}</span>
+                                          <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                                            <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: RATING_COLORS[r - 1] }} />
+                                          </div>
+                                          <span className="text-[10px] text-gray-400 w-6 text-right">{count}</span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : qData.type === 'emoji' ? (
+                                  <div className="flex flex-wrap gap-2 justify-center py-1">
+                                    {Object.entries(qData.distribution).sort(([, a], [, b]) => b - a).map(([emoji, count]) => (
+                                      <div key={emoji} className="text-center">
+                                        <span className="text-xl block">{MOOD_EMOJIS[emoji] || emoji}</span>
+                                        <span className="text-[10px] text-gray-500">{count}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : qData.type === 'multiple_choice' ? (
+                                  <div className="space-y-1">
+                                    {Object.entries(qData.distribution).sort(([, a], [, b]) => b - a).map(([option, count], i) => {
+                                      const pct = qData.total > 0 ? (count / qData.total) * 100 : 0;
+                                      return (
+                                        <div key={option} className="flex items-center gap-1.5">
+                                          <span className="text-[10px] text-gray-600 dark:text-gray-300 w-20 truncate shrink-0">{option}</span>
+                                          <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                                            <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
+                                          </div>
+                                          <span className="text-[10px] text-gray-400 w-8 text-right">{Math.round(pct)}%</span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <div className="space-y-1 max-h-28 overflow-y-auto">
+                                    {qData.answers.slice(0, 5).map((answer, ai) => (
+                                      <p key={ai} className="text-[11px] text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/50 rounded px-2 py-1 truncate">&quot;{answer}&quot;</p>
+                                    ))}
+                                    {qData.answers.length > 5 && <p className="text-[10px] text-gray-400 text-center">+{qData.answers.length - 5} more</p>}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Per-date comments */}
+                      {dateStats.recentComments.length > 0 && (
+                        <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/30 p-4">
+                          <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">💬 Comments from {selectedAnalyticsDate}</p>
+                          <div className="space-y-2 max-h-[250px] overflow-y-auto">
+                            {dateStats.recentComments.map((c, i) => (
+                              <div key={i} className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800/40">
+                                <span className="text-lg shrink-0 mt-0.5">{RATING_EMOJIS[c.rating - 1] || '❓'}</span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm text-gray-800 dark:text-gray-200">{c.comment}</p>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    {c.is_anonymous && <span className="text-[10px] text-gray-400">🕵️ Anonymous</span>}
+                                    <div className="flex gap-0.5 ml-auto">
+                                      {[1,2,3,4,5].map(s => (
+                                        <span key={s} className={`text-[10px] ${s <= c.rating ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'}`}>★</span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-400 text-center py-6">No data for this date.</p>
+                  )}
+                </div>
+              )}
+
+              {/* Date Comparison Table */}
+              {sortedDateSummaries.length > 0 && (
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/30 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">📋 Date-by-Date Comparison</p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-gray-50 dark:bg-gray-800/60">
+                        <tr>
+                          <th className="text-left px-3 py-2 text-gray-500 dark:text-gray-400 font-medium">Date</th>
+                          <th className="text-center px-3 py-2 text-gray-500 dark:text-gray-400 font-medium">Avg Rating</th>
+                          <th className="text-center px-3 py-2 text-gray-500 dark:text-gray-400 font-medium">Responses</th>
+                          <th className="text-center px-3 py-2 text-gray-500 dark:text-gray-400 font-medium">Students</th>
+                          <th className="text-center px-3 py-2 text-gray-500 dark:text-gray-400 font-medium">Engagement</th>
+                          <th className="text-center px-3 py-2 text-gray-500 dark:text-gray-400 font-medium">Comments</th>
+                          <th className="text-center px-3 py-2 text-gray-500 dark:text-gray-400 font-medium">Distribution</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                        {sortedDateSummaries.map(d => {
+                          const isBest = dateComparison?.bestDate === d.date;
+                          const isWorst = dateComparison?.worstDate === d.date && dateComparison?.bestDate !== d.date;
+                          return (
+                            <tr
+                              key={d.date}
+                              className={`cursor-pointer transition-colors ${
+                                selectedAnalyticsDate === d.date
+                                  ? 'bg-purple-50 dark:bg-purple-900/20'
+                                  : 'hover:bg-gray-50 dark:hover:bg-gray-800/40'
+                              }`}
+                              onClick={() => setSelectedAnalyticsDate(selectedAnalyticsDate === d.date ? '' : d.date)}
+                            >
+                              <td className="px-3 py-2.5">
+                                <span className="font-medium text-gray-900 dark:text-white">{d.date}</span>
+                                {isBest && <span className="ml-1 text-[10px] text-emerald-600">★ Best</span>}
+                                {isWorst && <span className="ml-1 text-[10px] text-red-500">⚠ Low</span>}
+                              </td>
+                              <td className="px-3 py-2.5 text-center">
+                                <span className={`font-bold ${
+                                  d.averageRating >= 4 ? 'text-emerald-600 dark:text-emerald-400' :
+                                  d.averageRating >= 3 ? 'text-amber-600 dark:text-amber-400' :
+                                  'text-red-600 dark:text-red-400'
+                                }`}>
+                                  {d.averageRating} {RATING_EMOJIS[Math.round(d.averageRating) - 1] || ''}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2.5 text-center text-gray-700 dark:text-gray-300">{d.responses}</td>
+                              <td className="px-3 py-2.5 text-center text-gray-700 dark:text-gray-300">{d.uniqueStudents}</td>
+                              <td className="px-3 py-2.5 text-center">
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <div className="w-16 bg-gray-100 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+                                    <div className="h-full rounded-full bg-purple-500" style={{ width: `${d.responseRate}%` }} />
+                                  </div>
+                                  <span className="text-gray-500 dark:text-gray-400">{d.responseRate}%</span>
+                                </div>
+                              </td>
+                              <td className="px-3 py-2.5 text-center text-gray-500 dark:text-gray-400">{d.commentCount}</td>
+                              <td className="px-3 py-2.5">
+                                <div className="flex gap-px justify-center">
+                                  {[1,2,3,4,5].map(r => {
+                                    const count = d.ratingDistribution[r] || 0;
+                                    const pct = d.responses > 0 ? (count / d.responses) * 100 : 0;
+                                    return (
+                                      <div
+                                        key={r}
+                                        className="w-3 rounded-sm"
+                                        style={{ height: `${Math.max(2, pct * 0.2)}px`, backgroundColor: RATING_COLORS[r - 1], minHeight: '2px' }}
+                                        title={`${r} star: ${count} (${Math.round(pct)}%)`}
+                                      />
+                                    );
+                                  })}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Radar / Comparison Charts */}
+              {radarData.length >= 3 && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/30 p-4">
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">📈 Rating Trend by Date</p>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <AreaChart data={radarData}>
+                        <defs>
+                          <linearGradient id="dateRatingGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.4} />
+                        <XAxis dataKey="date" tick={{ fontSize: 10 }} stroke="#9ca3af" />
+                        <YAxis domain={[0, 5]} tick={{ fontSize: 10 }} stroke="#9ca3af" />
+                        <Tooltip />
+                        <Legend />
+                        <Area type="monotone" dataKey="rating" stroke="#8b5cf6" fill="url(#dateRatingGrad)" strokeWidth={2.5} dot={{ r: 3, fill: '#8b5cf6' }} name="Avg Rating" />
+                        <Line type="monotone" dataKey="responses" stroke="#06b6d4" strokeWidth={1.5} dot={{ r: 2 }} name="Volume" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/30 p-4">
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">🎯 Engagement Overview</p>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <RadarChart data={radarData.slice(-8)}>
+                        <PolarGrid stroke="#e5e7eb" />
+                        <PolarAngleAxis dataKey="date" tick={{ fontSize: 9 }} stroke="#9ca3af" />
+                        <PolarRadiusAxis tick={{ fontSize: 8 }} stroke="#9ca3af" />
+                        <Radar name="Rating" dataKey="rating" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.3} />
+                        <Radar name="Engagement %" dataKey="engagement" stroke="#06b6d4" fill="#06b6d4" fillOpacity={0.15} />
+                        <Legend />
+                        <Tooltip />
+                      </RadarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+
+              {sortedDateSummaries.length === 0 && (
+                <div className="text-center py-16">
+                  <span className="text-5xl block mb-3">📅</span>
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-white">No Date Data Yet</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 max-w-sm mx-auto">
+                    Feedback responses filed against specific session dates will appear here with per-date breakdowns, comparisons, and trend tracking.
+                  </p>
+                </div>
+              )}
+            </div>
           )}
 
           {/* ═══════════════════════════════════════════════════ */}
@@ -1185,6 +1708,31 @@ export function FeedbackAnalytics() {
                   {filteredFeedbacks.length}/{feedbacks.length}
                 </span>
               </div>
+
+              {/* Quick stats for filtered date */}
+              {dateFilter && filteredFeedbacks.length > 0 && (
+                <div className="flex flex-wrap gap-3">
+                  {(() => {
+                    const ratings = filteredFeedbacks.filter(f => f.overall_rating != null).map(f => f.overall_rating!);
+                    const avg = ratings.length > 0 ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1) : '—';
+                    const comments = filteredFeedbacks.filter(f => f.comment).length;
+                    const anonymous = filteredFeedbacks.filter(f => f.is_anonymous).length;
+                    return (
+                      <>
+                        <span className="text-[11px] bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2 py-1 rounded-full">
+                          ⭐ Avg: {avg}
+                        </span>
+                        <span className="text-[11px] bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-1 rounded-full">
+                          💬 {comments} comment{comments !== 1 ? 's' : ''}
+                        </span>
+                        <span className="text-[11px] bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-1 rounded-full">
+                          🕵️ {anonymous} anonymous
+                        </span>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
 
               {filteredFeedbacks.length === 0 ? (
                 <div className="rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 p-12 text-center">

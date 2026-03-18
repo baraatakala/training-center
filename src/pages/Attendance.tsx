@@ -1996,18 +1996,48 @@ export function Attendance() {
             <CardTitle>🎥 Recording Link</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-              Save the replay for this attendance date here. Students will see the same dated link in Sessions under Recordings.
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+              Save the replay for this attendance date. Students see it in Sessions under Recordings.
             </p>
             <div className="flex gap-2">
-              <input
-                type="url"
-                value={recordingUrl}
-                onChange={e => setRecordingUrl(e.target.value)}
-                placeholder="Paste session recording link (YouTube, Zoom, Drive, etc.)..."
-                className="flex-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                onKeyDown={e => { if (e.key === 'Enter') saveRecordingUrl(); }}
-              />
+              <div className="flex-1 relative">
+                <input
+                  type="url"
+                  value={recordingUrl}
+                  onChange={e => setRecordingUrl(e.target.value)}
+                  placeholder="Paste recording link (YouTube, Zoom, Drive, Samsung, Upgone, MP4, etc.)..."
+                  className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent pr-16"
+                  onKeyDown={e => { if (e.key === 'Enter') saveRecordingUrl(); }}
+                />
+                {recordingUrl.trim() && (() => {
+                  const u = recordingUrl.trim().toLowerCase();
+                  const providers: Array<{ test: (s: string) => boolean; name: string; icon: string }> = [
+                    { test: s => /youtube\.com|youtu\.be/.test(s), name: 'YouTube', icon: '🔴' },
+                    { test: s => /drive\.google\.com/.test(s), name: 'Drive', icon: '🟩' },
+                    { test: s => /zoom\.(us|com)/.test(s), name: 'Zoom', icon: '🟦' },
+                    { test: s => /vimeo\.com/.test(s), name: 'Vimeo', icon: '🟣' },
+                    { test: s => /loom\.com/.test(s), name: 'Loom', icon: '🟠' },
+                    { test: s => /teams\.microsoft\.com|teams\.live\.com/.test(s), name: 'Teams', icon: '🟪' },
+                    { test: s => /meet\.google\.com/.test(s), name: 'Meet', icon: '🟢' },
+                    { test: s => /t\.me\/|telegram\.me/.test(s), name: 'Telegram', icon: '✈️' },
+                    { test: s => /wa\.me|whatsapp/.test(s), name: 'WhatsApp', icon: '💬' },
+                    { test: s => /onedrive|1drv\.ms|sharepoint/.test(s), name: 'OneDrive', icon: '☁️' },
+                    { test: s => /dropbox\.com/.test(s), name: 'Dropbox', icon: '📦' },
+                    { test: s => /samsungcloud|samsung\.com/.test(s), name: 'Samsung', icon: '📱' },
+                    { test: s => /upgone/i.test(s), name: 'Upgone', icon: '🎙️' },
+                    { test: s => /soundcloud\.com/.test(s), name: 'SoundCloud', icon: '🎵' },
+                    { test: s => /streamable\.com/.test(s), name: 'Streamable', icon: '📹' },
+                    { test: s => /dailymotion\.com|dai\.ly/.test(s), name: 'Dailymotion', icon: '🎬' },
+                    { test: s => /\.(mp4|webm|ogg|mov|avi|mkv|m4v|mp3|wav|aac|m4a|flac|3gp)(\?|$)/.test(s), name: 'Media', icon: '🎞️' },
+                  ];
+                  const match = providers.find(p => p.test(u));
+                  return match ? (
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full pointer-events-none">
+                      {match.icon} {match.name}
+                    </span>
+                  ) : null;
+                })()}
+              </div>
               <Button
                 onClick={saveRecordingUrl}
                 disabled={savingRecording}
@@ -2018,11 +2048,49 @@ export function Attendance() {
               </Button>
             </div>
             {recordingId && recordingUrl.trim() && (
-              <a href={recordingUrl.trim()} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 mt-2 text-xs text-blue-600 dark:text-blue-400 hover:underline">
-                🔗 Open recording link
-              </a>
+              <div className="flex items-center gap-3 mt-2">
+                <a href={recordingUrl.trim()} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                  🔗 Open recording link
+                </a>
+                <button
+                  type="button"
+                  onClick={() => { setRecordingUrl(''); saveRecordingUrl(); }}
+                  className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400"
+                >
+                  🗑 Remove
+                </button>
+              </div>
             )}
+            <details className="mt-3">
+              <summary className="text-[11px] text-gray-400 cursor-pointer hover:text-gray-600 dark:hover:text-gray-300 select-none">
+                ℹ️ Supported formats & tips
+              </summary>
+              <div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400 space-y-1 bg-gray-50 dark:bg-gray-800/40 rounded-lg p-3 border border-gray-100 dark:border-gray-700">
+                <p className="font-medium text-gray-600 dark:text-gray-300 text-xs">Supported recording sources:</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-0.5">
+                  <span>🔴 YouTube / YouTube Live</span>
+                  <span>🟦 Zoom recordings</span>
+                  <span>🟢 Google Meet</span>
+                  <span>🟩 Google Drive videos</span>
+                  <span>🟣 Vimeo</span>
+                  <span>🟠 Loom</span>
+                  <span>🟪 MS Teams</span>
+                  <span>📱 Samsung Recorder</span>
+                  <span>🎙️ Upgone</span>
+                  <span>☁️ OneDrive / SharePoint</span>
+                  <span>📦 Dropbox</span>
+                  <span>🎵 SoundCloud</span>
+                  <span>📹 Streamable</span>
+                  <span>🎬 Dailymotion</span>
+                  <span>🎞️ Direct MP4/MP3/WAV files</span>
+                </div>
+                <p className="mt-1.5 pt-1.5 border-t border-gray-200 dark:border-gray-600">
+                  <strong>Tip:</strong> For Samsung Recorder or Upgone, upload the file to Google Drive or YouTube first, then paste the share link.
+                  Direct file URLs (MP4, MP3, WAV, etc.) will play inline in the browser.
+                </p>
+              </div>
+            </details>
           </CardContent>
         </Card>
       )}
