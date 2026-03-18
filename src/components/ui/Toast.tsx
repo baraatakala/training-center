@@ -35,15 +35,18 @@ export function Toast({ id, message, type, onClose }: ToastProps) {
 
   return (
     <div
-      className={`${styles[type]} border rounded-lg shadow-lg p-4 flex items-start gap-3 animate-slide-in-right`}
+      role="alert"
+      aria-live={type === 'error' ? 'assertive' : 'polite'}
+      className={`${styles[type]} pointer-events-auto w-full border rounded-2xl shadow-lg p-3 sm:p-4 flex items-start gap-3 animate-slide-in-right backdrop-blur-sm`}
     >
       <div className="flex-shrink-0 text-lg font-bold">
         {icons[type]}
       </div>
-      <p className="flex-1 text-sm font-medium">{message}</p>
+      <p className="flex-1 text-sm font-medium whitespace-pre-line break-words leading-5">{message}</p>
       <button
         onClick={() => onClose(id)}
-        className="flex-shrink-0 hover:opacity-70 transition-opacity text-lg leading-none"
+        className="flex-shrink-0 hover:opacity-70 transition-opacity text-lg leading-none min-h-8 min-w-8 rounded-full"
+        aria-label="Dismiss notification"
       >
         ×
       </button>
@@ -77,7 +80,7 @@ export function ToastContainer() {
   };
 
   return (
-    <div className="fixed top-4 right-4 z-50 space-y-2 max-w-md">
+    <div className="pointer-events-none fixed inset-x-3 top-3 z-50 flex flex-col gap-2 sm:inset-x-auto sm:right-4 sm:top-4 sm:w-full sm:max-w-md">
       {toasts.map(toast => (
         <Toast
           key={toast.id}

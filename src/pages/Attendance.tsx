@@ -932,16 +932,19 @@ export function Attendance() {
     const url = recordingUrl.trim();
     setSavingRecording(true);
     const { data: { user } } = await supabase.auth.getUser();
+    const showRecordingError = (fallback: string, error?: { message?: string } | null) => {
+      toast.error(error?.message || fallback, 7000);
+    };
 
     if (recordingId) {
       if (!url) {
         // Delete if emptied
         const { error } = await sessionRecordingService.softDelete(recordingId);
-        if (error) { toast.error('Failed to remove recording link.'); }
+        if (error) { showRecordingError('Failed to remove recording link.', error); }
         else { setRecordingId(null); toast.success('Recording link removed.'); }
       } else {
         const { error } = await sessionRecordingService.update(recordingId, { recording_url: url });
-        if (error) toast.error('Failed to update recording link.');
+        if (error) showRecordingError('Failed to update recording link.', error);
         else toast.success('Recording link updated.');
       }
     } else if (url) {
@@ -964,7 +967,7 @@ export function Attendance() {
         is_primary: false,
       });
       if (result.error) {
-        toast.error('Failed to save recording link.');
+        showRecordingError('Failed to save recording link.', result.error);
       } else {
         if (result.data) setRecordingId(result.data.recording_id);
         toast.success('Recording link saved.');

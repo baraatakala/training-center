@@ -44,9 +44,12 @@ export interface FeedbackTemplateInput {
 
 export interface FeedbackStats {
   totalResponses: number;
+  engagedStudents: number;
   averageRating: number;
   ratingDistribution: Record<number, number>;
   responseRate: number;
+  datesCovered: number;
+  latestResponseDate: string | null;
   recentComments: Array<{ comment: string; rating: number; date: string; is_anonymous: boolean }>;
 }
 
@@ -59,6 +62,20 @@ function normalizeFeedbackError(error: { message?: string; details?: string; hin
     return {
       ...error,
       message: 'Feedback could not be saved because the database rejected the request. Check the session_feedback policies and authentication state.',
+    };
+  }
+
+  if (raw.includes('permission denied') || raw.includes('forbidden')) {
+    return {
+      ...error,
+      message: 'You do not have permission to perform this feedback action with the current account.',
+    };
+  }
+
+  if (raw.includes('not authenticated') || raw.includes('jwt') || raw.includes('auth')) {
+    return {
+      ...error,
+      message: 'Your session is missing or expired. Sign in again and retry the feedback action.',
     };
   }
 
@@ -85,10 +102,19 @@ export const feedbackService = {
     responses?: Record<string, unknown>;
     check_in_method?: string;
   }) {
+    if (!feedback.student_id) {
+      return {
+        data: null,
+        error: {
+          message: 'Feedback could not be linked to the checked-in student. Reload the page and try again.',
+        },
+      };
+    }
+
     const payload = {
       session_id: feedback.session_id,
       attendance_date: feedback.attendance_date,
-      student_id: feedback.is_anonymous ? null : feedback.student_id,
+      student_id: feedback.student_id,
       is_anonymous: feedback.is_anonymous,
       overall_rating: feedback.overall_rating,
       comment: feedback.comment || null,
@@ -142,7 +168,7 @@ export const feedbackService = {
       .eq('session_id', sessionId)
       .order('sort_order', { ascending: true });
 
-    return { data: data as FeedbackQuestion[] | null, error };
+    return { data: data as FeedbackQuestion[] | null, error: normalizeFeedbackError(error) };
   },
 
   /** Create a question for a session */
@@ -185,7 +211,7 @@ export const feedbackService = {
       .select('*')
       .order('is_default', { ascending: false });
 
-    return { data: data as FeedbackTemplate[] | null, error };
+    return { data: data as FeedbackTemplate[] | null, error: normalizeFeedbackError(error) };
   },
 
   async createTemplate(template: FeedbackTemplateInput) {
@@ -285,7 +311,7 @@ export const feedbackService = {
       return { ...row, student_name: student?.name ?? null, student: undefined } as unknown as SessionFeedback;
     }) ?? null;
 
-    return { data: mapped, error };
+    return { data: mapped, error: normalizeFeedbackError(error) };
   },
 
   /** Get feedback for a specific session+date */
@@ -302,14 +328,14 @@ export const feedbackService = {
       return { ...row, student_name: student?.name ?? null, student: undefined } as unknown as SessionFeedback;
     }) ?? null;
 
-    return { data: mapped, error };
+    return { data: mapped, error: normalizeFeedbackError(error) };
   },
 
   /** Get aggregate stats for a session */
   async getStats(sessionId: string): Promise<{ data: FeedbackStats | null; error: unknown }> {
     const { data: feedbacks, error } = await supabase
       .from('session_feedback')
-      .select('overall_rating, comment, attendance_date, is_anonymous, created_at')
+      .select('student_id, overall_rating, comment, attendance_date, is_anonymous, created_at')
       .eq('session_id', sessionId);
 
     if (error || !feedbacks) return { data: null, error };
@@ -319,9 +345,12 @@ export const feedbackService = {
       return {
         data: {
           totalResponses: 0,
+          engagedStudents: 0,
           averageRating: 0,
           ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
           responseRate: 0,
+          datesCovered: 0,
+          latestResponseDate: null,
           recentComments: [],
         },
         error: null,
@@ -335,6 +364,17 @@ export const feedbackService = {
     for (const r of ratings) {
       ratingDistribution[r] = (ratingDistribution[r] || 0) + 1;
     }
+
+    const engagedStudents = new Set(
+      feedbacks
+        .map((feedback) => feedback.student_id)
+        .filter((studentId): studentId is string => Boolean(studentId))
+    ).size;
+
+    const datesCovered = new Set(feedbacks.map((feedback) => feedback.attendance_date)).size;
+    const latestResponseDate = feedbacks
+      .map((feedback) => feedback.attendance_date)
+      .sort((left, right) => right.localeCompare(left))[0] || null;
 
     const recentComments = feedbacks
       .filter((f) => f.comment)
@@ -353,14 +393,17 @@ export const feedbackService = {
       .eq('session_id', sessionId)
       .eq('status', 'active');
 
-    const responseRate = enrolledCount ? Math.round((totalResponses / enrolledCount) * 100) : 0;
+    const responseRate = enrolledCount ? Math.min(100, Math.round((engagedStudents / enrolledCount) * 100)) : 0;
 
     return {
       data: {
         totalResponses,
+        engagedStudents,
         averageRating: Math.round(avgRating * 10) / 10,
         ratingDistribution,
         responseRate,
+        datesCovered,
+        latestResponseDate,
         recentComments,
       },
       error: null,

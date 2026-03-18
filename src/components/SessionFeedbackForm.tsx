@@ -78,6 +78,26 @@ export default function SessionFeedbackForm({
 
   const handleSubmit = async () => {
     if (rating === 0) return;
+
+    const missingRequiredQuestions = customQuestions.filter((question) => {
+      if (!question.is_required) return false;
+      const answer = responses[question.id];
+      if (answer === undefined || answer === null) return true;
+      if (typeof answer === 'string') return answer.trim().length === 0;
+      return false;
+    });
+
+    if (missingRequiredQuestions.length > 0) {
+      const preview = missingRequiredQuestions
+        .slice(0, 2)
+        .map((question) => question.question_text)
+        .join(' / ');
+      setSubmissionError(
+        `Please answer all required questions before submitting.${preview ? ` Missing: ${preview}` : ''}`
+      );
+      return;
+    }
+
     setSubmissionError(null);
     setSubmitting(true);
     const { error } = await feedbackService.submit({
@@ -160,6 +180,12 @@ export default function SessionFeedbackForm({
         {submissionError && (
           <div className="mb-4 rounded-xl border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-700 dark:text-red-300">
             {submissionError}
+          </div>
+        )}
+
+        {customQuestions.some((question) => question.is_required) && (
+          <div className="mb-4 rounded-xl border border-purple-200 dark:border-purple-700 bg-white/70 dark:bg-gray-800/70 px-3 py-2 text-xs text-purple-700 dark:text-purple-300">
+            Questions marked with * are required before submitting feedback.
           </div>
         )}
 

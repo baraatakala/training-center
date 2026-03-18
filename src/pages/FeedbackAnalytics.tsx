@@ -36,6 +36,11 @@ type ActiveTab = 'analytics' | 'questions' | 'responses';
 interface SessionOption {
   session_id: string;
   course_name: string;
+  teacher_name: string;
+  start_date: string;
+  end_date: string;
+  feedback_enabled: boolean;
+  feedback_anonymous_allowed: boolean;
 }
 
 // ─── Per-question analytics helpers ────────────────────────
@@ -124,6 +129,8 @@ export function FeedbackAnalytics() {
   const [templates, setTemplates] = useState<FeedbackTemplate[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>('analytics');
+  const [updatingFeedbackEnabled, setUpdatingFeedbackEnabled] = useState(false);
+  const [updatingAnonymousAllowed, setUpdatingAnonymousAllowed] = useState(false);
 
   // Question management
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
@@ -168,15 +175,24 @@ export function FeedbackAnalytics() {
     async function loadSessions() {
       const { data } = await supabase
         .from('session')
-        .select('session_id, feedback_enabled, course:course_id(course_name)')
-        .eq('feedback_enabled', true)
-        .order('created_at', { ascending: false });
+        .select('session_id, start_date, end_date, feedback_enabled, feedback_anonymous_allowed, course:course_id(course_name), teacher:teacher_id(name)')
+        .order('start_date', { ascending: false });
 
       if (data) {
         const mapped = data.map((s: Record<string, unknown>) => {
           const course = s.course as Record<string, string> | Record<string, string>[] | null;
+          const teacher = s.teacher as Record<string, string> | Record<string, string>[] | null;
           const courseName = Array.isArray(course) ? course[0]?.course_name : course?.course_name;
-          return { session_id: s.session_id as string, course_name: courseName ?? 'Unknown Course' };
+          const teacherName = Array.isArray(teacher) ? teacher[0]?.name : teacher?.name;
+          return {
+            session_id: s.session_id as string,
+            course_name: courseName ?? 'Unknown Course',
+            teacher_name: teacherName ?? 'Unknown Teacher',
+            start_date: String(s.start_date || ''),
+            end_date: String(s.end_date || ''),
+            feedback_enabled: Boolean(s.feedback_enabled),
+            feedback_anonymous_allowed: Boolean(s.feedback_anonymous_allowed ?? true),
+          };
         });
         setSessions(mapped);
         if (sessionParam && mapped.some(s => s.session_id === sessionParam)) {
@@ -187,7 +203,7 @@ export function FeedbackAnalytics() {
       }
     }
     loadSessions();
-  }, []);
+  }, [sessionParam]);
 
   // ─── Load data for selected session ────────────────────────
   useEffect(() => {
@@ -285,11 +301,6 @@ export function FeedbackAnalytics() {
     }));
   }, [feedbacks]);
 
-  const anonymousRate = useMemo(() => {
-    if (feedbacks.length === 0) return 0;
-    return Math.round((feedbacks.filter(f => f.is_anonymous).length / feedbacks.length) * 100);
-  }, [feedbacks]);
-
   const npsScore = useMemo(() => {
     const withRating = feedbacks.filter(f => f.overall_rating != null);
     if (withRating.length === 0) return 0;
@@ -317,6 +328,52 @@ export function FeedbackAnalytics() {
     if (!dateFilter) return feedbacks;
     return feedbacks.filter(f => f.attendance_date === dateFilter);
   }, [feedbacks, dateFilter]);
+
+  const latestResponseLabel = stats?.latestResponseDate
+    ? `Latest response on ${stats.latestResponseDate}`
+    : 'No feedback submitted yet';
+
+  const handleToggleFeedbackEnabled = async () => {
+    if (!selectedSession) return;
+
+    const nextValue = !selectedSession.feedback_enabled;
+    setUpdatingFeedbackEnabled(true);
+    const { error } = await feedbackService.toggleFeedback(selectedSession.session_id, nextValue);
+    setUpdatingFeedbackEnabled(false);
+
+    if (error) {
+      toast.error(error.message || 'Unable to update feedback availability.', 7000);
+      return;
+    }
+
+    setSessions((current) => current.map((session) => (
+      session.session_id === selectedSession.session_id
+        ? { ...session, feedback_enabled: nextValue }
+        : session
+    )));
+    toast.success(nextValue ? 'Feedback is now live for this session.' : 'Feedback is now hidden from students for this session.');
+  };
+
+  const handleToggleAnonymousAllowed = async () => {
+    if (!selectedSession) return;
+
+    const nextValue = !selectedSession.feedback_anonymous_allowed;
+    setUpdatingAnonymousAllowed(true);
+    const { error } = await feedbackService.setAnonymousAllowed(selectedSession.session_id, nextValue);
+    setUpdatingAnonymousAllowed(false);
+
+    if (error) {
+      toast.error(error.message || 'Unable to update anonymous feedback setting.', 7000);
+      return;
+    }
+
+    setSessions((current) => current.map((session) => (
+      session.session_id === selectedSession.session_id
+        ? { ...session, feedback_anonymous_allowed: nextValue }
+        : session
+    )));
+    toast.success(nextValue ? 'Anonymous feedback is now allowed.' : 'Feedback now records the student identity internally.');
+  };
 
 
 
@@ -459,7 +516,10 @@ export function FeedbackAnalytics() {
               label=""
               value={selectedSessionId}
               onChange={setSelectedSessionId}
-              options={sessions.map(s => ({ value: s.session_id, label: s.course_name }))}
+              options={sessions.map(s => ({
+                value: s.session_id,
+                label: `${s.course_name}${s.feedback_enabled ? '' : ' · Feedback Off'}`,
+              }))}
               placeholder="Select session..."
             />
           </div>
@@ -495,6 +555,96 @@ export function FeedbackAnalytics() {
 
       {!loading && selectedSessionId && (
         <>
+          {selectedSession && (
+            <div className="grid grid-cols-1 xl:grid-cols-[1.5fr,1fr] gap-4">
+              <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/30 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{selectedSession.course_name}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Teacher: {selectedSession.teacher_name}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{selectedSession.start_date} to {selectedSession.end_date}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${selectedSession.feedback_enabled ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'}`}>
+                      {selectedSession.feedback_enabled ? 'Feedback Live' : 'Feedback Off'}
+                    </span>
+                    <span className="rounded-full bg-violet-100 px-2.5 py-1 text-[11px] font-medium text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
+                      {questions.length} question{questions.length === 1 ? '' : 's'}
+                    </span>
+                    <span className="rounded-full bg-sky-100 px-2.5 py-1 text-[11px] font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
+                      {selectedSession.feedback_anonymous_allowed ? 'Anonymous Allowed' : 'Identity Retained'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/50 px-3 py-2.5">
+                    <p className="text-[11px] uppercase tracking-wide text-gray-400">Collection Health</p>
+                    <p className="mt-1 font-semibold text-gray-900 dark:text-white">{stats?.engagedStudents ?? 0} engaged students</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{stats?.responseRate ?? 0}% of active enrolled students</p>
+                  </div>
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/50 px-3 py-2.5">
+                    <p className="text-[11px] uppercase tracking-wide text-gray-400">Coverage</p>
+                    <p className="mt-1 font-semibold text-gray-900 dark:text-white">{stats?.datesCovered ?? 0} dates covered</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{latestResponseLabel}</p>
+                  </div>
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/50 px-3 py-2.5">
+                    <p className="text-[11px] uppercase tracking-wide text-gray-400">Form Readiness</p>
+                    <p className="mt-1 font-semibold text-gray-900 dark:text-white">{questions.some((question) => question.is_required) ? 'Required checks active' : 'All questions optional'}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Students answer after successful check-in only</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/30 p-4 space-y-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Session Controls</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Keep frontend behavior aligned with what this session should expose to students.</p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleToggleFeedbackEnabled}
+                  disabled={updatingFeedbackEnabled}
+                  className="w-full rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-3 text-left transition hover:border-purple-300 dark:hover:border-purple-700 disabled:opacity-60"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">Feedback availability</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Students only see the form when feedback is enabled.</p>
+                    </div>
+                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${selectedSession.feedback_enabled ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'}`}>
+                      {updatingFeedbackEnabled ? 'Saving...' : selectedSession.feedback_enabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleToggleAnonymousAllowed}
+                  disabled={updatingAnonymousAllowed || !selectedSession.feedback_enabled}
+                  className="w-full rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-3 text-left transition hover:border-purple-300 dark:hover:border-purple-700 disabled:opacity-60"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">Anonymous mode</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Anonymous answers stay hidden in the UI, while duplicate prevention still works.</p>
+                    </div>
+                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${selectedSession.feedback_anonymous_allowed ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'}`}>
+                      {updatingAnonymousAllowed ? 'Saving...' : selectedSession.feedback_anonymous_allowed ? 'Allowed' : 'Disabled'}
+                    </span>
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {selectedSession && !selectedSession.feedback_enabled && (
+            <div className="rounded-xl border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+              Feedback is currently turned off for this session. You can still prepare questions and templates now, then enable it when you want students to see the form after check-in.
+            </div>
+          )}
+
           {/* ─── Tabs (pill style) ──────────────────────────────── */}
           <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl overflow-x-auto">
             {([
@@ -536,10 +686,10 @@ export function FeedbackAnalytics() {
                   {/* KPI Strip */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {[
-                      { label: 'Responses', value: String(stats.totalResponses), sub: `${stats.responseRate}% rate`, color: 'purple' },
+                      { label: 'Responses', value: String(stats.totalResponses), sub: `${stats.datesCovered} teaching dates covered`, color: 'purple' },
+                      { label: 'Students', value: `${stats.engagedStudents}`, sub: `${stats.responseRate}% of active enrolled`, color: 'green' },
                       { label: 'Avg Rating', value: `${stats.averageRating}`, sub: RATING_EMOJIS[Math.round(stats.averageRating) - 1] || '', color: 'yellow' },
-                      { label: 'NPS', value: `${npsScore > 0 ? '+' : ''}${npsScore}`, sub: npsScore >= 50 ? 'Excellent' : npsScore >= 0 ? 'Good' : 'Needs work', color: npsScore >= 0 ? 'green' : 'red' },
-                      { label: 'Anonymous', value: `${anonymousRate}%`, sub: `${feedbacks.filter(f => f.is_anonymous).length} hidden`, color: 'gray' },
+                      { label: 'NPS', value: `${npsScore > 0 ? '+' : ''}${npsScore}`, sub: latestResponseLabel, color: npsScore >= 0 ? 'green' : 'red' },
                     ].map(kpi => (
                       <div key={kpi.label} className={`p-4 rounded-xl border ${
                         kpi.color === 'purple' ? 'border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-900/10' :
@@ -752,6 +902,11 @@ export function FeedbackAnalytics() {
               {questionError && (
                 <div className="rounded-lg border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-700 dark:text-red-300">
                   {questionError}
+                </div>
+              )}
+              {selectedSession && !selectedSession.feedback_enabled && (
+                <div className="rounded-lg border border-sky-200 dark:border-sky-700 bg-sky-50 dark:bg-sky-900/20 px-3 py-2 text-sm text-sky-700 dark:text-sky-300">
+                  Question setup is ready, but students will not see it until feedback availability is enabled for this session.
                 </div>
               )}
               {templateError && (
