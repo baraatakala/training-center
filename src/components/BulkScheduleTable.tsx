@@ -1122,11 +1122,13 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
     setBulkUpdating(true);
     const nextMap: Record<string, string | null> = { ...hostDateMap };
     const updates: Array<Promise<void>> = [];
+    let assignedCount = 0;
 
     eligibleHosts.forEach((host, index) => {
-      const assignedDate = assignableDates[Math.min(index, assignableDates.length - 1)] || null;
+      const assignedDate = index < assignableDates.length ? assignableDates[index] : null;
       nextMap[host.enrollment_id] = assignedDate;
       updates.push(saveHostDate(host.enrollment_id, assignedDate, false));
+      if (assignedDate) assignedCount += 1;
     });
 
     displayedEnrollments
@@ -1139,7 +1141,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
     setHostDateMap(nextMap);
     await Promise.all(updates);
     setBulkUpdating(false);
-    toast.success(`Auto-assigned ${eligibleHosts.length} host date${eligibleHosts.length === 1 ? '' : 's'}.`);
+    toast.success(`Auto-assigned ${assignedCount} host date${assignedCount === 1 ? '' : 's'}.`);
   };
   
   return (
