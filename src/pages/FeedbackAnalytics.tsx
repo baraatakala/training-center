@@ -35,7 +35,9 @@ const MOOD_EMOJIS: Record<string, string> = {
 };
 const PIE_COLORS = ['#8b5cf6', '#06b6d4', '#f59e0b', '#10b981', '#ef4444', '#ec4899', '#6366f1'];
 
-type ActiveTab = 'analytics' | 'dates';
+type ActiveTab = 'analytics' | 'questions' | 'dates';
+type MethodFilter = 'all' | 'qr_code' | 'photo' | 'manual' | 'bulk' | 'unknown';
+type QuestionTypeFilter = 'all' | FeedbackQuestion['question_type'];
 
 interface SessionOption {
   session_id: string;
@@ -144,6 +146,10 @@ export function FeedbackAnalytics() {
   const [loadingDateStats, setLoadingDateStats] = useState(false);
   const [analyticsSortBy, setAnalyticsSortBy] = useState<'date' | 'rating' | 'responses' | 'rate'>('date');
   const [analyticsSortDir, setAnalyticsSortDir] = useState<'asc' | 'desc'>('desc');
+  const [methodFilter, setMethodFilter] = useState<MethodFilter>('all');
+  const [questionTypeFilter, setQuestionTypeFilter] = useState<QuestionTypeFilter>('all');
+  const [feedbackSearch, setFeedbackSearch] = useState('');
+  const [selectedQuestionId, setSelectedQuestionId] = useState<string>('');
 
   const selectedSession = sessions.find(s => s.session_id === selectedSessionId);
 
@@ -269,6 +275,111 @@ export function FeedbackAnalytics() {
     }));
   }, [questions, feedbacks]);
 
+  const filteredFeedbacks = useMemo(() => {
+    const normalizedSearch = feedbackSearch.trim().toLowerCase();
+
+    return feedbacks.filter((feedback) => {
+      if (selectedAnalyticsDate && feedback.attendance_date !== selectedAnalyticsDate) {
+        return false;
+      }
+
+      const normalizedMethod = (feedback.check_in_method || 'unknown') as MethodFilter;
+      if (methodFilter !== 'all' && normalizedMethod !== methodFilter) {
+        return false;
+      }
+
+      if (!normalizedSearch) {
+        return true;
+      }
+
+      const haystack = [
+        feedback.student_name,
+        feedback.comment,
+        feedback.attendance_date,
+        feedback.check_in_method,
+        ...Object.values(feedback.responses || {}).map(String),
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return haystack.includes(normalizedSearch);
+    });
+  }, [feedbacks, selectedAnalyticsDate, methodFilter, feedbackSearch]);
+
+  const filteredStats = useMemo(() => {
+    const rated = filteredFeedbacks.filter((feedback) => feedback.overall_rating != null);
+    const totalResponses = filteredFeedbacks.length;
+    const engagedStudents = new Set(filteredFeedbacks.map((feedback) => feedback.student_id).filter(Boolean)).size;
+    const averageRating = rated.length > 0
+      ? Math.round((rated.reduce((sum, feedback) => sum + Number(feedback.overall_rating || 0), 0) / rated.length) * 10) / 10
+      : 0;
+    const recentComments = filteredFeedbacks
+      .filter((feedback) => feedback.comment)
+      .slice(0, 8)
+      .map((feedback) => ({
+        comment: feedback.comment || '',
+        rating: feedback.overall_rating || 0,
+        date: feedback.attendance_date,
+        is_anonymous: feedback.is_anonymous,
+      }));
+
+    return {
+      totalResponses,
+      engagedStudents,
+      averageRating,
+      datesCovered: new Set(filteredFeedbacks.map((feedback) => feedback.attendance_date)).size,
+      recentComments,
+      latestResponseDate: filteredFeedbacks[0]?.attendance_date || null,
+    };
+  }, [filteredFeedbacks]);
+
+  const methodChartData = useMemo(() => {
+    const counts: Record<string, number> = {};
+
+    for (const feedback of filteredFeedbacks) {
+      const key = feedback.check_in_method || 'unknown';
+      counts[key] = (counts[key] || 0) + 1;
+    }
+
+    return Object.entries(counts).map(([method, count]) => ({
+      method: method === 'qr_code'
+        ? 'QR'
+        : method === 'photo'
+          ? 'Face'
+          : method === 'manual'
+            ? 'Manual'
+            : method === 'bulk'
+              ? 'Bulk'
+              : 'Unknown',
+      count,
+    }));
+  }, [filteredFeedbacks]);
+
+  const filteredQuestionAnalytics = useMemo(() => {
+    const selectedQuestion = selectedQuestionId
+      ? questions.find((question) => question.id === selectedQuestionId) || null
+      : null;
+
+    return questions
+      .filter((question) => (questionTypeFilter === 'all' ? true : question.question_type === questionTypeFilter))
+      .filter((question) => (selectedQuestion ? question.id === selectedQuestion.id : true))
+      .filter((question) => {
+        if (!feedbackSearch.trim()) return true;
+        return question.question_text.toLowerCase().includes(feedbackSearch.trim().toLowerCase());
+      })
+      .map((question) => ({
+        question,
+        data: aggregateQuestionResponses(question, filteredFeedbacks),
+      }))
+      .sort((left, right) => right.data.total - left.data.total);
+  }, [questions, questionTypeFilter, selectedQuestionId, feedbackSearch, filteredFeedbacks]);
+
+  const filteredResponseRate = useMemo(() => {
+    if (!stats || stats.engagedStudents === 0) return 0;
+    return Math.round((filteredStats.engagedStudents / stats.engagedStudents) * 100);
+  }, [filteredStats.engagedStudents, stats]);
+
   // Unique dates for filter
   const uniqueDates = useMemo(() => {
     const dates = [...new Set(feedbacks.map(f => f.attendance_date))].sort().reverse();
@@ -325,10 +436,6 @@ export function FeedbackAnalytics() {
       rate: d.responseRate,
     }));
   }, [dateComparison]);
-
-  const latestResponseLabel = stats?.latestResponseDate
-    ? `Latest response on ${stats.latestResponseDate}`
-    : 'No feedback submitted yet';
 
   const handleToggleFeedbackEnabled = async () => {
     if (!selectedSession) return;
@@ -513,6 +620,7 @@ export function FeedbackAnalytics() {
           <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl overflow-x-auto">
             {([
               { key: 'analytics' as ActiveTab, label: 'Analytics', icon: '📊', badge: stats?.totalResponses },
+              { key: 'questions' as ActiveTab, label: 'Questions', icon: '🧩', badge: questions.length },
               { key: 'dates' as ActiveTab, label: 'By Date', icon: '📅', badge: dateComparison?.dates.length },
             ]).map(t => (
               <button
@@ -539,43 +647,74 @@ export function FeedbackAnalytics() {
             ))}
           </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 rounded-xl bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700 p-3">
+            <div>
+              <label className="text-[11px] text-gray-500 dark:text-gray-400 block mb-1">Attendance date</label>
+              <select
+                value={selectedAnalyticsDate}
+                onChange={e => setSelectedAnalyticsDate(e.target.value)}
+                className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-2 text-gray-900 dark:text-white"
+              >
+                <option value="">All dates</option>
+                {uniqueDates.map(date => (
+                  <option key={date} value={date}>{date}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] text-gray-500 dark:text-gray-400 block mb-1">Check-in method</label>
+              <select
+                value={methodFilter}
+                onChange={e => setMethodFilter(e.target.value as MethodFilter)}
+                className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-2 text-gray-900 dark:text-white"
+              >
+                <option value="all">All methods</option>
+                <option value="qr_code">QR code</option>
+                <option value="photo">Face recognition</option>
+                <option value="manual">Manual</option>
+                <option value="bulk">Bulk</option>
+                <option value="unknown">Unknown</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] text-gray-500 dark:text-gray-400 block mb-1">Question type</label>
+              <select
+                value={questionTypeFilter}
+                onChange={e => setQuestionTypeFilter(e.target.value as QuestionTypeFilter)}
+                className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-2 text-gray-900 dark:text-white"
+              >
+                <option value="all">All question types</option>
+                <option value="rating">Rating</option>
+                <option value="emoji">Emoji</option>
+                <option value="text">Text</option>
+                <option value="multiple_choice">Multiple choice</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] text-gray-500 dark:text-gray-400 block mb-1">Search feedback</label>
+              <input
+                value={feedbackSearch}
+                onChange={e => setFeedbackSearch(e.target.value)}
+                placeholder="Student, comment, answer..."
+                className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-2 text-gray-900 dark:text-white placeholder:text-gray-400"
+              />
+            </div>
+          </div>
+
           {/* ═══════════════════════════════════════════════════ */}
           {/* TAB: ANALYTICS                                     */}
           {/* ═══════════════════════════════════════════════════ */}
           {activeTab === 'analytics' && (
             <>
-              {/* Analytics date filter */}
-              {uniqueDates.length > 1 && (
-                <div className="flex items-center gap-2 rounded-xl bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700 px-3 py-2">
-                  <span className="text-xs text-gray-500 shrink-0">📅 Filter analytics:</span>
-                  <select
-                    value={selectedAnalyticsDate}
-                    onChange={e => setSelectedAnalyticsDate(e.target.value)}
-                    className="flex-1 text-xs rounded-lg border-0 bg-white dark:bg-gray-800 px-2 py-1.5 text-gray-900 dark:text-white focus:ring-1 focus:ring-purple-500"
-                  >
-                    <option value="">All dates ({feedbacks.length} total)</option>
-                    {uniqueDates.map(d => {
-                      const count = feedbacks.filter(f => f.attendance_date === d).length;
-                      return <option key={d} value={d}>{d} ({count} responses)</option>;
-                    })}
-                  </select>
-                  {selectedAnalyticsDate && (
-                    <button onClick={() => setSelectedAnalyticsDate('')} className="text-[10px] text-purple-600 hover:text-purple-800 dark:text-purple-400 px-2 py-1 rounded-md hover:bg-purple-50 dark:hover:bg-purple-900/20">
-                      ✕ Clear
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {stats && stats.totalResponses > 0 ? (
+              {feedbacks.length > 0 ? (
                 <div className="space-y-5">
                   {/* KPI Strip */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {[
-                      { label: 'Responses', value: String(stats.totalResponses), sub: `${stats.datesCovered} teaching dates covered`, color: 'purple' },
-                      { label: 'Students', value: `${stats.engagedStudents}`, sub: `${stats.responseRate}% of active enrolled`, color: 'green' },
-                      { label: 'Avg Rating', value: `${stats.averageRating}`, sub: RATING_EMOJIS[Math.round(stats.averageRating) - 1] || '', color: 'yellow' },
-                      { label: 'Questions', value: `${questions.length}`, sub: latestResponseLabel, color: 'purple' },
+                      { label: 'Responses', value: String(filteredStats.totalResponses), sub: `${filteredStats.datesCovered} filtered dates`, color: 'purple' },
+                      { label: 'Students', value: `${filteredStats.engagedStudents}`, sub: `${filteredResponseRate}% of engaged students`, color: 'green' },
+                      { label: 'Avg Rating', value: `${filteredStats.averageRating || '—'}`, sub: filteredStats.averageRating ? (RATING_EMOJIS[Math.round(filteredStats.averageRating) - 1] || '') : 'No ratings', color: 'yellow' },
+                      { label: 'Questions Used', value: `${filteredQuestionAnalytics.filter(item => item.data.total > 0).length}`, sub: filteredStats.latestResponseDate ? `Latest ${filteredStats.latestResponseDate}` : 'No feedback yet', color: 'purple' },
                     ].map(kpi => (
                       <div key={kpi.label} className={`p-4 rounded-xl border ${
                         kpi.color === 'purple' ? 'border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-900/10' :
@@ -591,12 +730,63 @@ export function FeedbackAnalytics() {
                     ))}
                   </div>
 
-                  {/* Recent Comments */}
-                  {stats.recentComments.length > 0 && (
+                  <div className="grid grid-cols-1 lg:grid-cols-[1.1fr,0.9fr] gap-4">
                     <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/30 p-4">
-                      <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">💬 Recent Comments</p>
+                      <div className="flex items-center justify-between gap-3 mb-3">
+                        <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">📡 Check-In Method Mix</p>
+                        <span className="text-[10px] text-gray-400">Filtered results only</span>
+                      </div>
+                      {methodChartData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={220}>
+                          <BarChart data={methodChartData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.4} />
+                            <XAxis dataKey="method" tick={{ fontSize: 11 }} stroke="#9ca3af" />
+                            <YAxis tick={{ fontSize: 10 }} stroke="#9ca3af" allowDecimals={false} />
+                            <Tooltip />
+                            <Bar dataKey="count" radius={[6, 6, 0, 0]} fill="#8b5cf6" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="flex items-center justify-center h-[220px] text-sm text-gray-400">No method data for current filters.</div>
+                      )}
+                    </div>
+
+                    <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/30 p-4">
+                      <div className="flex items-center justify-between gap-3 mb-3">
+                        <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">🧩 Question Coverage</p>
+                        <Button size="sm" variant="outline" onClick={() => setActiveTab('questions')}>Open Insights</Button>
+                      </div>
+                      <div className="space-y-2">
+                        {filteredQuestionAnalytics.slice(0, 5).map(({ question, data }) => (
+                          <button
+                            key={question.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedQuestionId(question.id);
+                              setActiveTab('questions');
+                            }}
+                            className="w-full text-left rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40 px-3 py-2 hover:border-purple-300 dark:hover:border-purple-700 transition-colors"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-xs font-medium text-gray-800 dark:text-gray-200 line-clamp-2">{question.question_text}</p>
+                              <span className="text-[10px] rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 px-1.5 py-0.5 shrink-0">{data.total}</span>
+                            </div>
+                            <p className="text-[10px] text-gray-400 mt-1">{question.question_type.replace('_', ' ')} · {question.attendance_date || 'all dates'}</p>
+                          </button>
+                        ))}
+                        {filteredQuestionAnalytics.length === 0 && (
+                          <p className="text-sm text-gray-400 text-center py-8">No question activity for the current filters.</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Recent Comments */}
+                  {filteredStats.recentComments.length > 0 && (
+                    <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/30 p-4">
+                      <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">💬 Matching Comments</p>
                       <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                        {stats.recentComments.map((c, i) => (
+                        {filteredStats.recentComments.map((c, i) => (
                           <div key={i} className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800/40">
                             <span className="text-lg shrink-0 mt-0.5">{RATING_EMOJIS[c.rating - 1] || '❓'}</span>
                             <div className="flex-1 min-w-0">
@@ -627,6 +817,113 @@ export function FeedbackAnalytics() {
                 </div>
               )}
             </>
+          )}
+
+          {activeTab === 'questions' && (
+            <div className="space-y-5">
+              <div className="flex flex-col lg:flex-row gap-3 lg:items-end">
+                <div className="lg:w-72">
+                  <label className="text-[11px] text-gray-500 dark:text-gray-400 block mb-1">Focus question</label>
+                  <select
+                    value={selectedQuestionId}
+                    onChange={e => setSelectedQuestionId(e.target.value)}
+                    className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-2 text-gray-900 dark:text-white"
+                  >
+                    <option value="">All questions</option>
+                    {questions.map(question => (
+                      <option key={question.id} value={question.id}>{question.question_text}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  Compare question response volume, answer distribution, and text answers using the same date, method, and search filters above.
+                </div>
+              </div>
+
+              {filteredQuestionAnalytics.length === 0 ? (
+                <div className="text-center py-16">
+                  <span className="text-5xl block mb-3">🧩</span>
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-white">No Question Matches</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 max-w-sm mx-auto">
+                    Try clearing a filter or selecting another question type/date combination.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                  {filteredQuestionAnalytics.map(({ question, data }, index) => (
+                    <div key={question.id} className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/30 p-4 space-y-3">
+                      <div className="flex items-start gap-2">
+                        <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 px-1.5 py-0.5 rounded shrink-0">Q{index + 1}</span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{question.question_text}</p>
+                          <div className="flex flex-wrap gap-1.5 mt-1">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300">{question.question_type.replace('_', ' ')}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300">{data.total} answers</span>
+                            {question.attendance_date && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300">{question.attendance_date}</span>}
+                          </div>
+                        </div>
+                      </div>
+
+                      {data.total === 0 ? (
+                        <p className="text-sm text-gray-400 text-center py-8">No responses for this question under the current filters.</p>
+                      ) : data.type === 'rating' ? (
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-lg font-bold text-purple-600 dark:text-purple-400">{data.avg}</span>
+                            <span>{RATING_EMOJIS[Math.round(data.avg) - 1] || ''}</span>
+                          </div>
+                          {[5, 4, 3, 2, 1].map(rating => {
+                            const count = data.distribution[rating] || 0;
+                            const width = data.total > 0 ? (count / data.total) * 100 : 0;
+                            return (
+                              <div key={rating} className="flex items-center gap-2">
+                                <span className="text-[10px] w-4 text-right">{rating}</span>
+                                <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                                  <div className="h-full rounded-full" style={{ width: `${width}%`, backgroundColor: RATING_COLORS[rating - 1] }} />
+                                </div>
+                                <span className="text-[10px] text-gray-400 w-7 text-right">{count}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : data.type === 'emoji' ? (
+                        <div className="flex flex-wrap gap-3 justify-center py-2">
+                          {Object.entries(data.distribution).sort(([, left], [, right]) => right - left).map(([value, count]) => (
+                            <div key={value} className="text-center min-w-[56px]">
+                              <span className="text-2xl block">{MOOD_EMOJIS[value] || value}</span>
+                              <span className="text-[10px] text-gray-500 dark:text-gray-400">{count}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : data.type === 'multiple_choice' ? (
+                        <div className="space-y-2">
+                          {Object.entries(data.distribution).sort(([, left], [, right]) => right - left).map(([option, count], optionIndex) => {
+                            const width = data.total > 0 ? (count / data.total) * 100 : 0;
+                            return (
+                              <div key={option} className="flex items-center gap-2">
+                                <span className="text-[10px] text-gray-600 dark:text-gray-300 w-24 truncate shrink-0">{option}</span>
+                                <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                                  <div className="h-full rounded-full" style={{ width: `${width}%`, backgroundColor: PIE_COLORS[optionIndex % PIE_COLORS.length] }} />
+                                </div>
+                                <span className="text-[10px] text-gray-400 w-8 text-right">{count}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="space-y-1 max-h-40 overflow-y-auto">
+                          {data.answers.map((answer, answerIndex) => (
+                            <p key={answerIndex} className="text-[11px] text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/50 rounded px-2 py-1.5">
+                              {answer}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
 
           {/* ═══════════════════════════════════════════════════ */}

@@ -88,8 +88,16 @@ export function Dashboard() {
   const [bulkMode, setBulkMode] = useState(false);
   const [pendingExcuses, setPendingExcuses] = useState(0);
 
-  // Data Integrity Health state
-  type HealthCheck = { label: string; status: 'ok' | 'warn' | 'error'; count: number; detail: string; icon: string };
+  // Workflow readiness state
+  type HealthCheck = {
+    label: string;
+    status: 'ok' | 'warn' | 'error';
+    count: number;
+    detail: string;
+    icon: string;
+    actionLabel?: string;
+    actionPath?: string;
+  };
   const [healthChecks, setHealthChecks] = useState<HealthCheck[]>([]);
   const [healthLoading, setHealthLoading] = useState(false);
   const [healthLoaded, setHealthLoaded] = useState(false);
@@ -99,134 +107,159 @@ export function Dashboard() {
     try {
       const checks: HealthCheck[] = [];
 
-      // 1. Sessions with feedback enabled but no questions
-      const { data: fbSessions } = await supabase
-        .from('session')
-        .select('session_id')
-        .eq('feedback_enabled', true);
-      if (fbSessions && fbSessions.length > 0) {
-        const { data: questionsData } = await supabase
-          .from('feedback_question')
-          .select('session_id');
-        const sessionsWithQuestions = new Set((questionsData || []).map(q => q.session_id));
-        const noQuestions = fbSessions.filter(s => !sessionsWithQuestions.has(s.session_id));
-        checks.push({
-          label: 'Feedback-enabled sessions without questions',
-          status: noQuestions.length > 0 ? 'warn' : 'ok',
-          count: noQuestions.length,
-          detail: noQuestions.length > 0 ? `${noQuestions.length} session(s) have feedback enabled but no questions configured` : 'All feedback sessions have questions',
-          icon: noQuestions.length > 0 ? '⚠️' : '✅'
-        });
-      }
+      const [
+        feedbackSessionsRes,
+        feedbackQuestionsRes,
+        attendanceRes,
+        hostRes,
+        qrRes,
+        photoRes,
+        feedbackRes,
+      ] = await Promise.all([
+        supabase.from('session').select('session_id').eq('feedback_enabled', true),
+        supabase.from('feedback_question').select('session_id, attendance_date'),
+        supabase.from('attendance').select('student_id, session_id, attendance_date, check_in_method, host_address').limit(5000),
+        supabase.from('session_date_host').select('session_id, attendance_date, host_address').limit(5000),
+        supabase.from('qr_sessions').select('session_id, attendance_date, check_in_mode, linked_photo_token').limit(5000),
+        supabase.from('photo_checkin_sessions').select('token, session_id, attendance_date, is_valid').limit(5000),
+        supabase.from('session_feedback').select('student_id, session_id, attendance_date, check_in_method').limit(5000),
+      ]);
 
-      // 2. Active enrollments with no attendance records
-      const { data: enrollments } = await supabase
-        .from('enrollment')
-        .select('student_id, session_id')
-        .eq('status', 'active');
-      if (enrollments && enrollments.length > 0) {
-        const { data: attRecords } = await supabase
-          .from('attendance')
-          .select('student_id, session_id');
-        const attKeys = new Set((attRecords || []).map(a => `${a.student_id}|${a.session_id}`));
-        const noAtt = enrollments.filter(e => !attKeys.has(`${e.student_id}|${e.session_id}`));
-        checks.push({
-          label: 'Enrollments with zero attendance',
-          status: noAtt.length > 5 ? 'warn' : 'ok',
-          count: noAtt.length,
-          detail: noAtt.length > 0 ? `${noAtt.length} active enrollment(s) have no attendance records yet` : 'All enrollments have attendance data',
-          icon: noAtt.length > 5 ? '⚠️' : '✅'
-        });
-      }
+      const feedbackSessions = feedbackSessionsRes.data || [];
+      const feedbackQuestions = feedbackQuestionsRes.data || [];
+      const attendance = attendanceRes.data || [];
+      const hostRows = hostRes.data || [];
+      const qrRows = qrRes.data || [];
+      const photoRows = photoRes.data || [];
+      const feedbackRows = feedbackRes.data || [];
 
-      // 3. Sessions with no enrollments
-      const { data: allSessions } = await supabase
-        .from('session')
-        .select('session_id');
-      const { data: enrolledSessions } = await supabase
-        .from('enrollment')
-        .select('session_id');
-      if (allSessions) {
-        const enrolledSet = new Set((enrolledSessions || []).map(e => e.session_id));
-        const orphanSessions = allSessions.filter(s => !enrolledSet.has(s.session_id));
-        checks.push({
-          label: 'Sessions with no enrolled students',
-          status: orphanSessions.length > 0 ? 'warn' : 'ok',
-          count: orphanSessions.length,
-          detail: orphanSessions.length > 0 ? `${orphanSessions.length} session(s) have no students enrolled` : 'All sessions have enrollments',
-          icon: orphanSessions.length > 0 ? '⚠️' : '✅'
-        });
-      }
+      const questionSessionIds = new Set(feedbackQuestions.map((question) => question.session_id));
+      const feedbackWithoutQuestions = feedbackSessions.filter((session) => !questionSessionIds.has(session.session_id));
+      checks.push({
+        label: 'Feedback enabled without questions',
+        status: feedbackWithoutQuestions.length > 0 ? 'warn' : 'ok',
+        count: feedbackWithoutQuestions.length,
+        detail: feedbackWithoutQuestions.length > 0
+          ? `${feedbackWithoutQuestions.length} session(s) can show feedback but still have no configured question set.`
+          : 'Every feedback-enabled session already has a question set ready for students.',
+        icon: feedbackWithoutQuestions.length > 0 ? '⚠️' : '✅',
+        actionLabel: feedbackWithoutQuestions.length > 0 ? 'Open Sessions' : undefined,
+        actionPath: feedbackWithoutQuestions.length > 0 ? '/sessions' : undefined,
+      });
 
-      // 4. Students with no enrollments
-      const { data: allStudents } = await supabase
-        .from('student')
-        .select('student_id');
-      const { data: enrolledStudents } = await supabase
-        .from('enrollment')
-        .select('student_id');
-      if (allStudents) {
-        const enrolledStudentSet = new Set((enrolledStudents || []).map(e => e.student_id));
-        const unenrolled = allStudents.filter(s => !enrolledStudentSet.has(s.student_id));
-        checks.push({
-          label: 'Students not enrolled in any session',
-          status: unenrolled.length > 3 ? 'warn' : 'ok',
-          count: unenrolled.length,
-          detail: unenrolled.length > 0 ? `${unenrolled.length} student(s) exist but have no enrollments` : 'All students are enrolled',
-          icon: unenrolled.length > 3 ? '⚠️' : '✅'
-        });
-      }
-
-      // 5. Attendance records for dates outside session range
-      const { data: sessionRanges } = await supabase
-        .from('session')
-        .select('session_id, start_date, end_date');
-      if (sessionRanges) {
-        const { data: allAtt } = await supabase
-          .from('attendance')
-          .select('attendance_date, session_id')
-          .limit(5000);
-        if (allAtt) {
-          const rangeMap = new Map(sessionRanges.map(s => [s.session_id, { start: s.start_date, end: s.end_date }]));
-          let outOfRange = 0;
-          for (const att of allAtt) {
-            const range = rangeMap.get(att.session_id);
-            if (range && (att.attendance_date < range.start || att.attendance_date > range.end)) {
-              outOfRange++;
-            }
-          }
-          checks.push({
-            label: 'Attendance outside session dates',
-            status: outOfRange > 0 ? 'error' : 'ok',
-            count: outOfRange,
-            detail: outOfRange > 0 ? `${outOfRange} record(s) have dates outside their session's start/end range` : 'All attendance dates are within session ranges',
-            icon: outOfRange > 0 ? '🚨' : '✅'
-          });
+      const hostMap = new Map(hostRows.map((row) => [`${row.session_id}|${row.attendance_date}`, row]));
+      const attendanceDates = new Set(attendance.map((row) => `${row.session_id}|${row.attendance_date}`));
+      let hostMissingCount = 0;
+      for (const key of attendanceDates) {
+        const host = hostMap.get(key);
+        if (!host || !host.host_address || !String(host.host_address).trim()) {
+          hostMissingCount++;
         }
       }
+      checks.push({
+        label: 'Attendance activity without host setup',
+        status: hostMissingCount > 0 ? 'error' : 'ok',
+        count: hostMissingCount,
+        detail: hostMissingCount > 0
+          ? `${hostMissingCount} session date(s) already have attendance rows but no canonical host location in session_date_host.`
+          : 'Every scanned attendance date has a canonical host location.',
+        icon: hostMissingCount > 0 ? '🚨' : '✅',
+        actionLabel: hostMissingCount > 0 ? 'Open Attendance' : undefined,
+        actionPath: hostMissingCount > 0 ? '/sessions' : undefined,
+      });
 
-      // 6. Duplicate attendance (same student, session, date)
-      {
-        const { data: dupCheck } = await supabase
-          .from('attendance')
-          .select('student_id, session_id, attendance_date')
-          .limit(5000);
-        if (dupCheck) {
-          const seen = new Set<string>();
-          let dupes = 0;
-          for (const r of dupCheck) {
-            const key = `${r.student_id}|${r.session_id}|${r.attendance_date}`;
-            if (seen.has(key)) dupes++;
-            seen.add(key);
-          }
-          checks.push({
-            label: 'Duplicate attendance records',
-            status: dupes > 0 ? 'error' : 'ok',
-            count: dupes,
-            detail: dupes > 0 ? `${dupes} duplicate(s) found (same student + session + date)` : 'No duplicate attendance records',
-            icon: dupes > 0 ? '🚨' : '✅'
-          });
+      const photoTokenSet = new Set(photoRows.map((row) => row.token));
+      const brokenPhotoQrCount = qrRows.filter((row) => row.check_in_mode === 'photo' && (!row.linked_photo_token || !photoTokenSet.has(row.linked_photo_token))).length;
+      checks.push({
+        label: 'Face QR routing is broken',
+        status: brokenPhotoQrCount > 0 ? 'error' : 'ok',
+        count: brokenPhotoQrCount,
+        detail: brokenPhotoQrCount > 0
+          ? `${brokenPhotoQrCount} QR session(s) point to face check-in without a valid linked photo token.`
+          : 'All face-mode QR sessions point to a valid photo check-in token.',
+        icon: brokenPhotoQrCount > 0 ? '🚨' : '✅',
+      });
+
+      const attendanceMethodMap = new Map(
+        attendance.map((row) => [`${row.student_id}|${row.session_id}|${row.attendance_date}`, row.check_in_method || null])
+      );
+      const feedbackMethodMismatchCount = feedbackRows.filter((row) => {
+        const key = `${row.student_id}|${row.session_id}|${row.attendance_date}`;
+        const attendanceMethod = attendanceMethodMap.get(key);
+        return row.student_id && attendanceMethod && row.check_in_method && attendanceMethod !== row.check_in_method;
+      }).length;
+      checks.push({
+        label: 'Attendance and feedback method disagree',
+        status: feedbackMethodMismatchCount > 0 ? 'warn' : 'ok',
+        count: feedbackMethodMismatchCount,
+        detail: feedbackMethodMismatchCount > 0
+          ? `${feedbackMethodMismatchCount} feedback record(s) disagree with attendance.check_in_method for the same student/date.`
+          : 'Feedback method tracking matches attendance check-in records.',
+        icon: feedbackMethodMismatchCount > 0 ? '⚠️' : '✅',
+        actionLabel: feedbackMethodMismatchCount > 0 ? 'Open Feedback' : undefined,
+        actionPath: feedbackMethodMismatchCount > 0 ? '/feedback-analytics' : undefined,
+      });
+
+      let hostAddressDriftCount = 0;
+      for (const row of attendance) {
+        if (!row.host_address) continue;
+        const host = hostMap.get(`${row.session_id}|${row.attendance_date}`);
+        if (host?.host_address && String(host.host_address).trim() !== String(row.host_address).trim()) {
+          hostAddressDriftCount++;
         }
+      }
+      checks.push({
+        label: 'Attendance host address drift',
+        status: hostAddressDriftCount > 0 ? 'warn' : 'ok',
+        count: hostAddressDriftCount,
+        detail: hostAddressDriftCount > 0
+          ? `${hostAddressDriftCount} attendance row(s) still store a host address different from the canonical session_date_host row.`
+          : 'Attendance host addresses match the canonical session_date_host rows.',
+        icon: hostAddressDriftCount > 0 ? '⚠️' : '✅',
+        actionLabel: hostAddressDriftCount > 0 ? 'Open Records' : undefined,
+        actionPath: hostAddressDriftCount > 0 ? '/attendance-records' : undefined,
+      });
+
+      const hostDupes = new Set<string>();
+      const hostSeen = new Set<string>();
+      for (const row of hostRows) {
+        const key = `${row.session_id}|${row.attendance_date}`;
+        if (hostSeen.has(key)) hostDupes.add(key);
+        hostSeen.add(key);
+      }
+      checks.push({
+        label: 'Duplicate host rows per session date',
+        status: hostDupes.size > 0 ? 'error' : 'ok',
+        count: hostDupes.size,
+        detail: hostDupes.size > 0
+          ? `${hostDupes.size} session date(s) have multiple host rows and can confuse attendance, GPS, and check-in logic.`
+          : 'No duplicate session_date_host rows were found in the scanned data.',
+        icon: hostDupes.size > 0 ? '🚨' : '✅',
+      });
+
+      try {
+        const { count } = await excuseRequestService.getPendingCount();
+        checks.push({
+          label: 'Pending excuse reviews',
+          status: (count || 0) > 0 ? 'warn' : 'ok',
+          count: count || 0,
+          detail: (count || 0) > 0
+            ? `${count} excuse request(s) are still waiting and may block final attendance cleanup.`
+            : 'No pending excuse requests.',
+          icon: (count || 0) > 0 ? '⚠️' : '✅',
+          actionLabel: (count || 0) > 0 ? 'Review Excuses' : undefined,
+          actionPath: (count || 0) > 0 ? '/excuse-requests' : undefined,
+        });
+      } catch {
+        checks.push({
+          label: 'Pending excuse reviews',
+          status: 'warn',
+          count: 0,
+          detail: 'Could not load excuse request counts for this scan.',
+          icon: '⚠️',
+          actionLabel: 'Open Excuses',
+          actionPath: '/excuse-requests',
+        });
       }
 
       setHealthChecks(checks);
@@ -925,35 +958,40 @@ Please contact the training center.
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <span className="text-lg">🩺</span>
-              Data Integrity Health
+              Session Readiness Radar
             </CardTitle>
             <Button size="sm" variant="outline" onClick={loadHealthChecks} disabled={healthLoading}>
               {healthLoading ? 'Scanning...' : healthLoaded ? '🔄 Re-scan' : '▶️ Run Checks'}
             </Button>
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Automated validation of data consistency across sessions, enrollments, attendance, and feedback</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Checks the teacher workflow for blockers before attendance, check-in, feedback collection, and cleanup break.</p>
         </CardHeader>
         <CardContent>
           {!healthLoaded && !healthLoading && (
             <div className="text-center py-6 text-gray-400">
               <span className="text-3xl block mb-2">🔍</span>
-              <p className="text-sm">Click <strong>Run Checks</strong> to scan for data issues</p>
+              <p className="text-sm">Click <strong>Run Checks</strong> to scan for blockers before the next attendance and feedback cycle.</p>
             </div>
           )}
           {healthLoading && (
             <div className="text-center py-6 text-gray-400 animate-pulse">
               <span className="text-3xl block mb-2">⏳</span>
-              <p className="text-sm">Running integrity checks...</p>
+              <p className="text-sm">Scanning workflow blockers...</p>
             </div>
           )}
           {healthLoaded && !healthLoading && (
             <div className="space-y-2">
               {/* Summary bar */}
               <div className="flex gap-3 mb-3 text-xs font-medium">
-                <span className="text-emerald-600 dark:text-emerald-400">✅ {healthChecks.filter(c => c.status === 'ok').length} OK</span>
-                <span className="text-amber-600 dark:text-amber-400">⚠️ {healthChecks.filter(c => c.status === 'warn').length} Warnings</span>
-                <span className="text-red-600 dark:text-red-400">🚨 {healthChecks.filter(c => c.status === 'error').length} Errors</span>
+                <span className="text-emerald-600 dark:text-emerald-400">✅ {healthChecks.filter(c => c.status === 'ok').length} Ready</span>
+                <span className="text-amber-600 dark:text-amber-400">⚠️ {healthChecks.filter(c => c.status === 'warn').length} Attention</span>
+                <span className="text-red-600 dark:text-red-400">🚨 {healthChecks.filter(c => c.status === 'error').length} Blocking</span>
               </div>
+              {healthChecks.some(c => c.status !== 'ok') && (
+                <div className="rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 px-3 py-2.5 text-xs text-purple-800 dark:text-purple-200">
+                  Prioritize red blockers first, then warnings that cause stale analytics or broken feedback comparisons later.
+                </div>
+              )}
               {healthChecks.map((check, i) => (
                 <div key={i} className={`flex items-start gap-3 rounded-lg border px-3 py-2.5 ${
                   check.status === 'error' ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20'
@@ -973,6 +1011,15 @@ Please contact the training center.
                       )}
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{check.detail}</p>
+                    {check.actionPath && check.actionLabel && (
+                      <button
+                        type="button"
+                        onClick={() => navigate(check.actionPath!)}
+                        className="mt-2 text-[11px] font-medium text-purple-600 dark:text-purple-400 hover:underline"
+                      >
+                        {check.actionLabel} →
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
