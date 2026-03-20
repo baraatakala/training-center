@@ -88,10 +88,15 @@ function aggregateQuestionResponses(
 function exportFeedbackCSV(
   feedbacks: SessionFeedback[],
   questions: FeedbackQuestion[],
-  courseName: string
+  courseName: string,
+  selectedDate?: string,
+  methodFilter: MethodFilter = 'all'
 ) {
   const headers = ['Student', 'Date', 'Overall Rating', 'Comment', 'Anonymous', 'Check-In Method'];
-  for (const q of questions) headers.push(q.question_text);
+  for (const q of questions) {
+    const suffix = q.attendance_date ? ` (${q.attendance_date})` : '';
+    headers.push(`${q.question_text}${suffix}`);
+  }
   
   const rows = feedbacks.map(fb => {
     const base = [
@@ -116,7 +121,12 @@ function exportFeedbackCSV(
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `feedback-${courseName.replace(/\s+/g, '-')}-${new Date().toISOString().slice(0, 10)}.csv`;
+  const filterParts = [
+    selectedDate || 'all-dates',
+    methodFilter === 'all' ? 'all-methods' : methodFilter,
+    new Date().toISOString().slice(0, 10),
+  ];
+  a.download = `feedback-${courseName.replace(/\s+/g, '-')}-${filterParts.join('-')}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -517,7 +527,13 @@ export function FeedbackAnalytics() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => exportFeedbackCSV(feedbacks, questions, selectedSession?.course_name || 'feedback')}
+              onClick={() => exportFeedbackCSV(
+                filteredFeedbacks,
+                filteredQuestionAnalytics.map((item) => item.question),
+                selectedSession?.course_name || 'feedback',
+                selectedAnalyticsDate,
+                methodFilter,
+              )}
               className="shrink-0"
             >
               📥 CSV

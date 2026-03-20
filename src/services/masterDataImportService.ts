@@ -192,7 +192,69 @@ function getRequired(row: ImportRow, field: string, rowIndex: number) {
   return value;
 }
 
+function parseDelimitedLine(line: string, delimiter: string) {
+  const values: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+
+    if (char === '"') {
+      if (inQuotes && line[index + 1] === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === delimiter && !inQuotes) {
+      values.push(current.trim());
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  values.push(current.trim());
+  return values;
+}
+
+function parseCsvText(text: string): ImportRow[] {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  if (lines.length === 0) return [];
+
+  const delimiter = lines[0].includes('\t') ? '\t' : ',';
+  const headers = parseDelimitedLine(lines[0], delimiter).map(normalizeHeader);
+
+  return lines
+    .slice(1)
+    .map((line) => {
+      const values = parseDelimitedLine(line, delimiter);
+      const normalized: ImportRow = {};
+      headers.forEach((header, index) => {
+        normalized[header] = normalizeText(values[index]);
+      });
+      return normalized;
+    })
+    .filter((row) => Object.values(row).some((value) => normalizeText(value).length > 0));
+}
+
 export async function parseImportFile(file: File) {
+  const lowerName = file.name.toLowerCase();
+
+  if (lowerName.endsWith('.csv') || lowerName.endsWith('.tsv') || file.type.includes('csv')) {
+    const text = await file.text();
+    return parseCsvText(text);
+  }
+
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: 'array' });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];

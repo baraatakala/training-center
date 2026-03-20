@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -137,6 +137,8 @@ export function Sessions() {
   });
   const [cloning, setCloning] = useState(false);
   const [selectedCloneDays, setSelectedCloneDays] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
 
   const loadSessions = useCallback(async () => {
     setError(null);
@@ -434,7 +436,7 @@ export function Sessions() {
   }).length;
 
   const exportToCSV = useCallback(() => {
-    const headers = ['Course', 'Category', 'Teacher', 'Start Date', 'End Date', 'Day', 'Time', 'Location', 'Learning Method', 'Virtual Provider', 'Meeting Link', 'Requires Recording', 'Recording Visibility', 'Enrolled'];
+    const headers = ['Course', 'Category', 'Teacher', 'Start Date', 'End Date', 'Day', 'Time', 'Location', 'Learning Method', 'Virtual Provider', 'Meeting Link', 'Requires Recording', 'Recording Visibility', 'Feedback Enabled', 'Anonymous Feedback', 'Teacher Can Host', 'Enrolled'];
     const rows = filteredSessions.map(s => [
       s.course?.course_name || '',
       s.course?.category || '',
@@ -449,6 +451,9 @@ export function Sessions() {
       s.virtual_meeting_link || '',
       s.requires_recording ? 'Yes' : 'No',
       formatRecordingVisibility(s.default_recording_visibility),
+      s.feedback_enabled ? 'Yes' : 'No',
+      s.feedback_anonymous_allowed ? 'Yes' : 'No',
+      s.teacher_can_host ? 'Yes' : 'No',
       String(enrollmentCounts[s.session_id] || 0),
     ]);
     const csvContent = [headers, ...rows].map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -462,6 +467,41 @@ export function Sessions() {
     toast.success(`Exported ${filteredSessions.length} sessions to CSV`);
   }, [filteredSessions, enrollmentCounts]);
 
+  const handleDownloadTemplate = async () => {
+    const [{ buildImportTemplate }, XLSX] = await Promise.all([
+      import('../services/masterDataImportService'),
+      import('xlsx'),
+    ]);
+    const workbook = buildImportTemplate('sessions');
+    XLSX.writeFile(workbook, 'sessions-import-template.xlsx');
+  };
+
+  const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    event.target.value = '';
+    setImporting(true);
+    try {
+      const { parseImportFile, importMasterData } = await import('../services/masterDataImportService');
+      const rows = await parseImportFile(file);
+      if (rows.length === 0) {
+        toast.error('File contains no data rows.');
+        return;
+      }
+      const result = await importMasterData('sessions', rows);
+      if (result.errors.length > 0) {
+        toast.warning(`Import done with ${result.errors.length} error(s): ${result.errors.slice(0, 3).join('; ')}`);
+      } else {
+        toast.success(`${result.created + result.updated} session(s) imported successfully.`);
+      }
+      loadSessions();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Import failed.');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6 p-4 md:p-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -471,6 +511,15 @@ export function Sessions() {
         </div>
         {isTeacher && (
           <div className="grid grid-cols-2 sm:flex gap-2 w-full sm:w-auto">
+            <Button onClick={handleDownloadTemplate} variant="outline" className="w-full min-w-0 gap-2" title="Download import template">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              <span className="truncate">Template</span>
+            </Button>
+            <Button onClick={() => fileInputRef.current?.click()} disabled={importing} variant="outline" className="w-full min-w-0 gap-2" title="Import from CSV/Excel">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+              <span className="truncate">{importing ? 'Importing...' : 'Import'}</span>
+            </Button>
+            <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls,.tsv" className="hidden" onChange={handleImportFile} />
             <Button onClick={exportToCSV} variant="outline" className="w-full min-w-0 gap-2" title="Export to CSV">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
               <span className="truncate">Export</span>

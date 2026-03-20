@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef, type ChangeEvent } from 'react';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
@@ -50,6 +50,8 @@ export function Enrollments() {
   const [deletingEnrollmentId, setDeletingEnrollmentId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
 
   const loadEnrollments = useCallback(async () => {
     setLoading(true);
@@ -222,6 +224,41 @@ export function Enrollments() {
     toast.success(`Exported ${filteredEnrollments.length} enrollments to CSV`);
   }, [filteredEnrollments]);
 
+  const handleDownloadTemplate = async () => {
+    const [{ buildImportTemplate }, XLSX] = await Promise.all([
+      import('../services/masterDataImportService'),
+      import('xlsx'),
+    ]);
+    const workbook = buildImportTemplate('enrollments');
+    XLSX.writeFile(workbook, 'enrollments-import-template.xlsx');
+  };
+
+  const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    event.target.value = '';
+    setImporting(true);
+    try {
+      const { parseImportFile, importMasterData } = await import('../services/masterDataImportService');
+      const rows = await parseImportFile(file);
+      if (rows.length === 0) {
+        toast.error('File contains no data rows.');
+        return;
+      }
+      const result = await importMasterData('enrollments', rows);
+      if (result.errors.length > 0) {
+        toast.warning(`Import done with ${result.errors.length} error(s): ${result.errors.slice(0, 3).join('; ')}`);
+      } else {
+        toast.success(`${result.created + result.updated} enrollment(s) imported successfully.`);
+      }
+      loadEnrollments();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Import failed.');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6 p-4 md:p-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -241,6 +278,15 @@ export function Enrollments() {
           </label>
           {isTeacher && (
             <>
+              <Button onClick={handleDownloadTemplate} variant="outline" className="gap-2" title="Download import template">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                Template
+              </Button>
+              <Button onClick={() => fileInputRef.current?.click()} disabled={importing} variant="outline" className="gap-2" title="Import from CSV/Excel">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                {importing ? 'Importing...' : 'Import'}
+              </Button>
+              <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls,.tsv" className="hidden" onChange={handleImportFile} />
               <Button onClick={exportToCSV} variant="outline" className="gap-2" title="Export to CSV">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                 Export
