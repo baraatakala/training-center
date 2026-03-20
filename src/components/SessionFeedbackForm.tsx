@@ -57,7 +57,7 @@ export default function SessionFeedbackForm({
     async function load() {
       const [configResult, questionsResult, hasSubmittedResult] = await Promise.all([
         feedbackService.isEnabled(sessionId),
-        feedbackService.getQuestions(sessionId, attendanceDate),
+        feedbackService.getDateQuestions(sessionId, attendanceDate),
         feedbackService.hasSubmitted(sessionId, studentId, attendanceDate),
       ]);
 
@@ -237,7 +237,7 @@ export default function SessionFeedbackForm({
         {/* Star/Emoji Rating */}
         <div className="text-center mb-4">
           <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-            How was today's session?
+            Overall Session Rating
           </p>
           <div className="flex justify-center gap-2">
             {EMOJI_OPTIONS.map((opt) => (

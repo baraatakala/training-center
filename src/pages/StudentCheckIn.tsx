@@ -87,7 +87,7 @@ export function StudentCheckIn() {
       // STEP 2: Validate QR token via database (requires authentication)
       const { data: qrSession, error: qrError } = await supabase
         .from('qr_sessions')
-        .select('session_id, attendance_date, expires_at, is_valid')
+        .select('session_id, attendance_date, expires_at, is_valid, check_in_mode, linked_photo_token')
         .eq('token', token)
         .single();
 
@@ -109,6 +109,17 @@ export function StudentCheckIn() {
       if (!qrSession.is_valid) {
         setError('QR code is no longer valid. Please ask your teacher to generate a new one.');
         setLoading(false);
+        return;
+      }
+
+      if (qrSession.check_in_mode === 'photo') {
+        if (!qrSession.linked_photo_token) {
+          setError('This face check-in QR is missing its linked session. Please ask your teacher to generate a new one.');
+          setLoading(false);
+          return;
+        }
+
+        navigate(`/photo-checkin/${qrSession.linked_photo_token}`, { replace: true });
         return;
       }
 

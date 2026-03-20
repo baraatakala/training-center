@@ -11,13 +11,22 @@ import { format } from 'date-fns';
 import { getAttendanceDateOptions, type DayChange } from '../utils/attendanceGenerator';
 import { sessionService } from '../services/sessionService';
 import { QRCodeModal } from '../components/QRCodeModal';
-import { PhotoCheckInModal } from '../components/PhotoCheckInModal';
 import { logDelete, logInsert, logUpdate } from '../services/auditService';
 import { toast } from '../components/ui/toastUtils';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Breadcrumb } from '../components/ui/Breadcrumb';
 import { excuseRequestService, EXCUSE_REASONS as SERVICE_EXCUSE_REASONS, type ExcuseRequest } from '../services/excuseRequestService';
 import { sessionRecordingService } from '../services/sessionRecordingService';
+import { feedbackService, type FeedbackQuestion, type FeedbackTemplate } from '../services/feedbackService';
+
+function toTemplateQuestions(questions: Array<Pick<FeedbackQuestion, 'question_type' | 'question_text' | 'is_required' | 'options'>>) {
+  return questions.map((question) => ({
+    type: question.question_type,
+    text: question.question_text,
+    required: question.is_required,
+    options: question.options?.length ? question.options : undefined,
+  }));
+}
 
 type AttendanceRecord = {
   attendance_id: string;
@@ -128,7 +137,6 @@ export function Attendance() {
   const [hostDataLoaded, setHostDataLoaded] = useState(false);
   const [sessionNotHeld, setSessionNotHeld] = useState<boolean>(false);
   const [showQRModal, setShowQRModal] = useState<boolean>(false);
-  const [showPhotoModal, setShowPhotoModal] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [bookReferences, setBookReferences] = useState<Array<{ reference_id: string; topic: string; start_page: number; end_page: number; parent_id: string | null }>>([]);
   const [selectedBookReference, setSelectedBookReference] = useState<string>('');
@@ -146,6 +154,19 @@ export function Attendance() {
   const [recordingUrl, setRecordingUrl] = useState('');
   const [recordingId, setRecordingId] = useState<string | null>(null);
   const [savingRecording, setSavingRecording] = useState(false);
+
+  // Feedback question management
+  const [fbQuestions, setFbQuestions] = useState<FeedbackQuestion[]>([]);
+  const [fbTemplates, setFbTemplates] = useState<FeedbackTemplate[]>([]);
+  const [fbSelectedTemplateId, setFbSelectedTemplateId] = useState('');
+  const [fbApplyingTemplate, setFbApplyingTemplate] = useState(false);
+  const [fbSavingQuestion, setFbSavingQuestion] = useState(false);
+  const [fbEditingQuestionId, setFbEditingQuestionId] = useState<string | null>(null);
+  const [showFeedbackSetup, setShowFeedbackSetup] = useState(false);
+  const [fbQuestionText, setFbQuestionText] = useState('');
+  const [fbQuestionType, setFbQuestionType] = useState<'rating' | 'text' | 'emoji' | 'multiple_choice'>('rating');
+  const [fbQuestionRequired, setFbQuestionRequired] = useState(false);
+  const [fbOptionsText, setFbOptionsText] = useState('');
 
   // Memoized attendance stats to avoid re-filtering on every render
   const attendanceStats = useMemo(() => ({
@@ -803,6 +824,145 @@ export function Attendance() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);
+
+  // Load feedback questions and templates for the selected attendance date
+  useEffect(() => {
+    if (!sessionId || !selectedDate) {
+      setFbQuestions([]);
+      setFbEditingQuestionId(null);
+      setFbQuestionText('');
+      setFbQuestionType('rating');
+      setFbQuestionRequired(false);
+      setFbOptionsText('');
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadFb() {
+      const activeSessionId = sessionId!;
+      const activeDate = selectedDate;
+      const [qRes, tRes] = await Promise.all([
+        feedbackService.getDateQuestions(activeSessionId, activeDate),
+        feedbackService.getTemplates(),
+      ]);
+
+      if (cancelled) return;
+
+      setFbQuestions(qRes.data || []);
+      setFbTemplates(tRes.data || []);
+    }
+    loadFb();
+    return () => { cancelled = true; };
+  }, [sessionId, selectedDate]);
+
+  const syncSelectedTemplate = useCallback(async (questionsToSync: FeedbackQuestion[]) => {
+    if (!fbSelectedTemplateId) return;
+
+    const { error } = await feedbackService.updateTemplate(fbSelectedTemplateId, {
+      questions: toTemplateQuestions(questionsToSync),
+    });
+
+    if (!error) {
+      const { data } = await feedbackService.getTemplates();
+      if (data) {
+        setFbTemplates(data);
+      }
+    }
+  }, [fbSelectedTemplateId]);
+
+  // Feedback handlers
+  const handleAddOrUpdateQuestion = useCallback(async () => {
+    if (!sessionId || !fbQuestionText.trim()) return;
+    setFbSavingQuestion(true);
+    const options = fbQuestionType === 'multiple_choice'
+      ? fbOptionsText.split(/[,،]/).map(o => o.trim()).filter(Boolean)
+      : [];
+    if (fbEditingQuestionId) {
+      const { error } = await feedbackService.updateQuestion(fbEditingQuestionId, {
+        question_text: fbQuestionText.trim(),
+        question_type: fbQuestionType,
+        is_required: fbQuestionRequired,
+        options,
+        attendance_date: selectedDate,
+      });
+      if (error) { toast.error('Failed to update question'); }
+      else { toast.success('Question updated'); }
+    } else {
+      const { error } = await feedbackService.createQuestion({
+        session_id: sessionId,
+        question_text: fbQuestionText.trim(),
+        question_type: fbQuestionType,
+        is_required: fbQuestionRequired,
+        options,
+        sort_order: fbQuestions.length + 1,
+        attendance_date: selectedDate,
+      });
+      if (error) { toast.error('Failed to add question'); }
+      else { toast.success('Question added'); }
+    }
+
+    // Reset form
+    setFbEditingQuestionId(null);
+    setFbQuestionText('');
+    setFbQuestionType('rating');
+    setFbQuestionRequired(false);
+    setFbOptionsText('');
+    setFbSavingQuestion(false);
+
+    // Reload questions
+    const { data } = await feedbackService.getDateQuestions(sessionId, selectedDate);
+    if (data) {
+      setFbQuestions(data);
+      await syncSelectedTemplate(data);
+    }
+  }, [sessionId, selectedDate, fbQuestionText, fbQuestionType, fbQuestionRequired, fbOptionsText, fbEditingQuestionId, fbQuestions.length, syncSelectedTemplate]);
+
+  const handleDeleteQuestion = useCallback(async (questionId: string) => {
+    if (!sessionId) return;
+    const { error } = await feedbackService.deleteQuestion(questionId);
+    if (error) { toast.error('Failed to delete question'); return; }
+    toast.success('Question deleted');
+    const { data } = await feedbackService.getDateQuestions(sessionId, selectedDate);
+    if (data) {
+      setFbQuestions(data);
+      await syncSelectedTemplate(data);
+    }
+  }, [sessionId, selectedDate, syncSelectedTemplate]);
+
+  const handleApplyTemplate = useCallback(async (templateId: string) => {
+    if (!sessionId || !templateId) return;
+    setFbApplyingTemplate(true);
+    const { error } = await feedbackService.applyTemplateToSession(templateId, sessionId, selectedDate);
+    setFbApplyingTemplate(false);
+    if (error) { toast.error('Failed to apply template'); return; }
+    toast.success('Template applied');
+    const { data } = await feedbackService.getDateQuestions(sessionId, selectedDate);
+    if (data) setFbQuestions(data);
+  }, [sessionId, selectedDate]);
+
+  const startEditQuestion = useCallback((q: FeedbackQuestion) => {
+    setFbEditingQuestionId(q.id);
+    setFbQuestionText(q.question_text);
+    setFbQuestionType(q.question_type);
+    setFbQuestionRequired(q.is_required);
+    setFbOptionsText(q.options?.join(', ') || '');
+  }, []);
+
+  const cancelEditQuestion = useCallback(() => {
+    setFbEditingQuestionId(null);
+    setFbQuestionText('');
+    setFbQuestionType('rating');
+    setFbQuestionRequired(false);
+    setFbOptionsText('');
+  }, []);
+
+  const handleTemplateChange = useCallback(async (templateId: string) => {
+    setFbSelectedTemplateId(templateId);
+    cancelEditQuestion();
+    if (!templateId) return;
+    await handleApplyTemplate(templateId);
+  }, [cancelEditQuestion, handleApplyTemplate]);
 
   // Auto-suggest planned host based on host_date from Host Schedule
   useEffect(() => {
@@ -1680,7 +1840,7 @@ export function Attendance() {
               <Button
                 onClick={() => {
                   if (!selectedAddress || selectedAddress === '') {
-                    toast.warning('Please select a host address first before generating QR code.');
+                    toast.warning('Please select a host address first before generating check-in.');
                     return;
                   }
                   setShowQRModal(true);
@@ -1688,20 +1848,7 @@ export function Attendance() {
                 className="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white border border-white/30 flex items-center gap-2"
               >
                 <span className="text-xl">📱</span>
-                <span className="hidden sm:inline">QR Code</span>
-              </Button>
-              <Button
-                onClick={() => {
-                  if (!selectedAddress || selectedAddress === '') {
-                    toast.warning('Please select a host address first before generating Face Check-In link.');
-                    return;
-                  }
-                  setShowPhotoModal(true);
-                }}
-                className="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white border border-white/30 flex items-center gap-2"
-              >
-                <span className="text-xl">📸</span>
-                <span className="hidden sm:inline">Face Check-In</span>
+                <span className="hidden sm:inline">Check-In</span>
               </Button>
             </div>
           )}
@@ -2095,6 +2242,197 @@ export function Attendance() {
         </Card>
       )}
 
+      {/* ─── Feedback Question Management ─── */}
+      {selectedDate && session && (
+        <Card>
+          <CardContent className="pt-6 space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <h3 className="text-base font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                  📋 Feedback Setup
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  This config applies only to {format(new Date(selectedDate), 'MMMM dd, yyyy')}.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-normal bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded-full">
+                  {fbQuestions.length} question{fbQuestions.length === 1 ? '' : 's'}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    if (showFeedbackSetup) {
+                      cancelEditQuestion();
+                    }
+                    setShowFeedbackSetup(prev => !prev);
+                  }}
+                  className="text-xs h-9"
+                >
+                  {showFeedbackSetup ? 'Hide Setup' : 'Open Setup'}
+                </Button>
+              </div>
+            </div>
+
+            {!showFeedbackSetup && (
+              <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-800/30 px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                Apply a template or add questions for this date before students scan the check-in code.
+              </div>
+            )}
+
+            {showFeedbackSetup && (
+              <div className="space-y-4">
+                {fbTemplates.length > 0 && (
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2 p-3 bg-gray-50 dark:bg-gray-800/40 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <div className="flex-1">
+                      <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">Template for {format(new Date(selectedDate), 'MMM dd, yyyy')}</label>
+                      <select
+                        value={fbSelectedTemplateId}
+                        onChange={e => void handleTemplateChange(e.target.value)}
+                        className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-white"
+                      >
+                        <option value="">Choose template...</option>
+                        {fbTemplates.map(t => (
+                          <option key={t.id} value={t.id}>{t.name} ({t.questions?.length || 0} questions)</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="sm:min-w-[140px] text-xs text-gray-500 dark:text-gray-400 self-center sm:self-auto">
+                      {fbApplyingTemplate ? 'Applying template...' : 'Selecting a template applies it immediately.'}
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-3 p-4 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/20 dark:to-purple-950/20 rounded-xl border border-indigo-200 dark:border-indigo-800">
+                  <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+                    {fbEditingQuestionId ? 'Edit Question' : 'Add Question'}
+                  </p>
+                  <input
+                    type="text"
+                    placeholder="Enter question text"
+                    value={fbQuestionText}
+                    onChange={e => setFbQuestionText(e.target.value)}
+                    className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-white placeholder-gray-400"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    {(['rating', 'emoji', 'text', 'multiple_choice'] as const).map(t => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setFbQuestionType(t)}
+                        className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                          fbQuestionType === t
+                            ? 'bg-indigo-600 text-white border-indigo-600'
+                            : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-indigo-400'
+                        }`}
+                      >
+                        {t === 'rating' ? 'Rating' : t === 'emoji' ? 'Emoji' : t === 'text' ? 'Text' : 'Multiple Choice'}
+                      </button>
+                    ))}
+                  </div>
+                  {fbQuestionType === 'multiple_choice' && (
+                    <input
+                      type="text"
+                      placeholder="Options separated by commas"
+                      value={fbOptionsText}
+                      onChange={e => setFbOptionsText(e.target.value)}
+                      className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-white placeholder-gray-400"
+                    />
+                  )}
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={fbQuestionRequired}
+                        onChange={e => setFbQuestionRequired(e.target.checked)}
+                        className="rounded border-gray-300 dark:border-gray-600 text-indigo-600"
+                      />
+                      Required answer
+                    </label>
+                    <div className="flex gap-2">
+                      {fbEditingQuestionId && (
+                        <Button
+                          onClick={cancelEditQuestion}
+                          variant="outline"
+                          className="text-xs h-8"
+                        >
+                          Cancel
+                        </Button>
+                      )}
+                      <Button
+                        onClick={handleAddOrUpdateQuestion}
+                        disabled={fbSavingQuestion || !fbQuestionText.trim()}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8"
+                      >
+                        {fbSavingQuestion ? 'Saving...' : fbEditingQuestionId ? 'Update Question' : 'Add Question'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {fbQuestions.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-gray-600 dark:text-gray-400">
+                      Questions for {format(new Date(selectedDate), 'MMM dd, yyyy')}
+                    </p>
+                    {fbQuestions.map((q, idx) => (
+                      <div
+                        key={q.id}
+                        className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${
+                          fbEditingQuestionId === q.id
+                            ? 'bg-indigo-50 dark:bg-indigo-950/30 border-indigo-300 dark:border-indigo-700'
+                            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+                        }`}
+                      >
+                        <span className="text-xs font-bold text-gray-400 dark:text-gray-500 mt-0.5 shrink-0 w-5 text-right">
+                          {idx + 1}.
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-gray-800 dark:text-white break-words">{q.question_text}</p>
+                          <div className="flex flex-wrap gap-1.5 mt-1">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                              {q.question_type === 'rating' ? 'Rating' : q.question_type === 'emoji' ? 'Emoji' : q.question_type === 'text' ? 'Text' : 'Multiple Choice'}
+                            </span>
+                            {q.is_required && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400">
+                                Required
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => startEditQuestion(q)}
+                            className="text-xs p-1.5 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 transition-colors"
+                            title="Edit"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteQuestion(q.id)}
+                            className="text-xs p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 dark:text-red-400 transition-colors"
+                            title="Delete"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-center text-sm text-gray-400 dark:text-gray-500 py-4">
+                    No feedback questions for this date yet. Apply a template or add questions above.
+                  </p>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {selectedDate && (
         <>
           <Card className="overflow-hidden">
@@ -2470,23 +2808,13 @@ export function Attendance() {
         </>
       )}
 
-      {/* QR Code Modal */}
+      {/* QR Code Modal (includes Face Check-In toggle) */}
       {showQRModal && sessionId && selectedDate && (
         <QRCodeModal
           sessionId={sessionId}
           date={selectedDate}
           courseName={courseName}
           onClose={() => setShowQRModal(false)}
-        />
-      )}
-
-      {/* Photo Check-In Modal */}
-      {showPhotoModal && sessionId && selectedDate && (
-        <PhotoCheckInModal
-          sessionId={sessionId}
-          date={selectedDate}
-          courseName={courseName}
-          onClose={() => setShowPhotoModal(false)}
         />
       )}
 

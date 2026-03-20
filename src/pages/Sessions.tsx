@@ -208,9 +208,9 @@ export function Sessions() {
     
     let filtered = sessions.filter(
       (session) =>
-        session.course.course_name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-        session.teacher.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-        session.course.category.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        (session.course?.course_name || '').toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        (session.teacher?.name || '').toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        (session.course?.category || '').toLowerCase().includes(debouncedSearch.toLowerCase()) ||
         formatLearningMethod(session.learning_method).toLowerCase().includes(debouncedSearch.toLowerCase()) ||
         (session.virtual_provider || '').toLowerCase().includes(debouncedSearch.toLowerCase()) ||
         (session.location || '').toLowerCase().includes(debouncedSearch.toLowerCase())
@@ -239,12 +239,12 @@ export function Sessions() {
       
       switch (sortBy) {
         case 'course':
-          aVal = a.course.course_name;
-          bVal = b.course.course_name;
+          aVal = a.course?.course_name || '';
+          bVal = b.course?.course_name || '';
           break;
         case 'teacher':
-          aVal = a.teacher.name;
-          bVal = b.teacher.name;
+          aVal = a.teacher?.name || '';
+          bVal = b.teacher?.name || '';
           break;
         case 'startDate':
           aVal = a.start_date;
@@ -652,10 +652,10 @@ export function Sessions() {
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <h3 className="font-semibold text-gray-900 dark:text-white truncate text-lg">
-                              {session.course.course_name}
+                              {session.course?.course_name || 'Unknown Course'}
                             </h3>
                             <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
-                              {session.teacher.name}
+                              {session.teacher?.name || 'Unknown'}
                             </p>
                           </div>
                           <Badge variant={statusVariant}>{sessionStatus}</Badge>
@@ -667,14 +667,14 @@ export function Sessions() {
                             <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
                             <Badge
                               variant={
-                                session.course.category === 'Programming'
+                              session.course?.category === 'Programming'
                                   ? 'info'
-                                  : session.course.category === 'Design'
+                                  : session.course?.category === 'Design'
                                   ? 'success'
                                   : 'warning'
                               }
                             >
-                              {session.course.category}
+                              {session.course?.category || ''}
                             </Badge>
                           </div>
                           <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
@@ -807,7 +807,7 @@ export function Sessions() {
                                   🎥 Recordings
                                 </Button>
                               )}
-                              {session.feedback_enabled && (
+                              {!isTeacher && session.feedback_enabled && (
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -873,29 +873,23 @@ export function Sessions() {
           )}
         </div>
       ) : (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
+        <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700/50 overflow-hidden">
           <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Course</TableHead>
-                <TableHead>Teacher</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead className="text-center">Enrolled</TableHead>
-                <TableHead>Delivery</TableHead>
-                <TableHead>Day</TableHead>
-                <TableHead>Time</TableHead>
-                <TableHead>Location</TableHead>
-                <TableHead>Start Date</TableHead>
-                <TableHead>End Date</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="whitespace-nowrap min-w-[200px]">Course</TableHead>
+                <TableHead className="whitespace-nowrap hidden lg:table-cell">Schedule</TableHead>
+                <TableHead className="whitespace-nowrap hidden xl:table-cell">Location</TableHead>
+                <TableHead className="whitespace-nowrap hidden md:table-cell text-center">Enrolled</TableHead>
+                <TableHead className="whitespace-nowrap hidden lg:table-cell">Dates</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredSessions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={12} className="text-center py-16">
+                  <TableCell colSpan={6} className="text-center py-16">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
                         <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
@@ -930,145 +924,120 @@ export function Sessions() {
                     statusVariant = 'warning';
                   }
 
+                  const courseName = session.course?.course_name || 'Unknown Course';
+                  const teacherName = session.teacher?.name || 'Unknown';
+                  const category = session.course?.category || '';
+
                   return (
                     <TableRow key={session.session_id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{session.course.course_name}</span>
-                          <Badge variant={statusVariant}>
-                            {sessionStatus}
-                          </Badge>
-                        </div>
-                      </TableCell>
-                      <TableCell>{session.teacher.name}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            session.course.category === 'Programming'
-                              ? 'info'
-                              : session.course.category === 'Design'
-                              ? 'success'
-                              : 'warning'
-                          }
-                        >
-                          {session.course.category}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 text-sm font-medium">
-                          {enrollmentCounts[session.session_id] || 0}
-                        </span>
-                      </TableCell>
-                      <TableCell className="min-w-[180px]">
+                      <TableCell className="font-medium text-gray-900 dark:text-white min-w-[200px]">
                         <div className="flex flex-col gap-1">
-                          <span className="text-sm font-medium text-gray-900 dark:text-white">
-                            {formatLearningMethod(session.learning_method)}
-                          </span>
-                          {session.virtual_provider && (
-                            <span className="text-xs text-gray-500 dark:text-gray-400">
-                              {formatVirtualProvider(session.virtual_provider)}
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{courseName}</span>
+                            <Badge variant={statusVariant}>{sessionStatus}</Badge>
+                          </div>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">{teacherName}</span>
+                          <div className="flex flex-wrap gap-1 lg:hidden">
+                            {session.day && <span className="text-xs text-gray-500 dark:text-gray-400">{session.day} {session.time ? `@ ${session.time}` : ''}</span>}
+                          </div>
+                          {category && (
+                            <span className="w-fit">
+                              <Badge variant={category === 'Programming' ? 'info' : category === 'Design' ? 'success' : 'warning'}>
+                                {category}
+                              </Badge>
                             </span>
                           )}
-                          {session.requires_recording && (
-                            <span className="text-xs text-green-600 dark:text-green-400">
-                              Recording: {formatRecordingVisibility(session.default_recording_visibility) || 'Enabled'}
-                            </span>
-                          )}
+                          <div className="flex flex-wrap gap-1 mt-0.5">
+                            <Badge variant={session.learning_method === 'online' ? 'info' : session.learning_method === 'hybrid' ? 'warning' : 'default'}>
+                              {formatLearningMethod(session.learning_method)}
+                            </Badge>
+                            {session.feedback_enabled && <Badge variant="info">💜 Feedback</Badge>}
+                            {session.requires_recording && <Badge variant="success">🎥 Rec</Badge>}
+                          </div>
                         </div>
                       </TableCell>
-                      <TableCell>{session.day || 'N/A'}</TableCell>
-                      <TableCell>{session.time || 'N/A'}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <span>{session.location || 'N/A'}</span>
+                      <TableCell className="hidden lg:table-cell whitespace-nowrap">
+                        <div className="flex flex-col">
+                          <span className="text-sm text-gray-900 dark:text-white">{session.day || 'N/A'}</span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">{session.time || 'N/A'}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden xl:table-cell">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-sm">{session.location || 'N/A'}</span>
                           {session.virtual_meeting_link && (
-                            <a
-                              href={session.virtual_meeting_link}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 truncate max-w-[220px]"
-                            >
+                            <a href={session.virtual_meeting_link} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 truncate max-w-[180px]">
                               {session.virtual_meeting_link}
                             </a>
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>{formatDate(session.start_date)}</TableCell>
-                      <TableCell>{formatDate(session.end_date)}</TableCell>
-                      <TableCell>
-                        <Badge variant={statusVariant}>{sessionStatus}</Badge>
+                      <TableCell className="hidden md:table-cell text-center">
+                        <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-sm font-medium">
+                          {enrollmentCounts[session.session_id] || 0}
+                        </span>
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        <div className="flex flex-col text-xs text-gray-600 dark:text-gray-300">
+                          <span>{formatDate(session.start_date)}</span>
+                          <span className="text-gray-400">→ {formatDate(session.end_date)}</span>
+                        </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-wrap gap-2 justify-end max-w-[380px] ml-auto">
+                        <div className="flex gap-1 justify-end flex-nowrap">
                           {isTeacher && (
                             <>
-                              <Button
-                                size="sm"
-                                variant="success"
-                                onClick={() => navigate(`/attendance/${session.session_id}`)}
-                                className="min-h-[36px]"
-                              >
-                                Attendance
+                              <Button size="sm" variant="success" onClick={() => navigate(`/attendance/${session.session_id}`)} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Attendance">
+                                📋
                               </Button>
-                              <Button size="sm" variant="outline" onClick={() => { setSelectedSessionForSchedule(session); setIsScheduleModalOpen(true); }} className="min-h-[36px]">
-                                Host Schedule
+                              <Button size="sm" variant="outline" onClick={() => { setSelectedSessionForSchedule(session); setIsScheduleModalOpen(true); }} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Host Schedule">
+                                📅
                               </Button>
-                              <Button size="sm" variant="outline" onClick={() => setSelectedSessionForRecordings(session)} className="min-h-[36px]">
-                                Recordings
+                              <Button size="sm" variant="outline" onClick={() => setSelectedSessionForRecordings(session)} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Recordings">
+                                🎥
                               </Button>
                               {session.feedback_enabled && (
-                                <Button size="sm" variant="outline" onClick={() => navigate(`/feedback-analytics?session=${session.session_id}`)} className="min-h-[36px]">
-                                  Feedback
+                                <Button size="sm" variant="outline" onClick={() => navigate(`/feedback-analytics?session=${session.session_id}`)} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Feedback">
+                                  💜
                                 </Button>
                               )}
                             </>
                           )}
                           {isAdmin && (
                             <>
-                              <Button size="sm" variant="outline" onClick={() => openCloneModal(session)} className="min-h-[36px]">
-                                Clone
+                              <Button size="sm" variant="outline" onClick={() => openCloneModal(session)} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Clone">
+                                📋
                               </Button>
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
-                                onClick={() => openEditModal(session)}
-                                className="min-h-[36px]"
-                              >
-                                Edit
+                              <Button size="sm" variant="outline" onClick={() => openEditModal(session)} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Edit">
+                                ✏️
                               </Button>
                               {!isTeacher && (
-                                <Button size="sm" variant="outline" onClick={() => setSelectedSessionForRecordings(session)} className="min-h-[36px]">
-                                  Recordings
+                                <Button size="sm" variant="outline" onClick={() => setSelectedSessionForRecordings(session)} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Recordings">
+                                  🎥
                                 </Button>
                               )}
-                              {session.feedback_enabled && (
-                                <Button size="sm" variant="outline" onClick={() => navigate(`/feedback-analytics?session=${session.session_id}`)} className="min-h-[36px]">
-                                  Feedback
+                              {!isTeacher && session.feedback_enabled && (
+                                <Button size="sm" variant="outline" onClick={() => navigate(`/feedback-analytics?session=${session.session_id}`)} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Feedback">
+                                  💜
                                 </Button>
                               )}
                               <button
                                 onClick={() => setDeletingSession(session)}
-                                className="px-2 md:px-3 py-2 text-xs md:text-sm rounded border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors min-h-[36px]"
-                                title="Delete session"
-                                aria-label={`Delete session ${session.course?.course_name || ''}`}
+                                className="px-2.5 py-1.5 text-xs rounded border min-h-[36px] text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
+                                title="Delete"
                               >
-                                Delete
+                                🗑️
                               </button>
                             </>
                           )}
                           {!isTeacher && !isAdmin && (
-                            <div className="flex flex-col items-end gap-2">
-                              <div className="flex flex-wrap gap-2 justify-end">
+                            <div className="flex gap-1">
                               {session.requires_recording && (
-                                <Button size="sm" variant="outline" onClick={() => setSelectedSessionForRecordings(session)} className="min-h-[36px]">
-                                  View Recordings
+                                <Button size="sm" variant="outline" onClick={() => setSelectedSessionForRecordings(session)} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Recordings">
+                                  🎥
                                 </Button>
                               )}
                               <span className="text-xs text-gray-400 px-2 self-center">View only</span>
-                              </div>
-                              <div className="max-w-[260px] text-right text-xs text-gray-500 dark:text-gray-400">
-                                Check-in comes from the teacher&apos;s QR or face link. Feedback shows only after a successful check-in.
-                              </div>
                             </div>
                           )}
                         </div>
@@ -1199,7 +1168,7 @@ export function Sessions() {
             {/* Source info */}
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
               <p className="text-sm text-blue-800 dark:text-blue-300">
-                <strong>Cloning from:</strong> {cloneSource.course.course_name} — {cloneSource.teacher.name}
+                <strong>Cloning from:</strong> {cloneSource.course?.course_name || 'Unknown'} — {cloneSource.teacher?.name || 'Unknown'}
               </p>
               <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                 Original: {cloneSource.day} · {cloneSource.time || 'No time set'} · {enrollmentCounts[cloneSource.session_id] || 0} students

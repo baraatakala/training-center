@@ -302,7 +302,59 @@ export function Teachers() {
               </div>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              {/* Mobile card view */}
+              <div className="md:hidden divide-y divide-gray-100 dark:divide-gray-700">
+                {paginatedTeachers.map((teacher) => (
+                  <div key={teacher.teacher_id} className="p-4 space-y-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold text-lg shrink-0">
+                        {teacher.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-gray-900 dark:text-white truncate">{teacher.name}</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 break-all">{teacher.email}</p>
+                        {teacher.specialization && (
+                          <span className="inline-block mt-1 rounded-full bg-indigo-50 dark:bg-indigo-900/20 px-2 py-0.5 text-[11px] font-medium text-indigo-600 dark:text-indigo-300">
+                            {teacher.specialization}
+                          </span>
+                        )}
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-500 dark:text-gray-400">
+                          <div className="rounded-lg bg-gray-50 dark:bg-gray-700/50 px-3 py-2">
+                            <p className="text-[10px] uppercase tracking-wide">Phone</p>
+                            <p className="mt-1 text-sm text-gray-800 dark:text-gray-200 break-words">{teacher.phone || '-'}</p>
+                          </div>
+                          <div className="rounded-lg bg-gray-50 dark:bg-gray-700/50 px-3 py-2">
+                            <p className="text-[10px] uppercase tracking-wide">Students</p>
+                            <p className="mt-1 text-sm text-gray-800 dark:text-gray-200">{teacher.enrolledCount || 0}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2">
+                      {isAdmin && (
+                        <>
+                          <Button size="sm" variant="secondary" onClick={() => openEditModal(teacher)} className="w-full justify-center">
+                            Edit Teacher
+                          </Button>
+                          <button
+                            onClick={() => setDeletingTeacher(teacher)}
+                            className="w-full px-3 py-2 text-sm rounded-lg border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
+                      {!isTeacher && (
+                        <span className="text-xs text-gray-400 dark:text-gray-500 px-2 py-2">View only</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop table view */}
+              <div className="hidden md:block overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -373,6 +425,7 @@ export function Teachers() {
                 </TableBody>
               </Table>
             </div>
+            </>
           )}
           {filteredTeachers.length > 0 && (
             <Pagination
