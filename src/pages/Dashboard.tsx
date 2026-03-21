@@ -135,6 +135,7 @@ export function Dashboard() {
 
       const questionSessionIds = new Set(feedbackQuestions.map((question) => question.session_id));
       const feedbackWithoutQuestions = feedbackSessions.filter((session) => !questionSessionIds.has(session.session_id));
+      const feedbackWithoutQuestionsSample = feedbackWithoutQuestions[0];
       checks.push({
         label: 'Feedback enabled without questions',
         status: feedbackWithoutQuestions.length > 0 ? 'warn' : 'ok',
@@ -143,17 +144,22 @@ export function Dashboard() {
           ? `${feedbackWithoutQuestions.length} session(s) can show feedback but still have no configured question set.`
           : 'Every feedback-enabled session already has a question set ready for students.',
         icon: feedbackWithoutQuestions.length > 0 ? '⚠️' : '✅',
-        actionLabel: feedbackWithoutQuestions.length > 0 ? 'Open Sessions' : undefined,
-        actionPath: feedbackWithoutQuestions.length > 0 ? '/sessions' : undefined,
+        actionLabel: feedbackWithoutQuestions.length > 0 ? 'Open Attendance Setup' : undefined,
+        actionPath: feedbackWithoutQuestionsSample ? `/attendance/${feedbackWithoutQuestionsSample.session_id}` : undefined,
       });
 
       const hostMap = new Map(hostRows.map((row) => [`${row.session_id}|${row.attendance_date}`, row]));
       const attendanceDates = new Set(attendance.map((row) => `${row.session_id}|${row.attendance_date}`));
       let hostMissingCount = 0;
+      let hostMissingSample: { session_id: string; attendance_date: string } | null = null;
       for (const key of attendanceDates) {
         const host = hostMap.get(key);
         if (!host || !host.host_address || !String(host.host_address).trim()) {
           hostMissingCount++;
+          if (!hostMissingSample) {
+            const [sampleSessionId, sampleDate] = key.split('|');
+            hostMissingSample = { session_id: sampleSessionId, attendance_date: sampleDate };
+          }
         }
       }
       checks.push({
@@ -164,12 +170,14 @@ export function Dashboard() {
           ? `${hostMissingCount} session date(s) already have attendance rows but no canonical host location in session_date_host.`
           : 'Every scanned attendance date has a canonical host location.',
         icon: hostMissingCount > 0 ? '🚨' : '✅',
-        actionLabel: hostMissingCount > 0 ? 'Open Attendance' : undefined,
-        actionPath: hostMissingCount > 0 ? '/sessions' : undefined,
+        actionLabel: hostMissingCount > 0 ? 'Open Exact Date' : undefined,
+        actionPath: hostMissingSample ? `/attendance/${hostMissingSample.session_id}?date=${hostMissingSample.attendance_date}` : undefined,
       });
 
       const photoTokenSet = new Set(photoRows.map((row) => row.token));
-      const brokenPhotoQrCount = qrRows.filter((row) => row.check_in_mode === 'photo' && (!row.linked_photo_token || !photoTokenSet.has(row.linked_photo_token))).length;
+      const brokenPhotoQrRows = qrRows.filter((row) => row.check_in_mode === 'photo' && (!row.linked_photo_token || !photoTokenSet.has(row.linked_photo_token)));
+      const brokenPhotoQrCount = brokenPhotoQrRows.length;
+      const brokenPhotoQrSample = brokenPhotoQrRows[0];
       checks.push({
         label: 'Face QR routing is broken',
         status: brokenPhotoQrCount > 0 ? 'error' : 'ok',
@@ -178,16 +186,20 @@ export function Dashboard() {
           ? `${brokenPhotoQrCount} QR session(s) point to face check-in without a valid linked photo token.`
           : 'All face-mode QR sessions point to a valid photo check-in token.',
         icon: brokenPhotoQrCount > 0 ? '🚨' : '✅',
+        actionLabel: brokenPhotoQrSample ? 'Open Broken Date' : undefined,
+        actionPath: brokenPhotoQrSample ? `/attendance/${brokenPhotoQrSample.session_id}?date=${brokenPhotoQrSample.attendance_date}` : undefined,
       });
 
       const attendanceMethodMap = new Map(
         attendance.map((row) => [`${row.student_id}|${row.session_id}|${row.attendance_date}`, row.check_in_method || null])
       );
-      const feedbackMethodMismatchCount = feedbackRows.filter((row) => {
+      const feedbackMethodMismatchRows = feedbackRows.filter((row) => {
         const key = `${row.student_id}|${row.session_id}|${row.attendance_date}`;
         const attendanceMethod = attendanceMethodMap.get(key);
         return row.student_id && attendanceMethod && row.check_in_method && attendanceMethod !== row.check_in_method;
-      }).length;
+      });
+      const feedbackMethodMismatchCount = feedbackMethodMismatchRows.length;
+      const feedbackMethodMismatchSample = feedbackMethodMismatchRows[0];
       checks.push({
         label: 'Attendance and feedback method disagree',
         status: feedbackMethodMismatchCount > 0 ? 'warn' : 'ok',
@@ -196,16 +208,20 @@ export function Dashboard() {
           ? `${feedbackMethodMismatchCount} feedback record(s) disagree with attendance.check_in_method for the same student/date.`
           : 'Feedback method tracking matches attendance check-in records.',
         icon: feedbackMethodMismatchCount > 0 ? '⚠️' : '✅',
-        actionLabel: feedbackMethodMismatchCount > 0 ? 'Open Feedback' : undefined,
-        actionPath: feedbackMethodMismatchCount > 0 ? '/feedback-analytics' : undefined,
+        actionLabel: feedbackMethodMismatchSample ? 'Open Exact Feedback Slice' : undefined,
+        actionPath: feedbackMethodMismatchSample ? `/feedback-analytics?session=${feedbackMethodMismatchSample.session_id}&date=${feedbackMethodMismatchSample.attendance_date}` : undefined,
       });
 
       let hostAddressDriftCount = 0;
+      let hostAddressDriftSample: { session_id: string; attendance_date: string } | null = null;
       for (const row of attendance) {
         if (!row.host_address) continue;
         const host = hostMap.get(`${row.session_id}|${row.attendance_date}`);
         if (host?.host_address && String(host.host_address).trim() !== String(row.host_address).trim()) {
           hostAddressDriftCount++;
+          if (!hostAddressDriftSample) {
+            hostAddressDriftSample = { session_id: row.session_id, attendance_date: row.attendance_date };
+          }
         }
       }
       checks.push({
@@ -216,8 +232,8 @@ export function Dashboard() {
           ? `${hostAddressDriftCount} attendance row(s) still store a host address different from the canonical session_date_host row.`
           : 'Attendance host addresses match the canonical session_date_host rows.',
         icon: hostAddressDriftCount > 0 ? '⚠️' : '✅',
-        actionLabel: hostAddressDriftCount > 0 ? 'Open Records' : undefined,
-        actionPath: hostAddressDriftCount > 0 ? '/attendance-records' : undefined,
+        actionLabel: hostAddressDriftSample ? 'Open Drifted Date' : undefined,
+        actionPath: hostAddressDriftSample ? `/attendance/${hostAddressDriftSample.session_id}?date=${hostAddressDriftSample.attendance_date}` : undefined,
       });
 
       const hostDupes = new Set<string>();
@@ -235,6 +251,13 @@ export function Dashboard() {
           ? `${hostDupes.size} session date(s) have multiple host rows and can confuse attendance, GPS, and check-in logic.`
           : 'No duplicate session_date_host rows were found in the scanned data.',
         icon: hostDupes.size > 0 ? '🚨' : '✅',
+        actionLabel: hostDupes.size > 0 ? 'Open Sample Duplicate' : undefined,
+        actionPath: hostDupes.size > 0 ? (() => {
+          const firstDuplicate = Array.from(hostDupes)[0];
+          if (!firstDuplicate) return undefined;
+          const [sampleSessionId, sampleDate] = firstDuplicate.split('|');
+          return `/attendance/${sampleSessionId}?date=${sampleDate}`;
+        })() : undefined,
       });
 
       try {

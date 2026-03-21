@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import { useParams, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -68,7 +68,8 @@ export function Attendance() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const location = useLocation();
   const navigate = useNavigate();
-  const passedDate = (location.state as { selectedDate?: string })?.selectedDate;
+  const [searchParams] = useSearchParams();
+  const passedDate = searchParams.get('date') || (location.state as { selectedDate?: string })?.selectedDate;
   const [session, setSession] = useState<Session | null>(null);
   const [isTeacher, setIsTeacher] = useState<boolean | null>(null);
 

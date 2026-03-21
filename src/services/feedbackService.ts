@@ -136,27 +136,23 @@ export const feedbackService = {
     }
 
     const payload = {
-      session_id: feedback.session_id,
-      attendance_date: feedback.attendance_date,
-      student_id: feedback.student_id,
-      is_anonymous: feedback.is_anonymous,
-      overall_rating: feedback.overall_rating,
-      comment: feedback.comment || null,
-      responses: feedback.responses || {},
-      check_in_method: feedback.check_in_method || null,
+      p_session_id: feedback.session_id,
+      p_attendance_date: feedback.attendance_date,
+      p_student_id: feedback.student_id,
+      p_is_anonymous: feedback.is_anonymous,
+      p_overall_rating: feedback.overall_rating,
+      p_comment: feedback.comment || null,
+      p_responses: feedback.responses || {},
+      p_check_in_method: feedback.check_in_method || null,
     };
 
-    const { data, error } = await supabase
-      .from('session_feedback')
-      .insert(payload)
-      .select()
-      .single();
+    const { data, error } = await supabase.rpc('submit_session_feedback', payload);
 
     if (data) {
       try {
         await logInsert(
           'session_feedback',
-          String(data.id),
+          String((data as { feedback_id?: string }).feedback_id || ''),
           toAuditRecord(data),
           `Feedback submitted via ${feedback.check_in_method || 'unknown'} check-in`
         );

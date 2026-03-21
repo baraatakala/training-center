@@ -137,6 +137,7 @@ function exportFeedbackCSV(
 export function FeedbackAnalytics() {
   const [searchParams] = useSearchParams();
   const sessionParam = searchParams.get('session');
+  const dateParam = searchParams.get('date');
   const [sessions, setSessions] = useState<SessionOption[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
   const [feedbacks, setFeedbacks] = useState<SessionFeedback[]>([]);
@@ -239,6 +240,12 @@ export function FeedbackAnalytics() {
     load();
     return () => { cancelled = true; };
   }, [selectedSessionId]);
+
+  useEffect(() => {
+    if (dateParam) {
+      setSelectedAnalyticsDate(dateParam);
+    }
+  }, [dateParam]);
 
   // Refresh feedback data when tab becomes visible
   const refreshFeedbackData = useCallback(() => {

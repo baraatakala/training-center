@@ -50,6 +50,8 @@ export default function SessionFeedbackForm({
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
   const [feedbackEnabled, setFeedbackEnabled] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const primaryRatingQuestion = customQuestions.find((question) => question.question_type === 'rating') || null;
+  const usesCustomOverallRating = Boolean(primaryRatingQuestion);
 
   // Load feedback config and questions
   useEffect(() => {
@@ -90,7 +92,14 @@ export default function SessionFeedbackForm({
   }, []);
 
   const handleSubmit = async () => {
-    if (rating === 0) return;
+    const derivedOverallRating = usesCustomOverallRating
+      ? Number(responses[primaryRatingQuestion!.id] || 0)
+      : rating;
+
+    if (derivedOverallRating === 0) {
+      setSubmissionError('Please answer the overall rating before submitting feedback.');
+      return;
+    }
 
     const missingRequiredQuestions = customQuestions.filter((question) => {
       if (!question.is_required) return false;
@@ -118,7 +127,7 @@ export default function SessionFeedbackForm({
       attendance_date: attendanceDate,
       student_id: studentId,
       is_anonymous: isAnonymous,
-      overall_rating: rating,
+      overall_rating: derivedOverallRating,
       comment: comment.trim() || undefined,
       responses,
       check_in_method: checkInMethod,
@@ -234,44 +243,45 @@ export default function SessionFeedbackForm({
           </div>
         )}
 
-        {/* Star/Emoji Rating */}
-        <div className="text-center mb-4">
-          <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-            Overall Session Rating
-          </p>
-          <div className="flex justify-center gap-2">
-            {EMOJI_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setRating(opt.value)}
-                onMouseEnter={() => setHoveredRating(opt.value)}
-                onMouseLeave={() => setHoveredRating(0)}
-                className={`relative group transition-all duration-200 rounded-xl p-2 ${
-                  activeRating >= opt.value
-                    ? 'scale-110 bg-purple-100 dark:bg-purple-800/50'
-                    : 'hover:bg-gray-100 dark:hover:bg-gray-700/50 opacity-50 grayscale'
-                }`}
-              >
-                <span className="text-3xl block transition-transform group-hover:scale-125">
-                  {opt.emoji}
-                </span>
-                <span className={`text-[10px] block mt-1 font-medium transition-colors ${
-                  activeRating >= opt.value
-                    ? 'text-purple-600 dark:text-purple-300'
-                    : 'text-gray-400 dark:text-gray-500'
-                }`}>
-                  {opt.label}
-                </span>
-              </button>
-            ))}
-          </div>
-          {rating > 0 && (
-            <p className="text-xs text-purple-600 dark:text-purple-300 mt-2 font-medium animate-fade-in">
-              {EMOJI_OPTIONS[rating - 1].label}!
+        {!usesCustomOverallRating && (
+          <div className="text-center mb-4">
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+              Overall Session Rating
             </p>
-          )}
-        </div>
+            <div className="flex justify-center gap-2">
+              {EMOJI_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setRating(opt.value)}
+                  onMouseEnter={() => setHoveredRating(opt.value)}
+                  onMouseLeave={() => setHoveredRating(0)}
+                  className={`relative group transition-all duration-200 rounded-xl p-2 ${
+                    activeRating >= opt.value
+                      ? 'scale-110 bg-purple-100 dark:bg-purple-800/50'
+                      : 'hover:bg-gray-100 dark:hover:bg-gray-700/50 opacity-50 grayscale'
+                  }`}
+                >
+                  <span className="text-3xl block transition-transform group-hover:scale-125">
+                    {opt.emoji}
+                  </span>
+                  <span className={`text-[10px] block mt-1 font-medium transition-colors ${
+                    activeRating >= opt.value
+                      ? 'text-purple-600 dark:text-purple-300'
+                      : 'text-gray-400 dark:text-gray-500'
+                  }`}>
+                    {opt.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+            {rating > 0 && (
+              <p className="text-xs text-purple-600 dark:text-purple-300 mt-2 font-medium animate-fade-in">
+                {EMOJI_OPTIONS[rating - 1].label}!
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Custom Questions */}
         {customQuestions.map((q) => (
