@@ -844,7 +844,7 @@ export function Attendance() {
       const activeSessionId = sessionId!;
       const activeDate = selectedDate;
       const [qRes, tRes] = await Promise.all([
-        feedbackService.getDateQuestions(activeSessionId, activeDate),
+        feedbackService.getQuestions(activeSessionId, activeDate),
         feedbackService.getTemplates(),
       ]);
 
@@ -912,7 +912,7 @@ export function Attendance() {
     setFbSavingQuestion(false);
 
     // Reload questions
-    const { data } = await feedbackService.getDateQuestions(sessionId, selectedDate);
+    const { data } = await feedbackService.getQuestions(sessionId, selectedDate);
     if (data) {
       setFbQuestions(data);
       await syncSelectedTemplate(data);
@@ -924,7 +924,7 @@ export function Attendance() {
     const { error } = await feedbackService.deleteQuestion(questionId);
     if (error) { toast.error('Failed to delete question'); return; }
     toast.success('Question deleted');
-    const { data } = await feedbackService.getDateQuestions(sessionId, selectedDate);
+    const { data } = await feedbackService.getQuestions(sessionId, selectedDate);
     if (data) {
       setFbQuestions(data);
       await syncSelectedTemplate(data);
@@ -938,7 +938,7 @@ export function Attendance() {
     setFbApplyingTemplate(false);
     if (error) { toast.error('Failed to apply template'); return; }
     toast.success('Template applied');
-    const { data } = await feedbackService.getDateQuestions(sessionId, selectedDate);
+    const { data } = await feedbackService.getQuestions(sessionId, selectedDate);
     if (data) setFbQuestions(data);
   }, [sessionId, selectedDate]);
 
@@ -2257,6 +2257,29 @@ export function Attendance() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const next = !session?.feedback_enabled;
+                    const { error } = await feedbackService.toggleFeedback(sessionId!, next);
+                    if (error) { toast.error('Failed to toggle feedback'); return; }
+                    setSession(prev => prev ? { ...prev, feedback_enabled: next } : prev);
+                    toast.success(next ? 'Feedback enabled — students will see the form after check-in' : 'Feedback disabled');
+                  }}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    session?.feedback_enabled ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600'
+                  }`}
+                  title={session?.feedback_enabled ? 'Feedback is ON for students' : 'Feedback is OFF — students will NOT see the form'}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    session?.feedback_enabled ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+                </button>
+                <span className={`text-xs font-medium ${
+                  session?.feedback_enabled ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400'
+                }`}>
+                  {session?.feedback_enabled ? 'ON' : 'OFF'}
+                </span>
                 <span className="text-xs font-normal bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded-full">
                   {fbQuestions.length} question{fbQuestions.length === 1 ? '' : 's'}
                 </span>
@@ -2275,6 +2298,13 @@ export function Attendance() {
                 </Button>
               </div>
             </div>
+
+            {!session?.feedback_enabled && fbQuestions.length > 0 && (
+              <div className="rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                <span className="text-lg">⚠️</span>
+                <span>You have {fbQuestions.length} question{fbQuestions.length === 1 ? '' : 's'} ready but feedback is <strong>OFF</strong>. Turn the toggle ON so students see the form after check-in.</span>
+              </div>
+            )}
 
             {!showFeedbackSetup && (
               <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-800/30 px-4 py-3 text-sm text-gray-600 dark:text-gray-300">

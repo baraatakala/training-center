@@ -48,7 +48,7 @@ export default function SessionFeedbackForm({
     async function load() {
       const [configResult, questionsResult, hasSubmittedResult] = await Promise.all([
         feedbackService.isEnabled(sessionId),
-        feedbackService.getDateQuestions(sessionId, attendanceDate),
+        feedbackService.getQuestions(sessionId, attendanceDate),
         feedbackService.hasSubmitted(sessionId, studentId, attendanceDate),
       ]);
 
