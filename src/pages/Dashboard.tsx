@@ -106,6 +106,8 @@ export function Dashboard() {
     setHealthLoading(true);
     try {
       const checks: HealthCheck[] = [];
+      const now = Date.now();
+      const normalizeAddress = (value: string | null | undefined) => (value || '').trim().replace(/\s+/g, ' ').toLowerCase();
 
       const [
         feedbackSessionsRes,
@@ -118,10 +120,10 @@ export function Dashboard() {
       ] = await Promise.all([
         supabase.from('session').select('session_id').eq('feedback_enabled', true),
         supabase.from('feedback_question').select('session_id, attendance_date'),
-        supabase.from('attendance').select('student_id, session_id, attendance_date, check_in_method, host_address').limit(5000),
+        supabase.from('attendance').select('student_id, session_id, attendance_date, status, check_in_method, host_address').limit(5000),
         supabase.from('session_date_host').select('session_id, attendance_date, host_address').limit(5000),
-        supabase.from('qr_sessions').select('session_id, attendance_date, check_in_mode, linked_photo_token').limit(5000),
-        supabase.from('photo_checkin_sessions').select('token, session_id, attendance_date, is_valid').limit(5000),
+        supabase.from('qr_sessions').select('session_id, attendance_date, check_in_mode, linked_photo_token, is_valid, expires_at').limit(5000),
+        supabase.from('photo_checkin_sessions').select('token, session_id, attendance_date, is_valid, expires_at').limit(5000),
         supabase.from('session_feedback').select('student_id, session_id, attendance_date, check_in_method').limit(5000),
       ]);
 
@@ -132,24 +134,60 @@ export function Dashboard() {
       const qrRows = qrRes.data || [];
       const photoRows = photoRes.data || [];
       const feedbackRows = feedbackRes.data || [];
+      const activeAttendance = attendance.filter((row) => row.status !== 'absent');
+      const activeQrRows = qrRows.filter((row) => row.is_valid && new Date(row.expires_at).getTime() > now);
+      const activePhotoRows = photoRows.filter((row) => row.is_valid && new Date(row.expires_at).getTime() > now);
 
-      const questionSessionIds = new Set(feedbackQuestions.map((question) => question.session_id));
-      const feedbackWithoutQuestions = feedbackSessions.filter((session) => !questionSessionIds.has(session.session_id));
+      const feedbackEnabledSessionIds = new Set(feedbackSessions.map((session) => session.session_id));
+      const questionDateKeys = new Set(
+        feedbackQuestions
+          .filter((question) => Boolean(question.attendance_date))
+          .map((question) => `${question.session_id}|${question.attendance_date}`)
+      );
+      const liveFeedbackDateKeys = new Map<string, { session_id: string; attendance_date: string }>();
+
+      for (const row of hostRows) {
+        if (!feedbackEnabledSessionIds.has(row.session_id)) continue;
+        liveFeedbackDateKeys.set(`${row.session_id}|${row.attendance_date}`, {
+          session_id: row.session_id,
+          attendance_date: row.attendance_date,
+        });
+      }
+
+      for (const row of activeQrRows) {
+        if (!feedbackEnabledSessionIds.has(row.session_id)) continue;
+        liveFeedbackDateKeys.set(`${row.session_id}|${row.attendance_date}`, {
+          session_id: row.session_id,
+          attendance_date: row.attendance_date,
+        });
+      }
+
+      for (const row of activeAttendance) {
+        if (!feedbackEnabledSessionIds.has(row.session_id)) continue;
+        liveFeedbackDateKeys.set(`${row.session_id}|${row.attendance_date}`, {
+          session_id: row.session_id,
+          attendance_date: row.attendance_date,
+        });
+      }
+
+      const feedbackWithoutQuestions = Array.from(liveFeedbackDateKeys.entries())
+        .filter(([key]) => !questionDateKeys.has(key))
+        .map(([, value]) => value);
       const feedbackWithoutQuestionsSample = feedbackWithoutQuestions[0];
       checks.push({
         label: 'Feedback enabled without questions',
         status: feedbackWithoutQuestions.length > 0 ? 'warn' : 'ok',
         count: feedbackWithoutQuestions.length,
         detail: feedbackWithoutQuestions.length > 0
-          ? `${feedbackWithoutQuestions.length} session(s) can show feedback but still have no configured question set.`
-          : 'Every feedback-enabled session already has a question set ready for students.',
+          ? `${feedbackWithoutQuestions.length} live session date(s) can reach feedback but still have no saved question set for that exact date.`
+          : 'Every live feedback-enabled session date already has a saved question set ready for students.',
         icon: feedbackWithoutQuestions.length > 0 ? '⚠️' : '✅',
         actionLabel: feedbackWithoutQuestions.length > 0 ? 'Open Attendance Setup' : undefined,
-        actionPath: feedbackWithoutQuestionsSample ? `/attendance/${feedbackWithoutQuestionsSample.session_id}` : undefined,
+        actionPath: feedbackWithoutQuestionsSample ? `/attendance/${feedbackWithoutQuestionsSample.session_id}?date=${feedbackWithoutQuestionsSample.attendance_date}` : undefined,
       });
 
       const hostMap = new Map(hostRows.map((row) => [`${row.session_id}|${row.attendance_date}`, row]));
-      const attendanceDates = new Set(attendance.map((row) => `${row.session_id}|${row.attendance_date}`));
+      const attendanceDates = new Set(activeAttendance.map((row) => `${row.session_id}|${row.attendance_date}`));
       let hostMissingCount = 0;
       let hostMissingSample: { session_id: string; attendance_date: string } | null = null;
       for (const key of attendanceDates) {
@@ -174,8 +212,8 @@ export function Dashboard() {
         actionPath: hostMissingSample ? `/attendance/${hostMissingSample.session_id}?date=${hostMissingSample.attendance_date}` : undefined,
       });
 
-      const photoTokenSet = new Set(photoRows.map((row) => row.token));
-      const brokenPhotoQrRows = qrRows.filter((row) => row.check_in_mode === 'photo' && (!row.linked_photo_token || !photoTokenSet.has(row.linked_photo_token)));
+      const photoTokenSet = new Set(activePhotoRows.map((row) => row.token));
+      const brokenPhotoQrRows = activeQrRows.filter((row) => row.check_in_mode === 'photo' && (!row.linked_photo_token || !photoTokenSet.has(row.linked_photo_token)));
       const brokenPhotoQrCount = brokenPhotoQrRows.length;
       const brokenPhotoQrSample = brokenPhotoQrRows[0];
       checks.push({
@@ -191,12 +229,13 @@ export function Dashboard() {
       });
 
       const attendanceMethodMap = new Map(
-        attendance.map((row) => [`${row.student_id}|${row.session_id}|${row.attendance_date}`, row.check_in_method || null])
+        activeAttendance.map((row) => [`${row.student_id}|${row.session_id}|${row.attendance_date}`, (row.check_in_method || '').trim().toLowerCase() || null])
       );
       const feedbackMethodMismatchRows = feedbackRows.filter((row) => {
         const key = `${row.student_id}|${row.session_id}|${row.attendance_date}`;
         const attendanceMethod = attendanceMethodMap.get(key);
-        return row.student_id && attendanceMethod && row.check_in_method && attendanceMethod !== row.check_in_method;
+        const feedbackMethod = (row.check_in_method || '').trim().toLowerCase();
+        return row.student_id && attendanceMethod && feedbackMethod && attendanceMethod !== feedbackMethod;
       });
       const feedbackMethodMismatchCount = feedbackMethodMismatchRows.length;
       const feedbackMethodMismatchSample = feedbackMethodMismatchRows[0];
@@ -214,10 +253,10 @@ export function Dashboard() {
 
       let hostAddressDriftCount = 0;
       let hostAddressDriftSample: { session_id: string; attendance_date: string } | null = null;
-      for (const row of attendance) {
+      for (const row of activeAttendance) {
         if (!row.host_address) continue;
         const host = hostMap.get(`${row.session_id}|${row.attendance_date}`);
-        if (host?.host_address && String(host.host_address).trim() !== String(row.host_address).trim()) {
+        if (host?.host_address && normalizeAddress(host.host_address) !== normalizeAddress(row.host_address)) {
           hostAddressDriftCount++;
           if (!hostAddressDriftSample) {
             hostAddressDriftSample = { session_id: row.session_id, attendance_date: row.attendance_date };

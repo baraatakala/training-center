@@ -859,13 +859,14 @@ export function PhotoCheckIn() {
       // Audit log the photo check-in
       try { await logInsert('attendance', `${enrollment.enrollment_id}_${checkInData.attendance_date}`, attendanceData as Record<string, unknown>, 'Face recognition check-in'); } catch { /* audit non-critical */ }
 
-      setWasLate(attendanceStatus === 'late');
+      setWasLate(attendanceStatus !== 'on time');
       setCheckedInAfterSession(checkInAfterSession);
       setSuccess(true);
       
       // Check if session has feedback enabled
       const { enabled } = await feedbackService.isEnabled(checkInData.session_id);
-      if (enabled) {
+      const feedbackAllowedForAttendance = attendanceStatus !== 'absent';
+      if (enabled && feedbackAllowedForAttendance) {
         setFeedbackEnabled(true);
         setTimeout(() => setShowFeedback(true), 1200);
       } else {
@@ -937,7 +938,7 @@ export function PhotoCheckIn() {
               <p className="text-sm text-green-600 dark:text-green-400 mb-2">
                 Face verified with {faceMatchResult?.confidence}% confidence
               </p>
-              {wasLate && (
+              {(wasLate || checkedInAfterSession) && (
                 <div className={`${checkedInAfterSession ? 'bg-red-100 dark:bg-red-900/40 border-red-300 dark:border-red-700' : 'bg-yellow-100 dark:bg-yellow-900/40 border-yellow-300 dark:border-yellow-700'} border rounded-lg p-3 mb-3`}>
                   <p className={`text-sm font-semibold ${checkedInAfterSession ? 'text-red-800 dark:text-red-300' : 'text-yellow-800 dark:text-yellow-300'}`}>
                     {checkedInAfterSession 
@@ -951,7 +952,7 @@ export function PhotoCheckIn() {
               </p>
               <div className="mb-4 rounded-lg border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 px-4 py-3 text-left">
                 <p className="text-sm font-medium text-blue-800 dark:text-blue-300">What happens next</p>
-                <p className="mt-1 text-xs text-blue-700 dark:text-blue-400">Feedback appears below only when this session has post check-in feedback enabled.</p>
+                <p className="mt-1 text-xs text-blue-700 dark:text-blue-400">Feedback appears below only when this session has post check-in feedback enabled, this attendance date has saved questions, and your attendance is not absent.</p>
                 <p className="mt-1 text-xs text-blue-700 dark:text-blue-400">Replay links, when staff publish them for this attendance date, appear in Sessions under Recordings.</p>
               </div>
               {!feedbackEnabled && (

@@ -2278,7 +2278,7 @@ export function Attendance() {
 
             {!showFeedbackSetup && (
               <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-800/30 px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
-                Apply a template or add questions for this date before students scan the check-in code.
+                Add the exact feedback questions for this attendance date before students scan the check-in code.
               </div>
             )}
 
@@ -2287,7 +2287,7 @@ export function Attendance() {
                 {fbTemplates.length > 0 && (
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2 p-3 bg-gray-50 dark:bg-gray-800/40 rounded-lg border border-gray-200 dark:border-gray-700">
                     <div className="flex-1">
-                      <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">Template for {format(new Date(selectedDate), 'MMM dd, yyyy')}</label>
+                      <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">Reusable question set for {format(new Date(selectedDate), 'MMM dd, yyyy')} (optional)</label>
                       <select
                         value={fbSelectedTemplateId}
                         onChange={e => void handleTemplateChange(e.target.value)}
@@ -2300,7 +2300,7 @@ export function Attendance() {
                       </select>
                     </div>
                     <div className="sm:min-w-[140px] text-xs text-gray-500 dark:text-gray-400 self-center sm:self-auto">
-                      {fbApplyingTemplate ? 'Applying template...' : 'Selecting a template applies it immediately.'}
+                      {fbApplyingTemplate ? 'Applying saved question set...' : 'Selecting a saved question set applies it immediately.'}
                     </div>
                   </div>
                 )}
@@ -2425,7 +2425,7 @@ export function Attendance() {
                   </div>
                 ) : (
                   <p className="text-center text-sm text-gray-400 dark:text-gray-500 py-4">
-                    No feedback questions for this date yet. Apply a template or add questions above.
+                    No feedback questions for this date yet. Add them above or apply an optional saved question set.
                   </p>
                 )}
               </div>

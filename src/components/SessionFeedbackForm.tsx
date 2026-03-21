@@ -2,15 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { feedbackService, type FeedbackQuestion } from '../services/feedbackService';
 import { Button } from './ui';
 
-// ─── Emoji Rating Faces ─────────────────────────────────────
-const EMOJI_OPTIONS = [
-  { emoji: '😢', label: 'Very Bad', value: 1 },
-  { emoji: '😕', label: 'Bad', value: 2 },
-  { emoji: '😐', label: 'Okay', value: 3 },
-  { emoji: '😊', label: 'Good', value: 4 },
-  { emoji: '🤩', label: 'Excellent', value: 5 },
-];
-
 const MOOD_EMOJIS = [
   { emoji: '😴', label: 'Tired' },
   { emoji: '🤔', label: 'Confused' },
@@ -36,8 +27,6 @@ export default function SessionFeedbackForm({
   onComplete,
   onSkip,
 }: Props) {
-  const [rating, setRating] = useState(0);
-  const [hoveredRating, setHoveredRating] = useState(0);
   const [comment, setComment] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [anonymousAllowed, setAnonymousAllowed] = useState(true);
@@ -51,7 +40,7 @@ export default function SessionFeedbackForm({
   const [feedbackEnabled, setFeedbackEnabled] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const primaryRatingQuestion = customQuestions.find((question) => question.question_type === 'rating') || null;
-  const usesCustomOverallRating = Boolean(primaryRatingQuestion);
+  const hasConfiguredQuestions = customQuestions.length > 0;
 
   // Load feedback config and questions
   useEffect(() => {
@@ -92,11 +81,16 @@ export default function SessionFeedbackForm({
   }, []);
 
   const handleSubmit = async () => {
-    const derivedOverallRating = usesCustomOverallRating
-      ? Number(responses[primaryRatingQuestion!.id] || 0)
-      : rating;
+    const derivedOverallRating = primaryRatingQuestion
+      ? Number(responses[primaryRatingQuestion.id] || 0)
+      : null;
 
-    if (derivedOverallRating === 0) {
+    if (!hasConfiguredQuestions) {
+      setSubmissionError('No feedback questions are configured for this session date.');
+      return;
+    }
+
+    if (primaryRatingQuestion && (!derivedOverallRating || Number.isNaN(derivedOverallRating))) {
       setSubmissionError('Please answer the overall rating before submitting feedback.');
       return;
     }
@@ -201,6 +195,22 @@ export default function SessionFeedbackForm({
     );
   }
 
+  if (!hasConfiguredQuestions) {
+    return (
+      <div className="animate-fade-in mt-6 rounded-2xl border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4 text-center">
+        <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">No feedback questions are saved for this attendance date yet.</p>
+        <p className="mt-1 text-xs leading-relaxed text-amber-700/80 dark:text-amber-300/80">Students should only see configured questions from the database. Ask staff to add the question set for this exact date.</p>
+        <button
+          type="button"
+          onClick={onSkip}
+          className="mt-3 text-sm text-amber-600 dark:text-amber-400 hover:underline"
+        >
+          Continue
+        </button>
+      </div>
+    );
+  }
+
   if (alreadySubmitted) {
     return (
       <div className="animate-fade-in mt-6 p-4 rounded-2xl border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 text-center">
@@ -216,8 +226,6 @@ export default function SessionFeedbackForm({
       </div>
     );
   }
-
-  const activeRating = hoveredRating || rating;
 
   return (
     <div className="animate-fade-in mt-6">
@@ -240,46 +248,6 @@ export default function SessionFeedbackForm({
         {customQuestions.some((question) => question.is_required) && (
           <div className="mb-4 rounded-xl border border-purple-200 dark:border-purple-700 bg-white/70 dark:bg-gray-800/70 px-3 py-2 text-xs text-purple-700 dark:text-purple-300">
             Questions marked with * are required before submitting feedback.
-          </div>
-        )}
-
-        {!usesCustomOverallRating && (
-          <div className="text-center mb-4">
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-              Overall Session Rating
-            </p>
-            <div className="flex justify-center gap-2">
-              {EMOJI_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setRating(opt.value)}
-                  onMouseEnter={() => setHoveredRating(opt.value)}
-                  onMouseLeave={() => setHoveredRating(0)}
-                  className={`relative group transition-all duration-200 rounded-xl p-2 ${
-                    activeRating >= opt.value
-                      ? 'scale-110 bg-purple-100 dark:bg-purple-800/50'
-                      : 'hover:bg-gray-100 dark:hover:bg-gray-700/50 opacity-50 grayscale'
-                  }`}
-                >
-                  <span className="text-3xl block transition-transform group-hover:scale-125">
-                    {opt.emoji}
-                  </span>
-                  <span className={`text-[10px] block mt-1 font-medium transition-colors ${
-                    activeRating >= opt.value
-                      ? 'text-purple-600 dark:text-purple-300'
-                      : 'text-gray-400 dark:text-gray-500'
-                  }`}>
-                    {opt.label}
-                  </span>
-                </button>
-              ))}
-            </div>
-            {rating > 0 && (
-              <p className="text-xs text-purple-600 dark:text-purple-300 mt-2 font-medium animate-fade-in">
-                {EMOJI_OPTIONS[rating - 1].label}!
-              </p>
-            )}
           </div>
         )}
 
@@ -402,7 +370,7 @@ export default function SessionFeedbackForm({
           </button>
           <Button
             onClick={handleSubmit}
-            disabled={submitting || rating === 0}
+            disabled={submitting || !hasConfiguredQuestions}
             className="flex-1"
             size="sm"
           >

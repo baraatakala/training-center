@@ -121,7 +121,7 @@ export const feedbackService = {
     attendance_date: string;
     student_id: string | null;
     is_anonymous: boolean;
-    overall_rating: number;
+    overall_rating: number | null;
     comment?: string;
     responses?: Record<string, unknown>;
     check_in_method?: string;
@@ -166,15 +166,14 @@ export const feedbackService = {
 
   /** Check if student already submitted feedback for this session+date */
   async hasSubmitted(sessionId: string, studentId: string, date: string) {
-    const { data, error } = await supabase
+    const { count, error } = await supabase
       .from('session_feedback')
-      .select('id')
+      .select('id', { count: 'exact', head: true })
       .eq('session_id', sessionId)
       .eq('student_id', studentId)
-      .eq('attendance_date', date)
-      .maybeSingle();
+      .eq('attendance_date', date);
 
-    return { alreadySubmitted: !!data, error: normalizeFeedbackError(error) };
+    return { alreadySubmitted: (count || 0) > 0, error: normalizeFeedbackError(error) };
   },
 
   /** Check if session has feedback enabled */
