@@ -207,7 +207,8 @@ export function FeedbackAnalytics() {
       }
     }
     loadSessions();
-  }, [selectedSessionId, sessionParam]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionParam]);
 
   // ─── Load data for selected session ────────────────────────
   useEffect(() => {
@@ -262,7 +263,12 @@ export function FeedbackAnalytics() {
     if (!selectedSessionId) return;
     let cancelled = false;
     feedbackService.getDateComparison(selectedSessionId).then(r => {
-      if (!cancelled && r.data) setDateComparison(r.data);
+      if (cancelled) return;
+      if (r.data) setDateComparison(r.data);
+      if (r.error) {
+        const msg = (r.error as { message?: string })?.message || 'Unable to load date comparison data.';
+        toast.error(msg, 5000);
+      }
     });
     return () => { cancelled = true; };
   }, [selectedSessionId]);

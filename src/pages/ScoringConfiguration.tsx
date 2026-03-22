@@ -780,6 +780,7 @@ export function ScoringConfiguration() {
       setLoading(false);
     };
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   
   // Update a field

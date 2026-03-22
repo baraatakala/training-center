@@ -191,6 +191,7 @@ CREATE TABLE public.feedback_question (
   sort_order integer NOT NULL DEFAULT 0,
   is_required boolean DEFAULT false,
   created_at timestamp with time zone DEFAULT now(),
+  attendance_date date,
   CONSTRAINT feedback_question_pkey PRIMARY KEY (id),
   CONSTRAINT feedback_question_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
 );
@@ -329,6 +330,8 @@ CREATE TABLE public.qr_sessions (
   used_count integer NOT NULL DEFAULT 0,
   last_used_at timestamp with time zone,
   created_by text,
+  check_in_mode text NOT NULL DEFAULT 'qr_code'::text CHECK (check_in_mode = ANY (ARRAY['qr_code'::text, 'photo'::text])),
+  linked_photo_token text,
   CONSTRAINT qr_sessions_pkey PRIMARY KEY (qr_session_id),
   CONSTRAINT qr_sessions_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
 );
@@ -431,6 +434,21 @@ CREATE TABLE public.session_feedback (
   CONSTRAINT session_feedback_pkey PRIMARY KEY (id),
   CONSTRAINT session_feedback_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id),
   CONSTRAINT session_feedback_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.student(student_id)
+);
+CREATE TABLE public.session_feedback_answer (
+  answer_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  session_feedback_id uuid NOT NULL,
+  question_id uuid NOT NULL,
+  session_id uuid NOT NULL,
+  attendance_date date NOT NULL,
+  student_id uuid,
+  answer_value jsonb NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT session_feedback_answer_pkey PRIMARY KEY (answer_id),
+  CONSTRAINT session_feedback_answer_feedback_id_fkey FOREIGN KEY (session_feedback_id) REFERENCES public.session_feedback(id),
+  CONSTRAINT session_feedback_answer_question_id_fkey FOREIGN KEY (question_id) REFERENCES public.feedback_question(id),
+  CONSTRAINT session_feedback_answer_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id),
+  CONSTRAINT session_feedback_answer_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.student(student_id)
 );
 CREATE TABLE public.session_recording (
   recording_id uuid NOT NULL DEFAULT gen_random_uuid(),

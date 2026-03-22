@@ -709,6 +709,7 @@ const AttendanceRecords = () => {
     setLoading(false);
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const refreshRecords = useCallback(() => { loadRecords(); }, [filters.student_ids]);
   useRefreshOnFocus(refreshRecords);
 
