@@ -138,7 +138,7 @@ export const feedbackService = {
     const row = {
       session_id: feedback.session_id,
       attendance_date: feedback.attendance_date,
-      student_id: feedback.is_anonymous ? null : feedback.student_id,
+      student_id: feedback.student_id,
       is_anonymous: feedback.is_anonymous,
       overall_rating: feedback.overall_rating,
       comment: feedback.comment || null,
@@ -202,26 +202,27 @@ export const feedbackService = {
    * - With date param: returns global questions (attendance_date IS NULL) + questions for that specific date
    */
   async getQuestions(sessionId: string, date?: string) {
-    if (date) {
-      // Return global questions + questions for the specific date
-      const { data, error } = await supabase
-        .from('feedback_question')
-        .select('*')
-        .eq('session_id', sessionId)
-        .or(`attendance_date.is.null,attendance_date.eq.${date}`)
-        .order('sort_order', { ascending: true });
-
-      return { data: data as FeedbackQuestion[] | null, error: normalizeFeedbackError(error) };
-    }
-
-    // No date filter — return all questions for session management
+    // Load ALL questions for the session, then filter in JS.
+    // The .or() PostgREST filter can misparse dates — this is safer.
     const { data, error } = await supabase
       .from('feedback_question')
       .select('*')
       .eq('session_id', sessionId)
       .order('sort_order', { ascending: true });
 
-    return { data: data as FeedbackQuestion[] | null, error: normalizeFeedbackError(error) };
+    if (error || !data) {
+      return { data: data as FeedbackQuestion[] | null, error: normalizeFeedbackError(error) };
+    }
+
+    if (date) {
+      // Return global (no date) + questions matching this specific date
+      const filtered = data.filter(
+        (q) => q.attendance_date === null || q.attendance_date === date
+      );
+      return { data: filtered as FeedbackQuestion[], error: null };
+    }
+
+    return { data: data as FeedbackQuestion[], error: null };
   },
 
   /** Get only global questions (attendance_date IS NULL) */
