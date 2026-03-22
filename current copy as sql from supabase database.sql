@@ -235,19 +235,6 @@ CREATE TABLE public.issued_certificate (
   CONSTRAINT issued_certificate_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.course(course_id),
   CONSTRAINT issued_certificate_signer_teacher_id_fkey FOREIGN KEY (signer_teacher_id) REFERENCES public.teacher(teacher_id)
 );
-CREATE TABLE public.late_brackets (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  session_id uuid,
-  min_minutes integer NOT NULL,
-  max_minutes integer,
-  bracket_name character varying NOT NULL,
-  bracket_name_ar character varying,
-  score_weight numeric NOT NULL CHECK (score_weight >= 0::numeric AND score_weight <= 1::numeric),
-  display_color character varying,
-  created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT late_brackets_pkey PRIMARY KEY (id),
-  CONSTRAINT late_brackets_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
-);
 CREATE TABLE public.message (
   message_id uuid NOT NULL DEFAULT gen_random_uuid(),
   sender_type character varying NOT NULL CHECK (sender_type::text = ANY (ARRAY['teacher'::character varying, 'student'::character varying, 'admin'::character varying]::text[])),
@@ -264,17 +251,6 @@ CREATE TABLE public.message (
   is_starred boolean DEFAULT false,
   CONSTRAINT message_pkey PRIMARY KEY (message_id),
   CONSTRAINT message_parent_message_id_fkey FOREIGN KEY (parent_message_id) REFERENCES public.message(message_id)
-);
-CREATE TABLE public.message_attachment (
-  attachment_id uuid NOT NULL DEFAULT gen_random_uuid(),
-  message_id uuid NOT NULL,
-  file_name character varying NOT NULL,
-  file_url text NOT NULL,
-  file_size integer,
-  file_type character varying,
-  uploaded_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT message_attachment_pkey PRIMARY KEY (attachment_id),
-  CONSTRAINT message_attachment_message_id_fkey FOREIGN KEY (message_id) REFERENCES public.message(message_id)
 );
 CREATE TABLE public.message_reaction (
   reaction_id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -294,18 +270,6 @@ CREATE TABLE public.message_starred (
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT message_starred_pkey PRIMARY KEY (id),
   CONSTRAINT message_starred_message_id_fkey FOREIGN KEY (message_id) REFERENCES public.message(message_id)
-);
-CREATE TABLE public.notification_preference (
-  preference_id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_type character varying NOT NULL CHECK (user_type::text = ANY (ARRAY['teacher'::text, 'student'::text, 'admin'::text])),
-  user_id uuid NOT NULL,
-  email_announcements boolean DEFAULT true,
-  email_messages boolean DEFAULT true,
-  push_announcements boolean DEFAULT true,
-  push_messages boolean DEFAULT true,
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT notification_preference_pkey PRIMARY KEY (preference_id)
 );
 CREATE TABLE public.photo_checkin_sessions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -434,21 +398,6 @@ CREATE TABLE public.session_feedback (
   CONSTRAINT session_feedback_pkey PRIMARY KEY (id),
   CONSTRAINT session_feedback_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id),
   CONSTRAINT session_feedback_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.student(student_id)
-);
-CREATE TABLE public.session_feedback_answer (
-  answer_id uuid NOT NULL DEFAULT gen_random_uuid(),
-  session_feedback_id uuid NOT NULL,
-  question_id uuid NOT NULL,
-  session_id uuid NOT NULL,
-  attendance_date date NOT NULL,
-  student_id uuid,
-  answer_value jsonb NOT NULL,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT session_feedback_answer_pkey PRIMARY KEY (answer_id),
-  CONSTRAINT session_feedback_answer_feedback_id_fkey FOREIGN KEY (session_feedback_id) REFERENCES public.session_feedback(id),
-  CONSTRAINT session_feedback_answer_question_id_fkey FOREIGN KEY (question_id) REFERENCES public.feedback_question(id),
-  CONSTRAINT session_feedback_answer_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id),
-  CONSTRAINT session_feedback_answer_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.student(student_id)
 );
 CREATE TABLE public.session_recording (
   recording_id uuid NOT NULL DEFAULT gen_random_uuid(),

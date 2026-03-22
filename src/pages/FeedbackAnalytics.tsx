@@ -399,8 +399,16 @@ export function FeedbackAnalytics() {
   }, [questions, questionTypeFilter, selectedQuestionId, feedbackSearch, filteredFeedbacks]);
 
   const filteredResponseRate = useMemo(() => {
-    if (!stats || stats.engagedStudents === 0) return 0;
-    return Math.round((filteredStats.engagedStudents / stats.engagedStudents) * 100);
+    if (!stats || stats.responseRate === 0) return stats?.responseRate ?? 0;
+    // When filters are active, show how many unique filtered students vs total enrolled
+    // Use the server-computed responseRate as baseline when no filters change anything
+    if (filteredStats.engagedStudents === stats.engagedStudents) return stats.responseRate;
+    // Otherwise approximate: filteredEngaged / (enrolled = engagedStudents * 100 / responseRate)
+    if (stats.responseRate > 0) {
+      const enrolled = Math.round(stats.engagedStudents * 100 / stats.responseRate);
+      return enrolled > 0 ? Math.min(100, Math.round((filteredStats.engagedStudents / enrolled) * 100)) : 0;
+    }
+    return 0;
   }, [filteredStats.engagedStudents, stats]);
 
   // Unique dates for filter
@@ -741,7 +749,7 @@ export function FeedbackAnalytics() {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {[
                       { label: 'Responses', value: String(filteredStats.totalResponses), sub: `${filteredStats.datesCovered} filtered dates`, color: 'purple' },
-                      { label: 'Students', value: `${filteredStats.engagedStudents}`, sub: `${filteredResponseRate}% of engaged students`, color: 'green' },
+                      { label: 'Students', value: `${filteredStats.engagedStudents}`, sub: `${filteredResponseRate}% response rate`, color: 'green' },
                       { label: 'Avg Rating', value: `${filteredStats.averageRating || '—'}`, sub: filteredStats.averageRating ? (RATING_EMOJIS[Math.round(filteredStats.averageRating) - 1] || '') : 'No ratings', color: 'yellow' },
                       { label: 'Questions Used', value: `${filteredQuestionAnalytics.filter(item => item.data.total > 0).length}`, sub: filteredStats.latestResponseDate ? `Latest ${filteredStats.latestResponseDate}` : 'No feedback yet', color: 'purple' },
                     ].map(kpi => (

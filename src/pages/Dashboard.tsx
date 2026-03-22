@@ -139,6 +139,12 @@ export function Dashboard() {
       const activePhotoRows = photoRows.filter((row) => row.is_valid && new Date(row.expires_at).getTime() > now);
 
       const feedbackEnabledSessionIds = new Set(feedbackSessions.map((session) => session.session_id));
+      // Sessions that have at least one global question (attendance_date IS NULL) cover ALL dates
+      const sessionsWithGlobalQuestions = new Set(
+        feedbackQuestions
+          .filter((question) => !question.attendance_date)
+          .map((question) => question.session_id)
+      );
       const questionDateKeys = new Set(
         feedbackQuestions
           .filter((question) => Boolean(question.attendance_date))
@@ -171,7 +177,7 @@ export function Dashboard() {
       }
 
       const feedbackWithoutQuestions = Array.from(liveFeedbackDateKeys.entries())
-        .filter(([key]) => !questionDateKeys.has(key))
+        .filter(([key, value]) => !sessionsWithGlobalQuestions.has(value.session_id) && !questionDateKeys.has(key))
         .map(([, value]) => value);
       const feedbackWithoutQuestionsSample = feedbackWithoutQuestions[0];
       checks.push({
@@ -323,6 +329,210 @@ export function Dashboard() {
           actionPath: '/excuse-requests',
         });
       }
+
+      // ─── ADVANCED DIAGNOSTIC CHECKS ─────────────────────────
+      // Fetch additional data for deep checks
+      const [
+        sessionsRes,
+        enrollmentsRes,
+        feedbackAllRes,
+        scoringRes,
+      ] = await Promise.all([
+        supabase.from('session').select('session_id, start_date, end_date, feedback_enabled, feedback_anonymous_allowed, course_id, teacher_id').limit(5000),
+        supabase.from('enrollment').select('enrollment_id, student_id, session_id, status').limit(10000),
+        supabase.from('session_feedback').select('id, session_id, student_id, attendance_date').limit(10000),
+        supabase.from('scoring_config').select('teacher_id').limit(1000),
+      ]);
+
+      const allSessions = sessionsRes.data || [];
+      const allEnrollments = enrollmentsRes.data || [];
+      const allFeedback = feedbackAllRes.data || [];
+      const allScoring = scoringRes.data || [];
+      const today = new Date().toISOString().split('T')[0];
+
+      // ── Check 8: Duplicate feedback submissions ──
+      const feedbackKeys = new Map<string, number>();
+      for (const fb of allFeedback) {
+        const key = `${fb.student_id}|${fb.session_id}|${fb.attendance_date}`;
+        feedbackKeys.set(key, (feedbackKeys.get(key) || 0) + 1);
+      }
+      const duplicateFeedbackCount = Array.from(feedbackKeys.values()).filter(c => c > 1).length;
+      checks.push({
+        label: 'Duplicate feedback submissions',
+        status: duplicateFeedbackCount > 0 ? 'error' : 'ok',
+        count: duplicateFeedbackCount,
+        detail: duplicateFeedbackCount > 0
+          ? `${duplicateFeedbackCount} student-session-date combo(s) have more than one feedback row. This means duplicate prevention failed somewhere.`
+          : 'Every student has at most one feedback per session date.',
+        icon: duplicateFeedbackCount > 0 ? '🚨' : '✅',
+        actionLabel: duplicateFeedbackCount > 0 ? 'Open Feedback Analytics' : undefined,
+        actionPath: duplicateFeedbackCount > 0 ? '/feedback-analytics' : undefined,
+      });
+
+      // ── Check 9: Feedback on disabled sessions ──
+      const disabledSessionIds = new Set(allSessions.filter(s => !s.feedback_enabled).map(s => s.session_id));
+      const feedbackOnDisabled = allFeedback.filter(fb => disabledSessionIds.has(fb.session_id));
+      const uniqueDisabledSessions = new Set(feedbackOnDisabled.map(fb => fb.session_id));
+      checks.push({
+        label: 'Feedback data on disabled sessions',
+        status: uniqueDisabledSessions.size > 0 ? 'warn' : 'ok',
+        count: feedbackOnDisabled.length,
+        detail: uniqueDisabledSessions.size > 0
+          ? `${feedbackOnDisabled.length} feedback row(s) across ${uniqueDisabledSessions.size} session(s) have feedback_enabled=false. Old data is still visible in analytics.`
+          : 'All feedback rows belong to sessions with feedback enabled.',
+        icon: uniqueDisabledSessions.size > 0 ? '⚠️' : '✅',
+        actionLabel: uniqueDisabledSessions.size > 0 ? 'Review in Analytics' : undefined,
+        actionPath: uniqueDisabledSessions.size > 0 ? `/feedback-analytics?session=${Array.from(uniqueDisabledSessions)[0]}` : undefined,
+      });
+
+      // ── Check 10: Attendance without active enrollment ──
+      const enrollmentKeys = new Set(
+        allEnrollments.filter(e => e.status === 'active').map(e => `${e.student_id}|${e.session_id}`)
+      );
+      const attendanceNoEnrollment = activeAttendance.filter(
+        a => !enrollmentKeys.has(`${a.student_id}|${a.session_id}`)
+      );
+      checks.push({
+        label: 'Attendance without active enrollment',
+        status: attendanceNoEnrollment.length > 0 ? 'error' : 'ok',
+        count: attendanceNoEnrollment.length,
+        detail: attendanceNoEnrollment.length > 0
+          ? `${attendanceNoEnrollment.length} attendance row(s) belong to students not actively enrolled. These orphan rows break scoring and analytics.`
+          : 'All attendance rows match an active enrollment.',
+        icon: attendanceNoEnrollment.length > 0 ? '🚨' : '✅',
+        actionLabel: attendanceNoEnrollment.length > 0 ? 'Check Enrollments' : undefined,
+        actionPath: attendanceNoEnrollment.length > 0 ? '/enrollments' : undefined,
+      });
+
+      // ── Check 11: Active sessions with zero enrollments ──
+      const sessionsWithEnrollments = new Set(allEnrollments.filter(e => e.status === 'active').map(e => e.session_id));
+      const activeSessions = allSessions.filter(s => s.end_date >= today);
+      const emptyActiveSessions = activeSessions.filter(s => !sessionsWithEnrollments.has(s.session_id));
+      checks.push({
+        label: 'Active sessions with no students',
+        status: emptyActiveSessions.length > 0 ? 'warn' : 'ok',
+        count: emptyActiveSessions.length,
+        detail: emptyActiveSessions.length > 0
+          ? `${emptyActiveSessions.length} session(s) haven't ended yet but have zero active enrollments.`
+          : 'All active sessions have at least one enrolled student.',
+        icon: emptyActiveSessions.length > 0 ? '⚠️' : '✅',
+        actionLabel: emptyActiveSessions.length > 0 ? 'Manage Sessions' : undefined,
+        actionPath: emptyActiveSessions.length > 0 ? '/sessions' : undefined,
+      });
+
+      // ── Check 12: Expired QR sessions still marked valid ──
+      const expiredButValidQr = qrRows.filter(row => row.is_valid && new Date(row.expires_at).getTime() <= now);
+      checks.push({
+        label: 'Expired QR tokens still marked valid',
+        status: expiredButValidQr.length > 0 ? 'warn' : 'ok',
+        count: expiredButValidQr.length,
+        detail: expiredButValidQr.length > 0
+          ? `${expiredButValidQr.length} QR session(s) expired but is_valid is still true. Students may see confusing error messages on scan.`
+          : 'All expired QR sessions are properly invalidated.',
+        icon: expiredButValidQr.length > 0 ? '⚠️' : '✅',
+      });
+
+      // ── Check 13: Expired photo check-in sessions still valid ──
+      const expiredButValidPhoto = photoRows.filter(row => row.is_valid && new Date(row.expires_at).getTime() <= now);
+      checks.push({
+        label: 'Expired photo tokens still marked valid',
+        status: expiredButValidPhoto.length > 0 ? 'warn' : 'ok',
+        count: expiredButValidPhoto.length,
+        detail: expiredButValidPhoto.length > 0
+          ? `${expiredButValidPhoto.length} photo check-in session(s) expired but is_valid is still true.`
+          : 'All expired photo sessions are properly invalidated.',
+        icon: expiredButValidPhoto.length > 0 ? '⚠️' : '✅',
+      });
+
+      // ── Check 14: Sessions ended long ago still show up ──
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const staleEndedSessions = allSessions.filter(s => s.end_date < thirtyDaysAgo);
+      const staleWithActivity = staleEndedSessions.filter(s => {
+        return activeAttendance.some(a => a.session_id === s.session_id) || allFeedback.some(f => f.session_id === s.session_id);
+      });
+      checks.push({
+        label: 'Old sessions with recent data',
+        status: staleWithActivity.length > 0 ? 'warn' : 'ok',
+        count: staleWithActivity.length,
+        detail: staleWithActivity.length > 0
+          ? `${staleWithActivity.length} session(s) ended 30+ days ago but still have attendance or feedback data linked. Consider archiving.`
+          : 'No stale sessions detected with lingering data.',
+        icon: staleWithActivity.length > 0 ? '⚠️' : '✅',
+        actionLabel: staleWithActivity.length > 0 ? 'View Sessions' : undefined,
+        actionPath: staleWithActivity.length > 0 ? '/sessions' : undefined,
+      });
+
+      // ── Check 15: Feedback without matching attendance ──
+      const attendanceKeys = new Set(
+        attendance.filter(a => a.status === 'on time' || a.status === 'late')
+          .map(a => `${a.student_id}|${a.session_id}|${a.attendance_date}`)
+      );
+      const feedbackNoAttendance = allFeedback.filter(
+        fb => fb.student_id && !attendanceKeys.has(`${fb.student_id}|${fb.session_id}|${fb.attendance_date}`)
+      );
+      checks.push({
+        label: 'Feedback without valid attendance',
+        status: feedbackNoAttendance.length > 0 ? 'error' : 'ok',
+        count: feedbackNoAttendance.length,
+        detail: feedbackNoAttendance.length > 0
+          ? `${feedbackNoAttendance.length} feedback row(s) exist but the student has no on-time/late attendance for that date. RLS should have blocked these.`
+          : 'All feedback rows have a matching valid attendance record.',
+        icon: feedbackNoAttendance.length > 0 ? '🚨' : '✅',
+        actionLabel: feedbackNoAttendance.length > 0 ? 'Analytics' : undefined,
+        actionPath: feedbackNoAttendance.length > 0 ? '/feedback-analytics' : undefined,
+      });
+
+      // ── Check 16: Teachers without scoring configuration ──
+      const teacherIdsWithScoring = new Set(allScoring.map(s => s.teacher_id));
+      // Get distinct teacher auth user IDs from sessions
+      const teacherAuthRes = await supabase.from('teacher').select('teacher_id, auth_user_id').limit(500);
+      const teacherAuthMap = new Map((teacherAuthRes.data || []).map(t => [t.teacher_id, t.auth_user_id]));
+      const activeTeacherIds = new Set(activeSessions.map(s => s.teacher_id));
+      const teachersWithoutScoring = Array.from(activeTeacherIds).filter(tid => {
+        const authId = teacherAuthMap.get(tid);
+        return authId && !teacherIdsWithScoring.has(authId);
+      });
+      checks.push({
+        label: 'Active teachers without scoring config',
+        status: teachersWithoutScoring.length > 0 ? 'warn' : 'ok',
+        count: teachersWithoutScoring.length,
+        detail: teachersWithoutScoring.length > 0
+          ? `${teachersWithoutScoring.length} teacher(s) running active sessions have no scoring configuration. Student scores will default to base values.`
+          : 'All active-session teachers have a scoring config.',
+        icon: teachersWithoutScoring.length > 0 ? '⚠️' : '✅',
+        actionLabel: teachersWithoutScoring.length > 0 ? 'Scoring Setup' : undefined,
+        actionPath: teachersWithoutScoring.length > 0 ? '/scoring-configuration' : undefined,
+      });
+
+      // ── Check 17: Enrollment-Session FK integrity ──
+      const sessionIdSet = new Set(allSessions.map(s => s.session_id));
+      const orphanedEnrollments = allEnrollments.filter(e => !sessionIdSet.has(e.session_id));
+      checks.push({
+        label: 'Orphaned enrollments (missing session)',
+        status: orphanedEnrollments.length > 0 ? 'error' : 'ok',
+        count: orphanedEnrollments.length,
+        detail: orphanedEnrollments.length > 0
+          ? `${orphanedEnrollments.length} enrollment(s) reference a session_id that doesn't exist. These are invisible data fragments.`
+          : 'All enrollments reference valid sessions.',
+        icon: orphanedEnrollments.length > 0 ? '🚨' : '✅',
+        actionLabel: orphanedEnrollments.length > 0 ? 'Manage Enrollments' : undefined,
+        actionPath: orphanedEnrollments.length > 0 ? '/enrollments' : undefined,
+      });
+
+      // ── Check 18: Feedback anonymous mode mismatch ──
+      const anonymousBlockedSessions = allSessions.filter(s => s.feedback_enabled && !s.feedback_anonymous_allowed);
+      const anonBlockedIds = new Set(anonymousBlockedSessions.map(s => s.session_id));
+      // This is informational — just flag if there are sessions that block anonymous but have anonymous feedback
+      const anonFeedbackOnBlocked = allFeedback.filter(fb => anonBlockedIds.has(fb.session_id) && !fb.student_id);
+      checks.push({
+        label: 'Anonymous feedback on non-anonymous sessions',
+        status: anonFeedbackOnBlocked.length > 0 ? 'warn' : 'ok',
+        count: anonFeedbackOnBlocked.length,
+        detail: anonFeedbackOnBlocked.length > 0
+          ? `${anonFeedbackOnBlocked.length} anonymous feedback row(s) exist on sessions that now block anonymous mode. These were submitted before the setting changed.`
+          : 'No anonymous feedback on sessions that block anonymous submissions.',
+        icon: anonFeedbackOnBlocked.length > 0 ? '⚠️' : '✅',
+      });
 
       setHealthChecks(checks);
       setHealthLoaded(true);
@@ -1026,35 +1236,59 @@ Please contact the training center.
               {healthLoading ? 'Scanning...' : healthLoaded ? '🔄 Re-scan' : '▶️ Run Checks'}
             </Button>
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Checks the teacher workflow for blockers before attendance, check-in, feedback collection, and cleanup break.</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Deep diagnostic scan: data integrity, feedback pipeline, check-in tokens, enrollment health, scoring config, and workflow blockers.</p>
         </CardHeader>
         <CardContent>
           {!healthLoaded && !healthLoading && (
             <div className="text-center py-6 text-gray-400">
               <span className="text-3xl block mb-2">🔍</span>
-              <p className="text-sm">Click <strong>Run Checks</strong> to scan for blockers before the next attendance and feedback cycle.</p>
+              <p className="text-sm">Click <strong>Run Checks</strong> to run a deep diagnostic scan across attendance, feedback, enrollments, scoring, and tokens.</p>
             </div>
           )}
           {healthLoading && (
             <div className="text-center py-6 text-gray-400 animate-pulse">
               <span className="text-3xl block mb-2">⏳</span>
-              <p className="text-sm">Scanning workflow blockers...</p>
+              <p className="text-sm">Running deep diagnostic scan...</p>
             </div>
           )}
-          {healthLoaded && !healthLoading && (
+          {healthLoaded && !healthLoading && (() => {
+            const errorCount = healthChecks.filter(c => c.status === 'error').length;
+            const warnCount = healthChecks.filter(c => c.status === 'warn').length;
+            const okCount = healthChecks.filter(c => c.status === 'ok').length;
+            const totalChecks = healthChecks.length;
+            const healthScore = totalChecks > 0 ? Math.round((okCount / totalChecks) * 100) : 100;
+            const scoreColor = healthScore >= 90 ? 'text-emerald-600 dark:text-emerald-400' : healthScore >= 70 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400';
+            const scoreBg = healthScore >= 90 ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800' : healthScore >= 70 ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800';
+            // Sort: errors first, then warnings, then ok
+            const sorted = [...healthChecks].sort((a, b) => {
+              const order = { error: 0, warn: 1, ok: 2 };
+              return order[a.status] - order[b.status];
+            });
+            return (
             <div className="space-y-2">
-              {/* Summary bar */}
-              <div className="flex gap-3 mb-3 text-xs font-medium">
-                <span className="text-emerald-600 dark:text-emerald-400">✅ {healthChecks.filter(c => c.status === 'ok').length} Ready</span>
-                <span className="text-amber-600 dark:text-amber-400">⚠️ {healthChecks.filter(c => c.status === 'warn').length} Attention</span>
-                <span className="text-red-600 dark:text-red-400">🚨 {healthChecks.filter(c => c.status === 'error').length} Blocking</span>
+              {/* Health Score + Summary */}
+              <div className={`rounded-xl border p-3 mb-3 ${scoreBg}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className={`text-2xl font-bold ${scoreColor}`}>{healthScore}%</span>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">System Health</p>
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400">{totalChecks} checks · {okCount} passed · {warnCount} warnings · {errorCount} blockers</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 text-xs font-medium">
+                    <span className="text-emerald-600 dark:text-emerald-400">✅ {okCount}</span>
+                    <span className="text-amber-600 dark:text-amber-400">⚠️ {warnCount}</span>
+                    <span className="text-red-600 dark:text-red-400">🚨 {errorCount}</span>
+                  </div>
+                </div>
               </div>
-              {healthChecks.some(c => c.status !== 'ok') && (
-                <div className="rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 px-3 py-2.5 text-xs text-purple-800 dark:text-purple-200">
-                  Prioritize red blockers first, then warnings that cause stale analytics or broken feedback comparisons later.
+              {errorCount > 0 && (
+                <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-3 py-2.5 text-xs text-red-800 dark:text-red-200">
+                  <strong>{errorCount} blocking issue{errorCount > 1 ? 's' : ''}</strong> found. These indicate data integrity problems that need immediate attention.
                 </div>
               )}
-              {healthChecks.map((check, i) => (
+              {sorted.map((check, i) => (
                 <div key={i} className={`flex items-start gap-3 rounded-lg border px-3 py-2.5 ${
                   check.status === 'error' ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20'
                     : check.status === 'warn' ? 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20'
@@ -1086,7 +1320,8 @@ Please contact the training center.
                 </div>
               ))}
             </div>
-          )}
+            );
+          })()}
         </CardContent>
       </Card>
       )}
