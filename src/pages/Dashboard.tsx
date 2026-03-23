@@ -120,7 +120,7 @@ export function Dashboard() {
       ] = await Promise.all([
         supabase.from('session').select('session_id').eq('feedback_enabled', true),
         supabase.from('feedback_question').select('session_id, attendance_date'),
-        supabase.from('attendance').select('student_id, session_id, attendance_date, status, check_in_method, host_address').limit(5000),
+        supabase.from('attendance').select('student_id, session_id, attendance_date, status, check_in_method, host_address, excuse_reason').limit(5000),
         supabase.from('session_date_host').select('session_id, attendance_date, host_address').limit(5000),
         supabase.from('qr_sessions').select('session_id, attendance_date, check_in_mode, linked_photo_token, is_valid, expires_at').limit(5000),
         supabase.from('photo_checkin_sessions').select('token, session_id, attendance_date, is_valid, expires_at').limit(5000),
@@ -194,9 +194,19 @@ export function Dashboard() {
 
       const hostMap = new Map(hostRows.map((row) => [`${row.session_id}|${row.attendance_date}`, row]));
       const attendanceDates = new Set(activeAttendance.map((row) => `${row.session_id}|${row.attendance_date}`));
+      // Build a set of session+date combos where ALL attendance is "session not held"
+      const sessionNotHeldDates = new Set<string>();
+      for (const key of attendanceDates) {
+        const matchingRows = activeAttendance.filter(a => `${a.session_id}|${a.attendance_date}` === key);
+        if (matchingRows.length > 0 && matchingRows.every(a => a.host_address === 'SESSION_NOT_HELD' || a.excuse_reason === 'session not held')) {
+          sessionNotHeldDates.add(key);
+        }
+      }
       let hostMissingCount = 0;
       let hostMissingSample: { session_id: string; attendance_date: string } | null = null;
       for (const key of attendanceDates) {
+        // Skip session-not-held dates — they have deliberate sentinel data, not missing host setup
+        if (sessionNotHeldDates.has(key)) continue;
         const host = hostMap.get(key);
         if (!host || !host.host_address || !String(host.host_address).trim()) {
           hostMissingCount++;
@@ -420,29 +430,55 @@ export function Dashboard() {
         actionPath: emptyActiveSessions.length > 0 ? '/sessions' : undefined,
       });
 
-      // ── Check 12: Expired QR sessions still marked valid ──
+      // ── Check 12: Expired QR sessions still marked valid → auto-fix ──
       const expiredButValidQr = qrRows.filter(row => row.is_valid && new Date(row.expires_at).getTime() <= now);
-      checks.push({
-        label: 'Expired QR tokens still marked valid',
-        status: expiredButValidQr.length > 0 ? 'warn' : 'ok',
-        count: expiredButValidQr.length,
-        detail: expiredButValidQr.length > 0
-          ? `${expiredButValidQr.length} QR session(s) expired but is_valid is still true. Students may see confusing error messages on scan.`
-          : 'All expired QR sessions are properly invalidated.',
-        icon: expiredButValidQr.length > 0 ? '⚠️' : '✅',
-      });
+      if (expiredButValidQr.length > 0) {
+        const expiredQrIds = expiredButValidQr.map(row => `${row.session_id}|${row.attendance_date}`);
+        // Auto-invalidate expired QR tokens
+        for (const row of expiredButValidQr) {
+          await supabase.from('qr_sessions').update({ is_valid: false })
+            .eq('session_id', row.session_id).eq('attendance_date', row.attendance_date);
+        }
+        checks.push({
+          label: 'Expired QR tokens still marked valid',
+          status: 'ok',
+          count: 0,
+          detail: `Auto-fixed ${expiredQrIds.length} expired QR token(s) — set is_valid=false.`,
+          icon: '✅',
+        });
+      } else {
+        checks.push({
+          label: 'Expired QR tokens still marked valid',
+          status: 'ok',
+          count: 0,
+          detail: 'All expired QR sessions are properly invalidated.',
+          icon: '✅',
+        });
+      }
 
-      // ── Check 13: Expired photo check-in sessions still valid ──
+      // ── Check 13: Expired photo check-in sessions still valid → auto-fix ──
       const expiredButValidPhoto = photoRows.filter(row => row.is_valid && new Date(row.expires_at).getTime() <= now);
-      checks.push({
-        label: 'Expired photo tokens still marked valid',
-        status: expiredButValidPhoto.length > 0 ? 'warn' : 'ok',
-        count: expiredButValidPhoto.length,
-        detail: expiredButValidPhoto.length > 0
-          ? `${expiredButValidPhoto.length} photo check-in session(s) expired but is_valid is still true.`
-          : 'All expired photo sessions are properly invalidated.',
-        icon: expiredButValidPhoto.length > 0 ? '⚠️' : '✅',
-      });
+      if (expiredButValidPhoto.length > 0) {
+        for (const row of expiredButValidPhoto) {
+          await supabase.from('photo_checkin_sessions').update({ is_valid: false })
+            .eq('token', row.token);
+        }
+        checks.push({
+          label: 'Expired photo tokens still marked valid',
+          status: 'ok',
+          count: 0,
+          detail: `Auto-fixed ${expiredButValidPhoto.length} expired photo token(s) — set is_valid=false.`,
+          icon: '✅',
+        });
+      } else {
+        checks.push({
+          label: 'Expired photo tokens still marked valid',
+          status: 'ok',
+          count: 0,
+          detail: 'All expired photo sessions are properly invalidated.',
+          icon: '✅',
+        });
+      }
 
       // ── Check 14: Sessions ended long ago still show up ──
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -467,8 +503,15 @@ export function Dashboard() {
         attendance.filter(a => a.status === 'on time' || a.status === 'late')
           .map(a => `${a.student_id}|${a.session_id}|${a.attendance_date}`)
       );
+      // Also build set of session+date combos that are "session not held" — feedback here is expected orphan
+      const notHeldDateKeys = new Set(
+        attendance.filter(a => a.host_address === 'SESSION_NOT_HELD' || a.excuse_reason === 'session not held')
+          .map(a => `${a.session_id}|${a.attendance_date}`)
+      );
       const feedbackNoAttendance = allFeedback.filter(
-        fb => fb.student_id && !attendanceKeys.has(`${fb.student_id}|${fb.session_id}|${fb.attendance_date}`)
+        fb => fb.student_id
+          && !attendanceKeys.has(`${fb.student_id}|${fb.session_id}|${fb.attendance_date}`)
+          && !notHeldDateKeys.has(`${fb.session_id}|${fb.attendance_date}`)
       );
       checks.push({
         label: 'Feedback without valid attendance',

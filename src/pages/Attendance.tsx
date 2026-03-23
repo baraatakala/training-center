@@ -1088,9 +1088,9 @@ export function Attendance() {
     }
   }, [sessionId, selectedDate]);
 
-  const saveRecordingUrl = async () => {
+  const saveRecordingUrl = async (urlOverride?: string) => {
     if (!sessionId || !selectedDate) return;
-    const url = recordingUrl.trim();
+    const url = (urlOverride !== undefined ? urlOverride : recordingUrl).trim();
     setSavingRecording(true);
     const { data: { user } } = await supabase.auth.getUser();
     const showRecordingError = (fallback: string, error?: { message?: string } | null) => {
@@ -1724,6 +1724,24 @@ export function Attendance() {
           .in('attendance_id', realIds.map(r => r.attendance_id));
       }
       
+      // Clean up orphaned feedback rows for this session+date
+      if (sessionId && selectedDate) {
+        await supabase.from('session_feedback').delete()
+          .eq('session_id', sessionId).eq('attendance_date', selectedDate);
+        // Also clean up recording links for cancelled dates
+        const { data: orphanedRecordings } = await supabase
+          .from(Tables.SESSION_RECORDING)
+          .select('recording_id')
+          .eq('session_id', sessionId)
+          .eq('attendance_date', selectedDate)
+          .is('deleted_at', null);
+        if (orphanedRecordings && orphanedRecordings.length > 0) {
+          for (const rec of orphanedRecordings) {
+            await sessionRecordingService.softDelete(rec.recording_id);
+          }
+        }
+      }
+
       // Also delete from session_date_host table
       await supabase
         .from(Tables.SESSION_DATE_HOST)
@@ -2141,23 +2159,81 @@ export function Attendance() {
       {selectedDate && !sessionNotHeld && (
         <Card>
           <CardHeader>
-            <CardTitle>🎥 Recording Link</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>🎥 Recording Link</CardTitle>
+              {recordingId && recordingUrl.trim() && (
+                <Badge variant="success" className="text-[10px]">Saved</Badge>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
               Save the replay for this attendance date. Students see it in Sessions under Recordings.
             </p>
+            {/* Existing recording preview */}
+            {recordingId && recordingUrl.trim() && (() => {
+              const u = recordingUrl.trim().toLowerCase();
+              const providers: Array<{ test: (s: string) => boolean; name: string; icon: string; color: string }> = [
+                { test: s => /youtube\.com|youtu\.be/.test(s), name: 'YouTube', icon: '🔴', color: 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20' },
+                { test: s => /drive\.google\.com/.test(s), name: 'Drive', icon: '🟩', color: 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20' },
+                { test: s => /zoom\.(us|com)/.test(s), name: 'Zoom', icon: '🟦', color: 'border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20' },
+                { test: s => /vimeo\.com/.test(s), name: 'Vimeo', icon: '🟣', color: 'border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20' },
+                { test: s => /loom\.com/.test(s), name: 'Loom', icon: '🟠', color: 'border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20' },
+                { test: s => /teams\.microsoft\.com|teams\.live\.com/.test(s), name: 'Teams', icon: '🟪', color: 'border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-900/20' },
+                { test: s => /meet\.google\.com/.test(s), name: 'Meet', icon: '🟢', color: 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20' },
+                { test: s => /t\.me\/|telegram\.me/.test(s), name: 'Telegram', icon: '✈️', color: 'border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20' },
+                { test: s => /wa\.me|whatsapp/.test(s), name: 'WhatsApp', icon: '💬', color: 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20' },
+                { test: s => /onedrive|1drv\.ms|sharepoint/.test(s), name: 'OneDrive', icon: '☁️', color: 'border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20' },
+                { test: s => /dropbox\.com/.test(s), name: 'Dropbox', icon: '📦', color: 'border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20' },
+                { test: s => /samsungcloud|samsung\.com/.test(s), name: 'Samsung', icon: '📱', color: 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40' },
+                { test: s => /upgone/i.test(s), name: 'Upgone', icon: '🎙️', color: 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20' },
+                { test: s => /soundcloud\.com/.test(s), name: 'SoundCloud', icon: '🎵', color: 'border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20' },
+                { test: s => /\.(mp4|webm|ogg|mov|avi|mkv|m4v|mp3|wav|aac|m4a|flac|3gp)(\?|$)/.test(s), name: 'Media', icon: '🎞️', color: 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40' },
+              ];
+              const match = providers.find(p => p.test(u)) || { name: 'Link', icon: '🔗', color: 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40' };
+              return (
+                <div className={`mb-3 p-3 rounded-lg border ${match.color}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-lg flex-shrink-0">{match.icon}</span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">{match.name} Recording</p>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate max-w-[300px]">{recordingUrl.trim()}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <a href={recordingUrl.trim()} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/40 rounded-md hover:bg-blue-200 dark:hover:bg-blue-800/60 transition-colors">
+                        🔗 Open
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm('Remove this recording link? Students will no longer see it.')) {
+                            setRecordingUrl('');
+                            saveRecordingUrl('');
+                          }
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 rounded-md hover:bg-red-100 dark:hover:bg-red-800/50 transition-colors"
+                      >
+                        🗑 Remove
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
             <div className="flex gap-2">
               <div className="flex-1 relative">
                 <input
                   type="url"
                   value={recordingUrl}
                   onChange={e => setRecordingUrl(e.target.value)}
-                  placeholder="Paste recording link (YouTube, Zoom, Drive, Samsung, Upgone, MP4, etc.)..."
+                  placeholder={recordingId ? 'Update recording link...' : 'Paste recording link (YouTube, Zoom, Drive, etc.)...'}
                   className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent pr-16"
                   onKeyDown={e => { if (e.key === 'Enter') saveRecordingUrl(); }}
                 />
-                {recordingUrl.trim() && (() => {
+                {recordingUrl.trim() && !recordingId && (() => {
                   const u = recordingUrl.trim().toLowerCase();
                   const providers: Array<{ test: (s: string) => boolean; name: string; icon: string }> = [
                     { test: s => /youtube\.com|youtu\.be/.test(s), name: 'YouTube', icon: '🔴' },
@@ -2187,29 +2263,14 @@ export function Attendance() {
                 })()}
               </div>
               <Button
-                onClick={saveRecordingUrl}
-                disabled={savingRecording}
+                onClick={() => saveRecordingUrl()}
+                disabled={savingRecording || !recordingUrl.trim()}
                 size="sm"
                 variant={recordingId ? 'outline' : 'primary'}
               >
                 {savingRecording ? '...' : recordingId ? '💾 Update' : '💾 Save'}
               </Button>
             </div>
-            {recordingId && recordingUrl.trim() && (
-              <div className="flex items-center gap-3 mt-2">
-                <a href={recordingUrl.trim()} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline">
-                  🔗 Open recording link
-                </a>
-                <button
-                  type="button"
-                  onClick={() => { setRecordingUrl(''); saveRecordingUrl(); }}
-                  className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400"
-                >
-                  🗑 Remove
-                </button>
-              </div>
-            )}
             <details className="mt-3">
               <summary className="text-[11px] text-gray-400 cursor-pointer hover:text-gray-600 dark:hover:text-gray-300 select-none">
                 ℹ️ Supported formats & tips

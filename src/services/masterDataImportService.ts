@@ -178,6 +178,17 @@ function parseOptionalNumber(value: string | undefined) {
 
 function parseRequiredDate(value: string | undefined, field: string, rowIndex: number) {
   const normalized = normalizeText(value);
+  // Handle Excel date serial numbers (e.g., 46022 → 2026-01-18)
+  if (/^\d{4,5}$/.test(normalized)) {
+    const serial = Number(normalized);
+    if (serial > 25000 && serial < 100000) {
+      const d = new Date((serial - 25569) * 86400000);
+      const yyyy = d.getUTCFullYear();
+      const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const dd = String(d.getUTCDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+  }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
     throw new Error(`Row ${rowIndex}: ${field} must be in YYYY-MM-DD format.`);
   }
@@ -256,7 +267,7 @@ export async function parseImportFile(file: File) {
   }
 
   const buffer = await file.arrayBuffer();
-  const workbook = XLSX.read(buffer, { type: 'array' });
+  const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
 
@@ -264,7 +275,15 @@ export async function parseImportFile(file: File) {
     .map((row) => {
       const normalized: ImportRow = {};
       Object.entries(row).forEach(([key, value]) => {
-        normalized[normalizeHeader(key)] = typeof value === 'string' ? value.trim() : String(value ?? '').trim();
+        if (value instanceof Date) {
+          // Format JS Date objects (from cellDates:true) as YYYY-MM-DD
+          const yyyy = value.getFullYear();
+          const mm = String(value.getMonth() + 1).padStart(2, '0');
+          const dd = String(value.getDate()).padStart(2, '0');
+          normalized[normalizeHeader(key)] = `${yyyy}-${mm}-${dd}`;
+        } else {
+          normalized[normalizeHeader(key)] = typeof value === 'string' ? value.trim() : String(value ?? '').trim();
+        }
       });
       return normalized;
     })
@@ -278,6 +297,91 @@ export function buildImportTemplate(entity: MasterImportEntity) {
   const worksheet = XLSX.utils.json_to_sheet(config.templateRows, {
     header: config.columns,
   });
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, config.label);
+  return workbook;
+}
+
+/**
+ * Builds an import template populated with real data from the database
+ * so that importing the template file works out of the box.
+ */
+export async function buildImportTemplateWithData(entity: MasterImportEntity) {
+  const config = MASTER_IMPORT_CONFIGS.find((item) => item.entity === entity);
+  if (!config) throw new Error(`Unsupported import entity: ${entity}`);
+
+  let rows: ImportRow[] = config.templateRows;
+
+  try {
+    if (entity === 'teachers') {
+      const { data: teachers } = await supabase.from(Tables.TEACHER).select('name, email, phone, address, specialization').limit(1);
+      if (teachers && teachers.length > 0) {
+        const t = teachers[0];
+        rows = [{ name: t.name || '', email: t.email || '', phone: t.phone || '', address: t.address || '', specialization: t.specialization || '' }];
+      }
+    } else if (entity === 'students') {
+      const { data: students } = await supabase.from(Tables.STUDENT).select('name, email, phone, address, location, nationality, age, specialization').limit(1);
+      if (students && students.length > 0) {
+        const s = students[0];
+        rows = [{ name: s.name || '', email: s.email || '', phone: s.phone || '', address: s.address || '', location: s.location || '', nationality: s.nationality || '', age: s.age != null ? String(s.age) : '', specialization: s.specialization || '' }];
+      }
+    } else if (entity === 'courses') {
+      const { data: courses } = await supabase
+        .from(Tables.COURSE)
+        .select('course_name, category, description, description_format, teacher:teacher_id(email)')
+        .limit(1);
+      if (courses && courses.length > 0) {
+        const c = courses[0];
+        const teacher = Array.isArray(c.teacher) ? c.teacher[0] : c.teacher;
+        rows = [{ course_name: c.course_name || '', category: c.category || '', teacher_email: teacher?.email || '', description: c.description || '', description_format: c.description_format || 'markdown' }];
+      }
+    } else if (entity === 'sessions') {
+      const { data: sessions } = await supabase
+        .from(Tables.SESSION)
+        .select('start_date, end_date, day, time, location, grace_period_minutes, learning_method, virtual_provider, virtual_meeting_link, requires_recording, default_recording_visibility, course:course_id(course_name), teacher:teacher_id(email)')
+        .limit(1);
+      if (sessions && sessions.length > 0) {
+        const s = sessions[0];
+        const course = Array.isArray(s.course) ? s.course[0] : s.course;
+        const teacher = Array.isArray(s.teacher) ? s.teacher[0] : s.teacher;
+        rows = [{
+          course_name: course?.course_name || '', teacher_email: teacher?.email || '',
+          start_date: s.start_date || '', end_date: s.end_date || '', day: s.day || '',
+          time: s.time || '', location: s.location || '',
+          grace_period_minutes: String(s.grace_period_minutes ?? 15),
+          learning_method: s.learning_method || 'face_to_face',
+          virtual_provider: s.virtual_provider || '', virtual_meeting_link: s.virtual_meeting_link || '',
+          requires_recording: String(s.requires_recording ?? false),
+          default_recording_visibility: s.default_recording_visibility || 'course_staff',
+        }];
+      }
+    } else if (entity === 'enrollments') {
+      const { data: enrollments } = await supabase
+        .from(Tables.ENROLLMENT)
+        .select('enrollment_date, status, can_host, host_date, student:student_id(email), session:session_id(start_date, end_date, course:course_id(course_name), teacher:teacher_id(email))')
+        .eq('status', 'active')
+        .limit(1);
+      if (enrollments && enrollments.length > 0) {
+        const e = enrollments[0];
+        const student = Array.isArray(e.student) ? e.student[0] : e.student;
+        const session = Array.isArray(e.session) ? e.session[0] : e.session;
+        const course = session ? (Array.isArray(session.course) ? session.course[0] : session.course) : null;
+        const teacher = session ? (Array.isArray(session.teacher) ? session.teacher[0] : session.teacher) : null;
+        rows = [{
+          student_email: student?.email || '', teacher_email: teacher?.email || '',
+          course_name: course?.course_name || '',
+          session_start_date: session?.start_date || '', session_end_date: session?.end_date || '',
+          enrollment_date: e.enrollment_date || '', status: e.status || 'active',
+          can_host: String(e.can_host ?? false), host_date: e.host_date || '',
+        }];
+      }
+    }
+  } catch {
+    // Fall back to static template rows on any error
+    rows = config.templateRows;
+  }
+
+  const worksheet = XLSX.utils.json_to_sheet(rows, { header: config.columns });
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, config.label);
   return workbook;

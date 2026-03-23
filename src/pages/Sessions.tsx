@@ -468,11 +468,11 @@ export function Sessions() {
   }, [filteredSessions, enrollmentCounts]);
 
   const handleDownloadTemplate = async () => {
-    const [{ buildImportTemplate }, XLSX] = await Promise.all([
+    const [{ buildImportTemplateWithData }, XLSX] = await Promise.all([
       import('../services/masterDataImportService'),
       import('xlsx'),
     ]);
-    const workbook = buildImportTemplate('sessions');
+    const workbook = await buildImportTemplateWithData('sessions');
     XLSX.writeFile(workbook, 'sessions-import-template.xlsx');
   };
 
