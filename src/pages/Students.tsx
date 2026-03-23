@@ -156,8 +156,10 @@ export function Students() {
       const result = await importMasterData('students', rows);
       if (result.errors.length > 0) {
         toast.warning(`Import done with ${result.errors.length} error(s): ${result.errors.slice(0, 3).join('; ')}`);
+      } else if (result.created === 0 && result.updated > 0) {
+        toast.info(`${result.updated} existing student(s) updated. No new students created — the imported data matched existing records.`);
       } else {
-        toast.success(`${result.created + result.updated} student(s) imported successfully.`);
+        toast.success(`${result.created} created, ${result.updated} updated.`);
       }
       loadStudents();
     } catch (err) {

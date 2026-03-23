@@ -263,6 +263,16 @@ export const sessionService = {
           });
         } catch { /* day change log non-critical */ }
       }
+
+      // When start_date advances, remove day_change records before the new start_date
+      // so they don't generate phantom attendance dates in the old range
+      if (updates.start_date && updates.start_date > (oldData.start_date || '')) {
+        try {
+          await supabase.from('session_day_change').delete()
+            .eq('session_id', id)
+            .lt('effective_date', updates.start_date);
+        } catch { /* cleanup non-critical */ }
+      }
     }
     return result;
   },

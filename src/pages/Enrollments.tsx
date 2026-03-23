@@ -248,8 +248,10 @@ export function Enrollments() {
       const result = await importMasterData('enrollments', rows);
       if (result.errors.length > 0) {
         toast.warning(`Import done with ${result.errors.length} error(s): ${result.errors.slice(0, 3).join('; ')}`);
+      } else if (result.created === 0 && result.updated > 0) {
+        toast.info(`${result.updated} existing enrollment(s) updated. No new enrollments created — the imported data matched existing records.`);
       } else {
-        toast.success(`${result.created + result.updated} enrollment(s) imported successfully.`);
+        toast.success(`${result.created} created, ${result.updated} updated.`);
       }
       loadEnrollments();
     } catch (error) {

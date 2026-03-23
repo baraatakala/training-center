@@ -83,6 +83,11 @@ export function generateAttendanceDates(
 
     for (const change of changes) {
       const effectiveDate = new Date(change.effective_date);
+      // Skip changes that fall before the session's current start date
+      if (effectiveDate <= startDate) {
+        currentDays = change.new_day;
+        continue;
+      }
       if (effectiveDate > rangeStart) {
         const dayNums = parseDayNums(currentDays);
         if (dayNums.length > 0) {
@@ -93,7 +98,8 @@ export function generateAttendanceDates(
       currentDays = change.new_day;
       rangeStart = effectiveDate;
     }
-    // Last range to end
+    // Last range to end — clamp to at least startDate
+    if (rangeStart < startDate) rangeStart = startDate;
     const dayNums = parseDayNums(currentDays);
     if (dayNums.length > 0) {
       segments.push({ from: rangeStart, to: endDate, dayNums });

@@ -526,25 +526,22 @@ export function Dashboard() {
       });
 
       // ── Check 16: Teachers without scoring configuration ──
-      const teacherIdsWithScoring = new Set(allScoring.map(s => s.teacher_id));
-      // Get distinct teacher auth user IDs from sessions
-      const teacherAuthRes = await supabase.from('teacher').select('teacher_id, auth_user_id').limit(500);
-      const teacherAuthMap = new Map((teacherAuthRes.data || []).map(t => [t.teacher_id, t.auth_user_id]));
+      // scoring_config.teacher_id references auth.users(id), not teacher(teacher_id).
+      // We can't directly map teacher records to auth UIDs from the client,
+      // so compare counts: unique active-session teachers vs unique scoring configs.
+      const uniqueScoringTeacherIds = new Set(allScoring.map(s => s.teacher_id));
       const activeTeacherIds = new Set(activeSessions.map(s => s.teacher_id));
-      const teachersWithoutScoring = Array.from(activeTeacherIds).filter(tid => {
-        const authId = teacherAuthMap.get(tid);
-        return authId && !teacherIdsWithScoring.has(authId);
-      });
+      const scoringGap = activeTeacherIds.size - uniqueScoringTeacherIds.size;
       checks.push({
         label: 'Active teachers without scoring config',
-        status: teachersWithoutScoring.length > 0 ? 'warn' : 'ok',
-        count: teachersWithoutScoring.length,
-        detail: teachersWithoutScoring.length > 0
-          ? `${teachersWithoutScoring.length} teacher(s) running active sessions have no scoring configuration. Student scores will default to base values.`
-          : 'All active-session teachers have a scoring config.',
-        icon: teachersWithoutScoring.length > 0 ? '⚠️' : '✅',
-        actionLabel: teachersWithoutScoring.length > 0 ? 'Scoring Setup' : undefined,
-        actionPath: teachersWithoutScoring.length > 0 ? '/scoring-configuration' : undefined,
+        status: scoringGap > 0 ? 'warn' : 'ok',
+        count: Math.max(scoringGap, 0),
+        detail: scoringGap > 0
+          ? `${scoringGap} active-session teacher(s) may lack a scoring configuration. Student scores will default to base values.`
+          : 'Scoring configurations cover all active-session teachers.',
+        icon: scoringGap > 0 ? '⚠️' : '✅',
+        actionLabel: scoringGap > 0 ? 'Scoring Setup' : undefined,
+        actionPath: scoringGap > 0 ? '/scoring-configuration' : undefined,
       });
 
       // ── Check 17: Enrollment-Session FK integrity ──
