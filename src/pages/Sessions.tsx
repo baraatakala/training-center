@@ -140,6 +140,14 @@ export function Sessions() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
 
+  // Day-change strategy dialog state
+  const [dayChangeDialog, setDayChangeDialog] = useState<{
+    data: CreateSession;
+    oldDay: string | null;
+    newDay: string | null;
+    lastAttendedDate: string | null;
+  } | null>(null);
+
   const loadSessions = useCallback(async () => {
     setError(null);
     const { data, error: fetchError } = await supabase
@@ -308,6 +316,21 @@ export function Sessions() {
       excludeSessionId: editingSession.session_id,
     });
 
+    // If the day changed, ask user how to handle the schedule transition
+    const dayChanged = data.day !== editingSession.day;
+    if (dayChanged) {
+      // Fetch last attendance date to offer the option
+      const lastAttendedDate = await sessionService.getLastAttendedDate(editingSession.session_id);
+      setDayChangeDialog({
+        data,
+        oldDay: editingSession.day,
+        newDay: data.day,
+        lastAttendedDate,
+      });
+      return; // Wait for user to pick strategy via dialog
+    }
+
+    // No day change — save directly
     const { error } = await sessionService.update(editingSession.session_id, data);
 
     if (error) {
@@ -315,6 +338,27 @@ export function Sessions() {
       toast.error(message.startsWith('Session delivery fields are enabled') ? message : 'Error updating session: ' + message, 7000);
     } else {
       toast.success('Session updated successfully');
+      setIsModalOpen(false);
+      setEditingSession(null);
+      loadSessions();
+    }
+  };
+
+  const executeDayChangeUpdate = async (strategy: 'from_start' | 'after_last_attended' | 'from_today') => {
+    if (!dayChangeDialog || !editingSession) return;
+    const { data } = dayChangeDialog;
+    setDayChangeDialog(null);
+
+    const { error } = await sessionService.update(editingSession.session_id, data, strategy);
+
+    if (error) {
+      const message = error.message || 'Unknown session update error';
+      toast.error(message.startsWith('Session delivery fields are enabled') ? message : 'Error updating session: ' + message, 7000);
+    } else {
+      const strategyLabel = strategy === 'from_start' ? 'New day applied from session start'
+        : strategy === 'after_last_attended' ? 'New day applied after last attended date'
+        : 'New day applied from today';
+      toast.success(`Session updated. ${strategyLabel}.`);
       setIsModalOpen(false);
       setEditingSession(null);
       loadSessions();
@@ -1209,6 +1253,69 @@ export function Sessions() {
       />
 
       {/* Clone Session Modal */}
+
+      {/* Day-Change Strategy Dialog */}
+      <Modal
+        isOpen={!!dayChangeDialog}
+        onClose={() => setDayChangeDialog(null)}
+        title="Schedule Day Changed"
+      >
+        {dayChangeDialog && (
+          <div className="space-y-4">
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
+              <p className="text-sm text-blue-800 dark:text-blue-300">
+                <strong>Day changed:</strong> {dayChangeDialog.oldDay || 'None'} → {dayChangeDialog.newDay || 'None'}
+              </p>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                Choose when the new day should start appearing in the Attendance page.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                onClick={() => executeDayChangeUpdate('from_start')}
+                className="w-full text-left p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+              >
+                <p className="font-medium text-gray-900 dark:text-white">From session start date</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Replace the old day entirely. All attendance dates will use the new day ({dayChangeDialog.newDay}) from start to end.
+                </p>
+              </button>
+
+              <button
+                onClick={() => executeDayChangeUpdate('after_last_attended')}
+                disabled={!dayChangeDialog.lastAttendedDate}
+                className="w-full text-left p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <p className="font-medium text-gray-900 dark:text-white">After last attended date</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {dayChangeDialog.lastAttendedDate
+                    ? `Keep old ${dayChangeDialog.oldDay} dates up to ${dayChangeDialog.lastAttendedDate}, then switch to ${dayChangeDialog.newDay}.`
+                    : 'No attendance records found — this option is not available.'}
+                </p>
+              </button>
+
+              <button
+                onClick={() => executeDayChangeUpdate('from_today')}
+                className="w-full text-left p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+              >
+                <p className="font-medium text-gray-900 dark:text-white">From today onwards</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Keep old {dayChangeDialog.oldDay} dates until today, switch to {dayChangeDialog.newDay} starting tomorrow.
+                </p>
+              </button>
+            </div>
+
+            <button
+              onClick={() => setDayChangeDialog(null)}
+              className="w-full text-center text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 mt-2"
+            >
+              Cancel — keep the old day
+            </button>
+          </div>
+        )}
+      </Modal>
+
       <Modal
         isOpen={!!cloneSource}
         onClose={() => setCloneSource(null)}

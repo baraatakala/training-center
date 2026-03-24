@@ -5,6 +5,7 @@ import { logDelete } from '../services/auditService';
 import { toast } from './ui/toastUtils';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { format } from 'date-fns';
+import { generateAttendanceDates, type DayChange } from '../utils/attendanceGenerator';
 
 type EnrollmentRow = {
   enrollment_id: string;
@@ -26,72 +27,16 @@ interface Props {
   onClose?: () => void;
 }
 
-function getDatesBetween(start: string, end: string, dayString?: string | null) {
-  const dates: string[] = [];
-  
-  // Parse YYYY-MM-DD without timezone conversion to avoid off-by-one issues
-  const parseYMD = (ymd: string) => {
-    const [y, m, d] = (ymd || '').split('-').map((p) => parseInt(p, 10));
-    if (!y || !m || !d) return null;
-    return new Date(y, m - 1, d);
-  };
 
-  const s = parseYMD(start);
-  const e = parseYMD(end);
-  if (!s || !e) return dates;
-
-  // If dayString provided, parse allowed weekdays (0=Sunday..6=Saturday)
-  let allowedWeekdays: Set<number> | null = null;
-  if (dayString) {
-    const map: Record<string, number> = {
-      sunday: 0,
-      monday: 1,
-      tuesday: 2,
-      wednesday: 3,
-      thursday: 4,
-      friday: 5,
-      saturday: 6,
-    };
-    const parts = dayString.split(',').map(p => p.trim().toLowerCase()).filter(Boolean);
-    allowedWeekdays = new Set<number>();
-    parts.forEach(p => {
-      if (p in map) allowedWeekdays!.add(map[p]);
-      else {
-        // try matching short forms like Mon, Tue
-        const short = p.slice(0,3);
-        for (const [k,v] of Object.entries(map)) {
-          if (k.slice(0,3) === short) allowedWeekdays!.add(v);
-        }
-      }
-    });
-    if (allowedWeekdays.size === 0) allowedWeekdays = null;
-  }
-
-  for (let d = new Date(s); d <= e; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
-    const weekday = d.getDay();
-    if (allowedWeekdays) {
-      if (allowedWeekdays.has(weekday)) {
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        dates.push(`${y}-${m}-${day}`);
-      }
-    } else {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      dates.push(`${y}-${m}-${day}`);
-    }
-  }
-  return dates;
-}
 
 export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDate, day }) => {
   const [enrollments, setEnrollments] = useState<EnrollmentRow[]>([]);
-  // all possible session dates (filtered by day)
-  const [fullDates, setFullDates] = useState<string[]>(() => getDatesBetween(startDate, endDate, day));
+  // all possible session dates (consistent with Attendance page via day-change history)
+  const [fullDates, setFullDates] = useState<string[]>([]);
   // host date selection per enrollment
   const [hostDateMap, setHostDateMap] = useState<Record<string, string | null>>({});
+  // Dates that already have attendance records (for filtering host date dropdown)
+  const [attendedDates, setAttendedDates] = useState<Set<string>>(new Set());
   // Validation state
   const [showValidation, setShowValidation] = useState(true);
   // Calendar view state
@@ -163,11 +108,27 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
   }, [showExportDialog]);
 
   useEffect(() => {
-    const all = getDatesBetween(startDate, endDate, day);
-    setFullDates(all);
-    // reset hostDateMap when dates change
-    setHostDateMap({});
-  }, [startDate, endDate, day]);
+    // Load day-change history and generate dates consistent with Attendance page
+    const loadDates = async () => {
+      let dayChanges: DayChange[] = [];
+      try {
+        const { data } = await supabase
+          .from('session_day_change')
+          .select('old_day, new_day, effective_date')
+          .eq('session_id', sessionId)
+          .order('effective_date', { ascending: true });
+        if (data) dayChanges = data;
+      } catch { /* non-critical */ }
+
+      const dates = generateAttendanceDates(
+        { session_id: sessionId, start_date: startDate, end_date: endDate, day: day ?? null, time: null, location: null },
+        dayChanges
+      ).map(d => d.date);
+      setFullDates(dates);
+      setHostDateMap({});
+    };
+    loadDates();
+  }, [startDate, endDate, day, sessionId]);
 
   const loadCancelledDates = useCallback(async () => {
     try {
@@ -188,6 +149,20 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
       const error = err as Error;
       console.error('Exception loading cancelled dates:', error);
     }
+  }, [sessionId]);
+
+  // Load dates that already have real attendance records (non-absent, non-cancelled)
+  const loadAttendedDates = useCallback(async () => {
+    try {
+      const { data } = await supabase
+        .from(Tables.ATTENDANCE)
+        .select('attendance_date')
+        .eq('session_id', sessionId)
+        .not('status', 'eq', 'absent')
+        .not('host_address', 'eq', 'SESSION_NOT_HELD');
+      const dates = new Set((data || []).map(d => d.attendance_date));
+      setAttendedDates(dates);
+    } catch { /* non-critical */ }
   }, [sessionId]);
 
   const loadEnrollments = useCallback(async () => {
@@ -329,7 +304,8 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
   useEffect(() => {
     loadEnrollments();
     loadCancelledDates();
-  }, [loadEnrollments, loadCancelledDates]);
+    loadAttendedDates();
+  }, [loadEnrollments, loadCancelledDates, loadAttendedDates]);
 
   const toggleHost = async (enrollmentId: string, value: boolean) => {
     const enrollment = enrollments.find(e => e.enrollment_id === enrollmentId);
@@ -1814,7 +1790,9 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
                         aria-label={`Host date for ${e.student?.name}`}
                       >
                         <option value="">-- choose date --</option>
-                        {fullDates.map((d) => {
+                        {fullDates
+                          .filter((d) => !attendedDates.has(d) || d === assignedDate)
+                          .map((d) => {
                           const isCancelled = cancelledDates.has(d);
                           return (
                             <option 
@@ -1904,7 +1882,9 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
                   aria-label={`Host date for ${e.student?.name}`}
                 >
                   <option value="">-- choose date --</option>
-                  {fullDates.map((d) => {
+                  {fullDates
+                    .filter((d) => !attendedDates.has(d) || d === (hostDateMap[e.enrollment_id] || ''))
+                    .map((d) => {
                     const isCancelled = cancelledDates.has(d);
                     return (
                       <option 

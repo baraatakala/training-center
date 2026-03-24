@@ -229,7 +229,12 @@ export const sessionService = {
   },
 
   // Update session
-  async update(id: string, updates: UpdateSession) {
+  // dayChangeStrategy controls when the new day starts appearing in attendance:
+  //   'from_start'        – reset all day-change history, new day covers entire range
+  //   'after_last_attended' – new day starts after the last date with attendance records
+  //   'from_today'        – effective from today (default / legacy)
+  //   undefined           – auto (from_today when day changes)
+  async update(id: string, updates: UpdateSession, dayChangeStrategy?: 'from_start' | 'after_last_attended' | 'from_today') {
     const { data: oldData } = await supabase
       .from(Tables.SESSION)
       .select('*')
@@ -252,16 +257,48 @@ export const sessionService = {
 
       // Track day changes automatically
       if (updates.day !== undefined && oldData.day !== updates.day) {
-        try {
-          const { data: { user } } = await supabase.auth.getUser();
-          await supabase.from('session_day_change').insert({
-            session_id: id,
-            old_day: oldData.day,
-            new_day: updates.day,
-            effective_date: new Date().toISOString().split('T')[0],
-            changed_by: user?.email || null,
-          });
-        } catch { /* day change log non-critical */ }
+        const strategy = dayChangeStrategy || 'from_today';
+
+        if (strategy === 'from_start') {
+          // Wipe all day-change history — new day covers the entire session range
+          try {
+            await supabase.from('session_day_change').delete().eq('session_id', id);
+          } catch { /* cleanup non-critical */ }
+        } else {
+          // Compute effective_date based on strategy
+          let effectiveDate = new Date().toISOString().split('T')[0]; // default: today
+
+          if (strategy === 'after_last_attended') {
+            try {
+              const { data: lastAtt } = await supabase
+                .from(Tables.ATTENDANCE)
+                .select('attendance_date')
+                .eq('session_id', id)
+                .neq('status', 'absent')
+                .order('attendance_date', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              if (lastAtt?.attendance_date) {
+                // Day after the last attended date
+                const d = new Date(lastAtt.attendance_date);
+                d.setDate(d.getDate() + 1);
+                effectiveDate = d.toISOString().split('T')[0];
+              }
+            } catch { /* fallback to today */ }
+          }
+
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            await supabase.from('session_day_change').insert({
+              session_id: id,
+              old_day: oldData.day,
+              new_day: updates.day,
+              effective_date: effectiveDate,
+              changed_by: user?.email || null,
+              reason: strategy === 'after_last_attended' ? 'After last attended date' : 'From today',
+            });
+          } catch { /* day change log non-critical */ }
+        }
       }
 
       // When start_date advances, remove day_change records before the new start_date
@@ -275,6 +312,20 @@ export const sessionService = {
       }
     }
     return result;
+  },
+
+  // Get the last attendance date with actual records for a session
+  async getLastAttendedDate(sessionId: string) {
+    const { data } = await supabase
+      .from(Tables.ATTENDANCE)
+      .select('attendance_date')
+      .eq('session_id', sessionId)
+      .neq('status', 'absent')
+      .neq('host_address', 'SESSION_NOT_HELD')
+      .order('attendance_date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return data?.attendance_date || null;
   },
 
   // Delete session
