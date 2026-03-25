@@ -259,11 +259,33 @@ export const sessionService = {
       if (updates.day !== undefined && oldData.day !== updates.day) {
         const strategy = dayChangeStrategy || 'from_today';
 
+        // Helper: delete all day-change records for this session.
+        // Needed by all strategies to prevent contradicting/overlapping records.
+        const deleteAllChanges = async () => {
+          const { error: delErr } = await supabase
+            .from('session_day_change')
+            .delete()
+            .eq('session_id', id);
+          // If DELETE fails (e.g. RLS), log it so we know
+          if (delErr) console.warn('session_day_change delete failed (check RLS):', delErr.message);
+          return !delErr;
+        };
+
+        // Helper: delete changes at or after a given date for this session
+        const deleteFutureChanges = async (fromDate: string) => {
+          const { error: delErr } = await supabase
+            .from('session_day_change')
+            .delete()
+            .eq('session_id', id)
+            .gte('effective_date', fromDate);
+          if (delErr) console.warn('session_day_change future delete failed (check RLS):', delErr.message);
+          return !delErr;
+        };
+
         if (strategy === 'from_start') {
-          // Wipe all day-change history — new day covers the entire session range
-          try {
-            await supabase.from('session_day_change').delete().eq('session_id', id);
-          } catch { /* cleanup non-critical */ }
+          // Wipe ALL day-change history — new day covers the entire session range
+          await deleteAllChanges();
+          // No new record needed: session.day already updated to new value
         } else {
           // Compute effective_date based on strategy
           let effectiveDate = new Date().toISOString().split('T')[0]; // default: today
@@ -286,6 +308,10 @@ export const sessionService = {
               }
             } catch { /* fallback to today */ }
           }
+
+          // Remove any existing changes at or after the new effective date
+          // to prevent overlapping/contradicting records
+          await deleteFutureChanges(effectiveDate);
 
           try {
             const { data: { user } } = await supabase.auth.getUser();
@@ -566,22 +592,33 @@ export const sessionService = {
       const dayNums = days.split(',').map(d => dayMap[d.trim()]).filter(n => n !== undefined);
       dayRanges.push({ from: start, to: end, dayNums });
     } else {
-      // Before first change: original days
-      let currentDays = days;
+      // Reconstruct initial day from the first change's old_day,
+      // since session.day is already updated to the latest value
+      let currentDays = changes[0].old_day || days;
       let rangeStart = start;
 
       for (const change of changes) {
         const effectiveDate = new Date(change.effective_date);
+        // Skip changes before start, but absorb their effect
+        if (effectiveDate <= start) {
+          currentDays = change.new_day;
+          continue;
+        }
         if (effectiveDate > rangeStart) {
           const dayNums = currentDays.split(',').map(d => dayMap[d.trim()]).filter(n => n !== undefined);
-          dayRanges.push({ from: rangeStart, to: new Date(effectiveDate.getTime() - 86400000), dayNums });
+          if (dayNums.length > 0) {
+            dayRanges.push({ from: rangeStart, to: new Date(effectiveDate.getTime() - 86400000), dayNums });
+          }
         }
         currentDays = change.new_day;
         rangeStart = effectiveDate;
       }
-      // Last range to end
+      // Last range to end — clamp to at least start
+      if (rangeStart < start) rangeStart = start;
       const dayNums = currentDays.split(',').map(d => dayMap[d.trim()]).filter(n => n !== undefined);
-      dayRanges.push({ from: rangeStart, to: end, dayNums });
+      if (dayNums.length > 0) {
+        dayRanges.push({ from: rangeStart, to: end, dayNums });
+      }
     }
 
     // Generate all matching dates

@@ -77,18 +77,22 @@ export function generateAttendanceDates(
     if (dayNums.length === 0) return [];
     segments.push({ from: startDate, to: endDate, dayNums });
   } else {
-    // Build segments: original days until first change, then each change's new days
-    let currentDays = session.day;
+    // Build segments from day-change history.
+    // IMPORTANT: session.day is already updated to the LATEST value, so we must
+    // reconstruct the initial day from the first change's old_day field.
+    // Changes are sorted by effective_date ascending.
+    let currentDays: string | null = changes[0].old_day;
     let rangeStart = startDate;
 
     for (const change of changes) {
       const effectiveDate = new Date(change.effective_date);
       // Skip changes that fall before the session's current start date
+      // but absorb their effect so we start the next segment with the right day
       if (effectiveDate <= startDate) {
         currentDays = change.new_day;
         continue;
       }
-      if (effectiveDate > rangeStart) {
+      if (effectiveDate > rangeStart && currentDays) {
         const dayNums = parseDayNums(currentDays);
         if (dayNums.length > 0) {
           const segEnd = new Date(effectiveDate.getTime() - 86400000);
