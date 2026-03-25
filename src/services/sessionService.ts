@@ -309,6 +309,21 @@ export const sessionService = {
             } catch { /* fallback to today */ }
           }
 
+          // Before deleting overlapping records, preserve the earliest old_day
+          // so the new record correctly reflects the day that was active before it
+          let preservedOldDay = oldData.day;
+          try {
+            const { data: earliest } = await supabase
+              .from('session_day_change')
+              .select('old_day')
+              .eq('session_id', id)
+              .gte('effective_date', effectiveDate)
+              .order('effective_date', { ascending: true })
+              .limit(1)
+              .maybeSingle();
+            if (earliest?.old_day) preservedOldDay = earliest.old_day;
+          } catch { /* use oldData.day fallback */ }
+
           // Remove any existing changes at or after the new effective date
           // to prevent overlapping/contradicting records
           await deleteFutureChanges(effectiveDate);
@@ -317,7 +332,7 @@ export const sessionService = {
             const { data: { user } } = await supabase.auth.getUser();
             await supabase.from('session_day_change').insert({
               session_id: id,
-              old_day: oldData.day,
+              old_day: preservedOldDay,
               new_day: updates.day,
               effective_date: effectiveDate,
               changed_by: user?.email || null,

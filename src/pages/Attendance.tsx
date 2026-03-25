@@ -348,6 +348,7 @@ export function Attendance() {
           .from(Tables.SESSION)
           .select(`
             teacher_id,
+            teacher_can_host,
             teacher:teacher_id (
               teacher_id,
               name,
@@ -412,9 +413,10 @@ export function Attendance() {
           };
         });
     
-    // Add teacher as first option if they have address
+    // Add teacher as first option only if teacher_can_host is enabled and they have address
+    const teacherCanHost = sessionData?.teacher_can_host !== false; // default true if not set
     const teacher = Array.isArray(sessionData?.teacher) ? sessionData?.teacher[0] : sessionData?.teacher;
-    if (teacher?.address && teacher.address.trim() !== '') {
+    if (teacherCanHost && teacher?.address && teacher.address.trim() !== '') {
       // Load teacher's host_date from teacher_host_schedule
       const { data: teacherHostData } = await supabase
         .from('teacher_host_schedule')

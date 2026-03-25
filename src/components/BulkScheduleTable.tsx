@@ -64,7 +64,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
     studentId: false
   });
   const [bulkUpdating, setBulkUpdating] = useState(false);
-  const [showRosterDetails, setShowRosterDetails] = useState(false);
+  const [showRosterDetails, setShowRosterDetails] = useState(true);
 
   // Export dialog focus trap
   const exportDialogRef = useRef<HTMLDivElement>(null);
@@ -1120,38 +1120,6 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
     setBulkUpdating(false);
     toast.success(`Auto-assigned ${assignedCount} host date${assignedCount === 1 ? '' : 's'}.`);
   };
-
-  const getAssignedHostForDate = (date: string) => {
-    return displayedEnrollments.find((enrollment) => hostDateMap[enrollment.enrollment_id] === date) || null;
-  };
-
-  const plannerHosts = displayedEnrollments.filter((enrollment) => enrollment.can_host && !enrollment.enrollment_id.startsWith('temp-'));
-
-  const assignHostToDate = async (date: string, enrollmentId: string | null) => {
-    if (cancelledDates.has(date) && enrollmentId) {
-      toast.warning('Restore this date first if you want to assign a host to it.');
-      return;
-    }
-
-    const nextMap: Record<string, string | null> = { ...hostDateMap };
-    const updates: Array<Promise<void>> = [];
-
-    displayedEnrollments.forEach((enrollment) => {
-      if (nextMap[enrollment.enrollment_id] === date && enrollment.enrollment_id !== enrollmentId) {
-        nextMap[enrollment.enrollment_id] = null;
-        updates.push(saveHostDate(enrollment.enrollment_id, null, false));
-      }
-    });
-
-    if (enrollmentId) {
-      nextMap[enrollmentId] = date;
-      updates.push(saveHostDate(enrollmentId, date, false));
-    }
-
-    setHostDateMap(nextMap);
-    await Promise.all(updates);
-    toast.success(enrollmentId ? 'Host assignment updated.' : 'Host assignment cleared.');
-  };
   
   return (
     <div style={{ width: '80vw', maxWidth: '1100px', margin: '0 auto' }} className="p-6 bg-white dark:bg-gray-900 dark:text-white min-h-screen">
@@ -1446,9 +1414,9 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
           </div>
         </div>
 
-        <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+        <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)] lg:items-end">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Planner Scope</label>
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Filter Hosts</label>
             <select
               value={hostFilter}
               onChange={(e) => setHostFilter(e.target.value as 'all' | 'can-host' | 'cannot-host')}
@@ -1459,13 +1427,6 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
               <option value="cannot-host">Cannot Host ({enrollments.filter(e => !e.can_host).length})</option>
             </select>
           </div>
-          <button 
-            className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
-            onClick={() => setShowExportDialog(true)}
-          >
-            <span>📤</span>
-            <span>Export Data</span>
-          </button>
         </div>
 
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -1510,122 +1471,6 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
           </div>
         </div>
 
-        <div className="mt-5 space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Fast Assignment Planner</h4>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Assign one host per session date directly from the calendar order used by Attendance.</p>
-            </div>
-            <span className="text-xs rounded-full bg-gray-100 dark:bg-gray-800 px-3 py-1 text-gray-500 dark:text-gray-400">
-              {plannerHosts.length} eligible host{plannerHosts.length === 1 ? '' : 's'}
-            </span>
-          </div>
-
-          <div className="hidden md:block overflow-x-auto pb-2">
-            <div className="grid auto-cols-[250px] grid-flow-col gap-3 min-w-max">
-              {fullDates.map((date) => {
-                const assignedHost = getAssignedHostForDate(date);
-                const isCancelled = cancelledDates.has(date);
-                return (
-                  <div key={date} className={`rounded-xl border shadow-sm overflow-hidden ${isCancelled ? 'border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800/80' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60'}`}>
-                    <div className={`sticky top-0 z-10 px-4 py-3 border-b ${isCancelled ? 'bg-gray-200 dark:bg-gray-800 border-gray-300 dark:border-gray-700' : 'bg-slate-50 dark:bg-slate-900/80 border-slate-200 dark:border-slate-700'}`}>
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{format(new Date(date), 'EEE')}</p>
-                          <p className="text-sm font-semibold text-gray-900 dark:text-white">{format(new Date(date), 'MMM dd, yyyy')}</p>
-                        </div>
-                        <button
-                          onClick={() => toggleSessionCancelled(date)}
-                          className={`text-xs px-2.5 py-1 rounded-full transition ${isCancelled ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-red-600 hover:bg-red-700 text-white'}`}
-                          title={isCancelled ? 'Restore date' : 'Cancel date'}
-                        >
-                          {isCancelled ? 'Restore' : 'Cancel'}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="p-4 space-y-3">
-                      <div>
-                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Current Host</p>
-                        <p className="mt-1 text-sm font-medium text-gray-900 dark:text-white">
-                          {isCancelled ? 'Session cancelled' : assignedHost?.student?.name || 'Unassigned'}
-                        </p>
-                        {!isCancelled && (
-                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            {assignedHost?.student?.address ? assignedHost.student.address : assignedHost ? 'Missing address' : 'Choose a host for this date'}
-                          </p>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Assign Host</label>
-                        <select
-                          value={assignedHost?.enrollment_id || ''}
-                          onChange={(event) => void assignHostToDate(date, event.target.value || null)}
-                          disabled={isCancelled}
-                          className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm dark:text-white disabled:opacity-60"
-                        >
-                          <option value="">Unassigned</option>
-                          {plannerHosts.map((host) => (
-                            <option key={host.enrollment_id} value={host.enrollment_id}>
-                              {host.student?.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="md:hidden space-y-3">
-            {fullDates.map((date) => {
-              const assignedHost = getAssignedHostForDate(date);
-              const isCancelled = cancelledDates.has(date);
-              return (
-                <div key={date} className={`rounded-xl border p-4 shadow-sm ${isCancelled ? 'border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800/80' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60'}`}>
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{format(new Date(date), 'EEEE')}</p>
-                      <p className="text-base font-semibold text-gray-900 dark:text-white">{format(new Date(date), 'MMM dd, yyyy')}</p>
-                    </div>
-                    <button
-                      onClick={() => toggleSessionCancelled(date)}
-                      className={`text-xs px-2.5 py-1 rounded-full transition ${isCancelled ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-red-600 hover:bg-red-700 text-white'}`}
-                    >
-                      {isCancelled ? 'Restore' : 'Cancel'}
-                    </button>
-                  </div>
-
-                  <div className="mt-3 space-y-2">
-                    <div>
-                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Current Host</p>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white mt-1">{isCancelled ? 'Session cancelled' : assignedHost?.student?.name || 'Unassigned'}</p>
-                    </div>
-                    <select
-                      value={assignedHost?.enrollment_id || ''}
-                      onChange={(event) => void assignHostToDate(date, event.target.value || null)}
-                      disabled={isCancelled}
-                      className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-3 text-sm dark:text-white disabled:opacity-60"
-                    >
-                      <option value="">Unassigned</option>
-                      {plannerHosts.map((host) => (
-                        <option key={host.enrollment_id} value={host.enrollment_id}>
-                          {host.student?.name}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {isCancelled ? 'Cancelled dates are skipped in Attendance rotation.' : assignedHost?.student?.address || 'Choose a host with a saved address.'}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
 
         {/* Calendar View */}
         {showCalendar && (
@@ -1700,19 +1545,32 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
         )}
       </div>
 
-      <div className="mt-6 flex items-center justify-between gap-3 border-t border-gray-200 dark:border-gray-700 pt-4">
-        <div>
-          <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Detailed Host Roster</h4>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Open this only when you need per-person address, phone, or manual troubleshooting.</p>
+      <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <div>
+            <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Host Roster</h4>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Manage host assignments, addresses, phone numbers, and scheduling per person.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setShowRosterDetails((value) => !value)}
+              className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                showRosterDetails 
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' 
+                  : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800'
+              }`}
+            >
+              {showRosterDetails ? '👁️ Hide Roster' : '👁️ Show Roster'}
+            </button>
+            <button 
+              className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm font-medium transition-colors"
+              onClick={() => setShowExportDialog(true)}
+            >
+              📤 Export
+            </button>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowRosterDetails((value) => !value)}
-          className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm font-medium"
-        >
-          {showRosterDetails ? 'Hide Details' : 'Show Details'}
-        </button>
-      </div>
 
       {/* Desktop Table View */}
       {showRosterDetails && (
@@ -1914,6 +1772,7 @@ export const BulkScheduleTable: React.FC<Props> = ({ sessionId, startDate, endDa
         ))}
       </div>
       )}
+      </div>
 
       {/* ConfirmDialog for cancelling a session date */}
       <ConfirmDialog
