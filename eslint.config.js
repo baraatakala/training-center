@@ -32,4 +32,16 @@ export default defineConfig([
       }],
     },
   },
+  // Service layer enforcement: supabase should only be imported in services, lib, context, hooks, and utils
+  {
+    files: ['src/features/**/pages/**/*.{ts,tsx}', 'src/features/**/components/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': ['warn', {
+        patterns: [{
+          group: ['**/supabase', '**/supabase.ts'],
+          message: 'Import supabase only in services, not in pages/components. Create a service method instead.',
+        }],
+      }],
+    },
+  },
 ])
