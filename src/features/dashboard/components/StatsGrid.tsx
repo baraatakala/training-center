@@ -122,7 +122,7 @@ export function StatsGrid({ stats, pendingExcuses }: StatsGridProps) {
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center text-amber-600 dark:text-amber-400">
-                ðŸ�� 
+                🎓
               </div>
               <div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Certificates</p>
@@ -139,7 +139,7 @@ export function StatsGrid({ stats, pendingExcuses }: StatsGridProps) {
               </div>
               <div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Feedback</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-white">Analytics â� ’</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">Analytics 📊</p>
               </div>
             </div>
           </div>

@@ -776,9 +776,17 @@ export const BulkScheduleTable: React.FC<BulkScheduleTableProps> = ({ sessionId,
           <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700/50 rounded-lg p-3">
             <div className="text-xs text-yellow-600 dark:text-yellow-400 font-semibold uppercase">Coverage</div>
             <div className="text-2xl font-bold text-yellow-900 dark:text-yellow-100">
-              {fullDates.length > 0 
-                ? Math.round((new Set(Object.values(hostDateMap).filter(Boolean)).size / fullDates.length) * 100)
-                : 0}%
+              {(() => {
+                if (fullDates.length === 0) return 0;
+                const assigned = new Set(Object.values(hostDateMap).filter(Boolean));
+                let covered = assigned.size;
+                const sorted = Array.from(assigned).sort();
+                const first = sorted[0];
+                if (first) {
+                  covered += fullDates.filter(d => d < first).length;
+                }
+                return Math.round((covered / fullDates.length) * 100);
+              })()}%
             </div>
           </div>
           <div className={`border rounded-lg p-3 ${

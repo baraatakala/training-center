@@ -399,10 +399,36 @@ class ExcuseRequestService {
       }
 
       if (enrollment?.enrollment_id) {
-        const { error: attendanceError } = await supabase
+        // Check if an attendance record already exists before upserting.
+        // Prevents creating phantom 'excused' records for dates the student
+        // never checked in to (which would corrupt analytics).
+        const { data: existingAttendance } = await supabase
           .from('attendance')
-          .upsert(
-            {
+          .select('attendance_id, status')
+          .eq('enrollment_id', enrollment.enrollment_id)
+          .eq('attendance_date', request.attendance_date)
+          .maybeSingle();
+
+        if (existingAttendance) {
+          // Update existing record to 'excused'
+          const { error: attendanceError } = await supabase
+            .from('attendance')
+            .update({
+              status: 'excused',
+              excuse_reason: request.reason,
+              marked_by: `${review.reviewed_by} - excuse approved`,
+            })
+            .eq('attendance_id', existingAttendance.attendance_id);
+
+          if (attendanceError) {
+            console.error('Failed to update attendance on approval:', attendanceError);
+          }
+        } else {
+          // No attendance record exists — create one only as 'excused'
+          // This handles the case where the student was absent (no record)
+          const { error: attendanceError } = await supabase
+            .from('attendance')
+            .insert({
               enrollment_id: enrollment.enrollment_id,
               student_id: request.student_id,
               session_id: request.session_id,
@@ -410,28 +436,38 @@ class ExcuseRequestService {
               status: 'excused',
               excuse_reason: request.reason,
               marked_by: `${review.reviewed_by} - excuse approved`,
-            },
-            { onConflict: 'enrollment_id,attendance_date' }
-          );
+            });
 
-        if (attendanceError) {
-          console.error('Failed to upsert attendance on approval:', attendanceError);
-          // Don't fail the whole operation — request is approved.
+          if (attendanceError) {
+            console.error('Failed to insert excused attendance on approval:', attendanceError);
+          }
         }
       } else {
         // Legacy fallback: update by student/session/date when enrollment is unavailable.
-        const { error: attendanceError } = await supabase
+        // First verify exactly one record matches to prevent multi-row updates.
+        const { data: matchingRecords, error: lookupError } = await supabase
           .from('attendance')
-          .update({
-            status: 'excused',
-            excuse_reason: request.reason,
-          })
+          .select('attendance_id')
           .eq('student_id', request.student_id)
           .eq('session_id', request.session_id)
           .eq('attendance_date', request.attendance_date);
 
-        if (attendanceError) {
-          console.error('Failed to update attendance on approval (fallback):', attendanceError);
+        if (lookupError) {
+          console.error('Failed to look up attendance for excuse fallback:', lookupError);
+        } else if (matchingRecords && matchingRecords.length === 1) {
+          const { error: attendanceError } = await supabase
+            .from('attendance')
+            .update({
+              status: 'excused',
+              excuse_reason: request.reason,
+            })
+            .eq('attendance_id', matchingRecords[0].attendance_id);
+
+          if (attendanceError) {
+            console.error('Failed to update attendance on approval (fallback):', attendanceError);
+          }
+        } else if (matchingRecords && matchingRecords.length > 1) {
+          console.error(`Excuse fallback: ${matchingRecords.length} attendance records match — skipped to avoid corrupting data`);
         }
       }
     }

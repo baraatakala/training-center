@@ -233,6 +233,19 @@ DROP POLICY IF EXISTS "Teachers have full access" ON session_recording;
 CREATE POLICY "Teachers have full access" ON session_recording
   FOR ALL TO authenticated USING (is_teacher()) WITH CHECK (is_teacher());
 
+DROP POLICY IF EXISTS "Enrolled students can view recordings" ON session_recording;
+CREATE POLICY "Enrolled students can view recordings" ON session_recording
+  FOR SELECT TO authenticated
+  USING (
+    recording_visibility IN ('enrolled_students', 'organization', 'public_link')
+    AND EXISTS (
+      SELECT 1 FROM enrollment e
+      WHERE e.session_id = session_recording.session_id
+        AND e.student_id = auth.uid()
+        AND e.status = 'active'
+    )
+  );
+
 -- ============================================================================
 -- 5. CHECK-IN TABLES
 -- ============================================================================

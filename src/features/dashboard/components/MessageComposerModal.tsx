@@ -44,11 +44,11 @@ export function MessageComposerModal({
             <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-gray-700">
               <div>
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                  {bulkMode ? `ðŸ“¨ Bulk Message (${filteredStudentsCount} students)` : 'â�"‰ï¸� Message Composer'}
+                  {bulkMode ? `📨 Bulk Message (${filteredStudentsCount} students)` : '✉️ Message Composer'}
                 </h3>
                 {composerStudent && !bulkMode && (
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                    To: {composerStudent.student_name} â€� {composerStudent.course_name}
+                    To: {composerStudent.student_name} — {composerStudent.course_name}
                   </p>
                 )}
               </div>
@@ -83,7 +83,7 @@ export function MessageComposerModal({
                           : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                       }`}
                     >
-                      {ch === 'email' ? 'ðŸ“§ Email' : ch === 'sms' ? 'ðŸ’¬ SMS' : 'ðŸ“± WhatsApp'}
+                      {ch === 'email' ? '📧 Email' : ch === 'sms' ? '💬 SMS' : '📱 WhatsApp'}
                     </button>
                   ))}
                 </div>
