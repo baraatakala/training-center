@@ -1,5 +1,5 @@
-import { supabase } from '../lib/supabase';
-import { logDelete, logUpdate, logInsert } from './auditService';
+import { supabase } from '@/shared/lib/supabase';
+import { logDelete, logUpdate, logInsert } from '@/shared/services/auditService';
 
 // =====================================================
 // TYPES

@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Card, CardContent } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { Modal } from '../components/ui/Modal';
-import { Select } from '../components/ui/Select';
-import { ConfirmDialog } from '../components/ui/ConfirmDialog';
-import { toast } from '../components/ui/toastUtils';
-import { TableSkeleton } from '../components/ui/Skeleton';
-import { useIsTeacher } from '../hooks/useIsTeacher';
+import { Card, CardContent } from '@/shared/components/ui/Card';
+import { Button } from '@/shared/components/ui/Button';
+import { Modal } from '@/shared/components/ui/Modal';
+import { Select } from '@/shared/components/ui/Select';
+import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
+import { toast } from '@/shared/components/ui/toastUtils';
+import { TableSkeleton } from '@/shared/components/ui/Skeleton';
+import { useIsTeacher } from '@/shared/hooks/useIsTeacher';
 import { useAuth } from '../context/AuthContext';
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
 import {
@@ -15,8 +15,8 @@ import {
   type ExcuseRequest,
   type CreateExcuseRequest,
 } from '../services/excuseRequestService';
-import { supabase } from '../lib/supabase';
-import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
+import { supabase } from '@/shared/lib/supabase';
+import { useRefreshOnFocus } from '@/shared/hooks/useRefreshOnFocus';
 
 // =====================================================
 // CONSTANTS
@@ -26,25 +26,25 @@ const STATUS_CONFIG = {
   pending: {
     label: 'Pending',
     color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
-    icon: '⏳',
+    icon: 'â³',
     ring: 'ring-amber-300 dark:ring-amber-700',
   },
   approved: {
     label: 'Approved',
     color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300',
-    icon: '✅',
+    icon: 'âœ…',
     ring: 'ring-emerald-300 dark:ring-emerald-700',
   },
   rejected: {
     label: 'Rejected',
     color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
-    icon: '❌',
+    icon: 'âŒ',
     ring: 'ring-red-300 dark:ring-red-700',
   },
   cancelled: {
     label: 'Cancelled',
     color: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300',
-    icon: '🚫',
+    icon: 'ðŸš«',
     ring: 'ring-gray-300 dark:ring-gray-700',
   },
 } as const;
@@ -194,7 +194,7 @@ export function ExcuseRequests() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            📋 Excuse Requests
+            ðŸ“‹ Excuse Requests
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             {isTeacher
@@ -204,11 +204,11 @@ export function ExcuseRequests() {
         </div>
         <div className="flex items-center gap-2">
           <Button onClick={refresh} variant="outline" size="sm">
-            🔄 Refresh
+            ðŸ”„ Refresh
           </Button>
           {!isTeacher && (
             <Button onClick={() => setShowCreateModal(true)} size="sm">
-              ➕ New Request
+              âž• New Request
             </Button>
           )}
         </div>
@@ -216,11 +216,11 @@ export function ExcuseRequests() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
-        <StatsCard label="Total" value={stats.total} color="text-blue-600 dark:text-blue-400" icon="📊" />
-        <StatsCard label="Pending" value={stats.pending} color="text-amber-600 dark:text-amber-400" icon="⏳" highlight={stats.pending > 0} />
-        <StatsCard label="Approved" value={stats.approved} color="text-emerald-600 dark:text-emerald-400" icon="✅" />
-        <StatsCard label="Rejected" value={stats.rejected} color="text-red-600 dark:text-red-400" icon="❌" />
-        <StatsCard label="Approval %" value={`${stats.approvalRate}%`} color="text-purple-600 dark:text-purple-400" icon="📈" className="hidden lg:block" />
+        <StatsCard label="Total" value={stats.total} color="text-blue-600 dark:text-blue-400" icon="ðŸ“Š" />
+        <StatsCard label="Pending" value={stats.pending} color="text-amber-600 dark:text-amber-400" icon="â³" highlight={stats.pending > 0} />
+        <StatsCard label="Approved" value={stats.approved} color="text-emerald-600 dark:text-emerald-400" icon="âœ…" />
+        <StatsCard label="Rejected" value={stats.rejected} color="text-red-600 dark:text-red-400" icon="âŒ" />
+        <StatsCard label="Approval %" value={`${stats.approvalRate}%`} color="text-purple-600 dark:text-purple-400" icon="ðŸ“ˆ" className="hidden lg:block" />
       </div>
 
       {/* Filters */}
@@ -241,10 +241,10 @@ export function ExcuseRequests() {
               onChange={value => setStatusFilter(value)}
               options={[
                 { value: 'all', label: 'All Statuses' },
-                { value: 'pending', label: '⏳ Pending' },
-                { value: 'approved', label: '✅ Approved' },
-                { value: 'rejected', label: '❌ Rejected' },
-                { value: 'cancelled', label: '🚫 Cancelled' },
+                { value: 'pending', label: 'â³ Pending' },
+                { value: 'approved', label: 'âœ… Approved' },
+                { value: 'rejected', label: 'âŒ Rejected' },
+                { value: 'cancelled', label: 'ðŸš« Cancelled' },
               ]}
             />
             <Select
@@ -267,7 +267,7 @@ export function ExcuseRequests() {
       ) : filteredRequests.length === 0 ? (
         <Card>
           <CardContent className="p-12 text-center">
-            <div className="text-4xl mb-3">📭</div>
+            <div className="text-4xl mb-3">ðŸ“­</div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">No Requests Found</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               {statusFilter !== 'all'
@@ -419,16 +419,16 @@ function RequestCard({
               </h3>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                 {request.session?.course?.course_name || 'Unknown Course'}
-                {' · '}
+                {' Â· '}
                 <span className="font-medium">
-                  {request.attendance_date ? format(parseISO(request.attendance_date), 'MMM d, yyyy') : '—'}
+                  {request.attendance_date ? format(parseISO(request.attendance_date), 'MMM d, yyyy') : 'â€”'}
                 </span>
               </p>
             </div>
 
             <div className="mt-2 flex items-center gap-2 flex-wrap">
               <span className="inline-flex items-center gap-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-0.5 rounded-md">
-                {reasonObj?.icon || '📝'} {reasonObj?.label || request.reason}
+                {reasonObj?.icon || 'ðŸ“'} {reasonObj?.label || request.reason}
               </span>
               {request.supporting_doc_url && (
                 <a
@@ -437,7 +437,7 @@ function RequestCard({
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
                 >
-                  📎 {request.supporting_doc_name || 'Document'}
+                  ðŸ“Ž {request.supporting_doc_name || 'Document'}
                 </a>
               )}
               {request.description && (
@@ -451,8 +451,8 @@ function RequestCard({
             {request.reviewed_by && (
               <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
                 Reviewed by <span className="font-medium">{request.reviewed_by}</span>
-                {request.reviewed_at && ` · ${format(parseISO(request.reviewed_at), 'MMM d, h:mm a')}`}
-                {request.review_note && ` — "${request.review_note}"`}
+                {request.reviewed_at && ` Â· ${format(parseISO(request.reviewed_at), 'MMM d, h:mm a')}`}
+                {request.review_note && ` â€” "${request.review_note}"`}
               </p>
             )}
           </div>
@@ -460,24 +460,24 @@ function RequestCard({
           {/* Right: Actions */}
           <div className="flex flex-wrap items-center gap-2 sm:flex-col sm:items-end shrink-0">
             <Button variant="outline" size="sm" onClick={onViewDetail} className="min-h-[36px]">
-              👁 Details
+              ðŸ‘ Details
             </Button>
             {isTeacher && isPending && (
               <>
                 <Button size="sm" onClick={onQuickApprove} className="bg-emerald-600 hover:bg-emerald-700 text-white min-h-[36px]">
-                  ✅ Approve
+                  âœ… Approve
                 </Button>
                 <Button size="sm" variant="outline" onClick={onQuickReject} className="text-red-600 border-red-300 hover:bg-red-50 dark:text-red-400 dark:border-red-700 dark:hover:bg-red-900/20 min-h-[36px]">
-                  ❌ Reject
+                  âŒ Reject
                 </Button>
                 <Button size="sm" variant="outline" onClick={onReview} className="text-gray-600 dark:text-gray-400 min-h-[36px]">
-                  📝 Review
+                  ðŸ“ Review
                 </Button>
               </>
             )}
             {isAdmin && (
               <Button size="sm" variant="outline" onClick={onDelete} className="text-red-500 hover:text-red-700 min-h-[36px]" aria-label="Delete excuse request">
-                🗑
+                ðŸ—‘
               </Button>
             )}
           </div>
@@ -745,7 +745,7 @@ function CreateRequestModal({
               <div className="py-8 text-center text-gray-400">Loading your sessions...</div>
             ) : sessions.length === 0 ? (
               <div className="py-8 text-center">
-                <div className="text-3xl mb-2">📭</div>
+                <div className="text-3xl mb-2">ðŸ“­</div>
                 <p className="text-gray-500 dark:text-gray-400">No active enrollments found.</p>
               </div>
             ) : (
@@ -863,7 +863,7 @@ function CreateRequestModal({
                                 <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400" />
                               )}
                               {isToday && !isSelected && (
-                                <span className="absolute top-0.5 right-1 text-[8px]">●</span>
+                                <span className="absolute top-0.5 right-1 text-[8px]">â—</span>
                               )}
                             </button>
                           ))}
@@ -898,33 +898,33 @@ function CreateRequestModal({
                     ) : attendanceStatus ? (
                       attendanceStatus.status === 'excused' ? (
                         <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-2">
-                          <span>ℹ️</span>
+                          <span>â„¹ï¸</span>
                           <span>Your attendance is already marked as <strong>excused</strong>{attendanceStatus.excuse_reason ? ` (${attendanceStatus.excuse_reason})` : ''}. No request needed.</span>
                         </div>
                       ) : attendanceStatus.status === 'on time' ? (
                         <div className="flex items-center gap-2 text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 rounded-lg p-2">
-                          <span>✅</span>
+                          <span>âœ…</span>
                           <span>You are marked as <strong>present (on time)</strong> for this date.</span>
                         </div>
                       ) : attendanceStatus.status === 'late' ? (
                         <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-2">
-                          <span>⚡</span>
+                          <span>âš¡</span>
                           <span>You are marked as <strong>late</strong> for this date.</span>
                         </div>
                       ) : attendanceStatus.status === 'absent' ? (
                         <div className="flex items-center gap-2 text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 rounded-lg p-2">
-                          <span>❗</span>
-                          <span>You are marked as <strong>absent</strong> — submitting an excuse may change this to excused.</span>
+                          <span>â—</span>
+                          <span>You are marked as <strong>absent</strong> â€” submitting an excuse may change this to excused.</span>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-                          <span>📝</span>
+                          <span>ðŸ“</span>
                           <span>Current status: <strong>{attendanceStatus.status}</strong></span>
                         </div>
                       )
                     ) : (
                       <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
-                        <span>📝</span>
+                        <span>ðŸ“</span>
                         <span>No attendance record yet for this date.</span>
                       </div>
                     )}
@@ -939,7 +939,7 @@ function CreateRequestModal({
                 onClick={() => setStep(2)}
                 disabled={!selectedSession || !attendanceDate || !isScheduledSessionDate(attendanceDate) || attendanceStatus?.status === 'excused'}
               >
-                Next →
+                Next â†’
               </Button>
             </div>
           </div>
@@ -1003,14 +1003,14 @@ function CreateRequestModal({
                 className="w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 dark:file:bg-blue-900/20 dark:file:text-blue-300 hover:file:bg-blue-100"
               />
               {document && (
-                <p className="text-xs text-gray-400 mt-1">📎 {document.name} ({(document.size / 1024).toFixed(1)} KB)</p>
+                <p className="text-xs text-gray-400 mt-1">ðŸ“Ž {document.name} ({(document.size / 1024).toFixed(1)} KB)</p>
               )}
               <p className="text-xs text-gray-400 mt-1">Max 10MB. Accepted: PDF, images, Office docs</p>
             </div>
 
             <div className="flex justify-between pt-2">
               <Button variant="outline" onClick={() => setStep(1)}>
-                ← Back
+                â† Back
               </Button>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={onClose}>Cancel</Button>
@@ -1023,7 +1023,7 @@ function CreateRequestModal({
                       </svg>
                       Submitting...
                     </span>
-                  ) : '📤 Submit Request'}
+                  ) : 'ðŸ“¤ Submit Request'}
                 </Button>
               </div>
             </div>
@@ -1068,7 +1068,7 @@ function ReviewModal({
         <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 space-y-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-lg">
-              🎓
+              ðŸŽ“
             </div>
             <div>
               <h3 className="text-sm font-bold text-gray-900 dark:text-white">
@@ -1081,8 +1081,8 @@ function ReviewModal({
           </div>
 
           <div className="grid grid-cols-2 gap-3 text-sm">
-            <InfoRow label="Course" value={request.session?.course?.course_name || '—'} />
-            <InfoRow label="Date" value={request.attendance_date ? format(parseISO(request.attendance_date), 'EEEE, MMM d, yyyy') : '—'} />
+            <InfoRow label="Course" value={request.session?.course?.course_name || 'â€”'} />
+            <InfoRow label="Date" value={request.attendance_date ? format(parseISO(request.attendance_date), 'EEEE, MMM d, yyyy') : 'â€”'} />
             <InfoRow label="Reason" value={reasonObj ? `${reasonObj.icon} ${reasonObj.label}` : request.reason} />
             <InfoRow label="Submitted" value={format(parseISO(request.created_at), 'MMM d, h:mm a')} />
           </div>
@@ -1103,7 +1103,7 @@ function ReviewModal({
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:underline"
             >
-              📎 View Document: {request.supporting_doc_name || 'Attachment'}
+              ðŸ“Ž View Document: {request.supporting_doc_name || 'Attachment'}
             </a>
           )}
         </div>
@@ -1131,14 +1131,14 @@ function ReviewModal({
               disabled={submitting}
               className="bg-red-600 hover:bg-red-700 text-white"
             >
-              {submitting ? '...' : '❌ Reject'}
+              {submitting ? '...' : 'âŒ Reject'}
             </Button>
             <Button
               onClick={() => handleAction('approved')}
               disabled={submitting}
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
             >
-              {submitting ? '...' : '✅ Approve'}
+              {submitting ? '...' : 'âœ… Approve'}
             </Button>
           </div>
         </div>
@@ -1176,24 +1176,24 @@ function DetailModal({
 
         {/* Details Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <DetailCard label="Student" icon="🎓">
-            <p className="text-sm font-semibold text-gray-900 dark:text-white">{request.student?.name || '—'}</p>
+          <DetailCard label="Student" icon="ðŸŽ“">
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">{request.student?.name || 'â€”'}</p>
             <p className="text-xs text-gray-500">{request.student?.email}</p>
-            {request.student?.phone && <p className="text-xs text-gray-500">📞 {request.student.phone}</p>}
+            {request.student?.phone && <p className="text-xs text-gray-500">ðŸ“ž {request.student.phone}</p>}
           </DetailCard>
 
-          <DetailCard label="Session" icon="📚">
-            <p className="text-sm font-semibold text-gray-900 dark:text-white">{request.session?.course?.course_name || '—'}</p>
-            <p className="text-xs text-gray-500">Teacher: {request.session?.teacher?.name || '—'}</p>
+          <DetailCard label="Session" icon="ðŸ“š">
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">{request.session?.course?.course_name || 'â€”'}</p>
+            <p className="text-xs text-gray-500">Teacher: {request.session?.teacher?.name || 'â€”'}</p>
           </DetailCard>
 
-          <DetailCard label="Absence Date" icon="📅">
+          <DetailCard label="Absence Date" icon="ðŸ“…">
             <p className="text-sm font-semibold text-gray-900 dark:text-white">
-              {request.attendance_date ? format(parseISO(request.attendance_date), 'EEEE, MMMM d, yyyy') : '—'}
+              {request.attendance_date ? format(parseISO(request.attendance_date), 'EEEE, MMMM d, yyyy') : 'â€”'}
             </p>
           </DetailCard>
 
-          <DetailCard label="Reason" icon={reasonObj?.icon || '📝'}>
+          <DetailCard label="Reason" icon={reasonObj?.icon || 'ðŸ“'}>
             <p className="text-sm font-semibold text-gray-900 dark:text-white">
               {reasonObj?.label || request.reason}
             </p>
@@ -1220,7 +1220,7 @@ function DetailModal({
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 px-3 py-2 rounded-lg text-sm hover:bg-blue-100 dark:hover:bg-blue-900/40 transition"
             >
-              📎 {request.supporting_doc_name || 'View Document'}
+              ðŸ“Ž {request.supporting_doc_name || 'View Document'}
             </a>
           </div>
         )}
@@ -1231,7 +1231,7 @@ function DetailModal({
             <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Review Information</h4>
             <div className="grid grid-cols-2 gap-3 text-sm">
               <InfoRow label="Reviewed By" value={request.reviewed_by} />
-              <InfoRow label="Reviewed At" value={request.reviewed_at ? format(parseISO(request.reviewed_at), 'MMM d, yyyy h:mm a') : '—'} />
+              <InfoRow label="Reviewed At" value={request.reviewed_at ? format(parseISO(request.reviewed_at), 'MMM d, yyyy h:mm a') : 'â€”'} />
             </div>
             {request.review_note && (
               <div className="mt-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 text-sm text-gray-700 dark:text-gray-300">

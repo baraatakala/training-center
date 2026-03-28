@@ -1,6 +1,6 @@
-import { supabase } from '../lib/supabase';
-import { Tables, type CreateCourse, type UpdateCourse } from '../types/database.types';
-import { logDelete, logUpdate, logInsert } from './auditService';
+import { supabase } from '@/shared/lib/supabase';
+import { Tables, type CreateCourse, type UpdateCourse } from '@/shared/types/database.types';
+import { logDelete, logUpdate, logInsert } from '@/shared/services/auditService';
 
 export const courseService = {
   async getAll() {

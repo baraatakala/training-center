@@ -1,10 +1,10 @@
-import { supabase } from '../lib/supabase';
+import { supabase } from '@/shared/lib/supabase';
 import {
   Tables,
   type CreateSessionRecording,
   type UpdateSessionRecording,
-} from '../types/database.types';
-import { logDelete, logInsert, logUpdate } from './auditService';
+} from '@/shared/types/database.types';
+import { logDelete, logInsert, logUpdate } from '@/shared/services/auditService';
 
 function normalizeRecordingError(error: { message?: string; details?: string; hint?: string; code?: string } | null) {
   if (!error) return null;

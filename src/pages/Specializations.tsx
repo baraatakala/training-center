@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { ConfirmDialog } from '../components/ui/ConfirmDialog';
-import { toast } from '../components/ui/toastUtils';
-import { useIsTeacher } from '../hooks/useIsTeacher';
+import { Button } from '@/shared/components/ui/Button';
+import { Input } from '@/shared/components/ui/Input';
+import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
+import { toast } from '@/shared/components/ui/toastUtils';
+import { useIsTeacher } from '@/shared/hooks/useIsTeacher';
 import { specializationService, type Specialization } from '../services/specializationService';
 
 export function Specializations() {

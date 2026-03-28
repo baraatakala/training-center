@@ -1,57 +1,57 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { Badge } from '../components/ui/Badge';
-import { supabase } from '../lib/supabase';
-import { Tables } from '../types/database.types';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/Card';
+import { Button } from '@/shared/components/ui/Button';
+import { Badge } from '@/shared/components/ui/Badge';
+import { supabase } from '@/shared/lib/supabase';
+import { Tables } from '@/shared/types/database.types';
 import { format } from 'date-fns';
-import { analyzeAttendanceRisk } from '../utils/attendanceAnalytics';
-import type { AbsentStudent } from '../utils/attendanceAnalytics';
+import { analyzeAttendanceRisk } from '@/shared/utils/attendanceAnalytics';
+import type { AbsentStudent } from '@/shared/utils/attendanceAnalytics';
 import { excuseRequestService } from '../services/excuseRequestService';
-import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
-import { toast } from '../components/ui/toastUtils';
+import { useRefreshOnFocus } from '@/shared/hooks/useRefreshOnFocus';
+import { toast } from '@/shared/components/ui/toastUtils';
 
 // Message template types for the composer
 type MessageTemplate = 'attendance_alert' | 'encouragement' | 'reminder' | 'custom';
 type MessageChannel = 'email' | 'sms' | 'whatsapp';
 
-// Risk level styling — defined outside component to avoid recreation on every render
+// Risk level styling â€” defined outside component to avoid recreation on every render
 const RISK_STYLES = {
   critical: {
     bg: 'bg-red-50 dark:bg-red-900/30',
     border: 'border-red-300 dark:border-red-700',
     hover: 'hover:bg-red-100 hover:border-red-400 dark:hover:bg-red-900/50',
     badge: 'bg-red-600 text-white',
-    icon: '🚨'
+    icon: 'ðŸš¨'
   },
   high: {
     bg: 'bg-orange-50 dark:bg-orange-900/30',
     border: 'border-orange-300 dark:border-orange-700',
     hover: 'hover:bg-orange-100 hover:border-orange-400 dark:hover:bg-orange-900/50',
     badge: 'bg-orange-600 text-white',
-    icon: '⚠️'
+    icon: 'âš ï¸'
   },
   medium: {
     bg: 'bg-yellow-50 dark:bg-yellow-900/30',
     border: 'border-yellow-300 dark:border-yellow-700',
     hover: 'hover:bg-yellow-100 hover:border-yellow-400 dark:hover:bg-yellow-900/50',
     badge: 'bg-yellow-600 text-white',
-    icon: '⚡'
+    icon: 'âš¡'
   },
   watch: {
     bg: 'bg-blue-50 dark:bg-blue-900/30',
     border: 'border-blue-300 dark:border-blue-700',
     hover: 'hover:bg-blue-100 hover:border-blue-400 dark:hover:bg-blue-900/50',
     badge: 'bg-blue-600 text-white',
-    icon: '👁️'
+    icon: 'ðŸ‘ï¸'
   }
 } as const;
 
 const TREND_ICONS = {
-  improving: { icon: '📈', text: 'Improving', color: 'text-green-600 dark:text-green-400' },
-  declining: { icon: '📉', text: 'Declining', color: 'text-red-600 dark:text-red-400' },
-  stable: { icon: '→', text: 'Stable', color: 'text-gray-600 dark:text-gray-400' }
+  improving: { icon: 'ðŸ“ˆ', text: 'Improving', color: 'text-green-600 dark:text-green-400' },
+  declining: { icon: 'ðŸ“‰', text: 'Declining', color: 'text-red-600 dark:text-red-400' },
+  stable: { icon: 'â†’', text: 'Stable', color: 'text-gray-600 dark:text-gray-400' }
 } as const;
 
 export function Dashboard() {
@@ -187,7 +187,7 @@ export function Dashboard() {
         detail: feedbackWithoutQuestions.length > 0
           ? `${feedbackWithoutQuestions.length} live session date(s) can reach feedback but still have no saved question set for that exact date.`
           : 'Every live feedback-enabled session date already has a saved question set ready for students.',
-        icon: feedbackWithoutQuestions.length > 0 ? '⚠️' : '✅',
+        icon: feedbackWithoutQuestions.length > 0 ? 'âš ï¸' : 'âœ…',
         actionLabel: feedbackWithoutQuestions.length > 0 ? 'Open Attendance Setup' : undefined,
         actionPath: feedbackWithoutQuestionsSample ? `/attendance/${feedbackWithoutQuestionsSample.session_id}?date=${feedbackWithoutQuestionsSample.attendance_date}` : undefined,
       });
@@ -205,7 +205,7 @@ export function Dashboard() {
       let hostMissingCount = 0;
       let hostMissingSample: { session_id: string; attendance_date: string } | null = null;
       for (const key of attendanceDates) {
-        // Skip session-not-held dates — they have deliberate sentinel data, not missing host setup
+        // Skip session-not-held dates â€” they have deliberate sentinel data, not missing host setup
         if (sessionNotHeldDates.has(key)) continue;
         const host = hostMap.get(key);
         if (!host || !host.host_address || !String(host.host_address).trim()) {
@@ -223,7 +223,7 @@ export function Dashboard() {
         detail: hostMissingCount > 0
           ? `${hostMissingCount} session date(s) already have attendance rows but no canonical host location in session_date_host.`
           : 'Every scanned attendance date has a canonical host location.',
-        icon: hostMissingCount > 0 ? '🚨' : '✅',
+        icon: hostMissingCount > 0 ? 'ðŸš¨' : 'âœ…',
         actionLabel: hostMissingCount > 0 ? 'Open Exact Date' : undefined,
         actionPath: hostMissingSample ? `/attendance/${hostMissingSample.session_id}?date=${hostMissingSample.attendance_date}` : undefined,
       });
@@ -239,7 +239,7 @@ export function Dashboard() {
         detail: brokenPhotoQrCount > 0
           ? `${brokenPhotoQrCount} QR session(s) point to face check-in without a valid linked photo token.`
           : 'All face-mode QR sessions point to a valid photo check-in token.',
-        icon: brokenPhotoQrCount > 0 ? '🚨' : '✅',
+        icon: brokenPhotoQrCount > 0 ? 'ðŸš¨' : 'âœ…',
         actionLabel: brokenPhotoQrSample ? 'Open Broken Date' : undefined,
         actionPath: brokenPhotoQrSample ? `/attendance/${brokenPhotoQrSample.session_id}?date=${brokenPhotoQrSample.attendance_date}` : undefined,
       });
@@ -262,7 +262,7 @@ export function Dashboard() {
         detail: feedbackMethodMismatchCount > 0
           ? `${feedbackMethodMismatchCount} feedback record(s) disagree with attendance.check_in_method for the same student/date.`
           : 'Feedback method tracking matches attendance check-in records.',
-        icon: feedbackMethodMismatchCount > 0 ? '⚠️' : '✅',
+        icon: feedbackMethodMismatchCount > 0 ? 'âš ï¸' : 'âœ…',
         actionLabel: feedbackMethodMismatchSample ? 'Open Exact Feedback Slice' : undefined,
         actionPath: feedbackMethodMismatchSample ? `/feedback-analytics?session=${feedbackMethodMismatchSample.session_id}&date=${feedbackMethodMismatchSample.attendance_date}` : undefined,
       });
@@ -286,7 +286,7 @@ export function Dashboard() {
         detail: hostAddressDriftCount > 0
           ? `${hostAddressDriftCount} attendance row(s) still store a host address different from the canonical session_date_host row.`
           : 'Attendance host addresses match the canonical session_date_host rows.',
-        icon: hostAddressDriftCount > 0 ? '⚠️' : '✅',
+        icon: hostAddressDriftCount > 0 ? 'âš ï¸' : 'âœ…',
         actionLabel: hostAddressDriftSample ? 'Open Drifted Date' : undefined,
         actionPath: hostAddressDriftSample ? `/attendance/${hostAddressDriftSample.session_id}?date=${hostAddressDriftSample.attendance_date}` : undefined,
       });
@@ -305,7 +305,7 @@ export function Dashboard() {
         detail: hostDupes.size > 0
           ? `${hostDupes.size} session date(s) have multiple host rows and can confuse attendance, GPS, and check-in logic.`
           : 'No duplicate session_date_host rows were found in the scanned data.',
-        icon: hostDupes.size > 0 ? '🚨' : '✅',
+        icon: hostDupes.size > 0 ? 'ðŸš¨' : 'âœ…',
         actionLabel: hostDupes.size > 0 ? 'Open Sample Duplicate' : undefined,
         actionPath: hostDupes.size > 0 ? (() => {
           const firstDuplicate = Array.from(hostDupes)[0];
@@ -324,7 +324,7 @@ export function Dashboard() {
           detail: (count || 0) > 0
             ? `${count} excuse request(s) are still waiting and may block final attendance cleanup.`
             : 'No pending excuse requests.',
-          icon: (count || 0) > 0 ? '⚠️' : '✅',
+          icon: (count || 0) > 0 ? 'âš ï¸' : 'âœ…',
           actionLabel: (count || 0) > 0 ? 'Review Excuses' : undefined,
           actionPath: (count || 0) > 0 ? '/excuse-requests' : undefined,
         });
@@ -334,13 +334,13 @@ export function Dashboard() {
           status: 'warn',
           count: 0,
           detail: 'Could not load excuse request counts for this scan.',
-          icon: '⚠️',
+          icon: 'âš ï¸',
           actionLabel: 'Open Excuses',
           actionPath: '/excuse-requests',
         });
       }
 
-      // ─── ADVANCED DIAGNOSTIC CHECKS ─────────────────────────
+      // â”€â”€â”€ ADVANCED DIAGNOSTIC CHECKS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       // Fetch additional data for deep checks
       const [
         sessionsRes,
@@ -360,7 +360,7 @@ export function Dashboard() {
       const allScoring = scoringRes.data || [];
       const today = new Date().toISOString().split('T')[0];
 
-      // ── Check 8: Duplicate feedback submissions ──
+      // â”€â”€ Check 8: Duplicate feedback submissions â”€â”€
       const feedbackKeys = new Map<string, number>();
       for (const fb of allFeedback) {
         const key = `${fb.student_id}|${fb.session_id}|${fb.attendance_date}`;
@@ -374,12 +374,12 @@ export function Dashboard() {
         detail: duplicateFeedbackCount > 0
           ? `${duplicateFeedbackCount} student-session-date combo(s) have more than one feedback row. This means duplicate prevention failed somewhere.`
           : 'Every student has at most one feedback per session date.',
-        icon: duplicateFeedbackCount > 0 ? '🚨' : '✅',
+        icon: duplicateFeedbackCount > 0 ? 'ðŸš¨' : 'âœ…',
         actionLabel: duplicateFeedbackCount > 0 ? 'Open Feedback Analytics' : undefined,
         actionPath: duplicateFeedbackCount > 0 ? '/feedback-analytics' : undefined,
       });
 
-      // ── Check 9: Feedback on disabled sessions ──
+      // â”€â”€ Check 9: Feedback on disabled sessions â”€â”€
       const disabledSessionIds = new Set(allSessions.filter(s => !s.feedback_enabled).map(s => s.session_id));
       const feedbackOnDisabled = allFeedback.filter(fb => disabledSessionIds.has(fb.session_id));
       const uniqueDisabledSessions = new Set(feedbackOnDisabled.map(fb => fb.session_id));
@@ -390,12 +390,12 @@ export function Dashboard() {
         detail: uniqueDisabledSessions.size > 0
           ? `${feedbackOnDisabled.length} feedback row(s) across ${uniqueDisabledSessions.size} session(s) have feedback_enabled=false. Old data is still visible in analytics.`
           : 'All feedback rows belong to sessions with feedback enabled.',
-        icon: uniqueDisabledSessions.size > 0 ? '⚠️' : '✅',
+        icon: uniqueDisabledSessions.size > 0 ? 'âš ï¸' : 'âœ…',
         actionLabel: uniqueDisabledSessions.size > 0 ? 'Review in Analytics' : undefined,
         actionPath: uniqueDisabledSessions.size > 0 ? `/feedback-analytics?session=${Array.from(uniqueDisabledSessions)[0]}` : undefined,
       });
 
-      // ── Check 10: Attendance without active enrollment ──
+      // â”€â”€ Check 10: Attendance without active enrollment â”€â”€
       const enrollmentKeys = new Set(
         allEnrollments.filter(e => e.status === 'active').map(e => `${e.student_id}|${e.session_id}`)
       );
@@ -409,12 +409,12 @@ export function Dashboard() {
         detail: attendanceNoEnrollment.length > 0
           ? `${attendanceNoEnrollment.length} attendance row(s) belong to students not actively enrolled. These orphan rows break scoring and analytics.`
           : 'All attendance rows match an active enrollment.',
-        icon: attendanceNoEnrollment.length > 0 ? '🚨' : '✅',
+        icon: attendanceNoEnrollment.length > 0 ? 'ðŸš¨' : 'âœ…',
         actionLabel: attendanceNoEnrollment.length > 0 ? 'Check Enrollments' : undefined,
         actionPath: attendanceNoEnrollment.length > 0 ? '/enrollments' : undefined,
       });
 
-      // ── Check 11: Active sessions with zero enrollments ──
+      // â”€â”€ Check 11: Active sessions with zero enrollments â”€â”€
       const sessionsWithEnrollments = new Set(allEnrollments.filter(e => e.status === 'active').map(e => e.session_id));
       const activeSessions = allSessions.filter(s => s.end_date >= today);
       const emptyActiveSessions = activeSessions.filter(s => !sessionsWithEnrollments.has(s.session_id));
@@ -425,12 +425,12 @@ export function Dashboard() {
         detail: emptyActiveSessions.length > 0
           ? `${emptyActiveSessions.length} session(s) haven't ended yet but have zero active enrollments.`
           : 'All active sessions have at least one enrolled student.',
-        icon: emptyActiveSessions.length > 0 ? '⚠️' : '✅',
+        icon: emptyActiveSessions.length > 0 ? 'âš ï¸' : 'âœ…',
         actionLabel: emptyActiveSessions.length > 0 ? 'Manage Sessions' : undefined,
         actionPath: emptyActiveSessions.length > 0 ? '/sessions' : undefined,
       });
 
-      // ── Check 12: Expired QR sessions still marked valid → auto-fix ──
+      // â”€â”€ Check 12: Expired QR sessions still marked valid â†’ auto-fix â”€â”€
       const expiredButValidQr = qrRows.filter(row => row.is_valid && new Date(row.expires_at).getTime() <= now);
       if (expiredButValidQr.length > 0) {
         const expiredQrIds = expiredButValidQr.map(row => `${row.session_id}|${row.attendance_date}`);
@@ -443,8 +443,8 @@ export function Dashboard() {
           label: 'Expired QR tokens still marked valid',
           status: 'ok',
           count: 0,
-          detail: `Auto-fixed ${expiredQrIds.length} expired QR token(s) — set is_valid=false.`,
-          icon: '✅',
+          detail: `Auto-fixed ${expiredQrIds.length} expired QR token(s) â€” set is_valid=false.`,
+          icon: 'âœ…',
         });
       } else {
         checks.push({
@@ -452,11 +452,11 @@ export function Dashboard() {
           status: 'ok',
           count: 0,
           detail: 'All expired QR sessions are properly invalidated.',
-          icon: '✅',
+          icon: 'âœ…',
         });
       }
 
-      // ── Check 13: Expired photo check-in sessions still valid → auto-fix ──
+      // â”€â”€ Check 13: Expired photo check-in sessions still valid â†’ auto-fix â”€â”€
       const expiredButValidPhoto = photoRows.filter(row => row.is_valid && new Date(row.expires_at).getTime() <= now);
       if (expiredButValidPhoto.length > 0) {
         for (const row of expiredButValidPhoto) {
@@ -467,8 +467,8 @@ export function Dashboard() {
           label: 'Expired photo tokens still marked valid',
           status: 'ok',
           count: 0,
-          detail: `Auto-fixed ${expiredButValidPhoto.length} expired photo token(s) — set is_valid=false.`,
-          icon: '✅',
+          detail: `Auto-fixed ${expiredButValidPhoto.length} expired photo token(s) â€” set is_valid=false.`,
+          icon: 'âœ…',
         });
       } else {
         checks.push({
@@ -476,11 +476,11 @@ export function Dashboard() {
           status: 'ok',
           count: 0,
           detail: 'All expired photo sessions are properly invalidated.',
-          icon: '✅',
+          icon: 'âœ…',
         });
       }
 
-      // ── Check 14: Sessions ended long ago still show up ──
+      // â”€â”€ Check 14: Sessions ended long ago still show up â”€â”€
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       const staleEndedSessions = allSessions.filter(s => s.end_date < thirtyDaysAgo);
       const staleWithActivity = staleEndedSessions.filter(s => {
@@ -493,17 +493,17 @@ export function Dashboard() {
         detail: staleWithActivity.length > 0
           ? `${staleWithActivity.length} session(s) ended 30+ days ago but still have attendance or feedback data linked. Consider archiving.`
           : 'No stale sessions detected with lingering data.',
-        icon: staleWithActivity.length > 0 ? '⚠️' : '✅',
+        icon: staleWithActivity.length > 0 ? 'âš ï¸' : 'âœ…',
         actionLabel: staleWithActivity.length > 0 ? 'View Sessions' : undefined,
         actionPath: staleWithActivity.length > 0 ? '/sessions' : undefined,
       });
 
-      // ── Check 15: Feedback without matching attendance ──
+      // â”€â”€ Check 15: Feedback without matching attendance â”€â”€
       const attendanceKeys = new Set(
         attendance.filter(a => a.status === 'on time' || a.status === 'late')
           .map(a => `${a.student_id}|${a.session_id}|${a.attendance_date}`)
       );
-      // Also build set of session+date combos that are "session not held" — feedback here is expected orphan
+      // Also build set of session+date combos that are "session not held" â€” feedback here is expected orphan
       const notHeldDateKeys = new Set(
         attendance.filter(a => a.host_address === 'SESSION_NOT_HELD' || a.excuse_reason === 'session not held')
           .map(a => `${a.session_id}|${a.attendance_date}`)
@@ -520,12 +520,12 @@ export function Dashboard() {
         detail: feedbackNoAttendance.length > 0
           ? `${feedbackNoAttendance.length} feedback row(s) exist but the student has no on-time/late attendance for that date. RLS should have blocked these.`
           : 'All feedback rows have a matching valid attendance record.',
-        icon: feedbackNoAttendance.length > 0 ? '🚨' : '✅',
+        icon: feedbackNoAttendance.length > 0 ? 'ðŸš¨' : 'âœ…',
         actionLabel: feedbackNoAttendance.length > 0 ? 'Analytics' : undefined,
         actionPath: feedbackNoAttendance.length > 0 ? '/feedback-analytics' : undefined,
       });
 
-      // ── Check 16: Teachers without scoring configuration ──
+      // â”€â”€ Check 16: Teachers without scoring configuration â”€â”€
       // scoring_config.teacher_id references auth.users(id), not teacher(teacher_id).
       // We can't directly map teacher records to auth UIDs from the client,
       // so compare counts: unique active-session teachers vs unique scoring configs.
@@ -539,12 +539,12 @@ export function Dashboard() {
         detail: scoringGap > 0
           ? `${scoringGap} active-session teacher(s) may lack a scoring configuration. Student scores will default to base values.`
           : 'Scoring configurations cover all active-session teachers.',
-        icon: scoringGap > 0 ? '⚠️' : '✅',
+        icon: scoringGap > 0 ? 'âš ï¸' : 'âœ…',
         actionLabel: scoringGap > 0 ? 'Scoring Setup' : undefined,
         actionPath: scoringGap > 0 ? '/scoring-configuration' : undefined,
       });
 
-      // ── Check 17: Enrollment-Session FK integrity ──
+      // â”€â”€ Check 17: Enrollment-Session FK integrity â”€â”€
       const sessionIdSet = new Set(allSessions.map(s => s.session_id));
       const orphanedEnrollments = allEnrollments.filter(e => !sessionIdSet.has(e.session_id));
       checks.push({
@@ -554,15 +554,15 @@ export function Dashboard() {
         detail: orphanedEnrollments.length > 0
           ? `${orphanedEnrollments.length} enrollment(s) reference a session_id that doesn't exist. These are invisible data fragments.`
           : 'All enrollments reference valid sessions.',
-        icon: orphanedEnrollments.length > 0 ? '🚨' : '✅',
+        icon: orphanedEnrollments.length > 0 ? 'ðŸš¨' : 'âœ…',
         actionLabel: orphanedEnrollments.length > 0 ? 'Manage Enrollments' : undefined,
         actionPath: orphanedEnrollments.length > 0 ? '/enrollments' : undefined,
       });
 
-      // ── Check 18: Feedback anonymous mode mismatch ──
+      // â”€â”€ Check 18: Feedback anonymous mode mismatch â”€â”€
       const anonymousBlockedSessions = allSessions.filter(s => s.feedback_enabled && !s.feedback_anonymous_allowed);
       const anonBlockedIds = new Set(anonymousBlockedSessions.map(s => s.session_id));
-      // This is informational — just flag if there are sessions that block anonymous but have anonymous feedback
+      // This is informational â€” just flag if there are sessions that block anonymous but have anonymous feedback
       const anonFeedbackOnBlocked = allFeedback.filter(fb => anonBlockedIds.has(fb.session_id) && !fb.student_id);
       checks.push({
         label: 'Anonymous feedback on non-anonymous sessions',
@@ -571,7 +571,7 @@ export function Dashboard() {
         detail: anonFeedbackOnBlocked.length > 0
           ? `${anonFeedbackOnBlocked.length} anonymous feedback row(s) exist on sessions that now block anonymous mode. These were submitted before the setting changed.`
           : 'No anonymous feedback on sessions that block anonymous submissions.',
-        icon: anonFeedbackOnBlocked.length > 0 ? '⚠️' : '✅',
+        icon: anonFeedbackOnBlocked.length > 0 ? 'âš ï¸' : 'âœ…',
       });
 
       setHealthChecks(checks);
@@ -707,22 +707,22 @@ export function Dashboard() {
 
   const generateEmailLink = (student: AbsentStudent): string => {
     const riskLevelText = student.riskLevel.toUpperCase();
-    const subject = `[${riskLevelText} PRIORITY] Attendance Concern - ${student.student_name} | إشعار حضور - ${student.student_name}`;
+    const subject = `[${riskLevelText} PRIORITY] Attendance Concern - ${student.student_name} | Ø¥Ø´Ø¹Ø§Ø± Ø­Ø¶ÙˆØ± - ${student.student_name}`;
     
     const trendText = {
-      improving: 'showing improvement ✅',
-      declining: 'declining ⬇️',
-      stable: 'stable but concerning ⚠️'
+      improving: 'showing improvement âœ…',
+      declining: 'declining â¬‡ï¸',
+      stable: 'stable but concerning âš ï¸'
     }[student.trend];
 
     const trendTextAr = {
-      improving: 'في تحسّن ✅',
-      declining: 'في تراجع ⬇️',
-      stable: 'مستقر لكنه مقلق ⚠️'
+      improving: 'ÙÙŠ ØªØ­Ø³Ù‘Ù† âœ…',
+      declining: 'ÙÙŠ ØªØ±Ø§Ø¬Ø¹ â¬‡ï¸',
+      stable: 'Ù…Ø³ØªÙ‚Ø± Ù„ÙƒÙ†Ù‡ Ù…Ù‚Ù„Ù‚ âš ï¸'
     }[student.trend];
 
     const patternsText = student.patterns.length > 0 
-      ? `\n\n🔍 Detected Patterns:\n${student.patterns.map(p => `  • ${p}`).join('\n')}`
+      ? `\n\nðŸ” Detected Patterns:\n${student.patterns.map(p => `  â€¢ ${p}`).join('\n')}`
       : '';
 
     // Calculate absence severity metrics
@@ -738,127 +738,127 @@ export function Dashboard() {
 
     // Risk-specific recommendation
     const recommendation = {
-      critical: `🚨 URGENT ACTION REQUIRED:\nYour attendance has dropped to a critical level (${student.attendanceRate}%). This may result in:\n  • Academic probation or course failure\n  • Loss of enrollment eligibility\n  • Impact on certification/completion\n\nPlease schedule an immediate meeting with the administration within 48 hours.\n\n🚨 إجراء عاجل مطلوب:\nلقد انخفض حضورك إلى مستوى حرج (${student.attendanceRate}%). قد يؤدي هذا إلى:\n  • الإنذار الأكاديمي أو الإخفاق\n  • فقدان أهلية التسجيل\n  • التأثير على الشهادة/الإتمام\n\nيرجى تحديد موعد اجتماع فوري مع الإدارة خلال 48 ساعة.`,
-      high: `⚠️ HIGH PRIORITY:\nYour attendance pattern (${student.attendanceRate}%) shows significant risk. We recommend:\n  • Meeting with your instructor this week\n  • Setting up an attendance improvement plan\n  • Contacting us about any difficulties\n\n⚠️ أولوية عالية:\nنمط حضورك (${student.attendanceRate}%) يُظهر خطراً كبيراً. ننصحك بـ:\n  • الاجتماع مع معلمك هذا الأسبوع\n  • وضع خطة لتحسين الحضور\n  • التواصل معنا بشأن أي صعوبات`,
-      medium: `⚡ ATTENTION NEEDED:\nYour attendance (${student.attendanceRate}%) is below our recommended minimum of 75%. To get back on track:\n  • Attend all upcoming sessions without exception\n  • ${daysToReach75 > 0 ? `You need ${daysToReach75} consecutive sessions to reach 75%` : 'Keep maintaining current attendance'}\n  • Reach out if you need schedule accommodation\n\n⚡ يحتاج انتباهك:\nحضورك (${student.attendanceRate}%) أقل من الحد الأدنى الموصى به 75%. للعودة إلى المسار:\n  • احضر جميع الجلسات القادمة بدون استثناء\n  • ${daysToReach75 > 0 ? `تحتاج ${daysToReach75} جلسات متتالية للوصول إلى 75%` : 'حافظ على حضورك الحالي'}\n  • تواصل معنا إذا احتجت ترتيباً خاصاً`,
-      watch: `👁️ EARLY NOTICE:\nWe've noticed some attendance patterns that may affect your progress. Current rate: ${student.attendanceRate}%.\nThis is an early intervention — maintaining regular attendance ensures you get the most from the course.\n\n👁️ إشعار مبكر:\nلاحظنا بعض أنماط الحضور التي قد تؤثر على تقدمك. المعدل الحالي: ${student.attendanceRate}%.\nهذا تدخل مبكر — الحفاظ على الحضور المنتظم يضمن لك أقصى استفادة من الدورة.`
+      critical: `ðŸš¨ URGENT ACTION REQUIRED:\nYour attendance has dropped to a critical level (${student.attendanceRate}%). This may result in:\n  â€¢ Academic probation or course failure\n  â€¢ Loss of enrollment eligibility\n  â€¢ Impact on certification/completion\n\nPlease schedule an immediate meeting with the administration within 48 hours.\n\nðŸš¨ Ø¥Ø¬Ø±Ø§Ø¡ Ø¹Ø§Ø¬Ù„ Ù…Ø·Ù„ÙˆØ¨:\nÙ„Ù‚Ø¯ Ø§Ù†Ø®ÙØ¶ Ø­Ø¶ÙˆØ±Ùƒ Ø¥Ù„Ù‰ Ù…Ø³ØªÙˆÙ‰ Ø­Ø±Ø¬ (${student.attendanceRate}%). Ù‚Ø¯ ÙŠØ¤Ø¯ÙŠ Ù‡Ø°Ø§ Ø¥Ù„Ù‰:\n  â€¢ Ø§Ù„Ø¥Ù†Ø°Ø§Ø± Ø§Ù„Ø£ÙƒØ§Ø¯ÙŠÙ…ÙŠ Ø£Ùˆ Ø§Ù„Ø¥Ø®ÙØ§Ù‚\n  â€¢ ÙÙ‚Ø¯Ø§Ù† Ø£Ù‡Ù„ÙŠØ© Ø§Ù„ØªØ³Ø¬ÙŠÙ„\n  â€¢ Ø§Ù„ØªØ£Ø«ÙŠØ± Ø¹Ù„Ù‰ Ø§Ù„Ø´Ù‡Ø§Ø¯Ø©/Ø§Ù„Ø¥ØªÙ…Ø§Ù…\n\nÙŠØ±Ø¬Ù‰ ØªØ­Ø¯ÙŠØ¯ Ù…ÙˆØ¹Ø¯ Ø§Ø¬ØªÙ…Ø§Ø¹ ÙÙˆØ±ÙŠ Ù…Ø¹ Ø§Ù„Ø¥Ø¯Ø§Ø±Ø© Ø®Ù„Ø§Ù„ 48 Ø³Ø§Ø¹Ø©.`,
+      high: `âš ï¸ HIGH PRIORITY:\nYour attendance pattern (${student.attendanceRate}%) shows significant risk. We recommend:\n  â€¢ Meeting with your instructor this week\n  â€¢ Setting up an attendance improvement plan\n  â€¢ Contacting us about any difficulties\n\nâš ï¸ Ø£ÙˆÙ„ÙˆÙŠØ© Ø¹Ø§Ù„ÙŠØ©:\nÙ†Ù…Ø· Ø­Ø¶ÙˆØ±Ùƒ (${student.attendanceRate}%) ÙŠÙØ¸Ù‡Ø± Ø®Ø·Ø±Ø§Ù‹ ÙƒØ¨ÙŠØ±Ø§Ù‹. Ù†Ù†ØµØ­Ùƒ Ø¨Ù€:\n  â€¢ Ø§Ù„Ø§Ø¬ØªÙ…Ø§Ø¹ Ù…Ø¹ Ù…Ø¹Ù„Ù…Ùƒ Ù‡Ø°Ø§ Ø§Ù„Ø£Ø³Ø¨ÙˆØ¹\n  â€¢ ÙˆØ¶Ø¹ Ø®Ø·Ø© Ù„ØªØ­Ø³ÙŠÙ† Ø§Ù„Ø­Ø¶ÙˆØ±\n  â€¢ Ø§Ù„ØªÙˆØ§ØµÙ„ Ù…Ø¹Ù†Ø§ Ø¨Ø´Ø£Ù† Ø£ÙŠ ØµØ¹ÙˆØ¨Ø§Øª`,
+      medium: `âš¡ ATTENTION NEEDED:\nYour attendance (${student.attendanceRate}%) is below our recommended minimum of 75%. To get back on track:\n  â€¢ Attend all upcoming sessions without exception\n  â€¢ ${daysToReach75 > 0 ? `You need ${daysToReach75} consecutive sessions to reach 75%` : 'Keep maintaining current attendance'}\n  â€¢ Reach out if you need schedule accommodation\n\nâš¡ ÙŠØ­ØªØ§Ø¬ Ø§Ù†ØªØ¨Ø§Ù‡Ùƒ:\nØ­Ø¶ÙˆØ±Ùƒ (${student.attendanceRate}%) Ø£Ù‚Ù„ Ù…Ù† Ø§Ù„Ø­Ø¯ Ø§Ù„Ø£Ø¯Ù†Ù‰ Ø§Ù„Ù…ÙˆØµÙ‰ Ø¨Ù‡ 75%. Ù„Ù„Ø¹ÙˆØ¯Ø© Ø¥Ù„Ù‰ Ø§Ù„Ù…Ø³Ø§Ø±:\n  â€¢ Ø§Ø­Ø¶Ø± Ø¬Ù…ÙŠØ¹ Ø§Ù„Ø¬Ù„Ø³Ø§Øª Ø§Ù„Ù‚Ø§Ø¯Ù…Ø© Ø¨Ø¯ÙˆÙ† Ø§Ø³ØªØ«Ù†Ø§Ø¡\n  â€¢ ${daysToReach75 > 0 ? `ØªØ­ØªØ§Ø¬ ${daysToReach75} Ø¬Ù„Ø³Ø§Øª Ù…ØªØªØ§Ù„ÙŠØ© Ù„Ù„ÙˆØµÙˆÙ„ Ø¥Ù„Ù‰ 75%` : 'Ø­Ø§ÙØ¸ Ø¹Ù„Ù‰ Ø­Ø¶ÙˆØ±Ùƒ Ø§Ù„Ø­Ø§Ù„ÙŠ'}\n  â€¢ ØªÙˆØ§ØµÙ„ Ù…Ø¹Ù†Ø§ Ø¥Ø°Ø§ Ø§Ø­ØªØ¬Øª ØªØ±ØªÙŠØ¨Ø§Ù‹ Ø®Ø§ØµØ§Ù‹`,
+      watch: `ðŸ‘ï¸ EARLY NOTICE:\nWe've noticed some attendance patterns that may affect your progress. Current rate: ${student.attendanceRate}%.\nThis is an early intervention â€” maintaining regular attendance ensures you get the most from the course.\n\nðŸ‘ï¸ Ø¥Ø´Ø¹Ø§Ø± Ù…Ø¨ÙƒØ±:\nÙ„Ø§Ø­Ø¸Ù†Ø§ Ø¨Ø¹Ø¶ Ø£Ù†Ù…Ø§Ø· Ø§Ù„Ø­Ø¶ÙˆØ± Ø§Ù„ØªÙŠ Ù‚Ø¯ ØªØ¤Ø«Ø± Ø¹Ù„Ù‰ ØªÙ‚Ø¯Ù…Ùƒ. Ø§Ù„Ù…Ø¹Ø¯Ù„ Ø§Ù„Ø­Ø§Ù„ÙŠ: ${student.attendanceRate}%.\nÙ‡Ø°Ø§ ØªØ¯Ø®Ù„ Ù…Ø¨ÙƒØ± â€” Ø§Ù„Ø­ÙØ§Ø¸ Ø¹Ù„Ù‰ Ø§Ù„Ø­Ø¶ÙˆØ± Ø§Ù„Ù…Ù†ØªØ¸Ù… ÙŠØ¶Ù…Ù† Ù„Ùƒ Ø£Ù‚ØµÙ‰ Ø§Ø³ØªÙØ§Ø¯Ø© Ù…Ù† Ø§Ù„Ø¯ÙˆØ±Ø©.`
     }[student.riskLevel];
 
     // Formatted absence list with day names
     const absencesList = student.absentDates.slice(0, 15).map(d => {
       const dateObj = new Date(d);
-      return `  • ${format(dateObj, 'EEEE, MMMM dd, yyyy')}`;
+      return `  â€¢ ${format(dateObj, 'EEEE, MMMM dd, yyyy')}`;
     }).join('\n');
     const moreAbsences = student.absentDates.length > 15 
       ? `\n  ... and ${student.absentDates.length - 15} additional absences` 
       : '';
 
     const body = `Dear ${student.student_name},
-عزيزي/عزيزتي ${student.student_name}،
+Ø¹Ø²ÙŠØ²ÙŠ/Ø¹Ø²ÙŠØ²ØªÙŠ ${student.student_name}ØŒ
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 ATTENDANCE REPORT / تقرير الحضور
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Priority Level / مستوى الأولوية: ${riskLevelText}
-Course / الدورة: ${student.course_name}
-Report Date / تاريخ التقرير: ${format(new Date(), 'EEEE, MMMM dd, yyyy')}
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+ðŸ“Š ATTENDANCE REPORT / ØªÙ‚Ø±ÙŠØ± Ø§Ù„Ø­Ø¶ÙˆØ±
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+Priority Level / Ù…Ø³ØªÙˆÙ‰ Ø§Ù„Ø£ÙˆÙ„ÙˆÙŠØ©: ${riskLevelText}
+Course / Ø§Ù„Ø¯ÙˆØ±Ø©: ${student.course_name}
+Report Date / ØªØ§Ø±ÙŠØ® Ø§Ù„ØªÙ‚Ø±ÙŠØ±: ${format(new Date(), 'EEEE, MMMM dd, yyyy')}
 
-📈 DETAILED STATISTICS / إحصائيات مفصلة:
-  • Attendance Rate / معدل الحضور: ${student.attendanceRate}%
-  • Absence Rate / معدل الغياب: ${absencePercentage}%
-  • Sessions Attended / الجلسات المحضورة: ${student.presentDays} / ${student.totalDays}
-  • Sessions Missed / الجلسات الفائتة: ${student.totalDays - student.presentDays}
-  • Consecutive Absences / غياب متتالي: ${student.consecutiveAbsences} sessions
-  • Engagement Score / درجة المشاركة: ${student.engagementScore}/100
-  • Current Trend / الاتجاه الحالي: ${trendText} / ${trendTextAr}
-  • Projected Rate / المعدل المتوقع: ~${projectedEndRate}% (if trend continues)${student.lastAttendedDate ? `\n  • Last Attended / آخر حضور: ${format(new Date(student.lastAttendedDate), 'EEEE, MMMM dd, yyyy')}` : ''}
+ðŸ“ˆ DETAILED STATISTICS / Ø¥Ø­ØµØ§Ø¦ÙŠØ§Øª Ù…ÙØµÙ„Ø©:
+  â€¢ Attendance Rate / Ù…Ø¹Ø¯Ù„ Ø§Ù„Ø­Ø¶ÙˆØ±: ${student.attendanceRate}%
+  â€¢ Absence Rate / Ù…Ø¹Ø¯Ù„ Ø§Ù„ØºÙŠØ§Ø¨: ${absencePercentage}%
+  â€¢ Sessions Attended / Ø§Ù„Ø¬Ù„Ø³Ø§Øª Ø§Ù„Ù…Ø­Ø¶ÙˆØ±Ø©: ${student.presentDays} / ${student.totalDays}
+  â€¢ Sessions Missed / Ø§Ù„Ø¬Ù„Ø³Ø§Øª Ø§Ù„ÙØ§Ø¦ØªØ©: ${student.totalDays - student.presentDays}
+  â€¢ Consecutive Absences / ØºÙŠØ§Ø¨ Ù…ØªØªØ§Ù„ÙŠ: ${student.consecutiveAbsences} sessions
+  â€¢ Engagement Score / Ø¯Ø±Ø¬Ø© Ø§Ù„Ù…Ø´Ø§Ø±ÙƒØ©: ${student.engagementScore}/100
+  â€¢ Current Trend / Ø§Ù„Ø§ØªØ¬Ø§Ù‡ Ø§Ù„Ø­Ø§Ù„ÙŠ: ${trendText} / ${trendTextAr}
+  â€¢ Projected Rate / Ø§Ù„Ù…Ø¹Ø¯Ù„ Ø§Ù„Ù…ØªÙˆÙ‚Ø¹: ~${projectedEndRate}% (if trend continues)${student.lastAttendedDate ? `\n  â€¢ Last Attended / Ø¢Ø®Ø± Ø­Ø¶ÙˆØ±: ${format(new Date(student.lastAttendedDate), 'EEEE, MMMM dd, yyyy')}` : ''}
 ${patternsText}
 
-📅 ABSENCE RECORD / سجل الغياب:
+ðŸ“… ABSENCE RECORD / Ø³Ø¬Ù„ Ø§Ù„ØºÙŠØ§Ø¨:
 ${absencesList}${moreAbsences}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 ${recommendation}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
-📞 NEXT STEPS / الخطوات التالية:
-  1. Please respond to this email within 3 business days / يرجى الرد خلال 3 أيام عمل
-  2. Schedule a meeting if needed / حدد موعد اجتماع إذا لزم الأمر
-  3. Provide documentation for any excused absences / قدّم وثائق لأي غياب بعذر
-  4. Contact us at any time for support / تواصل معنا في أي وقت للدعم
+ðŸ“ž NEXT STEPS / Ø§Ù„Ø®Ø·ÙˆØ§Øª Ø§Ù„ØªØ§Ù„ÙŠØ©:
+  1. Please respond to this email within 3 business days / ÙŠØ±Ø¬Ù‰ Ø§Ù„Ø±Ø¯ Ø®Ù„Ø§Ù„ 3 Ø£ÙŠØ§Ù… Ø¹Ù…Ù„
+  2. Schedule a meeting if needed / Ø­Ø¯Ø¯ Ù…ÙˆØ¹Ø¯ Ø§Ø¬ØªÙ…Ø§Ø¹ Ø¥Ø°Ø§ Ù„Ø²Ù… Ø§Ù„Ø£Ù…Ø±
+  3. Provide documentation for any excused absences / Ù‚Ø¯Ù‘Ù… ÙˆØ«Ø§Ø¦Ù‚ Ù„Ø£ÙŠ ØºÙŠØ§Ø¨ Ø¨Ø¹Ø°Ø±
+  4. Contact us at any time for support / ØªÙˆØ§ØµÙ„ Ù…Ø¹Ù†Ø§ ÙÙŠ Ø£ÙŠ ÙˆÙ‚Øª Ù„Ù„Ø¯Ø¹Ù…
 
-Best regards / مع أطيب التحيات,
-Training Center Management / إدارة مركز التدريب
+Best regards / Ù…Ø¹ Ø£Ø·ÙŠØ¨ Ø§Ù„ØªØ­ÙŠØ§Øª,
+Training Center Management / Ø¥Ø¯Ø§Ø±Ø© Ù…Ø±ÙƒØ² Ø§Ù„ØªØ¯Ø±ÙŠØ¨
 
 ---
 This is an automated attendance report generated by the Training Center Management System.
-هذا تقرير حضور آلي تم إنشاؤه بواسطة نظام إدارة مركز التدريب.`;
+Ù‡Ø°Ø§ ØªÙ‚Ø±ÙŠØ± Ø­Ø¶ÙˆØ± Ø¢Ù„ÙŠ ØªÙ… Ø¥Ù†Ø´Ø§Ø¤Ù‡ Ø¨ÙˆØ§Ø³Ø·Ø© Ù†Ø¸Ø§Ù… Ø¥Ø¯Ø§Ø±Ø© Ù…Ø±ÙƒØ² Ø§Ù„ØªØ¯Ø±ÙŠØ¨.`;
 
     return `mailto:${student.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
 
   const generateSMSLink = (student: AbsentStudent): string => {
     const riskEmoji = {
-      critical: '🚨',
-      high: '⚠️',
-      medium: '⚡',
-      watch: '👁️'
+      critical: 'ðŸš¨',
+      high: 'âš ï¸',
+      medium: 'âš¡',
+      watch: 'ðŸ‘ï¸'
     }[student.riskLevel];
 
     const riskTextAr = {
-      critical: 'حرج',
-      high: 'عالي',
-      medium: 'متوسط',
-      watch: 'مراقبة'
+      critical: 'Ø­Ø±Ø¬',
+      high: 'Ø¹Ø§Ù„ÙŠ',
+      medium: 'Ù…ØªÙˆØ³Ø·',
+      watch: 'Ù…Ø±Ø§Ù‚Ø¨Ø©'
     }[student.riskLevel];
 
     const urgencyNote = {
-      critical: 'IMMEDIATE response required / مطلوب رد فوري',
-      high: 'Please respond within 24 hours / يرجى الرد خلال 24 ساعة',
-      medium: 'Please respond within 3 days / يرجى الرد خلال 3 أيام',
-      watch: 'For your information / للعلم'
+      critical: 'IMMEDIATE response required / Ù…Ø·Ù„ÙˆØ¨ Ø±Ø¯ ÙÙˆØ±ÙŠ',
+      high: 'Please respond within 24 hours / ÙŠØ±Ø¬Ù‰ Ø§Ù„Ø±Ø¯ Ø®Ù„Ø§Ù„ 24 Ø³Ø§Ø¹Ø©',
+      medium: 'Please respond within 3 days / ÙŠØ±Ø¬Ù‰ Ø§Ù„Ø±Ø¯ Ø®Ù„Ø§Ù„ 3 Ø£ÙŠØ§Ù…',
+      watch: 'For your information / Ù„Ù„Ø¹Ù„Ù…'
     }[student.riskLevel];
 
     // Recent absences for SMS (compact)
     const recentDates = student.absentDates.slice(0, 3).map(d => format(new Date(d), 'MMM dd')).join(', ');
     const moreDates = student.absentDates.length > 3 ? ` +${student.absentDates.length - 3} more` : '';
 
-    const message = `${riskEmoji} ATTENDANCE ALERT / إشعار حضور
+    const message = `${riskEmoji} ATTENDANCE ALERT / Ø¥Ø´Ø¹Ø§Ø± Ø­Ø¶ÙˆØ±
 ${student.student_name}
 
-Course/الدورة: ${student.course_name}
-Rate/المعدل: ${student.attendanceRate}%
-Attended/حضر: ${student.presentDays}/${student.totalDays} sessions
-Consecutive Absences/غياب متتالي: ${student.consecutiveAbsences}
-Trend/الاتجاه: ${student.trend}
-Risk/المستوى: ${student.riskLevel.toUpperCase()} (${riskTextAr})
-${recentDates ? `Recent Absences/غياب حديث: ${recentDates}${moreDates}` : ''}
+Course/Ø§Ù„Ø¯ÙˆØ±Ø©: ${student.course_name}
+Rate/Ø§Ù„Ù…Ø¹Ø¯Ù„: ${student.attendanceRate}%
+Attended/Ø­Ø¶Ø±: ${student.presentDays}/${student.totalDays} sessions
+Consecutive Absences/ØºÙŠØ§Ø¨ Ù…ØªØªØ§Ù„ÙŠ: ${student.consecutiveAbsences}
+Trend/Ø§Ù„Ø§ØªØ¬Ø§Ù‡: ${student.trend}
+Risk/Ø§Ù„Ù…Ø³ØªÙˆÙ‰: ${student.riskLevel.toUpperCase()} (${riskTextAr})
+${recentDates ? `Recent Absences/ØºÙŠØ§Ø¨ Ø­Ø¯ÙŠØ«: ${recentDates}${moreDates}` : ''}
 
 ${urgencyNote}
 
-Contact training center / تواصل مع مركز التدريب`;
+Contact training center / ØªÙˆØ§ØµÙ„ Ù…Ø¹ Ù…Ø±ÙƒØ² Ø§Ù„ØªØ¯Ø±ÙŠØ¨`;
 
     // SMS link format - works on most devices
     return `sms:${student.phone || ''}?body=${encodeURIComponent(message)}`;
   };
 
   const generateWhatsAppLink = (student: AbsentStudent): string => {
-    const riskEmoji = { critical: '🚨', high: '⚠️', medium: '⚡', watch: '👁️' }[student.riskLevel];
-    const riskTextAr = { critical: 'حرج', high: 'عالي', medium: 'متوسط', watch: 'مراقبة' }[student.riskLevel];
+    const riskEmoji = { critical: 'ðŸš¨', high: 'âš ï¸', medium: 'âš¡', watch: 'ðŸ‘ï¸' }[student.riskLevel];
+    const riskTextAr = { critical: 'Ø­Ø±Ø¬', high: 'Ø¹Ø§Ù„ÙŠ', medium: 'Ù…ØªÙˆØ³Ø·', watch: 'Ù…Ø±Ø§Ù‚Ø¨Ø©' }[student.riskLevel];
     const recentDates = student.absentDates.slice(0, 3).map(d => format(new Date(d), 'MMM dd')).join(', ');
 
-    const message = `${riskEmoji} *ATTENDANCE ALERT / إشعار حضور*
+    const message = `${riskEmoji} *ATTENDANCE ALERT / Ø¥Ø´Ø¹Ø§Ø± Ø­Ø¶ÙˆØ±*
 
-*Student/الطالب:* ${student.student_name}
-*Course/الدورة:* ${student.course_name}
-*Rate/المعدل:* ${student.attendanceRate}%
-*Attended/حضر:* ${student.presentDays}/${student.totalDays} sessions
-*Consecutive Absences/غياب متتالي:* ${student.consecutiveAbsences}
-*Risk Level/المستوى:* ${student.riskLevel.toUpperCase()} (${riskTextAr})
-${recentDates ? `*Recent/حديث:* ${recentDates}` : ''}
+*Student/Ø§Ù„Ø·Ø§Ù„Ø¨:* ${student.student_name}
+*Course/Ø§Ù„Ø¯ÙˆØ±Ø©:* ${student.course_name}
+*Rate/Ø§Ù„Ù…Ø¹Ø¯Ù„:* ${student.attendanceRate}%
+*Attended/Ø­Ø¶Ø±:* ${student.presentDays}/${student.totalDays} sessions
+*Consecutive Absences/ØºÙŠØ§Ø¨ Ù…ØªØªØ§Ù„ÙŠ:* ${student.consecutiveAbsences}
+*Risk Level/Ø§Ù„Ù…Ø³ØªÙˆÙ‰:* ${student.riskLevel.toUpperCase()} (${riskTextAr})
+${recentDates ? `*Recent/Ø­Ø¯ÙŠØ«:* ${recentDates}` : ''}
 
 Please contact the training center.
-يرجى التواصل مع مركز التدريب.`;
+ÙŠØ±Ø¬Ù‰ Ø§Ù„ØªÙˆØ§ØµÙ„ Ù…Ø¹ Ù…Ø±ÙƒØ² Ø§Ù„ØªØ¯Ø±ÙŠØ¨.`;
 
     const phone = (student.phone || '').replace(/[^0-9]/g, '');
     return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
@@ -870,43 +870,43 @@ Please contact the training center.
     
     switch (template) {
       case 'encouragement': {
-        const subject = `Great Progress! Keep Going - ${student.student_name} | أحسنت! واصل التقدم`;
+        const subject = `Great Progress! Keep Going - ${student.student_name} | Ø£Ø­Ø³Ù†Øª! ÙˆØ§ØµÙ„ Ø§Ù„ØªÙ‚Ø¯Ù…`;
         const body = isEmail
-          ? `Dear ${student.student_name},\nعزيزي/عزيزتي ${student.student_name}،\n\n` +
+          ? `Dear ${student.student_name},\nØ¹Ø²ÙŠØ²ÙŠ/Ø¹Ø²ÙŠØ²ØªÙŠ ${student.student_name}ØŒ\n\n` +
             `We want to acknowledge your efforts in "${student.course_name}".\n` +
-            `نود أن نقدر جهودك في "${student.course_name}".\n\n` +
-            `📊 Your Stats / إحصائياتك:\n` +
-            `  • Attendance Rate / معدل الحضور: ${student.attendanceRate}%\n` +
-            `  • Sessions Attended / الجلسات المحضورة: ${student.presentDays}/${student.totalDays}\n` +
-            `  • Engagement / المشاركة: ${student.engagementScore}/100\n` +
-            `  • Trend / الاتجاه: ${student.trend}\n\n` +
+            `Ù†ÙˆØ¯ Ø£Ù† Ù†Ù‚Ø¯Ø± Ø¬Ù‡ÙˆØ¯Ùƒ ÙÙŠ "${student.course_name}".\n\n` +
+            `ðŸ“Š Your Stats / Ø¥Ø­ØµØ§Ø¦ÙŠØ§ØªÙƒ:\n` +
+            `  â€¢ Attendance Rate / Ù…Ø¹Ø¯Ù„ Ø§Ù„Ø­Ø¶ÙˆØ±: ${student.attendanceRate}%\n` +
+            `  â€¢ Sessions Attended / Ø§Ù„Ø¬Ù„Ø³Ø§Øª Ø§Ù„Ù…Ø­Ø¶ÙˆØ±Ø©: ${student.presentDays}/${student.totalDays}\n` +
+            `  â€¢ Engagement / Ø§Ù„Ù…Ø´Ø§Ø±ÙƒØ©: ${student.engagementScore}/100\n` +
+            `  â€¢ Trend / Ø§Ù„Ø§ØªØ¬Ø§Ù‡: ${student.trend}\n\n` +
             (student.trend === 'improving' 
-              ? `🌟 Your attendance trend is improving — keep up the great work!\nاتجاه حضورك في تحسّن — استمر في العمل الرائع!\n\n`
-              : `💪 We believe in your ability to succeed. Every session counts!\nنحن نؤمن بقدرتك على النجاح. كل جلسة مهمة!\n\n`) +
-            `Best regards / مع أطيب التحيات,\nTraining Center Management / إدارة مركز التدريب`
-          : `🌟 ${student.student_name}\n` +
+              ? `ðŸŒŸ Your attendance trend is improving â€” keep up the great work!\nØ§ØªØ¬Ø§Ù‡ Ø­Ø¶ÙˆØ±Ùƒ ÙÙŠ ØªØ­Ø³Ù‘Ù† â€” Ø§Ø³ØªÙ…Ø± ÙÙŠ Ø§Ù„Ø¹Ù…Ù„ Ø§Ù„Ø±Ø§Ø¦Ø¹!\n\n`
+              : `ðŸ’ª We believe in your ability to succeed. Every session counts!\nÙ†Ø­Ù† Ù†Ø¤Ù…Ù† Ø¨Ù‚Ø¯Ø±ØªÙƒ Ø¹Ù„Ù‰ Ø§Ù„Ù†Ø¬Ø§Ø­. ÙƒÙ„ Ø¬Ù„Ø³Ø© Ù…Ù‡Ù…Ø©!\n\n`) +
+            `Best regards / Ù…Ø¹ Ø£Ø·ÙŠØ¨ Ø§Ù„ØªØ­ÙŠØ§Øª,\nTraining Center Management / Ø¥Ø¯Ø§Ø±Ø© Ù…Ø±ÙƒØ² Ø§Ù„ØªØ¯Ø±ÙŠØ¨`
+          : `ðŸŒŸ ${student.student_name}\n` +
             `Course: ${student.course_name}\n` +
             `Rate: ${student.attendanceRate}% | ${student.presentDays}/${student.totalDays}\n` +
-            `Keep up the great work! واصل التقدم!`;
+            `Keep up the great work! ÙˆØ§ØµÙ„ Ø§Ù„ØªÙ‚Ø¯Ù…!`;
         return { subject, body };
       }
       case 'reminder': {
-        const subject = `Session Reminder - ${student.course_name} | تذكير بالجلسة - ${student.course_name}`;
+        const subject = `Session Reminder - ${student.course_name} | ØªØ°ÙƒÙŠØ± Ø¨Ø§Ù„Ø¬Ù„Ø³Ø© - ${student.course_name}`;
         const body = isEmail
-          ? `Dear ${student.student_name},\nعزيزي/عزيزتي ${student.student_name}،\n\n` +
-            `This is a friendly reminder about your upcoming session.\nهذا تذكير ودي بجلستك القادمة.\n\n` +
-            `📅 Course / الدورة: ${student.course_name}\n` +
-            `📊 Current Attendance / الحضور الحالي: ${student.attendanceRate}%\n` +
-            `📈 Sessions Completed / الجلسات المكتملة: ${student.presentDays}/${student.totalDays}\n\n` +
+          ? `Dear ${student.student_name},\nØ¹Ø²ÙŠØ²ÙŠ/Ø¹Ø²ÙŠØ²ØªÙŠ ${student.student_name}ØŒ\n\n` +
+            `This is a friendly reminder about your upcoming session.\nÙ‡Ø°Ø§ ØªØ°ÙƒÙŠØ± ÙˆØ¯ÙŠ Ø¨Ø¬Ù„Ø³ØªÙƒ Ø§Ù„Ù‚Ø§Ø¯Ù…Ø©.\n\n` +
+            `ðŸ“… Course / Ø§Ù„Ø¯ÙˆØ±Ø©: ${student.course_name}\n` +
+            `ðŸ“Š Current Attendance / Ø§Ù„Ø­Ø¶ÙˆØ± Ø§Ù„Ø­Ø§Ù„ÙŠ: ${student.attendanceRate}%\n` +
+            `ðŸ“ˆ Sessions Completed / Ø§Ù„Ø¬Ù„Ø³Ø§Øª Ø§Ù„Ù…ÙƒØªÙ…Ù„Ø©: ${student.presentDays}/${student.totalDays}\n\n` +
             (student.attendanceRate < 75 
-              ? `⚠️ Your attendance is below 75%. Please make every effort to attend.\nحضورك أقل من 75%. يرجى بذل كل جهد للحضور.\n\n`
+              ? `âš ï¸ Your attendance is below 75%. Please make every effort to attend.\nØ­Ø¶ÙˆØ±Ùƒ Ø£Ù‚Ù„ Ù…Ù† 75%. ÙŠØ±Ø¬Ù‰ Ø¨Ø°Ù„ ÙƒÙ„ Ø¬Ù‡Ø¯ Ù„Ù„Ø­Ø¶ÙˆØ±.\n\n`
               : '') +
-            `We look forward to seeing you!\nنتطلع لرؤيتك!\n\n` +
-            `Training Center Management / إدارة مركز التدريب`
-          : `📅 REMINDER / تذكير\n${student.student_name}\n` +
+            `We look forward to seeing you!\nÙ†ØªØ·Ù„Ø¹ Ù„Ø±Ø¤ÙŠØªÙƒ!\n\n` +
+            `Training Center Management / Ø¥Ø¯Ø§Ø±Ø© Ù…Ø±ÙƒØ² Ø§Ù„ØªØ¯Ø±ÙŠØ¨`
+          : `ðŸ“… REMINDER / ØªØ°ÙƒÙŠØ±\n${student.student_name}\n` +
             `Course: ${student.course_name}\n` +
             `Rate: ${student.attendanceRate}%\n` +
-            `Don't miss your next session! لا تفوت جلستك القادمة!`;
+            `Don't miss your next session! Ù„Ø§ ØªÙÙˆØª Ø¬Ù„Ø³ØªÙƒ Ø§Ù„Ù‚Ø§Ø¯Ù…Ø©!`;
         return { subject, body };
       }
       case 'custom':
@@ -949,8 +949,8 @@ Please contact the training center.
     setComposerChannel(channel);
     setComposerTemplate('attendance_alert');
     setBulkMode(true);
-    setComposerSubject('[BULK] Attendance Alert / إشعار حضور');
-    setComposerBody('Each student will receive a personalized message based on their attendance data.\nسيتلقى كل طالب رسالة مخصصة بناءً على بيانات حضوره.');
+    setComposerSubject('[BULK] Attendance Alert / Ø¥Ø´Ø¹Ø§Ø± Ø­Ø¶ÙˆØ±');
+    setComposerBody('Each student will receive a personalized message based on their attendance data.\nØ³ÙŠØªÙ„Ù‚Ù‰ ÙƒÙ„ Ø·Ø§Ù„Ø¨ Ø±Ø³Ø§Ù„Ø© Ù…Ø®ØµØµØ© Ø¨Ù†Ø§Ø¡Ù‹ Ø¹Ù„Ù‰ Ø¨ÙŠØ§Ù†Ø§Øª Ø­Ø¶ÙˆØ±Ù‡.');
     setComposerOpen(true);
   }, [filteredStudents]);
 
@@ -984,7 +984,7 @@ Please contact the training center.
     setComposerOpen(false);
   }, [bulkMode, filteredStudents, composerStudent, composerChannel, composerTemplate, composerSubject, composerBody, generateTemplateBody]);
 
-  // Load pending excuses count — uses service layer
+  // Load pending excuses count â€” uses service layer
   const loadPendingExcuses = async () => {
     try {
       const { count } = await excuseRequestService.getPendingCount();
@@ -1196,7 +1196,7 @@ Please contact the training center.
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center text-amber-600 dark:text-amber-400">
-                🏆
+                ðŸ†
               </div>
               <div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Certificates</p>
@@ -1213,7 +1213,7 @@ Please contact the training center.
               </div>
               <div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Feedback</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-white">Analytics →</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">Analytics â†’</p>
               </div>
             </div>
           </div>
@@ -1269,11 +1269,11 @@ Please contact the training center.
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
-              <span className="text-lg">🩺</span>
+              <span className="text-lg">ðŸ©º</span>
               Session Readiness Radar
             </CardTitle>
             <Button size="sm" variant="outline" onClick={loadHealthChecks} disabled={healthLoading}>
-              {healthLoading ? 'Scanning...' : healthLoaded ? '🔄 Re-scan' : '▶️ Run Checks'}
+              {healthLoading ? 'Scanning...' : healthLoaded ? 'ðŸ”„ Re-scan' : 'â–¶ï¸ Run Checks'}
             </Button>
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Deep diagnostic scan: data integrity, feedback pipeline, check-in tokens, enrollment health, scoring config, and workflow blockers.</p>
@@ -1281,13 +1281,13 @@ Please contact the training center.
         <CardContent>
           {!healthLoaded && !healthLoading && (
             <div className="text-center py-6 text-gray-400">
-              <span className="text-3xl block mb-2">🔍</span>
+              <span className="text-3xl block mb-2">ðŸ”</span>
               <p className="text-sm">Click <strong>Run Checks</strong> to run a deep diagnostic scan across attendance, feedback, enrollments, scoring, and tokens.</p>
             </div>
           )}
           {healthLoading && (
             <div className="text-center py-6 text-gray-400 animate-pulse">
-              <span className="text-3xl block mb-2">⏳</span>
+              <span className="text-3xl block mb-2">â³</span>
               <p className="text-sm">Running deep diagnostic scan...</p>
             </div>
           )}
@@ -1313,13 +1313,13 @@ Please contact the training center.
                     <span className={`text-2xl font-bold ${scoreColor}`}>{healthScore}%</span>
                     <div>
                       <p className="text-sm font-semibold text-gray-900 dark:text-white">System Health</p>
-                      <p className="text-[11px] text-gray-500 dark:text-gray-400">{totalChecks} checks · {okCount} passed · {warnCount} warnings · {errorCount} blockers</p>
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400">{totalChecks} checks Â· {okCount} passed Â· {warnCount} warnings Â· {errorCount} blockers</p>
                     </div>
                   </div>
                   <div className="flex gap-2 text-xs font-medium">
-                    <span className="text-emerald-600 dark:text-emerald-400">✅ {okCount}</span>
-                    <span className="text-amber-600 dark:text-amber-400">⚠️ {warnCount}</span>
-                    <span className="text-red-600 dark:text-red-400">🚨 {errorCount}</span>
+                    <span className="text-emerald-600 dark:text-emerald-400">âœ… {okCount}</span>
+                    <span className="text-amber-600 dark:text-amber-400">âš ï¸ {warnCount}</span>
+                    <span className="text-red-600 dark:text-red-400">ðŸš¨ {errorCount}</span>
                   </div>
                 </div>
               </div>
@@ -1353,7 +1353,7 @@ Please contact the training center.
                         onClick={() => navigate(check.actionPath!)}
                         className="mt-2 text-[11px] font-medium text-purple-600 dark:text-purple-400 hover:underline"
                       >
-                        {check.actionLabel} →
+                        {check.actionLabel} â†’
                       </button>
                     )}
                   </div>
@@ -1372,7 +1372,7 @@ Please contact the training center.
         <CardHeader className="flex flex-col gap-4">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <CardTitle>🎯 Smart Attendance Analytics</CardTitle>
+              <CardTitle>ðŸŽ¯ Smart Attendance Analytics</CardTitle>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">AI-powered risk assessment with trend analysis</p>
             </div>
             <Button 
@@ -1444,7 +1444,7 @@ Please contact the training center.
             
             return filtered.length === 0 ? (
               <div className="text-center py-8">
-                <div className="text-5xl mb-3">✓</div>
+                <div className="text-5xl mb-3">âœ“</div>
                 <p className="text-green-600 dark:text-green-400 font-medium text-lg">Excellent! No attendance concerns</p>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">All students are maintaining healthy attendance patterns</p>
               </div>
@@ -1472,25 +1472,25 @@ Please contact the training center.
 
                 {/* Bulk Messaging Toolbar */}
                 <div className="flex flex-wrap items-center gap-2 mb-4 p-3 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-lg">
-                  <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">📨 Bulk Message ({filtered.length} students):</span>
+                  <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">ðŸ“¨ Bulk Message ({filtered.length} students):</span>
                   <div className="flex gap-2">
                     <button
                       onClick={() => openBulkComposer('email')}
                       className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs font-medium flex items-center gap-1"
                     >
-                      📧 Email All
+                      ðŸ“§ Email All
                     </button>
                     <button
                       onClick={() => openBulkComposer('sms')}
                       className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs font-medium flex items-center gap-1"
                     >
-                      💬 SMS All
+                      ðŸ’¬ SMS All
                     </button>
                     <button
                       onClick={() => openBulkComposer('whatsapp')}
                       className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-xs font-medium flex items-center gap-1"
                     >
-                      📱 WhatsApp All
+                      ðŸ“± WhatsApp All
                     </button>
                   </div>
                 </div>
@@ -1574,7 +1574,7 @@ Please contact the training center.
                             {/* Patterns */}
                             {student.patterns.length > 0 && (
                               <div className="mb-2">
-                                <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">🔍 Detected Patterns:</div>
+                                <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">ðŸ” Detected Patterns:</div>
                                 <div className="flex flex-wrap gap-1">
                                   {student.patterns.map((pattern, idx) => (
                                     <span key={idx} className="text-xs bg-white dark:bg-gray-800 bg-opacity-70 dark:bg-opacity-50 px-2 py-0.5 rounded border border-gray-300 dark:border-gray-600 dark:text-gray-300">
@@ -1595,7 +1595,7 @@ Please contact the training center.
                               )}
                               <div>
                                 <span className="font-semibold">History:</span> {student.presentDays} present / {student.totalDays} total sessions
-                                {student.lastAttendedDate && ` • Last attended: ${format(new Date(student.lastAttendedDate), 'MMM dd')}`}
+                                {student.lastAttendedDate && ` â€¢ Last attended: ${format(new Date(student.lastAttendedDate), 'MMM dd')}`}
                               </div>
                               <div>
                                 <span className="font-semibold">Email:</span> {student.email}
@@ -1610,7 +1610,7 @@ Please contact the training center.
                               className="flex-shrink-0 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap text-sm font-medium text-center"
                               title="Compose Email"
                             >
-                              📧 Email
+                              ðŸ“§ Email
                             </button>
                             {student.phone && (
                               <>
@@ -1619,7 +1619,7 @@ Please contact the training center.
                                   className="flex-shrink-0 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors whitespace-nowrap text-sm font-medium text-center"
                                   title="Compose SMS"
                                 >
-                                  💬 SMS
+                                  ðŸ’¬ SMS
                                 </button>
                                 <a
                                   href={generateWhatsAppLink(student)}
@@ -1630,7 +1630,7 @@ Please contact the training center.
                                   title="Send WhatsApp"
                                   tabIndex={-1}
                                 >
-                                  📱 WhatsApp
+                                  ðŸ“± WhatsApp
                                 </a>
                               </>
                             )}
@@ -1652,7 +1652,7 @@ Please contact the training center.
         <div className="space-y-6">
           <Card>
             <CardContent className="py-8 text-center">
-              <div className="text-4xl mb-3">📚</div>
+              <div className="text-4xl mb-3">ðŸ“š</div>
               <p className="text-gray-700 dark:text-gray-200 font-medium text-lg">Welcome to the Training Center</p>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Navigate to your courses, sessions, and attendance records using the menu above.</p>
             </CardContent>
@@ -1661,7 +1661,7 @@ Please contact the training center.
             <Link to="/attendance-records">
               <Card className="hover:shadow-lg transition-shadow cursor-pointer">
                 <CardContent className="py-6 text-center">
-                  <div className="text-3xl mb-2">📋</div>
+                  <div className="text-3xl mb-2">ðŸ“‹</div>
                   <p className="font-medium text-gray-800 dark:text-gray-200">My Attendance</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">View your attendance records</p>
                 </CardContent>
@@ -1670,7 +1670,7 @@ Please contact the training center.
             <Link to="/excuse-requests">
               <Card className="hover:shadow-lg transition-shadow cursor-pointer">
                 <CardContent className="py-6 text-center">
-                  <div className="text-3xl mb-2">📝</div>
+                  <div className="text-3xl mb-2">ðŸ“</div>
                   <p className="font-medium text-gray-800 dark:text-gray-200">Excuse Requests</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Submit or track excuse requests</p>
                 </CardContent>
@@ -1679,7 +1679,7 @@ Please contact the training center.
             <Link to="/certificates">
               <Card className="hover:shadow-lg transition-shadow cursor-pointer">
                 <CardContent className="py-6 text-center">
-                  <div className="text-3xl mb-2">🏆</div>
+                  <div className="text-3xl mb-2">ðŸ†</div>
                   <p className="font-medium text-gray-800 dark:text-gray-200">My Certificates</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">View and download certificates</p>
                 </CardContent>
@@ -1697,11 +1697,11 @@ Please contact the training center.
             <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-gray-700">
               <div>
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                  {bulkMode ? `📨 Bulk Message (${filteredStudents.length} students)` : '✉️ Message Composer'}
+                  {bulkMode ? `ðŸ“¨ Bulk Message (${filteredStudents.length} students)` : 'âœ‰ï¸ Message Composer'}
                 </h3>
                 {composerStudent && !bulkMode && (
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                    To: {composerStudent.student_name} — {composerStudent.course_name}
+                    To: {composerStudent.student_name} â€” {composerStudent.course_name}
                   </p>
                 )}
               </div>
@@ -1736,7 +1736,7 @@ Please contact the training center.
                           : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                       }`}
                     >
-                      {ch === 'email' ? '📧 Email' : ch === 'sms' ? '💬 SMS' : '📱 WhatsApp'}
+                      {ch === 'email' ? 'ðŸ“§ Email' : ch === 'sms' ? 'ðŸ’¬ SMS' : 'ðŸ“± WhatsApp'}
                     </button>
                   ))}
                 </div>
@@ -1747,10 +1747,10 @@ Please contact the training center.
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Template</label>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   {([
-                    { key: 'attendance_alert' as MessageTemplate, label: '🚨 Attendance Alert', desc: 'Risk-based warning' },
-                    { key: 'encouragement' as MessageTemplate, label: '🌟 Encouragement', desc: 'Positive reinforcement' },
-                    { key: 'reminder' as MessageTemplate, label: '📅 Session Reminder', desc: 'Upcoming session' },
-                    { key: 'custom' as MessageTemplate, label: '✏️ Custom', desc: 'Write your own' },
+                    { key: 'attendance_alert' as MessageTemplate, label: 'ðŸš¨ Attendance Alert', desc: 'Risk-based warning' },
+                    { key: 'encouragement' as MessageTemplate, label: 'ðŸŒŸ Encouragement', desc: 'Positive reinforcement' },
+                    { key: 'reminder' as MessageTemplate, label: 'ðŸ“… Session Reminder', desc: 'Upcoming session' },
+                    { key: 'custom' as MessageTemplate, label: 'âœï¸ Custom', desc: 'Write your own' },
                   ]).map(t => (
                     <button
                       key={t.key}

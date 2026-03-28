@@ -1,6 +1,6 @@
-import { supabase } from '../lib/supabase';
-import { Tables, type CreateTeacher, type UpdateTeacher } from '../types/database.types';
-import { logDelete, logUpdate, logInsert } from './auditService';
+import { supabase } from '@/shared/lib/supabase';
+import { Tables, type CreateTeacher, type UpdateTeacher } from '@/shared/types/database.types';
+import { logDelete, logUpdate, logInsert } from '@/shared/services/auditService';
 
 export const teacherService = {
   async getAll() {
@@ -140,7 +140,7 @@ export const teacherService = {
 
     if (!courses || courses.length === 0) return counts;
 
-    // Build teacher → course_ids map
+    // Build teacher â†’ course_ids map
     const teacherCourses = new Map<string, string[]>();
     const allCourseIds: string[] = [];
     for (const c of courses) {
@@ -159,7 +159,7 @@ export const teacherService = {
 
     if (!sessions || sessions.length === 0) return counts;
 
-    // Build course → session_ids map
+    // Build course â†’ session_ids map
     const courseSessions = new Map<string, string[]>();
     const allSessionIds: string[] = [];
     for (const s of sessions) {
@@ -178,7 +178,7 @@ export const teacherService = {
 
     if (!enrollments || enrollments.length === 0) return counts;
 
-    // Build session → student_ids map
+    // Build session â†’ student_ids map
     const sessionStudents = new Map<string, Set<string>>();
     for (const e of enrollments) {
       if (!sessionStudents.has(e.session_id)) {

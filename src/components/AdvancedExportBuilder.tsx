@@ -4,7 +4,7 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { wordExportService } from '../services/wordExportService';
 import { format } from 'date-fns';
-import { toast } from './ui/toastUtils';
+import { toast } from '@/shared/components/ui/toastUtils';
 
 // ==================== TYPES ====================
 
@@ -344,7 +344,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
         continue;
       }
       
-      // Try numeric comparison (strip non-numeric chars for values like "85%", "±10m")
+      // Try numeric comparison (strip non-numeric chars for values like "85%", "Â±10m")
       const aNum = typeof aVal === 'string' ? parseFloat(aVal.replace(/[^0-9.-]/g, '')) : aVal;
       const bNum = typeof bVal === 'string' ? parseFloat(bVal.replace(/[^0-9.-]/g, '')) : bVal;
       
@@ -582,45 +582,45 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     // Add summary sheet if enabled
     if (config.includeSummary) {
       const summaryData: (string | number)[][] = [
-        [isArabic ? 'التقرير' : 'Report', config.title],
-        [isArabic ? 'التاريخ' : 'Generated', format(new Date(), 'MMM dd, yyyy HH:mm')],
-        [isArabic ? 'عدد السجلات الأصلية' : 'Original Records', stats.totalRows],
-        [isArabic ? 'عدد السجلات المصدرة' : 'Exported Records', stats.cleanedRows],
-        [isArabic ? 'عدد الحقول' : 'Fields Exported', selectedFields.length],
+        [isArabic ? 'Ø§Ù„ØªÙ‚Ø±ÙŠØ±' : 'Report', config.title],
+        [isArabic ? 'Ø§Ù„ØªØ§Ø±ÙŠØ®' : 'Generated', format(new Date(), 'MMM dd, yyyy HH:mm')],
+        [isArabic ? 'Ø¹Ø¯Ø¯ Ø§Ù„Ø³Ø¬Ù„Ø§Øª Ø§Ù„Ø£ØµÙ„ÙŠØ©' : 'Original Records', stats.totalRows],
+        [isArabic ? 'Ø¹Ø¯Ø¯ Ø§Ù„Ø³Ø¬Ù„Ø§Øª Ø§Ù„Ù…ØµØ¯Ø±Ø©' : 'Exported Records', stats.cleanedRows],
+        [isArabic ? 'Ø¹Ø¯Ø¯ Ø§Ù„Ø­Ù‚ÙˆÙ„' : 'Fields Exported', selectedFields.length],
       ];
       if (dateRange) {
-        summaryData.push([isArabic ? 'من تاريخ' : 'From Date', dateRange.start]);
-        summaryData.push([isArabic ? 'إلى تاريخ' : 'To Date', dateRange.end]);
+        summaryData.push([isArabic ? 'Ù…Ù† ØªØ§Ø±ÙŠØ®' : 'From Date', dateRange.start]);
+        summaryData.push([isArabic ? 'Ø¥Ù„Ù‰ ØªØ§Ø±ÙŠØ®' : 'To Date', dateRange.end]);
       }
       
       // Add data processing info
       summaryData.push(['', '']);
-      summaryData.push([isArabic ? 'معالجة البيانات' : 'Data Processing', '']);
+      summaryData.push([isArabic ? 'Ù…Ø¹Ø§Ù„Ø¬Ø© Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª' : 'Data Processing', '']);
       if (config.dataValidation.removeDuplicates) {
-        summaryData.push([isArabic ? 'إزالة المكررات' : 'Duplicates Removed', 'Yes']);
+        summaryData.push([isArabic ? 'Ø¥Ø²Ø§Ù„Ø© Ø§Ù„Ù…ÙƒØ±Ø±Ø§Øª' : 'Duplicates Removed', 'Yes']);
       }
       if (config.dataValidation.removeEmptyRows) {
-        summaryData.push([isArabic ? 'إزالة الصفوف الفارغة' : 'Empty Rows Removed', 'Yes']);
+        summaryData.push([isArabic ? 'Ø¥Ø²Ø§Ù„Ø© Ø§Ù„ØµÙÙˆÙ Ø§Ù„ÙØ§Ø±ØºØ©' : 'Empty Rows Removed', 'Yes']);
       }
       if (config.dataValidation.trimWhitespace) {
-        summaryData.push([isArabic ? 'تنظيف المسافات' : 'Whitespace Trimmed', 'Yes']);
+        summaryData.push([isArabic ? 'ØªÙ†Ø¸ÙŠÙ Ø§Ù„Ù…Ø³Ø§ÙØ§Øª' : 'Whitespace Trimmed', 'Yes']);
       }
       
       // Add conditional coloring note
       if (config.dataValidation.enableConditionalColoring) {
         summaryData.push(['', '']);
-        summaryData.push([isArabic ? 'تلوين الخلايا' : 'Conditional Coloring', isArabic ? 'مفعّل' : 'Enabled']);
-        summaryData.push([isArabic ? 'ملاحظة' : 'Note', isArabic ? 'التلوين متاح في تصدير Word و PDF' : 'Cell coloring is available in Word and PDF exports']);
+        summaryData.push([isArabic ? 'ØªÙ„ÙˆÙŠÙ† Ø§Ù„Ø®Ù„Ø§ÙŠØ§' : 'Conditional Coloring', isArabic ? 'Ù…ÙØ¹Ù‘Ù„' : 'Enabled']);
+        summaryData.push([isArabic ? 'Ù…Ù„Ø§Ø­Ø¸Ø©' : 'Note', isArabic ? 'Ø§Ù„ØªÙ„ÙˆÙŠÙ† Ù…ØªØ§Ø­ ÙÙŠ ØªØµØ¯ÙŠØ± Word Ùˆ PDF' : 'Cell coloring is available in Word and PDF exports']);
         summaryData.push(['', '']);
-        summaryData.push([isArabic ? 'دليل الألوان' : 'Color Legend:', '']);
-        summaryData.push([isArabic ? 'أخضر (ممتاز)' : 'Green (Excellent)', '90%+']);
-        summaryData.push([isArabic ? 'أزرق (جيد)' : 'Blue (Good)', '75-89%']);
-        summaryData.push([isArabic ? 'برتقالي (متوسط)' : 'Orange (Moderate)', '60-74%']);
-        summaryData.push([isArabic ? 'أحمر (يحتاج تحسين)' : 'Red (Needs Attention)', '<60%']);
+        summaryData.push([isArabic ? 'Ø¯Ù„ÙŠÙ„ Ø§Ù„Ø£Ù„ÙˆØ§Ù†' : 'Color Legend:', '']);
+        summaryData.push([isArabic ? 'Ø£Ø®Ø¶Ø± (Ù…Ù…ØªØ§Ø²)' : 'Green (Excellent)', '90%+']);
+        summaryData.push([isArabic ? 'Ø£Ø²Ø±Ù‚ (Ø¬ÙŠØ¯)' : 'Blue (Good)', '75-89%']);
+        summaryData.push([isArabic ? 'Ø¨Ø±ØªÙ‚Ø§Ù„ÙŠ (Ù…ØªÙˆØ³Ø·)' : 'Orange (Moderate)', '60-74%']);
+        summaryData.push([isArabic ? 'Ø£Ø­Ù…Ø± (ÙŠØ­ØªØ§Ø¬ ØªØ­Ø³ÙŠÙ†)' : 'Red (Needs Attention)', '<60%']);
       }
       
       const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
-      XLSX.utils.book_append_sheet(wb, wsSummary, isArabic ? 'ملخص' : 'Summary');
+      XLSX.utils.book_append_sheet(wb, wsSummary, isArabic ? 'Ù…Ù„Ø®Øµ' : 'Summary');
     }
     
     // Add main data sheet
@@ -630,14 +630,14 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     const colWidths = headers.map(h => ({ wch: Math.max(h.length + 2, 12) }));
     ws['!cols'] = colWidths;
     
-    XLSX.utils.book_append_sheet(wb, ws, isArabic ? 'البيانات' : 'Data');
+    XLSX.utils.book_append_sheet(wb, ws, isArabic ? 'Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª' : 'Data');
     
     // Add data quality report sheet if enabled
     if (config.dataValidation.showDataQualityReport && validationIssues.length > 0) {
       const qualityHeaders = [
-        isArabic ? 'الصف' : 'Row',
-        isArabic ? 'الحقل' : 'Field',
-        isArabic ? 'المشكلة' : 'Issue'
+        isArabic ? 'Ø§Ù„ØµÙ' : 'Row',
+        isArabic ? 'Ø§Ù„Ø­Ù‚Ù„' : 'Field',
+        isArabic ? 'Ø§Ù„Ù…Ø´ÙƒÙ„Ø©' : 'Issue'
       ];
       const qualityRows = validationIssues.map(issue => [
         issue.row,
@@ -645,7 +645,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
         issue.issue
       ]);
       const wsQuality = XLSX.utils.aoa_to_sheet([qualityHeaders, ...qualityRows]);
-      XLSX.utils.book_append_sheet(wb, wsQuality, isArabic ? 'جودة البيانات' : 'Data Quality');
+      XLSX.utils.book_append_sheet(wb, wsQuality, isArabic ? 'Ø¬ÙˆØ¯Ø© Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª' : 'Data Quality');
     }
     
     XLSX.writeFile(wb, `${config.title.replace(/\s+/g, '-')}-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
@@ -819,7 +819,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
         const percentagePatterns = [
           /rate/i, /percentage/i, /percent/i, /%/, /score/i, /weighted/i,
           /attendance/i, /punctuality/i, /consistency/i, /avg/i, /average/i,
-          /معدل/, /نسبة/, /متوسط/ // Arabic patterns
+          /Ù…Ø¹Ø¯Ù„/, /Ù†Ø³Ø¨Ø©/, /Ù…ØªÙˆØ³Ø·/ // Arabic patterns
         ];
         
         colorColumns = selectedFields
@@ -936,7 +936,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
           <div className="flex justify-between items-center">
             <div>
               <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
-                📤 Advanced Export Builder
+                ðŸ“¤ Advanced Export Builder
               </h2>
               <p className="text-blue-100 text-xs sm:text-sm mt-1 hidden sm:block">
                 Customize your export with full control over fields and formatting
@@ -965,10 +965,10 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                     : 'bg-white/10 text-white hover:bg-white/20'
                 }`}
               >
-                {tab === 'fields' && '📋 Fields'}
-                {tab === 'format' && '⚙️ Format'}
-                {tab === 'validation' && '✅ Validation'}
-                {tab === 'preview' && '👁️ Preview'}
+                {tab === 'fields' && 'ðŸ“‹ Fields'}
+                {tab === 'format' && 'âš™ï¸ Format'}
+                {tab === 'validation' && 'âœ… Validation'}
+                {tab === 'preview' && 'ðŸ‘ï¸ Preview'}
               </button>
             ))}
           </div>
@@ -985,13 +985,13 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                   onClick={selectAll}
                   className="px-3 py-1.5 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded-lg text-sm font-medium hover:bg-green-200 dark:hover:bg-green-900/60 transition"
                 >
-                  ✓ Select All
+                  âœ“ Select All
                 </button>
                 <button
                   onClick={deselectAll}
                   className="px-3 py-1.5 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 rounded-lg text-sm font-medium hover:bg-red-200 dark:hover:bg-red-900/60 transition"
                 >
-                  ✕ Clear All
+                  âœ• Clear All
                 </button>
                 <span className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg text-sm">
                   {config.selectedFields.length} / {allFields.length} fields selected
@@ -1060,13 +1060,13 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                 );
               })}
 
-              {/* Field Order Section — drag-and-drop + arrows to reorder selected fields */}
+              {/* Field Order Section â€” drag-and-drop + arrows to reorder selected fields */}
               {config.selectedFields.length > 1 && (
                 <div className="border dark:border-gray-700 rounded-xl overflow-hidden">
                   <div className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/30 dark:to-blue-900/30 p-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <span className="text-2xl">↕️</span>
+                        <span className="text-2xl">â†•ï¸</span>
                         <div>
                           <h3 className="font-semibold text-gray-900 dark:text-white">Column Order</h3>
                           <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -1160,7 +1160,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                     <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/30 dark:to-orange-900/30 p-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <span className="text-2xl">📋</span>
+                          <span className="text-2xl">ðŸ“‹</span>
                           <div>
                             <h3 className="font-semibold text-gray-900 dark:text-white">{rowFilterLabel}</h3>
                             <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -1235,10 +1235,10 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Export Format</label>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {[
-                    { value: 'excel', icon: '📊', label: 'Excel' },
-                    { value: 'csv', icon: '📄', label: 'CSV' },
-                    { value: 'pdf', icon: '📑', label: 'PDF' },
-                    { value: 'word', icon: '📝', label: 'Word' },
+                    { value: 'excel', icon: 'ðŸ“Š', label: 'Excel' },
+                    { value: 'csv', icon: 'ðŸ“„', label: 'CSV' },
+                    { value: 'pdf', icon: 'ðŸ“‘', label: 'PDF' },
+                    { value: 'word', icon: 'ðŸ“', label: 'Word' },
                   ].map(fmt => (
                     <button
                       key={fmt.value}
@@ -1268,7 +1268,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                         : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 dark:text-gray-300'
                     }`}
                   >
-                    🇺🇸 English
+                    ðŸ‡ºðŸ‡¸ English
                   </button>
                   <button
                     onClick={() => setConfig(prev => ({ ...prev, language: 'ar' }))}
@@ -1278,7 +1278,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                         : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 dark:text-gray-300'
                     }`}
                   >
-                    🇸🇦 العربية
+                    ðŸ‡¸ðŸ‡¦ Ø§Ù„Ø¹Ø±Ø¨ÙŠØ©
                   </button>
                 </div>
               </div>
@@ -1321,7 +1321,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                             : 'border-gray-200 hover:border-gray-300 dark:border-gray-600 dark:hover:border-gray-500 dark:text-gray-300'
                         }`}
                       >
-                        📄 Portrait
+                        ðŸ“„ Portrait
                       </button>
                       <button
                         onClick={() => setConfig(prev => ({ ...prev, orientation: 'landscape' }))}
@@ -1331,7 +1331,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                             : 'border-gray-200 hover:border-gray-300 dark:border-gray-600 dark:hover:border-gray-500 dark:text-gray-300'
                         }`}
                       >
-                        📃 Landscape
+                        ðŸ“ƒ Landscape
                       </button>
                     </div>
                   </div>
@@ -1391,7 +1391,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
               <div className="border rounded-xl overflow-hidden">
                 <div className="bg-blue-50 dark:bg-blue-900/30 p-4 border-b dark:border-blue-800">
                   <h3 className="font-semibold text-blue-900 dark:text-blue-200 flex items-center gap-2">
-                    🧹 Data Cleaning
+                    ðŸ§¹ Data Cleaning
                   </h3>
                   <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">Clean and prepare your data before export</p>
                 </div>
@@ -1450,7 +1450,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
               <div className="border rounded-xl overflow-hidden">
                 <div className="bg-orange-50 dark:bg-orange-900/30 p-4 border-b dark:border-orange-800">
                   <h3 className="font-semibold text-orange-900 dark:text-orange-200 flex items-center gap-2">
-                    ✅ Data Validation
+                    âœ… Data Validation
                   </h3>
                   <p className="text-sm text-orange-700 dark:text-orange-400 mt-1">Validate data quality and identify issues</p>
                 </div>
@@ -1509,7 +1509,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
               <div className="border rounded-xl overflow-hidden">
                 <div className="bg-green-50 dark:bg-green-900/30 p-4 border-b dark:border-green-800">
                   <h3 className="font-semibold text-green-900 dark:text-green-200 flex items-center gap-2">
-                    🎨 Data Formatting
+                    ðŸŽ¨ Data Formatting
                   </h3>
                   <p className="text-sm text-green-700 dark:text-green-400 mt-1">Format values for better readability</p>
                 </div>
@@ -1594,7 +1594,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
               <div className="border rounded-xl overflow-hidden">
                 <div className="bg-purple-50 dark:bg-purple-900/30 p-4 border-b dark:border-purple-800">
                   <h3 className="font-semibold text-purple-900 dark:text-purple-200 flex items-center gap-2">
-                    📊 Quality Report
+                    ðŸ“Š Quality Report
                   </h3>
                   <p className="text-sm text-purple-700 dark:text-purple-400 mt-1">Include data quality information in export</p>
                 </div>
@@ -1621,7 +1621,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
               <div className="border rounded-xl overflow-hidden">
                 <div className="bg-rose-50 dark:bg-rose-900/30 p-4 border-b dark:border-rose-800">
                   <h3 className="font-semibold text-rose-900 dark:text-rose-200 flex items-center gap-2">
-                    🌈 Conditional Coloring
+                    ðŸŒˆ Conditional Coloring
                   </h3>
                   <p className="text-sm text-rose-700 dark:text-rose-400 mt-1">Apply color-coding to percentage and score fields (Word, Excel, PDF)</p>
                 </div>
@@ -1690,7 +1690,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                           </label>
                           <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-40 overflow-y-auto">
                             {allFields.filter(f => config.selectedFields.includes(f.key)).map(field => {
-                              const isAutoDetected = /rate|percentage|percent|%|score|weighted|attendance|punctuality|consistency|avg|average|معدل|نسبة|متوسط/i.test(field.key + field.label);
+                              const isAutoDetected = /rate|percentage|percent|%|score|weighted|attendance|punctuality|consistency|avg|average|Ù…Ø¹Ø¯Ù„|Ù†Ø³Ø¨Ø©|Ù…ØªÙˆØ³Ø·/i.test(field.key + field.label);
                               const isSelected = config.dataValidation.coloringFields.includes(field.key);
                               return (
                                 <label
@@ -1727,7 +1727,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                           </div>
                           {config.dataValidation.coloringFields.length === 0 && (
                             <p className="text-xs text-gray-500 mt-2 italic">
-                              ✨ Auto-detecting: Rate, Score, Percentage, Average, and similar fields
+                              âœ¨ Auto-detecting: Rate, Score, Percentage, Average, and similar fields
                             </p>
                           )}
                         </div>
@@ -1754,7 +1754,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="font-semibold text-indigo-900 dark:text-indigo-200 flex items-center gap-2">
-                        📑 Sort Data
+                        ðŸ“‘ Sort Data
                       </h3>
                       <p className="text-sm text-indigo-700 dark:text-indigo-400 mt-1">
                         Add multiple sort layers for precise ordering
@@ -1809,7 +1809,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                                 : 'bg-white border border-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-600 dark:hover:bg-gray-600 dark:text-gray-300'
                             }`}
                           >
-                            ↑ Asc
+                            â†‘ Asc
                           </button>
                           <button
                             onClick={() => {
@@ -1825,7 +1825,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                                 : 'bg-white border border-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-600 dark:hover:bg-gray-600 dark:text-gray-300'
                             }`}
                           >
-                            ↓ Desc
+                            â†“ Desc
                           </button>
                         </div>
                         <button
@@ -1874,7 +1874,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
 
                   {(config.sortLayers?.length || 0) === 0 && (
                     <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-1">
-                      No sorting applied — data will export in original order
+                      No sorting applied â€” data will export in original order
                     </p>
                   )}
                 </div>
@@ -1888,7 +1888,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
               {/* Warning if no data */}
               {data.length === 0 && (
                 <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700/50 rounded-xl p-4 flex items-start gap-3">
-                  <span className="text-yellow-500 text-xl">⚠️</span>
+                  <span className="text-yellow-500 text-xl">âš ï¸</span>
                   <div>
                     <h4 className="font-semibold text-yellow-800 dark:text-yellow-200">No Data Available</h4>
                     <p className="text-sm text-yellow-700 dark:text-yellow-400 mt-1">There is no data to export. Please apply filters or load data first.</p>
@@ -1899,7 +1899,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
               {/* Warning if no fields selected */}
               {config.selectedFields.length === 0 && (
                 <div className="bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-700/50 rounded-xl p-4 flex items-start gap-3">
-                  <span className="text-orange-500 text-xl">⚠️</span>
+                  <span className="text-orange-500 text-xl">âš ï¸</span>
                   <div>
                     <h4 className="font-semibold text-orange-800 dark:text-orange-200">No Fields Selected</h4>
                     <p className="text-sm text-orange-700 dark:text-orange-400 mt-1">Please go to the "Select Fields" tab and choose the fields you want to export.</p>
@@ -1916,7 +1916,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                   </div>
                   <div>
                     <span className="text-gray-500 dark:text-gray-400">Language:</span>
-                    <span className="ml-2 font-medium text-gray-900 dark:text-white">{config.language === 'en' ? 'English' : 'العربية'}</span>
+                    <span className="ml-2 font-medium text-gray-900 dark:text-white">{config.language === 'en' ? 'English' : 'Ø§Ù„Ø¹Ø±Ø¨ÙŠØ©'}</span>
                   </div>
                   <div>
                     <span className="text-gray-500 dark:text-gray-400">Fields:</span>
@@ -1941,47 +1941,47 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                     <div className="flex flex-wrap gap-2">
                       {config.dataValidation.removeDuplicates && (
                         <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded text-xs font-medium">
-                          🔄 Remove Duplicates
+                          ðŸ”„ Remove Duplicates
                         </span>
                       )}
                       {config.dataValidation.removeEmptyRows && (
                         <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded text-xs font-medium">
-                          🗑️ Remove Empty Rows
+                          ðŸ—‘ï¸ Remove Empty Rows
                         </span>
                       )}
                       {config.dataValidation.trimWhitespace && (
                         <span className="px-2 py-1 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded text-xs font-medium">
-                          ✂️ Trim Whitespace
+                          âœ‚ï¸ Trim Whitespace
                         </span>
                       )}
                       {config.dataValidation.validateRequired && (
                         <span className="px-2 py-1 bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 rounded text-xs font-medium">
-                          ✅ Check Missing Values
+                          âœ… Check Missing Values
                         </span>
                       )}
                       {config.dataValidation.validateNumericRanges && (
                         <span className="px-2 py-1 bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 rounded text-xs font-medium">
-                          📊 Validate Ranges
+                          ðŸ“Š Validate Ranges
                         </span>
                       )}
                       {config.dataValidation.validateDates && (
                         <span className="px-2 py-1 bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 rounded text-xs font-medium">
-                          📅 Validate Dates
+                          ðŸ“… Validate Dates
                         </span>
                       )}
                       {config.dataValidation.enableConditionalColoring && (
                         <span className="px-2 py-1 bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 rounded text-xs font-medium">
-                          🌈 Conditional Coloring ({config.dataValidation.coloringTheme})
+                          ðŸŒˆ Conditional Coloring ({config.dataValidation.coloringTheme})
                         </span>
                       )}
                       {config.sortByField && (
                         <span className="px-2 py-1 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded text-xs font-medium">
-                          📑 Sort by {allFields.find(f => f.key === config.sortByField)?.label || config.sortByField} ({config.sortDirection})
+                          ðŸ“‘ Sort by {allFields.find(f => f.key === config.sortByField)?.label || config.sortByField} ({config.sortDirection})
                         </span>
                       )}
                       {config.dataValidation.showDataQualityReport && (
                         <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded text-xs font-medium">
-                          📋 Include Quality Report
+                          ðŸ“‹ Include Quality Report
                         </span>
                       )}
                     </div>
@@ -2017,7 +2017,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                     <span>Data Preview (First 5 rows{config.sortByField ? ', sorted' : ''})</span>
                     {config.sortByField && (
                       <span className="text-xs text-indigo-600 font-normal">
-                        Sorted by {allFields.find(f => f.key === config.sortByField)?.label || config.sortByField} {config.sortDirection === 'desc' ? '↓' : '↑'}
+                        Sorted by {allFields.find(f => f.key === config.sortByField)?.label || config.sortByField} {config.sortDirection === 'desc' ? 'â†“' : 'â†‘'}
                       </span>
                     )}
                   </div>
@@ -2034,7 +2034,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                             >
                               {field.label}
                               {field.key === config.sortByField && (
-                                <span className="ml-1">{config.sortDirection === 'desc' ? '↓' : '↑'}</span>
+                                <span className="ml-1">{config.sortDirection === 'desc' ? 'â†“' : 'â†‘'}</span>
                               )}
                             </th>
                           ))}
@@ -2071,7 +2071,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
         {/* Footer */}
         <div className="border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 flex flex-col sm:flex-row justify-between items-center gap-3">
           <div className="text-sm text-gray-500 dark:text-gray-400">
-            {data.length} records • {config.selectedFields.length} fields selected
+            {data.length} records â€¢ {config.selectedFields.length} fields selected
           </div>
           <div className="flex gap-3 w-full sm:w-auto">
             <button
@@ -2098,7 +2098,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                   Exporting...
                 </>
               ) : (
-                <>📤 Export</>
+                <>ðŸ“¤ Export</>
               )}
             </button>
           </div>

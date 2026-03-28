@@ -1,19 +1,19 @@
 import { useEffect, useState, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
-import { Button } from '../components/ui/Button';
-import { Modal } from '../components/ui/Modal';
-import { SearchBar } from '../components/ui/SearchBar';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
-import { Pagination } from '../components/ui/Pagination';
+import { Button } from '@/shared/components/ui/Button';
+import { Modal } from '@/shared/components/ui/Modal';
+import { SearchBar } from '@/shared/components/ui/SearchBar';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/shared/components/ui/Table';
+import { Pagination } from '@/shared/components/ui/Pagination';
 import { StudentForm } from '../components/StudentForm';
-import { PhotoAvatar } from '../components/PhotoAvatar';
+import { PhotoAvatar } from '@/shared/components/PhotoAvatar';
 import { studentService } from '../services/studentService';
-import { toast } from '../components/ui/toastUtils';
-import { ConfirmDialog } from '../components/ui/ConfirmDialog';
-import { useIsTeacher } from '../hooks/useIsTeacher';
-import { useDebounce } from '../hooks/useDebounce';
-import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
-import type { Student, CreateStudent } from '../types/database.types';
-import { TableSkeleton } from '../components/ui/Skeleton';
+import { toast } from '@/shared/components/ui/toastUtils';
+import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
+import { useIsTeacher } from '@/shared/hooks/useIsTeacher';
+import { useDebounce } from '@/shared/hooks/useDebounce';
+import { useRefreshOnFocus } from '@/shared/hooks/useRefreshOnFocus';
+import type { Student, CreateStudent } from '@/shared/types/database.types';
+import { TableSkeleton } from '@/shared/components/ui/Skeleton';
 import { Specializations } from './Specializations';
 
 const PhotoUpload = lazy(() => import('../components/PhotoUpload').then((module) => ({ default: module.PhotoUpload })));
@@ -157,7 +157,7 @@ export function Students() {
       if (result.errors.length > 0) {
         toast.warning(`Import done with ${result.errors.length} error(s): ${result.errors.slice(0, 3).join('; ')}`);
       } else if (result.created === 0 && result.updated > 0) {
-        toast.info(`${result.updated} existing student(s) updated. No new students created — the imported data matched existing records.`);
+        toast.info(`${result.updated} existing student(s) updated. No new students created â€” the imported data matched existing records.`);
       } else {
         toast.success(`${result.created} created, ${result.updated} updated.`);
       }
@@ -495,7 +495,7 @@ export function Students() {
                                 title={student.photo_url ? 'Update photo' : 'Add photo for face check-in'}
                                 aria-label={`${student.photo_url ? 'Update' : 'Add'} photo for ${student.name}`}
                               >
-                                📸
+                                ðŸ“¸
                               </button>
                               <Button 
                                 size="sm" 

@@ -1,12 +1,12 @@
 import { useState, useEffect, type FormEvent } from 'react';
-import { Select } from './ui/Select';
-import { Input } from './ui/Input';
-import { Button } from './ui/Button';
-import { Badge } from './ui/Badge';
-import { formatDate } from '../utils/formatDate';
-import { supabase } from '../lib/supabase';
+import { Select } from '@/shared/components/ui/Select';
+import { Input } from '@/shared/components/ui/Input';
+import { Button } from '@/shared/components/ui/Button';
+import { Badge } from '@/shared/components/ui/Badge';
+import { formatDate } from '@/shared/utils/formatDate';
+import { supabase } from '@/shared/lib/supabase';
 import { enrollmentService } from '../services/enrollmentService';
-import { Tables, type CreateEnrollment } from '../types/database.types';
+import { Tables, type CreateEnrollment } from '@/shared/types/database.types';
 
 interface Student {
   student_id: string;

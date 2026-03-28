@@ -1,9 +1,9 @@
 import { useState, useEffect, type FormEvent } from 'react';
-import { Input } from './ui/Input';
-import { Select } from './ui/Select';
-import { Button } from './ui/Button';
-import { supabase } from '../lib/supabase';
-import { Tables, type CreateCourse } from '../types/database.types';
+import { Input } from '@/shared/components/ui/Input';
+import { Select } from '@/shared/components/ui/Select';
+import { Button } from '@/shared/components/ui/Button';
+import { supabase } from '@/shared/lib/supabase';
+import { Tables, type CreateCourse } from '@/shared/types/database.types';
 
 interface Teacher {
   teacher_id: string;

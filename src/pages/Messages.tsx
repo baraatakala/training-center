@@ -1,17 +1,17 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Card, CardContent } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { useDebounce } from '../hooks/useDebounce';
-import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
-import { Badge } from '../components/ui/Badge';
-import { Input } from '../components/ui/Input';
-import { Select } from '../components/ui/Select';
-import { Modal } from '../components/ui/Modal';
-import { Skeleton } from '../components/ui/Skeleton';
-import { supabase } from '../lib/supabase';
+import { Card, CardContent } from '@/shared/components/ui/Card';
+import { Button } from '@/shared/components/ui/Button';
+import { useDebounce } from '@/shared/hooks/useDebounce';
+import { useRefreshOnFocus } from '@/shared/hooks/useRefreshOnFocus';
+import { Badge } from '@/shared/components/ui/Badge';
+import { Input } from '@/shared/components/ui/Input';
+import { Select } from '@/shared/components/ui/Select';
+import { Modal } from '@/shared/components/ui/Modal';
+import { Skeleton } from '@/shared/components/ui/Skeleton';
+import { supabase } from '@/shared/lib/supabase';
 import { messageService } from '../services/communicationService';
-import { toast } from '../components/ui/toastUtils';
-import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { toast } from '@/shared/components/ui/toastUtils';
+import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
 import type { Message, CreateMessageData } from '../services/communicationService';
 import { format, formatDistanceToNow, isToday, isYesterday } from 'date-fns';
 
@@ -19,16 +19,16 @@ type TabType = 'inbox' | 'sent' | 'starred';
 
 // Quick reply suggestions
 const QUICK_REPLIES = [
-  '👍 Got it!',
-  '✅ Thanks!',
-  '📝 I will check',
-  '🙏 Thank you',
-  '⏰ Will do ASAP',
-  '❓ Can you explain more?',
+  'ðŸ‘ Got it!',
+  'âœ… Thanks!',
+  'ðŸ“ I will check',
+  'ðŸ™ Thank you',
+  'â° Will do ASAP',
+  'â“ Can you explain more?',
 ];
 
 // Message reactions
-const MESSAGE_REACTIONS = ['👍', '❤️', '😊', '🎉', '👏'];
+const MESSAGE_REACTIONS = ['ðŸ‘', 'â¤ï¸', 'ðŸ˜Š', 'ðŸŽ‰', 'ðŸ‘'];
 
 // Rate limiting for students (1 hour cooldown)
 const STUDENT_COOLDOWN_SECONDS = 3600;
@@ -233,7 +233,7 @@ export function Messages() {
           .ilike('email', user.email)
           .maybeSingle();
         if (adminRecord) {
-          // Admin uses admin_id directly — no fake teacher record needed
+          // Admin uses admin_id directly â€” no fake teacher record needed
           setUserType('admin');
           setCurrentUserId(adminRecord.admin_id);
         } else {
@@ -527,7 +527,7 @@ export function Messages() {
     return (
       <div className="text-center py-12">
         <div className="inline-block p-6 bg-red-50 dark:bg-red-900/30 border-2 border-red-200 dark:border-red-700 rounded-lg">
-          <p className="text-red-600 dark:text-red-400 font-semibold">⚠️ {error}</p>
+          <p className="text-red-600 dark:text-red-400 font-semibold">âš ï¸ {error}</p>
           <button
             onClick={() => { setError(null); checkUserAndLoadData(); }}
             className="mt-3 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-sm"
@@ -544,13 +544,13 @@ export function Messages() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold dark:text-white">💬 Messages</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold dark:text-white">ðŸ’¬ Messages</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
             Communicate with {userType === 'teacher' || userType === 'admin' ? 'students and other teachers' : 'your teachers'}
           </p>
         </div>
         <Button onClick={() => openComposeModal()} className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
-          ✉️ Compose
+          âœ‰ï¸ Compose
         </Button>
       </div>
 
@@ -564,7 +564,7 @@ export function Messages() {
                 onClick={() => setActiveTab('inbox')}
                 className="relative"
               >
-                📥 Inbox
+                ðŸ“¥ Inbox
                 {unreadCount > 0 && (
                   <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
                     {unreadCount}
@@ -575,14 +575,14 @@ export function Messages() {
                 variant={activeTab === 'sent' ? 'primary' : 'outline'}
                 onClick={() => setActiveTab('sent')}
               >
-                📤 Sent
+                ðŸ“¤ Sent
               </Button>
               <Button
                 variant={activeTab === 'starred' ? 'primary' : 'outline'}
                 onClick={() => setActiveTab('starred')}
                 className="relative"
               >
-                ⭐ Starred
+                â­ Starred
                 {starredCount > 0 && (
                   <span className="absolute -top-2 -right-2 bg-yellow-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
                     {starredCount}
@@ -592,7 +592,7 @@ export function Messages() {
             </div>
             <div className="w-full sm:w-auto">
               <Input
-                placeholder="🔍 Search messages..."
+                placeholder="ðŸ” Search messages..."
                 value={searchTerm}
                 onChange={(v) => setSearchTerm(v)}
               />
@@ -609,7 +609,7 @@ export function Messages() {
               {activeTab === 'inbox' ? inboxStats.total : activeTab === 'sent' ? sentCount : starredCount}
             </div>
             <div className="text-sm text-blue-700 dark:text-blue-300">
-              {activeTab === 'inbox' ? '📨 Inbox' : activeTab === 'sent' ? '📤 Sent' : '⭐ Starred'}
+              {activeTab === 'inbox' ? 'ðŸ“¨ Inbox' : activeTab === 'sent' ? 'ðŸ“¤ Sent' : 'â­ Starred'}
             </div>
           </CardContent>
         </Card>
@@ -618,7 +618,7 @@ export function Messages() {
             <div className="text-3xl font-bold text-red-600 dark:text-red-400">
               {inboxStats.unread}
             </div>
-            <div className="text-sm text-red-700 dark:text-red-300">🔴 Unread</div>
+            <div className="text-sm text-red-700 dark:text-red-300">ðŸ”´ Unread</div>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/30 border-0">
@@ -626,7 +626,7 @@ export function Messages() {
             <div className="text-3xl font-bold text-green-600 dark:text-green-400">
               {inboxStats.read}
             </div>
-            <div className="text-sm text-green-700 dark:text-green-300">✅ Read</div>
+            <div className="text-sm text-green-700 dark:text-green-300">âœ… Read</div>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900/30 dark:to-yellow-800/30 border-0">
@@ -634,7 +634,7 @@ export function Messages() {
             <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">
               {starredCount}
             </div>
-            <div className="text-sm text-yellow-700 dark:text-yellow-300">⭐ Starred</div>
+            <div className="text-sm text-yellow-700 dark:text-yellow-300">â­ Starred</div>
           </CardContent>
         </Card>
       </div>
@@ -651,7 +651,7 @@ export function Messages() {
           {filteredMessages.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center">
-                <span className="text-5xl mb-4 block">{activeTab === 'starred' ? '⭐' : '📭'}</span>
+                <span className="text-5xl mb-4 block">{activeTab === 'starred' ? 'â­' : 'ðŸ“­'}</span>
                 <p className="text-gray-500 dark:text-gray-400">
                   {activeTab === 'inbox' ? 'Your inbox is empty' : activeTab === 'starred' ? 'No starred messages' : 'No sent messages'}
                 </p>
@@ -734,7 +734,7 @@ export function Messages() {
                         }`}
                         title={message.isStarred ? 'Unstar' : 'Star'}
                       >
-                        {message.isStarred ? '⭐' : '☆'}
+                        {message.isStarred ? 'â­' : 'â˜†'}
                       </button>
                       <div className="relative">
                         <button
@@ -745,7 +745,7 @@ export function Messages() {
                           className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 transition-colors"
                           title="React"
                         >
-                          😊
+                          ðŸ˜Š
                         </button>
                         {showReactionPicker === message.message_id && (
                           <div className="absolute bottom-full left-0 mb-1 bg-white dark:bg-gray-800 rounded-xl shadow-lg p-2 flex gap-1 z-10">
@@ -771,11 +771,11 @@ export function Messages() {
                 {activeTab === 'sent' && (
                   <div className="absolute bottom-2 right-3 flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
                     {message.is_read ? (
-                      <span className="text-blue-500" title={`Read ${message.read_at ? formatTimeAgo(message.read_at) : ''}`}>✓✓</span>
+                      <span className="text-blue-500" title={`Read ${message.read_at ? formatTimeAgo(message.read_at) : ''}`}>âœ“âœ“</span>
                     ) : (message as Message & { delivered_at?: string }).delivered_at ? (
-                      <span title="Delivered">✓✓</span>
+                      <span title="Delivered">âœ“âœ“</span>
                     ) : (
-                      <span title="Sent">✓</span>
+                      <span title="Sent">âœ“</span>
                     )}
                   </div>
                 )}
@@ -792,7 +792,7 @@ export function Messages() {
       <Modal
         isOpen={showComposeModal}
         onClose={closeComposeModal}
-        title={replyingTo ? '↩️ Reply' : '✉️ New Message'}
+        title={replyingTo ? 'â†©ï¸ Reply' : 'âœ‰ï¸ New Message'}
         size="lg"
       >
         <div className="space-y-4">
@@ -821,8 +821,8 @@ export function Messages() {
                       setFormRecipientId('');
                     }}
                     options={[
-                      { value: 'teacher', label: '👨‍🏫 Teacher' },
-                      { value: 'student', label: '👨‍🎓 Student' }
+                      { value: 'teacher', label: 'ðŸ‘¨â€ðŸ« Teacher' },
+                      { value: 'student', label: 'ðŸ‘¨â€ðŸŽ“ Student' }
                     ]}
                   />
                 </div>
@@ -860,7 +860,7 @@ export function Messages() {
                 onClick={() => setShowQuickReplies(!showQuickReplies)}
                 className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
               >
-                ⚡ Quick Replies
+                âš¡ Quick Replies
               </button>
             </div>
             
@@ -893,8 +893,8 @@ export function Messages() {
           <div className="flex justify-between items-center pt-4 border-t dark:border-gray-700">
             <div className="text-xs text-gray-400 dark:text-gray-500">
               {userType === 'student' && cooldownRemaining > 0
-                ? `⏳ Wait ${cooldownRemaining >= 60 ? Math.ceil(cooldownRemaining / 60) + 'min' : cooldownRemaining + 's'} before sending again`
-                : '💡 Tip: Be clear and concise'}
+                ? `â³ Wait ${cooldownRemaining >= 60 ? Math.ceil(cooldownRemaining / 60) + 'min' : cooldownRemaining + 's'} before sending again`
+                : 'ðŸ’¡ Tip: Be clear and concise'}
             </div>
             <div className="flex gap-3">
               <Button variant="outline" onClick={closeComposeModal}>Cancel</Button>
@@ -905,9 +905,9 @@ export function Messages() {
               >
                 {submitting ? (
                   <span className="flex items-center gap-2">
-                    <span className="animate-spin">⏳</span> Sending...
+                    <span className="animate-spin">â³</span> Sending...
                   </span>
-                ) : cooldownRemaining > 0 && userType === 'student' ? `⏳ ${cooldownRemaining >= 60 ? Math.ceil(cooldownRemaining / 60) + 'min' : cooldownRemaining + 's'}` : '📤 Send Message'}
+                ) : cooldownRemaining > 0 && userType === 'student' ? `â³ ${cooldownRemaining >= 60 ? Math.ceil(cooldownRemaining / 60) + 'min' : cooldownRemaining + 's'}` : 'ðŸ“¤ Send Message'}
               </Button>
             </div>
           </div>
@@ -954,7 +954,7 @@ export function Messages() {
                     viewingMessage.isStarred ? 'text-yellow-500' : 'text-gray-400 dark:text-gray-500'
                   }`}
                 >
-                  {viewingMessage.isStarred ? '⭐' : '☆'}
+                  {viewingMessage.isStarred ? 'â­' : 'â˜†'}
                 </button>
                 <Badge variant={(activeTab === 'inbox' ? viewingMessage.sender_type : viewingMessage.recipient_type) === 'teacher' ? 'info' : 'default'}>
                   {activeTab === 'inbox' ? viewingMessage.sender_type : viewingMessage.recipient_type}
@@ -994,7 +994,7 @@ export function Messages() {
 
             {viewingMessage.read_at && activeTab === 'sent' && (
               <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-lg">
-                <span>✓✓</span> Read {formatTimeAgo(viewingMessage.read_at)}
+                <span>âœ“âœ“</span> Read {formatTimeAgo(viewingMessage.read_at)}
               </div>
             )}
 
@@ -1004,7 +1004,7 @@ export function Messages() {
                 size="sm"
                 onClick={() => handleDelete(viewingMessage.message_id)}
               >
-                🗑️ Delete
+                ðŸ—‘ï¸ Delete
               </Button>
               <div className="flex gap-2">
                 {activeTab === 'inbox' && (
@@ -1015,7 +1015,7 @@ export function Messages() {
                     }}
                     className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
                   >
-                    ↩️ Quick Reply
+                    â†©ï¸ Quick Reply
                   </Button>
                 )}
                 <Button variant="outline" onClick={() => setViewingMessage(null)}>Close</Button>

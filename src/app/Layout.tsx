@@ -1,8 +1,8 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { useOnlineStatus } from '../hooks/useOnlineStatus';
-import { toast } from './ui/toastUtils';
+import { useAuth } from '@/context/AuthContext';
+import { useOnlineStatus } from '@/shared/hooks/useOnlineStatus';
+import { toast } from '@/shared/components/ui/toastUtils';
 
 // ---- Types ----
 interface NavItem {

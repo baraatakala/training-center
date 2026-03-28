@@ -1,7 +1,7 @@
-import { supabase } from '../lib/supabase';
-import type { CreateEnrollment, UpdateEnrollment } from '../types/database.types';
-import { Tables } from '../types/database.types';
-import { logDelete, logUpdate, logInsert } from './auditService';
+import { supabase } from '@/shared/lib/supabase';
+import type { CreateEnrollment, UpdateEnrollment } from '@/shared/types/database.types';
+import { Tables } from '@/shared/types/database.types';
+import { logDelete, logUpdate, logInsert } from '@/shared/services/auditService';
 
 export const enrollmentService = {
   // Get all enrollments

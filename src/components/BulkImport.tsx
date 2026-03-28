@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { supabase } from '../lib/supabase';
-import { Button } from '../components/ui/Button';
+import { supabase } from '@/shared/lib/supabase';
+import { Button } from '@/shared/components/ui/Button';
 import { format, parse, isValid } from 'date-fns';
 import * as XLSX from 'xlsx';
-import { toast } from './ui/toastUtils';
+import { toast } from '@/shared/components/ui/toastUtils';
 
 interface ImportRow {
   studentName: string;
@@ -815,14 +815,14 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
 
       {showInstructions && (
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
-          <h3 className="font-semibold text-blue-900 dark:text-blue-300 mb-2">📋 Import Instructions</h3>
+          <h3 className="font-semibold text-blue-900 dark:text-blue-300 mb-2">ðŸ“‹ Import Instructions</h3>
           <ol className="list-decimal list-inside space-y-2 text-sm text-blue-800 dark:text-blue-300">
             <li><strong>Download the clean CSV template</strong> - Contains 5 ready-to-use example rows with all field types</li>
             <li><strong>Edit the template</strong> - Replace example data with your actual attendance records or add new rows</li>
             <li><strong>Required fields:</strong> student_name, student_email, course_name, instructor_name, instructor_email, session_start_date, session_end_date, attendance_date, status</li>
             <li><strong>Optional fields:</strong> student_phone, course_category, instructor_phone, session_day, session_time, session_location, excuse_reason, late_minutes, early_minutes, check_in_method, gps_latitude, gps_longitude, gps_accuracy, gps_timestamp, host_address, notes, can_host, host_date</li>
             <li><strong>Status values:</strong> present, absent, late, excused</li>
-            <li><strong>⚠️ excuse_reason is REQUIRED when status='excused'</strong> (valid values: sick, abroad, working, family emergency, other)</li>
+            <li><strong>âš ï¸ excuse_reason is REQUIRED when status='excused'</strong> (valid values: sick, abroad, working, family emergency, other)</li>
             <li><strong>late_minutes:</strong> Number of minutes late (e.g., 15). Only used when status=late</li>
             <li><strong>early_minutes:</strong> Number of minutes early (e.g., 5). Only used when status=present</li>
             <li><strong>check_in_method:</strong> manual, qr_code, photo, or bulk (defaults to 'bulk' if not specified)</li>
@@ -838,7 +838,7 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
 
       <div className="flex gap-3 mb-6">
         <Button onClick={downloadTemplate}>
-          📥 Download CSV Template
+          ðŸ“¥ Download CSV Template
         </Button>
         <label className="inline-block cursor-pointer">
           <input
@@ -855,7 +855,7 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
                 : 'bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 cursor-pointer'
             }`}
           >
-            {importing ? '⏳ Importing...' : '📤 Upload CSV/Excel File'}
+            {importing ? 'â³ Importing...' : 'ðŸ“¤ Upload CSV/Excel File'}
           </span>
         </label>
       </div>
@@ -865,7 +865,7 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
           <div className="flex justify-between items-center mb-4">
             <div>
-              <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-300">📋 Preview Import Data</h3>
+              <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-300">ðŸ“‹ Preview Import Data</h3>
               <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">
                 File: <span className="font-medium">{fileName}</span> - {previewData.length} records found
               </p>
@@ -875,10 +875,10 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={handleCancelPreview}>
-                ❌ Cancel
+                âŒ Cancel
               </Button>
               <Button onClick={handleConfirmImport} disabled={importing}>
-                {importing ? '⏳ Importing...' : '✅ Confirm Import'}
+                {importing ? 'â³ Importing...' : 'âœ… Confirm Import'}
               </Button>
             </div>
           </div>
@@ -952,7 +952,7 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
                       </span>
                     </td>
                     <td className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
-                      {row.gpsLatitude && row.gpsLongitude ? '✓' : '-'}
+                      {row.gpsLatitude && row.gpsLongitude ? 'âœ“' : '-'}
                     </td>
                   </tr>
                 ))}
@@ -969,7 +969,7 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
 
       {result && (
         <div className={`p-4 rounded-lg border ${result.success ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'}`}>
-          <h3 className="font-semibold mb-2 dark:text-white">{result.success ? '✅ Import Results' : '⚠️ Import Results'}</h3>
+          <h3 className="font-semibold mb-2 dark:text-white">{result.success ? 'âœ… Import Results' : 'âš ï¸ Import Results'}</h3>
           <p className="mb-3 dark:text-gray-300">{result.message}</p>
           
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-3 text-sm">

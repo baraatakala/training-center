@@ -1,10 +1,10 @@
-import { supabase } from '../lib/supabase';
+import { supabase } from '@/shared/lib/supabase';
 import type { 
   CreateAttendance, 
   UpdateAttendance
-} from '../types/database.types';
-import { logDelete, logUpdate, logInsert } from './auditService';
-import { Tables } from '../types/database.types';
+} from '@/shared/types/database.types';
+import { logDelete, logUpdate, logInsert } from '@/shared/services/auditService';
+import { Tables } from '@/shared/types/database.types';
 
 type AttendanceSummaryRecord = {
   status: string;

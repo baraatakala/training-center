@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { useDebounce } from '../hooks/useDebounce';
-import { Select } from '../components/ui/Select';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/Card';
+import { Button } from '@/shared/components/ui/Button';
+import { useDebounce } from '@/shared/hooks/useDebounce';
+import { Select } from '@/shared/components/ui/Select';
 import { format, subDays, subMonths, isAfter, isBefore, parseISO } from 'date-fns';
-import { getAuditLogs, deleteAuditLog, deleteAuditLogs, type AuditLogEntry } from '../services/auditService';
-import { TableSkeleton } from '../components/ui/Skeleton';
-import { useIsTeacher } from '../hooks/useIsTeacher';
-import { ConfirmDialog } from '../components/ui/ConfirmDialog';
-import { toast } from '../components/ui/toastUtils';
-import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
+import { getAuditLogs, deleteAuditLog, deleteAuditLogs, type AuditLogEntry } from '@/shared/services/auditService';
+import { TableSkeleton } from '@/shared/components/ui/Skeleton';
+import { useIsTeacher } from '@/shared/hooks/useIsTeacher';
+import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
+import { toast } from '@/shared/components/ui/toastUtils';
+import { useRefreshOnFocus } from '@/shared/hooks/useRefreshOnFocus';
 
 // =====================================================
 // HELPERS
@@ -139,30 +139,30 @@ const getChangedFields = (
 };
 
 const formatValue = (val: unknown): string => {
-  if (val === null || val === undefined) return '–';
+  if (val === null || val === undefined) return 'â€“';
   if (typeof val === 'object') return JSON.stringify(val);
   return String(val);
 };
 
 const TABLE_ICONS: Record<string, string> = {
-  student: '🎓',
-  teacher: '👨‍🏫',
-  course: '📚',
-  session: '📅',
-  enrollment: '📋',
-  attendance: '✅',
-  session_feedback: '💜',
-  feedback_question: '🧩',
-  feedback_template: '🗂️',
-  session_recording: '🎬',
-  announcement: '📢',
-  message: '💬',
+  student: 'ðŸŽ“',
+  teacher: 'ðŸ‘¨â€ðŸ«',
+  course: 'ðŸ“š',
+  session: 'ðŸ“…',
+  enrollment: 'ðŸ“‹',
+  attendance: 'âœ…',
+  session_feedback: 'ðŸ’œ',
+  feedback_question: 'ðŸ§©',
+  feedback_template: 'ðŸ—‚ï¸',
+  session_recording: 'ðŸŽ¬',
+  announcement: 'ðŸ“¢',
+  message: 'ðŸ’¬',
 };
 
 const OP_ICONS: Record<string, string> = {
-  DELETE: '🗑️',
-  UPDATE: '✏️',
-  INSERT: '➕',
+  DELETE: 'ðŸ—‘ï¸',
+  UPDATE: 'âœï¸',
+  INSERT: 'âž•',
 };
 
 /** Key fields to show per table in expanded view (only non-empty values shown) */
@@ -530,7 +530,7 @@ export function AuditLogs() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold dark:text-white flex items-center gap-3">
-            📋 Activity Log
+            ðŸ“‹ Activity Log
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
             Track all changes made across your training center
@@ -546,7 +546,7 @@ export function AuditLogs() {
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
               }`}
             >
-              📜 Timeline
+              ðŸ“œ Timeline
             </button>
             <button
               onClick={() => setViewMode('table')}
@@ -556,14 +556,14 @@ export function AuditLogs() {
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
               }`}
             >
-              📊 Table
+              ðŸ“Š Table
             </button>
           </div>
           <Button onClick={loadLogs} disabled={loading}>
-            {loading ? '⟳ Loading...' : '🔄 Refresh'}
+            {loading ? 'âŸ³ Loading...' : 'ðŸ”„ Refresh'}
           </Button>
           <Button onClick={exportToCSV} variant="outline" disabled={filteredLogs.length === 0} title="Export to CSV">
-            📥 Export
+            ðŸ“¥ Export
           </Button>
         </div>
       </div>
@@ -572,32 +572,32 @@ export function AuditLogs() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-900/30 dark:to-rose-900/30 p-4 rounded-xl border border-red-100 dark:border-red-800/50">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-lg">🗑️</span>
+            <span className="text-lg">ðŸ—‘ï¸</span>
             <span className="text-sm text-red-700 dark:text-red-400 font-medium">Deletions</span>
           </div>
           <div className="text-2xl font-bold text-red-900 dark:text-red-100">{stats.deletes}</div>
         </div>
         <div className="bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/30 dark:to-amber-900/30 p-4 rounded-xl border border-yellow-100 dark:border-yellow-800/50">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-lg">✏️</span>
+            <span className="text-lg">âœï¸</span>
             <span className="text-sm text-yellow-700 dark:text-yellow-400 font-medium">Updates</span>
           </div>
           <div className="text-2xl font-bold text-yellow-900 dark:text-yellow-100">{stats.updates}</div>
         </div>
         <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 p-4 rounded-xl border border-green-100 dark:border-green-800/50">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-lg">➕</span>
+            <span className="text-lg">âž•</span>
             <span className="text-sm text-green-700 dark:text-green-400 font-medium">Inserts</span>
           </div>
           <div className="text-2xl font-bold text-green-900 dark:text-green-100">{stats.inserts}</div>
         </div>
         <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 p-4 rounded-xl border border-blue-100 dark:border-blue-800/50">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-lg">{TABLE_ICONS[stats.mostActiveTable?.[0] || ''] || '📊'}</span>
+            <span className="text-lg">{TABLE_ICONS[stats.mostActiveTable?.[0] || ''] || 'ðŸ“Š'}</span>
             <span className="text-sm text-blue-700 dark:text-blue-400 font-medium">Most Active</span>
           </div>
           <div className="text-lg font-bold text-blue-900 dark:text-blue-100 truncate">
-            {stats.mostActiveTable ? `${stats.mostActiveTable[0]} (${stats.mostActiveTable[1]})` : '—'}
+            {stats.mostActiveTable ? `${stats.mostActiveTable[0]} (${stats.mostActiveTable[1]})` : 'â€”'}
           </div>
         </div>
       </div>
@@ -659,18 +659,18 @@ export function AuditLogs() {
                 onChange={(v) => { setFilterTable(v); setPage(1); }}
                 options={[
                   { value: '', label: 'All Tables' },
-                  { value: 'student', label: '🎓 Student' },
-                  { value: 'teacher', label: '👨‍🏫 Teacher' },
-                  { value: 'course', label: '📚 Course' },
-                  { value: 'session', label: '📅 Session' },
-                  { value: 'enrollment', label: '📋 Enrollment' },
-                  { value: 'attendance', label: '✅ Attendance' },
-                  { value: 'session_feedback', label: '💜 Session Feedback' },
-                  { value: 'feedback_question', label: '🧩 Feedback Question' },
-                  { value: 'feedback_template', label: '🗂️ Feedback Template' },
-                  { value: 'session_recording', label: '🎬 Session Recording' },
-                  { value: 'announcement', label: '📢 Announcement' },
-                  { value: 'message', label: '💬 Message' },
+                  { value: 'student', label: 'ðŸŽ“ Student' },
+                  { value: 'teacher', label: 'ðŸ‘¨â€ðŸ« Teacher' },
+                  { value: 'course', label: 'ðŸ“š Course' },
+                  { value: 'session', label: 'ðŸ“… Session' },
+                  { value: 'enrollment', label: 'ðŸ“‹ Enrollment' },
+                  { value: 'attendance', label: 'âœ… Attendance' },
+                  { value: 'session_feedback', label: 'ðŸ’œ Session Feedback' },
+                  { value: 'feedback_question', label: 'ðŸ§© Feedback Question' },
+                  { value: 'feedback_template', label: 'ðŸ—‚ï¸ Feedback Template' },
+                  { value: 'session_recording', label: 'ðŸŽ¬ Session Recording' },
+                  { value: 'announcement', label: 'ðŸ“¢ Announcement' },
+                  { value: 'message', label: 'ðŸ’¬ Message' },
                 ]}
               />
             </div>
@@ -682,9 +682,9 @@ export function AuditLogs() {
                 onChange={(v) => { setFilterOp(v); setPage(1); }}
                 options={[
                   { value: '', label: 'All Operations' },
-                  { value: 'DELETE', label: '🗑️ Delete' },
-                  { value: 'UPDATE', label: '✏️ Update' },
-                  { value: 'INSERT', label: '➕ Insert' },
+                  { value: 'DELETE', label: 'ðŸ—‘ï¸ Delete' },
+                  { value: 'UPDATE', label: 'âœï¸ Update' },
+                  { value: 'INSERT', label: 'âž• Insert' },
                 ]}
               />
             </div>
@@ -774,7 +774,7 @@ export function AuditLogs() {
       ) : filteredLogs.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
-            <span className="text-5xl block mb-4">📭</span>
+            <span className="text-5xl block mb-4">ðŸ“­</span>
             <p className="text-gray-600 dark:text-gray-400 font-medium">No activities found</p>
             <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">Try adjusting your filters or date range</p>
           </CardContent>
@@ -854,7 +854,7 @@ export function AuditLogs() {
                                 />
                               )}
                               <span className="text-xl flex-shrink-0 mt-0.5">
-                                {TABLE_ICONS[log.table_name] || '📄'}
+                                {TABLE_ICONS[log.table_name] || 'ðŸ“„'}
                               </span>
                               <div className="min-w-0">
                                 <p className="text-sm font-medium text-gray-900 dark:text-white">
@@ -893,7 +893,7 @@ export function AuditLogs() {
                             <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 space-y-3">
                               {log.reason && (
                                 <div className="flex items-start gap-2 bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
-                                  <span className="text-blue-500">💬</span>
+                                  <span className="text-blue-500">ðŸ’¬</span>
                                   <p className="text-sm text-blue-700 dark:text-blue-300">{log.reason}</p>
                                 </div>
                               )}
@@ -908,9 +908,9 @@ export function AuditLogs() {
                                         <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{key}</p>
                                         <div className="flex flex-col sm:flex-row gap-2">
                                           <div className="flex-1 text-xs bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 px-2 py-1 rounded border border-red-200 dark:border-red-800/50">
-                                            <span className="font-medium mr-1">−</span>{formatValue(oldVal)}
+                                            <span className="font-medium mr-1">âˆ’</span>{formatValue(oldVal)}
                                           </div>
-                                          <span className="hidden sm:block text-gray-400 self-center">→</span>
+                                          <span className="hidden sm:block text-gray-400 self-center">â†’</span>
                                           <div className="flex-1 text-xs bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 px-2 py-1 rounded border border-green-200 dark:border-green-800/50">
                                             <span className="font-medium mr-1">+</span>{formatValue(newVal)}
                                           </div>
@@ -952,7 +952,7 @@ export function AuditLogs() {
                                     className="px-2 py-1 text-xs rounded border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
                                     title="Delete this log entry"
                                   >
-                                    🗑️ Delete
+                                    ðŸ—‘ï¸ Delete
                                   </button>
                                 )}
                               </div>
@@ -1025,7 +1025,7 @@ export function AuditLogs() {
                             </td>
                           )}
                           <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                            {log.deleted_at ? format(new Date(log.deleted_at), 'MMM dd, HH:mm') : '—'}
+                            {log.deleted_at ? format(new Date(log.deleted_at), 'MMM dd, HH:mm') : 'â€”'}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${getOpColor(log.operation)}`}>
@@ -1033,7 +1033,7 @@ export function AuditLogs() {
                             </span>
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 max-w-xs truncate">
-                            <span className="mr-1">{TABLE_ICONS[log.table_name] || '📄'}</span>
+                            <span className="mr-1">{TABLE_ICONS[log.table_name] || 'ðŸ“„'}</span>
                             {describeAction(log)}
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
@@ -1061,7 +1061,7 @@ export function AuditLogs() {
                               <div className="space-y-3">
                                 {log.reason && (
                                   <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
-                                    <p className="text-sm text-blue-700 dark:text-blue-300">💬 {log.reason}</p>
+                                    <p className="text-sm text-blue-700 dark:text-blue-300">ðŸ’¬ {log.reason}</p>
                                   </div>
                                 )}
                                 {log.operation === 'UPDATE' && changes.length > 0 && (
@@ -1070,7 +1070,7 @@ export function AuditLogs() {
                                       <div key={key} className="flex flex-wrap items-center gap-2 text-xs">
                                         <span className="font-medium text-gray-700 dark:text-gray-300 w-24">{key}:</span>
                                         <span className="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 px-2 py-0.5 rounded line-through">{formatValue(oldVal)}</span>
-                                        <span className="text-gray-400">→</span>
+                                        <span className="text-gray-400">â†’</span>
                                         <span className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-0.5 rounded">{formatValue(newVal)}</span>
                                       </div>
                                     ))}
@@ -1112,7 +1112,7 @@ export function AuditLogs() {
             disabled={page === 1}
             className="px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
           >
-            ← Previous
+            â† Previous
           </button>
           <span className="text-sm text-gray-600 dark:text-gray-400">
             Page {page} of {totalPages}
@@ -1122,7 +1122,7 @@ export function AuditLogs() {
             disabled={page === totalPages}
             className="px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
           >
-            Next →
+            Next â†’
           </button>
         </div>
       )}
@@ -1131,14 +1131,14 @@ export function AuditLogs() {
       <Card>
         <CardContent className="pt-4">
           <div className="flex items-start gap-3">
-            <span className="text-xl">💡</span>
+            <span className="text-xl">ðŸ’¡</span>
             <div>
               <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Storage & Performance Tips</p>
               <ul className="mt-2 space-y-1 text-xs text-gray-500 dark:text-gray-500">
-                <li>• Audit logs currently store full record snapshots. Estimated ~{Math.round(logs.length * 0.5)}KB for {logs.length} records.</li>
-                <li>• For high-volume tables (attendance), consider setting up a Supabase cron job to purge logs older than 6 months.</li>
-                <li>• UPDATE logs can be optimized by storing only changed fields instead of full old/new data.</li>
-                <li>• Use <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">DELETE FROM audit_log WHERE deleted_at &lt; NOW() - INTERVAL '6 months'</code> to clean up.</li>
+                <li>â€¢ Audit logs currently store full record snapshots. Estimated ~{Math.round(logs.length * 0.5)}KB for {logs.length} records.</li>
+                <li>â€¢ For high-volume tables (attendance), consider setting up a Supabase cron job to purge logs older than 6 months.</li>
+                <li>â€¢ UPDATE logs can be optimized by storing only changed fields instead of full old/new data.</li>
+                <li>â€¢ Use <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">DELETE FROM audit_log WHERE deleted_at &lt; NOW() - INTERVAL '6 months'</code> to clean up.</li>
               </ul>
             </div>
           </div>
@@ -1153,7 +1153,7 @@ export function AuditLogs() {
             onClick={() => setConfirmBulkDelete(true)}
             className="px-4 py-1.5 text-sm bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
           >
-            🗑️ Delete Selected
+            ðŸ—‘ï¸ Delete Selected
           </button>
           <button
             onClick={() => setSelectedLogs(new Set())}

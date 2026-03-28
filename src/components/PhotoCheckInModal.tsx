@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '../lib/supabase';
-import { toast } from './ui/toastUtils';
+import { supabase } from '@/shared/lib/supabase';
+import { toast } from '@/shared/components/ui/toastUtils';
 
 type PhotoCheckInModalProps = {
   sessionId: string;
@@ -66,7 +66,7 @@ export function PhotoCheckInModal({
       const url = `${window.location.origin}/photo-checkin/${token}`;
       setCheckInUrl(url);
 
-      console.log('✅ Photo check-in session created:', { token, expires, createdBy: userEmail });
+      console.log('âœ… Photo check-in session created:', { token, expires, createdBy: userEmail });
     } catch (error) {
       console.error('Photo session generation error:', error);
       toast.error('Error generating check-in link. Please try again.');
@@ -130,7 +130,7 @@ export function PhotoCheckInModal({
           .from('photo_checkin_sessions')
           .update({ is_valid: false })
           .eq('token', photoToken);
-        console.log('✅ Photo session invalidated');
+        console.log('âœ… Photo session invalidated');
       } catch (error) {
         console.error('Failed to invalidate photo session:', error);
       }
@@ -270,7 +270,7 @@ export function PhotoCheckInModal({
         <div className="sticky top-0 bg-gradient-to-r from-purple-600 to-pink-600 text-white p-6 rounded-t-2xl flex justify-between">
           <div>
             <h2 className="text-2xl font-bold flex gap-2">
-              <span>📸</span> Face Check-In
+              <span>ðŸ“¸</span> Face Check-In
             </h2>
             <p className="text-purple-100 text-sm mt-1">{courseName}</p>
           </div>
@@ -279,7 +279,7 @@ export function PhotoCheckInModal({
             className="text-2xl hover:bg-white/20 rounded-full px-3"
             aria-label="Close dialog"
           >
-            ×
+            Ã—
           </button>
         </div>
 
@@ -291,7 +291,7 @@ export function PhotoCheckInModal({
             </div>
           ) : (
             <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl p-6 text-center space-y-4">
-              <div className="text-6xl">📸</div>
+              <div className="text-6xl">ðŸ“¸</div>
               <h3 className="text-lg font-bold text-gray-800 dark:text-white">Face Recognition Check-In</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 Students can check in by verifying their face against their profile photo.
@@ -313,13 +313,13 @@ export function PhotoCheckInModal({
                       : 'bg-purple-600 text-white hover:bg-purple-700'
                   }`}
                 >
-                  {copied ? '✓ Copied!' : '📋 Copy Link'}
+                  {copied ? 'âœ“ Copied!' : 'ðŸ“‹ Copy Link'}
                 </button>
                 <button
                   onClick={shareLink}
                   className="px-6 py-3 bg-pink-600 text-white rounded-lg font-semibold hover:bg-pink-700"
                 >
-                  📤 Share
+                  ðŸ“¤ Share
                 </button>
               </div>
             </div>
@@ -328,7 +328,7 @@ export function PhotoCheckInModal({
           {/* How it works */}
           <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 space-y-2">
             <h4 className="font-bold text-gray-800 dark:text-white flex items-center gap-2">
-              <span>ℹ️</span> How It Works
+              <span>â„¹ï¸</span> How It Works
             </h4>
             <ol className="text-sm text-gray-600 dark:text-gray-400 space-y-1 list-decimal list-inside">
               <li>Share the link with students (copy or use Share button)</li>
@@ -342,12 +342,12 @@ export function PhotoCheckInModal({
           {/* Requirements */}
           <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700/50 rounded-xl p-4">
             <h4 className="font-bold text-yellow-800 dark:text-yellow-300 flex items-center gap-2 mb-2">
-              <span>⚠️</span> Requirements
+              <span>âš ï¸</span> Requirements
             </h4>
             <ul className="text-sm text-yellow-700 dark:text-yellow-400 space-y-1">
-              <li>• Students must have uploaded a profile photo</li>
-              <li>• Good lighting required for face detection</li>
-              <li>• Camera access must be allowed</li>
+              <li>â€¢ Students must have uploaded a profile photo</li>
+              <li>â€¢ Good lighting required for face detection</li>
+              <li>â€¢ Camera access must be allowed</li>
             </ul>
           </div>
 
@@ -372,7 +372,7 @@ export function PhotoCheckInModal({
 
           {/* Timer */}
           <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700/50 rounded-xl p-4 flex items-center gap-3">
-            <span className="text-3xl">⏰</span>
+            <span className="text-3xl">â°</span>
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Link Expires In</p>
               <p className="text-xl font-mono font-bold">{timeLeft}</p>

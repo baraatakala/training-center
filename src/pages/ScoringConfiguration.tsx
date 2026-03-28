@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { ConfirmDialog } from '../components/ui/ConfirmDialog';
-import { useToast } from '../hooks/useToast';
-import { ToastContainer } from '../components/ui/ToastContainer';
-import { useIsTeacher } from '../hooks/useIsTeacher';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/Card';
+import { Button } from '@/shared/components/ui/Button';
+import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
+import { useToast } from '@/shared/hooks/useToast';
+import { ToastContainer } from '@/shared/components/ui/ToastContainer';
+import { useIsTeacher } from '@/shared/hooks/useIsTeacher';
 import {
   type ScoringConfig,
   DEFAULT_SCORING_CONFIG,
@@ -469,9 +469,9 @@ function SimulationPanel({ config }: { config: Omit<ScoringConfig, 'id' | 'teach
         {/* Formula breakdown */}
         <div className="mt-3 p-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
           <p className="text-xs text-gray-500 dark:text-gray-400 font-mono text-center">
-            ({config.weight_quality}%×{results.qualityRate} + {config.weight_attendance}%×{results.attendanceRate} + {config.weight_punctuality}%×{results.punctualityPct}) × {results.coverageFactor}
+            ({config.weight_quality}%Ã—{results.qualityRate} + {config.weight_attendance}%Ã—{results.attendanceRate} + {config.weight_punctuality}%Ã—{results.punctualityPct}) Ã— {results.coverageFactor}
             {results.bonusTotal > 0 && <span className="text-green-600 dark:text-green-400"> +{results.bonusTotal}</span>}
-            {results.penaltyTotal > 0 && <span className="text-red-600 dark:text-red-400"> −{results.penaltyTotal}</span>}
+            {results.penaltyTotal > 0 && <span className="text-red-600 dark:text-red-400"> âˆ’{results.penaltyTotal}</span>}
             {' '}= <span className={`font-bold ${scoreColor}`}>{results.finalScore}</span>
           </p>
         </div>
@@ -490,10 +490,10 @@ const translations = {
     subtitle: 'Dynamically control how weighted scores are calculated for attendance records',
     resetToDefault: 'Reset to Default',
     saving: 'Saving...',
-    saveChanges: '💾 Save Changes',
+    saveChanges: 'ðŸ’¾ Save Changes',
     saved: 'Saved',
     quickPresets: 'Quick Presets',
-    presetsHint: '— Click to apply a pre-configured template',
+    presetsHint: 'â€” Click to apply a pre-configured template',
     // Section tabs
     sectionWeights: 'Score Weights',
     sectionDecay: 'Late Decay',
@@ -504,7 +504,7 @@ const translations = {
     weightsTitle: 'Score Component Weights',
     sum: 'Sum',
     qualityLabel: 'Quality-Adjusted Rate',
-    qualityDesc: 'Attendance rate with late penalty applied (e^(-t/τ) decay)',
+    qualityDesc: 'Attendance rate with late penalty applied (e^(-t/Ï„) decay)',
     attendanceLabel: 'Simple Attendance Rate',
     attendanceDesc: 'Credit for showing up (on time + late both count as present)',
     punctualityLabel: 'Punctuality Bonus',
@@ -516,7 +516,7 @@ const translations = {
     // Late Decay
     decayTitle: 'Late Arrival Scoring Curve',
     decaySubtitle: 'Controls how much credit a student gets based on how late they arrive. Uses exponential decay:',
-    decayConstant: 'Decay Constant (τ)',
+    decayConstant: 'Decay Constant (Ï„)',
     decayConstantDesc: 'Higher = more lenient. 43.3 gives 50% credit at 30 min',
     minimumCredit: 'Minimum Credit',
     minimumCreditDesc: 'Floor credit for any late arrival (0 = no credit, 0.5 = 50%)',
@@ -532,13 +532,13 @@ const translations = {
     enableCoverage: 'Enable Coverage Factor',
     enableCoverageDesc: 'When disabled, all students are scored equally regardless of how many sessions they attended',
     scalingMethod: 'Scaling Method',
-    sqrtName: '√ Square Root',
+    sqrtName: 'âˆš Square Root',
     sqrtDesc: 'Gentle curve (default)',
-    linearName: '— Linear',
+    linearName: 'â€” Linear',
     linearDesc: 'Proportional',
     logName: 'ln Logarithmic',
     logDesc: 'Harsh for low attendance',
-    noneName: '∅ None',
+    noneName: 'âˆ… None',
     noneDesc: 'No coverage penalty',
     minFactor: 'Minimum Factor',
     minFactorDesc: 'Floor for coverage factor (prevents scores going to near-zero)',
@@ -547,7 +547,7 @@ const translations = {
     factorPercent: 'Factor %',
     // Brackets
     bracketsTitle: 'Late Display Brackets',
-    bracketsSubtitle: 'Visual categorization only — scoring uses the smooth decay curve, not these brackets.',
+    bracketsSubtitle: 'Visual categorization only â€” scoring uses the smooth decay curve, not these brackets.',
     bracketName: 'Bracket name',
     preview: 'Preview',
     addBracket: '+ Add Bracket',
@@ -569,7 +569,7 @@ const translations = {
     howPunctuality: 'Ratio of on-time sessions to total present sessions.',
     howCoverage: 'Penalizes new students or those enrolled in few sessions.',
     howBonuses: 'Perfect attendance bonus, streak bonus per week, and absence penalty multiplier are applied after the base score.',
-    howFormula: 'Final = (W₁×Quality + W₂×Attendance + W₃×Punctuality) × Coverage + Bonuses − Penalties',
+    howFormula: 'Final = (Wâ‚Ã—Quality + Wâ‚‚Ã—Attendance + Wâ‚ƒÃ—Punctuality) Ã— Coverage + Bonuses âˆ’ Penalties',
     // Reset dialog
     resetTitle: 'Reset Scoring Configuration',
     resetMessage: 'This will revert all settings to the factory defaults. Your current configuration will be lost. Continue?',
@@ -586,122 +586,122 @@ const translations = {
     presetStrict: 'Strict Punctuality',
     presetStrictDesc: 'Heavy penalty for lateness, low tolerance',
     presetLenient: 'Lenient',
-    presetLenientDesc: 'Forgiving — focus on showing up, mild late penalties',
+    presetLenientDesc: 'Forgiving â€” focus on showing up, mild late penalties',
     presetQuality: 'Quality First',
     presetQualityDesc: 'Maximum weight on quality-adjusted rate',
     presetAttendance: 'Attendance Only',
-    presetAttendanceDesc: 'Pure attendance tracking — lateness barely affects score',
+    presetAttendanceDesc: 'Pure attendance tracking â€” lateness barely affects score',
     presetMilitary: 'Military Precision',
-    presetMilitaryDesc: 'Zero tolerance — late is almost as bad as absent',
+    presetMilitaryDesc: 'Zero tolerance â€” late is almost as bad as absent',
   },
   ar: {
-    title: 'إعدادات التقييم',
-    subtitle: 'التحكم الديناميكي في كيفية حساب الدرجات المرجّحة لسجلات الحضور',
-    resetToDefault: 'إعادة للافتراضي',
-    saving: 'جارٍ الحفظ...',
-    saveChanges: '💾 حفظ التغييرات',
-    saved: 'تم الحفظ',
-    quickPresets: 'قوالب سريعة',
-    presetsHint: '— انقر لتطبيق قالب مُعد مسبقاً',
+    title: 'Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª Ø§Ù„ØªÙ‚ÙŠÙŠÙ…',
+    subtitle: 'Ø§Ù„ØªØ­ÙƒÙ… Ø§Ù„Ø¯ÙŠÙ†Ø§Ù…ÙŠÙƒÙŠ ÙÙŠ ÙƒÙŠÙÙŠØ© Ø­Ø³Ø§Ø¨ Ø§Ù„Ø¯Ø±Ø¬Ø§Øª Ø§Ù„Ù…Ø±Ø¬Ù‘Ø­Ø© Ù„Ø³Ø¬Ù„Ø§Øª Ø§Ù„Ø­Ø¶ÙˆØ±',
+    resetToDefault: 'Ø¥Ø¹Ø§Ø¯Ø© Ù„Ù„Ø§ÙØªØ±Ø§Ø¶ÙŠ',
+    saving: 'Ø¬Ø§Ø±Ù Ø§Ù„Ø­ÙØ¸...',
+    saveChanges: 'ðŸ’¾ Ø­ÙØ¸ Ø§Ù„ØªØºÙŠÙŠØ±Ø§Øª',
+    saved: 'ØªÙ… Ø§Ù„Ø­ÙØ¸',
+    quickPresets: 'Ù‚ÙˆØ§Ù„Ø¨ Ø³Ø±ÙŠØ¹Ø©',
+    presetsHint: 'â€” Ø§Ù†Ù‚Ø± Ù„ØªØ·Ø¨ÙŠÙ‚ Ù‚Ø§Ù„Ø¨ Ù…ÙØ¹Ø¯ Ù…Ø³Ø¨Ù‚Ø§Ù‹',
     // Section tabs
-    sectionWeights: 'أوزان الدرجات',
-    sectionDecay: 'تناقص التأخير',
-    sectionCoverage: 'عامل التغطية',
-    sectionBrackets: 'فئات العرض',
-    sectionBonuses: 'المكافآت والعقوبات',
+    sectionWeights: 'Ø£ÙˆØ²Ø§Ù† Ø§Ù„Ø¯Ø±Ø¬Ø§Øª',
+    sectionDecay: 'ØªÙ†Ø§Ù‚Øµ Ø§Ù„ØªØ£Ø®ÙŠØ±',
+    sectionCoverage: 'Ø¹Ø§Ù…Ù„ Ø§Ù„ØªØºØ·ÙŠØ©',
+    sectionBrackets: 'ÙØ¦Ø§Øª Ø§Ù„Ø¹Ø±Ø¶',
+    sectionBonuses: 'Ø§Ù„Ù…ÙƒØ§ÙØ¢Øª ÙˆØ§Ù„Ø¹Ù‚ÙˆØ¨Ø§Øª',
     // Weights
-    weightsTitle: 'أوزان مكونات الدرجة',
-    sum: 'المجموع',
-    qualityLabel: 'معدل الجودة المعدّل',
-    qualityDesc: 'معدل الحضور مع تطبيق عقوبة التأخير (تناقص أسي)',
-    attendanceLabel: 'معدل الحضور البسيط',
-    attendanceDesc: 'الفضل في الحضور (في الوقت والمتأخر كلاهما يُحسب حاضراً)',
-    punctualityLabel: 'مكافأة الانضباط',
-    punctualityDesc: 'نسبة الحضور في الوقت مقابل إجمالي الجلسات الحاضرة',
-    quality: 'الجودة',
-    attendance: 'الحضور',
-    punctuality: 'الانضباط',
-    formula: 'المعادلة',
+    weightsTitle: 'Ø£ÙˆØ²Ø§Ù† Ù…ÙƒÙˆÙ†Ø§Øª Ø§Ù„Ø¯Ø±Ø¬Ø©',
+    sum: 'Ø§Ù„Ù…Ø¬Ù…ÙˆØ¹',
+    qualityLabel: 'Ù…Ø¹Ø¯Ù„ Ø§Ù„Ø¬ÙˆØ¯Ø© Ø§Ù„Ù…Ø¹Ø¯Ù‘Ù„',
+    qualityDesc: 'Ù…Ø¹Ø¯Ù„ Ø§Ù„Ø­Ø¶ÙˆØ± Ù…Ø¹ ØªØ·Ø¨ÙŠÙ‚ Ø¹Ù‚ÙˆØ¨Ø© Ø§Ù„ØªØ£Ø®ÙŠØ± (ØªÙ†Ø§Ù‚Øµ Ø£Ø³ÙŠ)',
+    attendanceLabel: 'Ù…Ø¹Ø¯Ù„ Ø§Ù„Ø­Ø¶ÙˆØ± Ø§Ù„Ø¨Ø³ÙŠØ·',
+    attendanceDesc: 'Ø§Ù„ÙØ¶Ù„ ÙÙŠ Ø§Ù„Ø­Ø¶ÙˆØ± (ÙÙŠ Ø§Ù„ÙˆÙ‚Øª ÙˆØ§Ù„Ù…ØªØ£Ø®Ø± ÙƒÙ„Ø§Ù‡Ù…Ø§ ÙŠÙØ­Ø³Ø¨ Ø­Ø§Ø¶Ø±Ø§Ù‹)',
+    punctualityLabel: 'Ù…ÙƒØ§ÙØ£Ø© Ø§Ù„Ø§Ù†Ø¶Ø¨Ø§Ø·',
+    punctualityDesc: 'Ù†Ø³Ø¨Ø© Ø§Ù„Ø­Ø¶ÙˆØ± ÙÙŠ Ø§Ù„ÙˆÙ‚Øª Ù…Ù‚Ø§Ø¨Ù„ Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ø¬Ù„Ø³Ø§Øª Ø§Ù„Ø­Ø§Ø¶Ø±Ø©',
+    quality: 'Ø§Ù„Ø¬ÙˆØ¯Ø©',
+    attendance: 'Ø§Ù„Ø­Ø¶ÙˆØ±',
+    punctuality: 'Ø§Ù„Ø§Ù†Ø¶Ø¨Ø§Ø·',
+    formula: 'Ø§Ù„Ù…Ø¹Ø§Ø¯Ù„Ø©',
     // Late Decay
-    decayTitle: 'منحنى تقييم التأخير',
-    decaySubtitle: 'يتحكم في مقدار الائتمان الذي يحصل عليه الطالب بناءً على تأخره. يستخدم التناقص الأسي:',
-    decayConstant: 'ثابت التناقص (τ)',
-    decayConstantDesc: 'أعلى = أكثر تسامحاً. 43.3 يعطي 50% ائتمان عند 30 دقيقة',
-    minimumCredit: 'الحد الأدنى للائتمان',
-    minimumCreditDesc: 'أدنى ائتمان لأي تأخير (0 = بدون، 0.5 = 50%)',
-    unknownLate: 'تقدير التأخر غير المعروف',
-    unknownLateDesc: 'الائتمان عندما لا يتم تتبع دقائق التأخير (~ما يعادل 20 دقيقة)',
-    decayCurvePreview: 'معاينة منحنى التناقص',
-    referencePoints: 'نقاط مرجعية',
-    minutesLate: 'دقائق التأخير',
-    creditPercent: 'الائتمان %',
+    decayTitle: 'Ù…Ù†Ø­Ù†Ù‰ ØªÙ‚ÙŠÙŠÙ… Ø§Ù„ØªØ£Ø®ÙŠØ±',
+    decaySubtitle: 'ÙŠØªØ­ÙƒÙ… ÙÙŠ Ù…Ù‚Ø¯Ø§Ø± Ø§Ù„Ø§Ø¦ØªÙ…Ø§Ù† Ø§Ù„Ø°ÙŠ ÙŠØ­ØµÙ„ Ø¹Ù„ÙŠÙ‡ Ø§Ù„Ø·Ø§Ù„Ø¨ Ø¨Ù†Ø§Ø¡Ù‹ Ø¹Ù„Ù‰ ØªØ£Ø®Ø±Ù‡. ÙŠØ³ØªØ®Ø¯Ù… Ø§Ù„ØªÙ†Ø§Ù‚Øµ Ø§Ù„Ø£Ø³ÙŠ:',
+    decayConstant: 'Ø«Ø§Ø¨Øª Ø§Ù„ØªÙ†Ø§Ù‚Øµ (Ï„)',
+    decayConstantDesc: 'Ø£Ø¹Ù„Ù‰ = Ø£ÙƒØ«Ø± ØªØ³Ø§Ù…Ø­Ø§Ù‹. 43.3 ÙŠØ¹Ø·ÙŠ 50% Ø§Ø¦ØªÙ…Ø§Ù† Ø¹Ù†Ø¯ 30 Ø¯Ù‚ÙŠÙ‚Ø©',
+    minimumCredit: 'Ø§Ù„Ø­Ø¯ Ø§Ù„Ø£Ø¯Ù†Ù‰ Ù„Ù„Ø§Ø¦ØªÙ…Ø§Ù†',
+    minimumCreditDesc: 'Ø£Ø¯Ù†Ù‰ Ø§Ø¦ØªÙ…Ø§Ù† Ù„Ø£ÙŠ ØªØ£Ø®ÙŠØ± (0 = Ø¨Ø¯ÙˆÙ†ØŒ 0.5 = 50%)',
+    unknownLate: 'ØªÙ‚Ø¯ÙŠØ± Ø§Ù„ØªØ£Ø®Ø± ØºÙŠØ± Ø§Ù„Ù…Ø¹Ø±ÙˆÙ',
+    unknownLateDesc: 'Ø§Ù„Ø§Ø¦ØªÙ…Ø§Ù† Ø¹Ù†Ø¯Ù…Ø§ Ù„Ø§ ÙŠØªÙ… ØªØªØ¨Ø¹ Ø¯Ù‚Ø§Ø¦Ù‚ Ø§Ù„ØªØ£Ø®ÙŠØ± (~Ù…Ø§ ÙŠØ¹Ø§Ø¯Ù„ 20 Ø¯Ù‚ÙŠÙ‚Ø©)',
+    decayCurvePreview: 'Ù…Ø¹Ø§ÙŠÙ†Ø© Ù…Ù†Ø­Ù†Ù‰ Ø§Ù„ØªÙ†Ø§Ù‚Øµ',
+    referencePoints: 'Ù†Ù‚Ø§Ø· Ù…Ø±Ø¬Ø¹ÙŠØ©',
+    minutesLate: 'Ø¯Ù‚Ø§Ø¦Ù‚ Ø§Ù„ØªØ£Ø®ÙŠØ±',
+    creditPercent: 'Ø§Ù„Ø§Ø¦ØªÙ…Ø§Ù† %',
     // Coverage
-    coverageTitle: 'عامل التغطية',
-    coverageSubtitle: 'يعاقب الطلاب الذين حضروا جلسات قليلة جداً، حتى لا يتفوقوا على الطلاب ذوي الحضور المنتظم.',
-    enableCoverage: 'تفعيل عامل التغطية',
-    enableCoverageDesc: 'عند التعطيل، يتم تقييم جميع الطلاب بالتساوي بغض النظر عن عدد الجلسات',
-    scalingMethod: 'طريقة القياس',
-    sqrtName: '√ جذر تربيعي',
-    sqrtDesc: 'منحنى لطيف (افتراضي)',
-    linearName: '— خطي',
-    linearDesc: 'متناسب',
-    logName: 'ln لوغاريتمي',
-    logDesc: 'صارم للحضور المنخفض',
-    noneName: '∅ بدون',
-    noneDesc: 'بدون عقوبة تغطية',
-    minFactor: 'الحد الأدنى للعامل',
-    minFactorDesc: 'أرضية عامل التغطية (يمنع الدرجات من الانخفاض للصفر)',
-    coverageCurve: 'منحنى التغطية (30 جلسة إجمالي)',
-    daysAttended: 'أيام الحضور',
-    factorPercent: 'العامل %',
+    coverageTitle: 'Ø¹Ø§Ù…Ù„ Ø§Ù„ØªØºØ·ÙŠØ©',
+    coverageSubtitle: 'ÙŠØ¹Ø§Ù‚Ø¨ Ø§Ù„Ø·Ù„Ø§Ø¨ Ø§Ù„Ø°ÙŠÙ† Ø­Ø¶Ø±ÙˆØ§ Ø¬Ù„Ø³Ø§Øª Ù‚Ù„ÙŠÙ„Ø© Ø¬Ø¯Ø§Ù‹ØŒ Ø­ØªÙ‰ Ù„Ø§ ÙŠØªÙÙˆÙ‚ÙˆØ§ Ø¹Ù„Ù‰ Ø§Ù„Ø·Ù„Ø§Ø¨ Ø°ÙˆÙŠ Ø§Ù„Ø­Ø¶ÙˆØ± Ø§Ù„Ù…Ù†ØªØ¸Ù….',
+    enableCoverage: 'ØªÙØ¹ÙŠÙ„ Ø¹Ø§Ù…Ù„ Ø§Ù„ØªØºØ·ÙŠØ©',
+    enableCoverageDesc: 'Ø¹Ù†Ø¯ Ø§Ù„ØªØ¹Ø·ÙŠÙ„ØŒ ÙŠØªÙ… ØªÙ‚ÙŠÙŠÙ… Ø¬Ù…ÙŠØ¹ Ø§Ù„Ø·Ù„Ø§Ø¨ Ø¨Ø§Ù„ØªØ³Ø§ÙˆÙŠ Ø¨ØºØ¶ Ø§Ù„Ù†Ø¸Ø± Ø¹Ù† Ø¹Ø¯Ø¯ Ø§Ù„Ø¬Ù„Ø³Ø§Øª',
+    scalingMethod: 'Ø·Ø±ÙŠÙ‚Ø© Ø§Ù„Ù‚ÙŠØ§Ø³',
+    sqrtName: 'âˆš Ø¬Ø°Ø± ØªØ±Ø¨ÙŠØ¹ÙŠ',
+    sqrtDesc: 'Ù…Ù†Ø­Ù†Ù‰ Ù„Ø·ÙŠÙ (Ø§ÙØªØ±Ø§Ø¶ÙŠ)',
+    linearName: 'â€” Ø®Ø·ÙŠ',
+    linearDesc: 'Ù…ØªÙ†Ø§Ø³Ø¨',
+    logName: 'ln Ù„ÙˆØºØ§Ø±ÙŠØªÙ…ÙŠ',
+    logDesc: 'ØµØ§Ø±Ù… Ù„Ù„Ø­Ø¶ÙˆØ± Ø§Ù„Ù…Ù†Ø®ÙØ¶',
+    noneName: 'âˆ… Ø¨Ø¯ÙˆÙ†',
+    noneDesc: 'Ø¨Ø¯ÙˆÙ† Ø¹Ù‚ÙˆØ¨Ø© ØªØºØ·ÙŠØ©',
+    minFactor: 'Ø§Ù„Ø­Ø¯ Ø§Ù„Ø£Ø¯Ù†Ù‰ Ù„Ù„Ø¹Ø§Ù…Ù„',
+    minFactorDesc: 'Ø£Ø±Ø¶ÙŠØ© Ø¹Ø§Ù…Ù„ Ø§Ù„ØªØºØ·ÙŠØ© (ÙŠÙ…Ù†Ø¹ Ø§Ù„Ø¯Ø±Ø¬Ø§Øª Ù…Ù† Ø§Ù„Ø§Ù†Ø®ÙØ§Ø¶ Ù„Ù„ØµÙØ±)',
+    coverageCurve: 'Ù…Ù†Ø­Ù†Ù‰ Ø§Ù„ØªØºØ·ÙŠØ© (30 Ø¬Ù„Ø³Ø© Ø¥Ø¬Ù…Ø§Ù„ÙŠ)',
+    daysAttended: 'Ø£ÙŠØ§Ù… Ø§Ù„Ø­Ø¶ÙˆØ±',
+    factorPercent: 'Ø§Ù„Ø¹Ø§Ù…Ù„ %',
     // Brackets
-    bracketsTitle: 'فئات عرض التأخير',
-    bracketsSubtitle: 'تصنيف بصري فقط — التقييم يستخدم منحنى التناقص السلس وليس هذه الفئات.',
-    bracketName: 'اسم الفئة',
-    preview: 'معاينة',
-    addBracket: '+ إضافة فئة',
+    bracketsTitle: 'ÙØ¦Ø§Øª Ø¹Ø±Ø¶ Ø§Ù„ØªØ£Ø®ÙŠØ±',
+    bracketsSubtitle: 'ØªØµÙ†ÙŠÙ Ø¨ØµØ±ÙŠ ÙÙ‚Ø· â€” Ø§Ù„ØªÙ‚ÙŠÙŠÙ… ÙŠØ³ØªØ®Ø¯Ù… Ù…Ù†Ø­Ù†Ù‰ Ø§Ù„ØªÙ†Ø§Ù‚Øµ Ø§Ù„Ø³Ù„Ø³ ÙˆÙ„ÙŠØ³ Ù‡Ø°Ù‡ Ø§Ù„ÙØ¦Ø§Øª.',
+    bracketName: 'Ø§Ø³Ù… Ø§Ù„ÙØ¦Ø©',
+    preview: 'Ù…Ø¹Ø§ÙŠÙ†Ø©',
+    addBracket: '+ Ø¥Ø¶Ø§ÙØ© ÙØ¦Ø©',
     // Bonuses
-    bonusesTitle: 'المكافآت والعقوبات',
-    bonusesSubtitle: 'معدّلات اختيارية تضيف أبعاد تقييم إضافية.',
-    perfectBonus: 'مكافأة الحضور الكامل',
-    perfectBonusDesc: 'نقاط إضافية عند حضور 100% (0 = معطل)',
-    streakBonus: 'مكافأة التتابع (أسبوعياً)',
-    streakBonusDesc: 'مكافأة لكل أسبوع متتالي من الحضور الكامل',
-    absenceMultiplier: 'مضاعف الغياب بدون عذر',
-    absenceMultiplierDesc: '1.0 = عادي، 2.0 = عقوبة مضاعفة للغياب بدون عذر',
+    bonusesTitle: 'Ø§Ù„Ù…ÙƒØ§ÙØ¢Øª ÙˆØ§Ù„Ø¹Ù‚ÙˆØ¨Ø§Øª',
+    bonusesSubtitle: 'Ù…Ø¹Ø¯Ù‘Ù„Ø§Øª Ø§Ø®ØªÙŠØ§Ø±ÙŠØ© ØªØ¶ÙŠÙ Ø£Ø¨Ø¹Ø§Ø¯ ØªÙ‚ÙŠÙŠÙ… Ø¥Ø¶Ø§ÙÙŠØ©.',
+    perfectBonus: 'Ù…ÙƒØ§ÙØ£Ø© Ø§Ù„Ø­Ø¶ÙˆØ± Ø§Ù„ÙƒØ§Ù…Ù„',
+    perfectBonusDesc: 'Ù†Ù‚Ø§Ø· Ø¥Ø¶Ø§ÙÙŠØ© Ø¹Ù†Ø¯ Ø­Ø¶ÙˆØ± 100% (0 = Ù…Ø¹Ø·Ù„)',
+    streakBonus: 'Ù…ÙƒØ§ÙØ£Ø© Ø§Ù„ØªØªØ§Ø¨Ø¹ (Ø£Ø³Ø¨ÙˆØ¹ÙŠØ§Ù‹)',
+    streakBonusDesc: 'Ù…ÙƒØ§ÙØ£Ø© Ù„ÙƒÙ„ Ø£Ø³Ø¨ÙˆØ¹ Ù…ØªØªØ§Ù„ÙŠ Ù…Ù† Ø§Ù„Ø­Ø¶ÙˆØ± Ø§Ù„ÙƒØ§Ù…Ù„',
+    absenceMultiplier: 'Ù…Ø¶Ø§Ø¹Ù Ø§Ù„ØºÙŠØ§Ø¨ Ø¨Ø¯ÙˆÙ† Ø¹Ø°Ø±',
+    absenceMultiplierDesc: '1.0 = Ø¹Ø§Ø¯ÙŠØŒ 2.0 = Ø¹Ù‚ÙˆØ¨Ø© Ù…Ø¶Ø§Ø¹ÙØ© Ù„Ù„ØºÙŠØ§Ø¨ Ø¨Ø¯ÙˆÙ† Ø¹Ø°Ø±',
     // Simulation
-    liveSimulation: 'المحاكاة الحية',
+    liveSimulation: 'Ø§Ù„Ù…Ø­Ø§ÙƒØ§Ø© Ø§Ù„Ø­ÙŠØ©',
     // How It Works
-    howItWorks: 'كيف يعمل',
-    howQuality: 'كل جلسة "في الوقت" = 100% ائتمان. كل جلسة "متأخرة" تحصل على ائتمان جزئي بناءً على منحنى التناقص.',
-    howAttendance: 'حاضر/إجمالي بسيط. كلا "في الوقت" و "متأخر" يُحسب كحاضر.',
-    howPunctuality: 'نسبة الجلسات في الوقت إلى إجمالي الجلسات الحاضرة.',
-    howCoverage: 'يعاقب الطلاب الجدد أو المسجلين في عدد قليل من الجلسات.',
-    howBonuses: 'مكافأة الحضور الكامل ومكافأة التتابع الأسبوعية ومضاعف عقوبة الغياب تُطبق بعد الدرجة الأساسية.',
-    howFormula: 'النهائي = (و₁×الجودة + و₂×الحضور + و₃×الانضباط) × التغطية + المكافآت − العقوبات',
+    howItWorks: 'ÙƒÙŠÙ ÙŠØ¹Ù…Ù„',
+    howQuality: 'ÙƒÙ„ Ø¬Ù„Ø³Ø© "ÙÙŠ Ø§Ù„ÙˆÙ‚Øª" = 100% Ø§Ø¦ØªÙ…Ø§Ù†. ÙƒÙ„ Ø¬Ù„Ø³Ø© "Ù…ØªØ£Ø®Ø±Ø©" ØªØ­ØµÙ„ Ø¹Ù„Ù‰ Ø§Ø¦ØªÙ…Ø§Ù† Ø¬Ø²Ø¦ÙŠ Ø¨Ù†Ø§Ø¡Ù‹ Ø¹Ù„Ù‰ Ù…Ù†Ø­Ù†Ù‰ Ø§Ù„ØªÙ†Ø§Ù‚Øµ.',
+    howAttendance: 'Ø­Ø§Ø¶Ø±/Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø¨Ø³ÙŠØ·. ÙƒÙ„Ø§ "ÙÙŠ Ø§Ù„ÙˆÙ‚Øª" Ùˆ "Ù…ØªØ£Ø®Ø±" ÙŠÙØ­Ø³Ø¨ ÙƒØ­Ø§Ø¶Ø±.',
+    howPunctuality: 'Ù†Ø³Ø¨Ø© Ø§Ù„Ø¬Ù„Ø³Ø§Øª ÙÙŠ Ø§Ù„ÙˆÙ‚Øª Ø¥Ù„Ù‰ Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ø¬Ù„Ø³Ø§Øª Ø§Ù„Ø­Ø§Ø¶Ø±Ø©.',
+    howCoverage: 'ÙŠØ¹Ø§Ù‚Ø¨ Ø§Ù„Ø·Ù„Ø§Ø¨ Ø§Ù„Ø¬Ø¯Ø¯ Ø£Ùˆ Ø§Ù„Ù…Ø³Ø¬Ù„ÙŠÙ† ÙÙŠ Ø¹Ø¯Ø¯ Ù‚Ù„ÙŠÙ„ Ù…Ù† Ø§Ù„Ø¬Ù„Ø³Ø§Øª.',
+    howBonuses: 'Ù…ÙƒØ§ÙØ£Ø© Ø§Ù„Ø­Ø¶ÙˆØ± Ø§Ù„ÙƒØ§Ù…Ù„ ÙˆÙ…ÙƒØ§ÙØ£Ø© Ø§Ù„ØªØªØ§Ø¨Ø¹ Ø§Ù„Ø£Ø³Ø¨ÙˆØ¹ÙŠØ© ÙˆÙ…Ø¶Ø§Ø¹Ù Ø¹Ù‚ÙˆØ¨Ø© Ø§Ù„ØºÙŠØ§Ø¨ ØªÙØ·Ø¨Ù‚ Ø¨Ø¹Ø¯ Ø§Ù„Ø¯Ø±Ø¬Ø© Ø§Ù„Ø£Ø³Ø§Ø³ÙŠØ©.',
+    howFormula: 'Ø§Ù„Ù†Ù‡Ø§Ø¦ÙŠ = (Ùˆâ‚Ã—Ø§Ù„Ø¬ÙˆØ¯Ø© + Ùˆâ‚‚Ã—Ø§Ù„Ø­Ø¶ÙˆØ± + Ùˆâ‚ƒÃ—Ø§Ù„Ø§Ù†Ø¶Ø¨Ø§Ø·) Ã— Ø§Ù„ØªØºØ·ÙŠØ© + Ø§Ù„Ù…ÙƒØ§ÙØ¢Øª âˆ’ Ø§Ù„Ø¹Ù‚ÙˆØ¨Ø§Øª',
     // Reset dialog
-    resetTitle: 'إعادة تعيين إعدادات التقييم',
-    resetMessage: 'سيؤدي هذا إلى إرجاع جميع الإعدادات إلى الافتراضي. سيتم فقدان الإعدادات الحالية. متابعة؟',
-    resetConfirm: 'إعادة للافتراضي',
+    resetTitle: 'Ø¥Ø¹Ø§Ø¯Ø© ØªØ¹ÙŠÙŠÙ† Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª Ø§Ù„ØªÙ‚ÙŠÙŠÙ…',
+    resetMessage: 'Ø³ÙŠØ¤Ø¯ÙŠ Ù‡Ø°Ø§ Ø¥Ù„Ù‰ Ø¥Ø±Ø¬Ø§Ø¹ Ø¬Ù…ÙŠØ¹ Ø§Ù„Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª Ø¥Ù„Ù‰ Ø§Ù„Ø§ÙØªØ±Ø§Ø¶ÙŠ. Ø³ÙŠØªÙ… ÙÙ‚Ø¯Ø§Ù† Ø§Ù„Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª Ø§Ù„Ø­Ø§Ù„ÙŠØ©. Ù…ØªØ§Ø¨Ø¹Ø©ØŸ',
+    resetConfirm: 'Ø¥Ø¹Ø§Ø¯Ø© Ù„Ù„Ø§ÙØªØ±Ø§Ø¶ÙŠ',
     // Access
-    adminRequired: 'مطلوب صلاحية المشرف',
-    adminRequiredDesc: 'فقط المشرف يمكنه تعديل إعدادات التقييم.',
-    backToDashboard: 'العودة للوحة التحكم',
-    readOnlyBanner: 'أنت تشاهد إعدادات التقييم في وضع القراءة فقط.',
-    readOnlyBannerStudent: 'يمكن للطلاب المشاهدة فقط وليس التعديل.',
+    adminRequired: 'Ù…Ø·Ù„ÙˆØ¨ ØµÙ„Ø§Ø­ÙŠØ© Ø§Ù„Ù…Ø´Ø±Ù',
+    adminRequiredDesc: 'ÙÙ‚Ø· Ø§Ù„Ù…Ø´Ø±Ù ÙŠÙ…ÙƒÙ†Ù‡ ØªØ¹Ø¯ÙŠÙ„ Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª Ø§Ù„ØªÙ‚ÙŠÙŠÙ….',
+    backToDashboard: 'Ø§Ù„Ø¹ÙˆØ¯Ø© Ù„Ù„ÙˆØ­Ø© Ø§Ù„ØªØ­ÙƒÙ…',
+    readOnlyBanner: 'Ø£Ù†Øª ØªØ´Ø§Ù‡Ø¯ Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª Ø§Ù„ØªÙ‚ÙŠÙŠÙ… ÙÙŠ ÙˆØ¶Ø¹ Ø§Ù„Ù‚Ø±Ø§Ø¡Ø© ÙÙ‚Ø·.',
+    readOnlyBannerStudent: 'ÙŠÙ…ÙƒÙ† Ù„Ù„Ø·Ù„Ø§Ø¨ Ø§Ù„Ù…Ø´Ø§Ù‡Ø¯Ø© ÙÙ‚Ø· ÙˆÙ„ÙŠØ³ Ø§Ù„ØªØ¹Ø¯ÙŠÙ„.',
     // Presets
-    presetBalanced: 'متوازن (افتراضي)',
-    presetBalancedDesc: 'تركيز متساوي على الجودة والحضور والانضباط',
-    presetStrict: 'انضباط صارم',
-    presetStrictDesc: 'عقوبة شديدة للتأخير، تسامح منخفض',
-    presetLenient: 'متسامح',
-    presetLenientDesc: 'متسامح — التركيز على الحضور، عقوبات تأخير خفيفة',
-    presetQuality: 'الجودة أولاً',
-    presetQualityDesc: 'أقصى وزن لمعدل الجودة المعدّل',
-    presetAttendance: 'الحضور فقط',
-    presetAttendanceDesc: 'تتبع حضور بحت — التأخير بالكاد يؤثر على الدرجة',
-    presetMilitary: 'دقة عسكرية',
-    presetMilitaryDesc: 'عدم تسامح — التأخير تقريباً مثل الغياب',
+    presetBalanced: 'Ù…ØªÙˆØ§Ø²Ù† (Ø§ÙØªØ±Ø§Ø¶ÙŠ)',
+    presetBalancedDesc: 'ØªØ±ÙƒÙŠØ² Ù…ØªØ³Ø§ÙˆÙŠ Ø¹Ù„Ù‰ Ø§Ù„Ø¬ÙˆØ¯Ø© ÙˆØ§Ù„Ø­Ø¶ÙˆØ± ÙˆØ§Ù„Ø§Ù†Ø¶Ø¨Ø§Ø·',
+    presetStrict: 'Ø§Ù†Ø¶Ø¨Ø§Ø· ØµØ§Ø±Ù…',
+    presetStrictDesc: 'Ø¹Ù‚ÙˆØ¨Ø© Ø´Ø¯ÙŠØ¯Ø© Ù„Ù„ØªØ£Ø®ÙŠØ±ØŒ ØªØ³Ø§Ù…Ø­ Ù…Ù†Ø®ÙØ¶',
+    presetLenient: 'Ù…ØªØ³Ø§Ù…Ø­',
+    presetLenientDesc: 'Ù…ØªØ³Ø§Ù…Ø­ â€” Ø§Ù„ØªØ±ÙƒÙŠØ² Ø¹Ù„Ù‰ Ø§Ù„Ø­Ø¶ÙˆØ±ØŒ Ø¹Ù‚ÙˆØ¨Ø§Øª ØªØ£Ø®ÙŠØ± Ø®ÙÙŠÙØ©',
+    presetQuality: 'Ø§Ù„Ø¬ÙˆØ¯Ø© Ø£ÙˆÙ„Ø§Ù‹',
+    presetQualityDesc: 'Ø£Ù‚ØµÙ‰ ÙˆØ²Ù† Ù„Ù…Ø¹Ø¯Ù„ Ø§Ù„Ø¬ÙˆØ¯Ø© Ø§Ù„Ù…Ø¹Ø¯Ù‘Ù„',
+    presetAttendance: 'Ø§Ù„Ø­Ø¶ÙˆØ± ÙÙ‚Ø·',
+    presetAttendanceDesc: 'ØªØªØ¨Ø¹ Ø­Ø¶ÙˆØ± Ø¨Ø­Øª â€” Ø§Ù„ØªØ£Ø®ÙŠØ± Ø¨Ø§Ù„ÙƒØ§Ø¯ ÙŠØ¤Ø«Ø± Ø¹Ù„Ù‰ Ø§Ù„Ø¯Ø±Ø¬Ø©',
+    presetMilitary: 'Ø¯Ù‚Ø© Ø¹Ø³ÙƒØ±ÙŠØ©',
+    presetMilitaryDesc: 'Ø¹Ø¯Ù… ØªØ³Ø§Ù…Ø­ â€” Ø§Ù„ØªØ£Ø®ÙŠØ± ØªÙ‚Ø±ÙŠØ¨Ø§Ù‹ Ù…Ø«Ù„ Ø§Ù„ØºÙŠØ§Ø¨',
   },
 };
 
@@ -712,38 +712,38 @@ const translations = {
 const PRESETS: { name: string; emoji: string; description: string; config: Partial<ScoringConfig> }[] = [
   {
     name: 'Balanced (Default)',
-    emoji: '⚖️',
+    emoji: 'âš–ï¸',
     description: 'Equal emphasis on quality, attendance, and timeliness',
     config: { weight_quality: 55, weight_attendance: 35, weight_punctuality: 10, late_decay_constant: 43.3, late_minimum_credit: 0.05 },
   },
   {
     name: 'Strict Punctuality',
-    emoji: '⏰',
+    emoji: 'â°',
     description: 'Heavy penalty for lateness, low tolerance',
     config: { weight_quality: 45, weight_attendance: 25, weight_punctuality: 30, late_decay_constant: 20, late_minimum_credit: 0.01 },
   },
   {
     name: 'Lenient',
-    emoji: '🕊️',
-    description: 'Forgiving — focus on showing up, mild late penalties',
+    emoji: 'ðŸ•Šï¸',
+    description: 'Forgiving â€” focus on showing up, mild late penalties',
     config: { weight_quality: 30, weight_attendance: 60, weight_punctuality: 10, late_decay_constant: 80, late_minimum_credit: 0.20 },
   },
   {
     name: 'Quality First',
-    emoji: '🏆',
+    emoji: 'ðŸ†',
     description: 'Maximum weight on quality-adjusted rate',
     config: { weight_quality: 70, weight_attendance: 20, weight_punctuality: 10, late_decay_constant: 35, late_minimum_credit: 0.05 },
   },
   {
     name: 'Attendance Only',
-    emoji: '📋',
-    description: 'Pure attendance tracking — lateness barely affects score',
+    emoji: 'ðŸ“‹',
+    description: 'Pure attendance tracking â€” lateness barely affects score',
     config: { weight_quality: 10, weight_attendance: 85, weight_punctuality: 5, late_decay_constant: 100, late_minimum_credit: 0.50 },
   },
   {
     name: 'Military Precision',
-    emoji: '🎖️',
-    description: 'Zero tolerance — late is almost as bad as absent',
+    emoji: 'ðŸŽ–ï¸',
+    description: 'Zero tolerance â€” late is almost as bad as absent',
     config: { weight_quality: 50, weight_attendance: 15, weight_punctuality: 35, late_decay_constant: 10, late_minimum_credit: 0.01 },
   },
 ];
@@ -859,10 +859,10 @@ export function ScoringConfiguration() {
     setSaving(false);
     
     if (error && !data) {
-      // Complete failure — nothing saved
+      // Complete failure â€” nothing saved
       showError(`Save failed: ${error.message}`);
     } else if (error && data) {
-      // Partial success — saved to localStorage but DB failed
+      // Partial success â€” saved to localStorage but DB failed
       setHasChanges(false);
       success('Configuration saved locally. Note: ' + error.message);
     } else {
@@ -914,15 +914,15 @@ export function ScoringConfiguration() {
     );
   }
   
-  // No access-denied block — everyone can view the page.
+  // No access-denied block â€” everyone can view the page.
   // canEdit (admin/teacher) can modify; students see read-only.
   
   const sections = [
-    { id: 'weights' as const, label: t.sectionWeights, icon: '⚖️' },
-    { id: 'decay' as const, label: t.sectionDecay, icon: '📉' },
-    { id: 'coverage' as const, label: t.sectionCoverage, icon: '📊' },
-    { id: 'brackets' as const, label: t.sectionBrackets, icon: '🏷️' },
-    { id: 'bonuses' as const, label: t.sectionBonuses, icon: '🎯' },
+    { id: 'weights' as const, label: t.sectionWeights, icon: 'âš–ï¸' },
+    { id: 'decay' as const, label: t.sectionDecay, icon: 'ðŸ“‰' },
+    { id: 'coverage' as const, label: t.sectionCoverage, icon: 'ðŸ“Š' },
+    { id: 'brackets' as const, label: t.sectionBrackets, icon: 'ðŸ·ï¸' },
+    { id: 'bonuses' as const, label: t.sectionBonuses, icon: 'ðŸŽ¯' },
   ];
   
   const presetNames = [t.presetBalanced, t.presetStrict, t.presetLenient, t.presetQuality, t.presetAttendance, t.presetMilitary];
@@ -964,7 +964,7 @@ export function ScoringConfiguration() {
                   : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
               }`}
             >
-              ع
+              Ø¹
             </button>
           </div>
           {canEdit && (
@@ -987,7 +987,7 @@ export function ScoringConfiguration() {
       {/* Read-only banner for students */}
       {!canEdit && (
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 flex items-center gap-3">
-          <span className="text-2xl">👁️</span>
+          <span className="text-2xl">ðŸ‘ï¸</span>
           <div>
             <p className="text-sm font-medium text-blue-700 dark:text-blue-300">{t.readOnlyBanner}</p>
             <p className="text-xs text-blue-500 dark:text-blue-400">{t.readOnlyBannerStudent}</p>
@@ -995,7 +995,7 @@ export function ScoringConfiguration() {
         </div>
       )}
       
-      {/* Presets Bar — only for editors */}
+      {/* Presets Bar â€” only for editors */}
       {canEdit && (
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
         <div className="flex items-center gap-2 mb-3">
@@ -1126,7 +1126,7 @@ export function ScoringConfiguration() {
                     rounded-xl p-4 border border-indigo-100 dark:border-indigo-800/50">
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 font-medium">{t.formula}</p>
                     <p className="text-sm font-mono text-indigo-800 dark:text-indigo-300">
-                      WeightedScore = ({config.weight_quality}% × QualityRate + {config.weight_attendance}% × AttendanceRate + {config.weight_punctuality}% × Punctuality) × CoverageFactor
+                      WeightedScore = ({config.weight_quality}% Ã— QualityRate + {config.weight_attendance}% Ã— AttendanceRate + {config.weight_punctuality}% Ã— Punctuality) Ã— CoverageFactor
                     </p>
                   </div>
                 </div>
@@ -1137,7 +1137,7 @@ export function ScoringConfiguration() {
                 <div className="space-y-6">
                   <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{t.decayTitle}</h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {t.decaySubtitle} <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">score = e^(-minutes/τ)</code>
+                    {t.decaySubtitle} <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">score = e^(-minutes/Ï„)</code>
                   </p>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1297,7 +1297,7 @@ export function ScoringConfiguration() {
                         <div className="mt-2 flex flex-wrap gap-2 text-xs">
                           {[1, 5, 10, 20, 30].map(d => (
                             <span key={d} className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded">
-                              {d}d → {Math.round(calcCoverageFactor(d, 30, config) * 100)}%
+                              {d}d â†’ {Math.round(calcCoverageFactor(d, 30, config) * 100)}%
                             </span>
                           ))}
                         </div>
@@ -1372,7 +1372,7 @@ export function ScoringConfiguration() {
                           className="text-red-400 hover:text-red-600 p-1.5 min-h-[36px] min-w-[36px] flex items-center justify-center rounded"
                           aria-label={`Delete bracket ${bracket.name}`}
                         >
-                          ✕
+                          âœ•
                         </button>
                         )}
                       </div>
@@ -1390,7 +1390,7 @@ export function ScoringConfiguration() {
                         id: String(Date.now()),
                         min: lastMax,
                         max: lastMax + 30,
-                        name: isArabic ? 'فئة جديدة' : 'New Bracket',
+                        name: isArabic ? 'ÙØ¦Ø© Ø¬Ø¯ÙŠØ¯Ø©' : 'New Bracket',
                         color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
                       }]);
                     }}
@@ -1451,7 +1451,7 @@ export function ScoringConfiguration() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <span>🧪</span> {t.liveSimulation}
+                <span>ðŸ§ª</span> {t.liveSimulation}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -1463,7 +1463,7 @@ export function ScoringConfiguration() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <span>📖</span> {t.howItWorks}
+                <span>ðŸ“–</span> {t.howItWorks}
               </CardTitle>
             </CardHeader>
             <CardContent className="text-xs text-gray-500 dark:text-gray-400 space-y-2">

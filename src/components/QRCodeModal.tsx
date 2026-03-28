@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import QRCode from 'qrcode';
-import { supabase } from '../lib/supabase';
+import { supabase } from '@/shared/lib/supabase';
 
 type QRCodeModalProps = {
   sessionId: string;
@@ -380,7 +380,7 @@ export function QRCodeModal({
         <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 sm:p-6 rounded-t-2xl flex justify-between items-start">
           <div>
             <h2 className="text-xl sm:text-2xl font-bold flex gap-2">
-              <span>📱</span> QR Check-In
+              <span>ðŸ“±</span> QR Check-In
             </h2>
             <p className="text-blue-100 text-sm mt-1">{courseName}</p>
           </div>
@@ -399,7 +399,7 @@ export function QRCodeModal({
           {/* Error Display */}
           {error && (
             <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-xl p-4 flex items-start gap-3">
-              <span className="text-3xl">⚠️</span>
+              <span className="text-3xl">âš ï¸</span>
               <div>
                 <p className="font-semibold text-red-800 dark:text-red-300">Session Error</p>
                 <p className="text-sm text-red-700 dark:text-red-400 mt-1">{error}</p>
@@ -438,7 +438,7 @@ export function QRCodeModal({
               </p>
               {refreshCount > 0 && (
                 <div className="mt-3 inline-flex items-center gap-2 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-3 py-1 rounded-full text-sm">
-                  <span>🔄</span>
+                  <span>ðŸ”„</span>
                   <span>Refreshed {refreshCount}x (every 3 min for security)</span>
                 </div>
               )}
@@ -496,7 +496,7 @@ export function QRCodeModal({
                         : 'bg-purple-600 text-white hover:bg-purple-700'
                     }`}
                   >
-                    {faceCopied ? '✓ Copied!' : '📋 Copy Link'}
+                    {faceCopied ? 'âœ“ Copied!' : 'ðŸ“‹ Copy Link'}
                   </button>
                   {navigator.share && (
                     <button
@@ -507,7 +507,7 @@ export function QRCodeModal({
                       }}
                       className="px-3 py-2 bg-pink-600 text-white rounded-lg text-sm font-medium hover:bg-pink-700"
                     >
-                      📤 Share
+                      ðŸ“¤ Share
                     </button>
                   )}
                 </div>
@@ -546,7 +546,7 @@ export function QRCodeModal({
 
           {/* Timer */}
           <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-xl p-4 flex items-center gap-3">
-            <span className="text-3xl">⏰</span>
+            <span className="text-3xl">â°</span>
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">QR Expires In</p>
               <p className="text-xl font-mono font-bold dark:text-white">{timeLeft}</p>

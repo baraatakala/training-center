@@ -1,20 +1,20 @@
 import { useEffect, useState, useCallback, useMemo, useRef, type ChangeEvent } from 'react';
-import { Button } from '../components/ui/Button';
-import { Badge } from '../components/ui/Badge';
-import { Modal } from '../components/ui/Modal';
-import { SearchBar } from '../components/ui/SearchBar';
-import { formatDate } from '../utils/formatDate';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
-import { Pagination } from '../components/ui/Pagination';
+import { Button } from '@/shared/components/ui/Button';
+import { Badge } from '@/shared/components/ui/Badge';
+import { Modal } from '@/shared/components/ui/Modal';
+import { SearchBar } from '@/shared/components/ui/SearchBar';
+import { formatDate } from '@/shared/utils/formatDate';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/shared/components/ui/Table';
+import { Pagination } from '@/shared/components/ui/Pagination';
 import { EnrollmentForm } from '../components/EnrollmentForm';
 import { enrollmentService } from '../services/enrollmentService';
-import { toast } from '../components/ui/toastUtils';
-import { ConfirmDialog } from '../components/ui/ConfirmDialog';
-import { useIsTeacher } from '../hooks/useIsTeacher';
-import { useDebounce } from '../hooks/useDebounce';
-import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
-import { TableSkeleton } from '../components/ui/Skeleton';
-import type { CreateEnrollment, UpdateEnrollment } from '../types/database.types';
+import { toast } from '@/shared/components/ui/toastUtils';
+import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
+import { useIsTeacher } from '@/shared/hooks/useIsTeacher';
+import { useDebounce } from '@/shared/hooks/useDebounce';
+import { useRefreshOnFocus } from '@/shared/hooks/useRefreshOnFocus';
+import { TableSkeleton } from '@/shared/components/ui/Skeleton';
+import type { CreateEnrollment, UpdateEnrollment } from '@/shared/types/database.types';
 
 interface EnrollmentWithDetails {
   enrollment_id: string;
@@ -249,7 +249,7 @@ export function Enrollments() {
       if (result.errors.length > 0) {
         toast.warning(`Import done with ${result.errors.length} error(s): ${result.errors.slice(0, 3).join('; ')}`);
       } else if (result.created === 0 && result.updated > 0) {
-        toast.info(`${result.updated} existing enrollment(s) updated. No new enrollments created — the imported data matched existing records.`);
+        toast.info(`${result.updated} existing enrollment(s) updated. No new enrollments created â€” the imported data matched existing records.`);
       } else {
         toast.success(`${result.created} created, ${result.updated} updated.`);
       }
@@ -304,7 +304,7 @@ export function Enrollments() {
       {!isTeacher && (
         <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4">
           <p className="text-yellow-800 dark:text-yellow-200 text-sm">
-            ⚠️ You are viewing as a student. Edit and add functions are disabled.
+            âš ï¸ You are viewing as a student. Edit and add functions are disabled.
           </p>
         </div>
       )}
@@ -312,7 +312,7 @@ export function Enrollments() {
       {/* Error Display */}
       {error && (
         <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg p-4">
-          <p className="text-red-800 dark:text-red-200 text-sm">❌ {error}</p>
+          <p className="text-red-800 dark:text-red-200 text-sm">âŒ {error}</p>
           <button 
             onClick={loadEnrollments} 
             className="mt-2 text-sm text-red-600 dark:text-red-400 underline hover:text-red-800 dark:hover:text-red-300"
@@ -368,7 +368,7 @@ export function Enrollments() {
             className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300 transition"
             title={`Sort ${sortOrder === 'asc' ? 'ascending' : 'descending'}`}
           >
-            {sortOrder === 'asc' ? '↑ A-Z' : '↓ Z-A'}
+            {sortOrder === 'asc' ? 'â†‘ A-Z' : 'â†“ Z-A'}
           </button>
           
           <div className="text-sm text-gray-600 dark:text-gray-400">
@@ -406,7 +406,7 @@ export function Enrollments() {
                     <span className="flex items-center gap-1">
                       Student
                       {sortBy === 'student' && (
-                        <span className="text-blue-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                        <span className="text-blue-600">{sortOrder === 'asc' ? 'â†‘' : 'â†“'}</span>
                       )}
                     </span>
                   </TableHead>
@@ -414,7 +414,7 @@ export function Enrollments() {
                     <span className="flex items-center gap-1">
                       Course
                       {sortBy === 'course' && (
-                        <span className="text-blue-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                        <span className="text-blue-600">{sortOrder === 'asc' ? 'â†‘' : 'â†“'}</span>
                       )}
                     </span>
                   </TableHead>
@@ -423,7 +423,7 @@ export function Enrollments() {
                     <span className="flex items-center gap-1">
                       Enrollment Date
                       {sortBy === 'date' && (
-                        <span className="text-blue-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                        <span className="text-blue-600">{sortOrder === 'asc' ? 'â†‘' : 'â†“'}</span>
                       )}
                     </span>
                   </TableHead>
@@ -431,7 +431,7 @@ export function Enrollments() {
                     <span className="flex items-center gap-1">
                       Status
                       {sortBy === 'status' && (
-                        <span className="text-blue-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                        <span className="text-blue-600">{sortOrder === 'asc' ? 'â†‘' : 'â†“'}</span>
                       )}
                     </span>
                   </TableHead>
@@ -439,7 +439,7 @@ export function Enrollments() {
                     <span className="flex items-center justify-center gap-1">
                       Can Host
                       {sortBy === 'canHost' && (
-                        <span className="text-blue-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                        <span className="text-blue-600">{sortOrder === 'asc' ? 'â†‘' : 'â†“'}</span>
                       )}
                     </span>
                   </TableHead>
@@ -491,17 +491,17 @@ export function Enrollments() {
                               }`}
                               title={enrollment.can_host ? 'Click to mark as former host' : 'Click to mark as active host'}
                             >
-                              {enrollment.can_host ? '✓' : '—'}
+                              {enrollment.can_host ? 'âœ“' : 'â€”'}
                             </button>
                             {enrollment.can_host && enrollment.host_date && (
                               <span className="text-[10px] text-green-600 dark:text-green-400">{enrollment.host_date}</span>
                             )}
                           </div>
                         ) : (
-                          <span className="text-gray-300 dark:text-gray-600" title={`Cannot host (status: ${enrollment.status})`}>✕</span>
+                          <span className="text-gray-300 dark:text-gray-600" title={`Cannot host (status: ${enrollment.status})`}>âœ•</span>
                         )
                       ) : (
-                        <span className="text-gray-400 dark:text-gray-500">{enrollment.can_host ? '✓' : '—'}</span>
+                        <span className="text-gray-400 dark:text-gray-500">{enrollment.can_host ? 'âœ“' : 'â€”'}</span>
                       )}
                     </TableCell>
                     <TableCell>

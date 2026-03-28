@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
-import { Input } from './ui/Input';
-import { Button } from './ui/Button';
-import type { Teacher, CreateTeacher } from '../types/database.types';
+import { Input } from '@/shared/components/ui/Input';
+import { Button } from '@/shared/components/ui/Button';
+import type { Teacher, CreateTeacher } from '@/shared/types/database.types';
 
 interface TeacherFormProps {
   teacher?: Teacher;

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { calculateDistance, formatDistance } from '../services/geocodingService';
+import { calculateDistance, formatDistance } from '@/shared/services/geocodingService';
 
 interface LocationPoint {
   label: string;
@@ -140,8 +140,8 @@ export function LocationMap({
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               >
-                📍 {loc.label}
-                {loc.count && <span className="ml-1 opacity-75">({loc.count}×)</span>}
+                ðŸ“ {loc.label}
+                {loc.count && <span className="ml-1 opacity-75">({loc.count}Ã—)</span>}
               </button>
             ))}
           </div>
@@ -165,7 +165,7 @@ export function LocationMap({
               rel="noopener noreferrer"
               className="px-2 py-1 bg-white/90 dark:bg-gray-800/90 rounded text-[10px] font-medium text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 shadow-sm border border-gray-200 dark:border-gray-600"
             >
-              🗺️ Full Map
+              ðŸ—ºï¸ Full Map
             </a>
           </div>
         </div>
@@ -178,7 +178,7 @@ export function LocationMap({
             <p className="text-sm font-medium dark:text-white">{currentLoc.label}</p>
             <p className="text-[10px] text-gray-500 dark:text-gray-400">
               {currentLoc.lat.toFixed(6)}, {currentLoc.lon.toFixed(6)}
-              {currentLoc.count && ` • ${currentLoc.count} session${currentLoc.count > 1 ? 's' : ''}`}
+              {currentLoc.count && ` â€¢ ${currentLoc.count} session${currentLoc.count > 1 ? 's' : ''}`}
             </p>
           </div>
           <div className="flex gap-2">
@@ -288,7 +288,7 @@ export function LocationMap({
                   >
                     <option value="distance-asc">Nearest first</option>
                     <option value="distance-desc">Farthest first</option>
-                    <option value="name-asc">A → Z</option>
+                    <option value="name-asc">A â†’ Z</option>
                   </select>
                   <select
                     value={matrixMaxDist === null ? '' : String(matrixMaxDist)}
@@ -296,10 +296,10 @@ export function LocationMap({
                     className="text-[10px] py-1 px-1.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400"
                   >
                     <option value="">All distances</option>
-                    <option value="500">≤ 500m</option>
-                    <option value="1000">≤ 1 km</option>
-                    <option value="5000">≤ 5 km</option>
-                    <option value="10000">≤ 10 km</option>
+                    <option value="500">â‰¤ 500m</option>
+                    <option value="1000">â‰¤ 1 km</option>
+                    <option value="5000">â‰¤ 5 km</option>
+                    <option value="10000">â‰¤ 10 km</option>
                   </select>
                 </div>
 
@@ -316,7 +316,7 @@ export function LocationMap({
                     {sorted.map((pair, idx) => (
                       <div key={idx} className="flex items-center justify-between text-[10px] py-1.5 border-b border-gray-100 dark:border-gray-700 last:border-0">
                         <span className="text-gray-600 dark:text-gray-300 truncate mr-2">
-                          📍 {pair.from} → {pair.to}
+                          ðŸ“ {pair.from} â†’ {pair.to}
                         </span>
                         <span className={`font-mono font-medium whitespace-nowrap ${pair.distance < 1000 ? 'text-green-600 dark:text-green-400' : pair.distance < 5000 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
                           {formatDistance(pair.distance)}

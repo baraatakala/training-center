@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Input } from './ui/Input';
-import { Select } from './ui/Select';
-import { Button } from './ui/Button';
-import type { Student, CreateStudent } from '../types/database.types';
+import { Input } from '@/shared/components/ui/Input';
+import { Select } from '@/shared/components/ui/Select';
+import { Button } from '@/shared/components/ui/Button';
+import type { Student, CreateStudent } from '@/shared/types/database.types';
 import { getAll as getAllSpecializations } from '../services/specializationService';
 
 type StudentFormProps = {

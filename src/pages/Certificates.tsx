@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { Modal } from '../components/ui/Modal';
-import { ConfirmDialog } from '../components/ui/ConfirmDialog';
-import { toast } from '../components/ui/toastUtils';
-import { TableSkeleton } from '../components/ui/Skeleton';
-import { useIsTeacher } from '../hooks/useIsTeacher';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/Card';
+import { Button } from '@/shared/components/ui/Button';
+import { Modal } from '@/shared/components/ui/Modal';
+import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
+import { toast } from '@/shared/components/ui/toastUtils';
+import { TableSkeleton } from '@/shared/components/ui/Skeleton';
+import { useIsTeacher } from '@/shared/hooks/useIsTeacher';
 import { useAuth } from '../context/AuthContext';
 import { format, parseISO } from 'date-fns';
 import {
@@ -15,19 +15,19 @@ import {
   type IssuedCertificate,
   type StyleConfig,
 } from '../services/certificateService';
-import { supabase } from '../lib/supabase';
+import { supabase } from '@/shared/lib/supabase';
 import { attendanceService } from '../services/attendanceService';
-import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
+import { useRefreshOnFocus } from '@/shared/hooks/useRefreshOnFocus';
 
 // =====================================================
 // CONSTANTS
 // =====================================================
 
 const TEMPLATE_TYPES = [
-  { value: 'completion', label: 'Course Completion', icon: '🎓' },
-  { value: 'attendance', label: 'Perfect Attendance', icon: '📊' },
-  { value: 'achievement', label: 'Achievement Award', icon: '🏆' },
-  { value: 'participation', label: 'Participation', icon: '🤝' },
+  { value: 'completion', label: 'Course Completion', icon: 'ðŸŽ“' },
+  { value: 'attendance', label: 'Perfect Attendance', icon: 'ðŸ“Š' },
+  { value: 'achievement', label: 'Achievement Award', icon: 'ðŸ†' },
+  { value: 'participation', label: 'Participation', icon: 'ðŸ¤' },
 ] as const;
 
 const BORDER_STYLES = [
@@ -170,7 +170,7 @@ export function Certificates() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            🏆 Certificates
+            ðŸ† Certificates
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             Generate and manage course completion certificates
@@ -178,10 +178,10 @@ export function Certificates() {
         </div>
         {isTeacher && (
           <div className="flex flex-col sm:flex-row w-full sm:w-auto gap-2">
-            <Button variant="outline" size="sm" onClick={fetchData} className="w-full sm:w-auto justify-center">🔄 Refresh</Button>
-            <Button size="sm" onClick={() => setShowIssueModal(true)} className="w-full sm:w-auto justify-center">🎓 Issue Certificate</Button>
+            <Button variant="outline" size="sm" onClick={fetchData} className="w-full sm:w-auto justify-center">ðŸ”„ Refresh</Button>
+            <Button size="sm" onClick={() => setShowIssueModal(true)} className="w-full sm:w-auto justify-center">ðŸŽ“ Issue Certificate</Button>
             <Button variant="outline" size="sm" onClick={() => { setEditingTemplate(null); setShowTemplateModal(true); }} className="w-full sm:w-auto justify-center">
-              ✏️ New Template
+              âœï¸ New Template
             </Button>
           </div>
         )}
@@ -200,9 +200,9 @@ export function Certificates() {
                   : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
               }`}
             >
-              {t === 'certificates' ? `📜 Certificates (${certificates.length})` :
-               t === 'templates' ? `📋 Templates (${templates.length})` :
-               '🔍 Verify'}
+              {t === 'certificates' ? `ðŸ“œ Certificates (${certificates.length})` :
+               t === 'templates' ? `ðŸ“‹ Templates (${templates.length})` :
+               'ðŸ” Verify'}
             </button>
           ))}
         </nav>
@@ -319,7 +319,7 @@ function CertificatesList({
     return (
       <Card>
         <CardContent className="p-12 text-center">
-          <div className="text-4xl mb-3">📜</div>
+          <div className="text-4xl mb-3">ðŸ“œ</div>
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">No Certificates Issued</h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             {isTeacher ? 'Issue certificates to students using the button above.' : 'No certificates have been issued to you yet.'}
@@ -347,7 +347,7 @@ function CertificatesList({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[cert.status]}`}>
-                      {cert.status === 'issued' ? '✅' : cert.status === 'revoked' ? '🚫' : '📝'} {cert.status}
+                      {cert.status === 'issued' ? 'âœ…' : cert.status === 'revoked' ? 'ðŸš«' : 'ðŸ“'} {cert.status}
                     </span>
                     <code className="text-xs text-gray-400 dark:text-gray-500 font-mono">{cert.certificate_number}</code>
                   </div>
@@ -356,7 +356,7 @@ function CertificatesList({
                   </h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                     {cert.course?.course_name || cert.session?.course?.course_name || 'Unknown Course'}
-                    {cert.issued_at && ` · Issued ${format(parseISO(cert.issued_at), 'MMM d, yyyy')}`}
+                    {cert.issued_at && ` Â· Issued ${format(parseISO(cert.issued_at), 'MMM d, yyyy')}`}
                   </p>
                   <div className="mt-1.5 flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-gray-400">
                     {cert.final_score != null && <span>Score: <strong>{cert.final_score.toFixed(1)}%</strong></span>}
@@ -365,10 +365,10 @@ function CertificatesList({
                   </div>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2 shrink-0 sm:min-w-[160px]">
-                  <Button variant="outline" size="sm" onClick={() => onPreview(cert)} className="justify-center min-h-[36px]">👁 Preview</Button>
+                  <Button variant="outline" size="sm" onClick={() => onPreview(cert)} className="justify-center min-h-[36px]">ðŸ‘ Preview</Button>
                   {isTeacher && cert.status === 'issued' && (
                     <Button variant="outline" size="sm" onClick={() => onRevoke(cert)} className="text-red-500 justify-center min-h-[36px]">
-                      🚫 Revoke
+                      ðŸš« Revoke
                     </Button>
                   )}
                 </div>
@@ -400,7 +400,7 @@ function TemplatesList({
     return (
       <Card>
         <CardContent className="p-12 text-center">
-          <div className="text-4xl mb-3">📋</div>
+          <div className="text-4xl mb-3">ðŸ“‹</div>
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">No Templates</h3>
           <p className="text-sm text-gray-500 mt-1">Create a certificate template to get started.</p>
         </CardContent>
@@ -418,7 +418,7 @@ function TemplatesList({
               <div className="flex items-start justify-between">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xl">{typeObj?.icon || '📜'}</span>
+                    <span className="text-xl">{typeObj?.icon || 'ðŸ“œ'}</span>
                     <h3 className="text-sm font-bold text-gray-900 dark:text-white">{tmpl.name}</h3>
                   </div>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{tmpl.description || 'No description'}</p>
@@ -435,14 +435,14 @@ function TemplatesList({
                 <div className={tmpl.min_attendance > 0 ? 'text-blue-600 dark:text-blue-400 font-medium' : ''}>
                   Min Attendance: <strong>{tmpl.min_attendance > 0 ? `${tmpl.min_attendance}%` : 'None'}</strong>
                 </div>
-                <div>Style: <strong>{(tmpl.style_config as StyleConfig)?.border_style || '—'}</strong></div>
+                <div>Style: <strong>{(tmpl.style_config as StyleConfig)?.border_style || 'â€”'}</strong></div>
                 <div>Type: <strong>{typeObj?.label || tmpl.template_type}</strong></div>
               </div>
 
               {isTeacher && (
                 <div className="mt-3 flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => onEdit(tmpl)} className="flex-1 min-h-[36px]">✏️ Edit</Button>
-                  <Button variant="outline" size="sm" onClick={() => onDelete(tmpl)} className="text-red-500 min-h-[36px]" aria-label={`Delete template ${tmpl.name}`}>🗑</Button>
+                  <Button variant="outline" size="sm" onClick={() => onEdit(tmpl)} className="flex-1 min-h-[36px]">âœï¸ Edit</Button>
+                  <Button variant="outline" size="sm" onClick={() => onDelete(tmpl)} className="text-red-500 min-h-[36px]" aria-label={`Delete template ${tmpl.name}`}>ðŸ—‘</Button>
                 </div>
               )}
             </CardContent>
@@ -474,7 +474,7 @@ function VerifyTab({
     <div className="max-w-lg mx-auto space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>🔍 Verify Certificate</CardTitle>
+          <CardTitle>ðŸ” Verify Certificate</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -491,7 +491,7 @@ function VerifyTab({
               onKeyDown={e => e.key === 'Enter' && onVerify()}
             />
             <Button onClick={onVerify} disabled={verifying || verifyCode.length < 6}>
-              {verifying ? '...' : '🔍 Verify'}
+              {verifying ? '...' : 'ðŸ” Verify'}
             </Button>
           </div>
         </CardContent>
@@ -501,7 +501,7 @@ function VerifyTab({
         <Card className={`ring-2 ${result.status === 'issued' ? 'ring-emerald-400' : 'ring-red-400'}`}>
           <CardContent className="p-5">
             <div className="text-center mb-4">
-              <div className="text-4xl mb-2">{result.status === 'issued' ? '✅' : '🚫'}</div>
+              <div className="text-4xl mb-2">{result.status === 'issued' ? 'âœ…' : 'ðŸš«'}</div>
               <h3 className="text-lg font-bold text-gray-900 dark:text-white">
                 {result.status === 'issued' ? 'Certificate Verified!' : 'Certificate Revoked'}
               </h3>
@@ -513,7 +513,7 @@ function VerifyTab({
               </div>
               <div>
                 <span className="text-xs text-gray-400">Course</span>
-                <p className="font-medium text-gray-900 dark:text-white">{result.course?.course_name || result.session?.course?.course_name || '—'}</p>
+                <p className="font-medium text-gray-900 dark:text-white">{result.course?.course_name || result.session?.course?.course_name || 'â€”'}</p>
               </div>
               <div>
                 <span className="text-xs text-gray-400">Certificate #</span>
@@ -522,7 +522,7 @@ function VerifyTab({
               <div>
                 <span className="text-xs text-gray-400">Issued</span>
                 <p className="text-gray-700 dark:text-gray-300">
-                  {result.issued_at ? format(parseISO(result.issued_at), 'MMM d, yyyy') : '—'}
+                  {result.issued_at ? format(parseISO(result.issued_at), 'MMM d, yyyy') : 'â€”'}
                 </p>
               </div>
               {result.final_score != null && (
@@ -783,7 +783,7 @@ function TemplateModal({
       <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-gray-700 mt-4">
         <Button variant="outline" onClick={onClose}>Cancel</Button>
         <Button onClick={handleSave} disabled={saving}>
-          {saving ? 'Saving...' : isEditing ? '💾 Update Template' : '✨ Create Template'}
+          {saving ? 'Saving...' : isEditing ? 'ðŸ’¾ Update Template' : 'âœ¨ Create Template'}
         </Button>
       </div>
     </Modal>
@@ -1016,7 +1016,7 @@ function IssueModal({
       toast.error('Select a template and student');
       return;
     }
-    // Threshold check — warn but allow override
+    // Threshold check â€” warn but allow override
     const selectedTemplate = templates.find(t => t.template_id === templateId);
     if (selectedTemplate && !belowThresholdAcknowledged) {
       const belowScore = selectedTemplate.min_score > 0 && score < selectedTemplate.min_score;
@@ -1107,7 +1107,7 @@ function IssueModal({
         {sessions.length > 1 && courseId && (
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Session <span className="text-xs text-gray-400">(optional — defaults to all sessions)</span>
+              Session <span className="text-xs text-gray-400">(optional â€” defaults to all sessions)</span>
             </label>
             <select
               value={sessionId}
@@ -1154,7 +1154,7 @@ function IssueModal({
               className={`w-full px-3 py-2 rounded-lg border text-sm ${belowMinScore ? 'border-red-400 bg-red-50 dark:bg-red-900/20 dark:border-red-600' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800'}`}
             />
             {belowMinScore && (
-              <p className="text-xs text-red-500 mt-1 font-medium">⚠ Below minimum {selectedTemplate!.min_score}%</p>
+              <p className="text-xs text-red-500 mt-1 font-medium">âš  Below minimum {selectedTemplate!.min_score}%</p>
             )}
             {studentId && courseId && !loadingStats && !belowMinScore && <p className="text-xs text-gray-400 mt-1">Auto-filled from attendance records</p>}
           </div>
@@ -1172,7 +1172,7 @@ function IssueModal({
               className={`w-full px-3 py-2 rounded-lg border text-sm ${belowMinAttendance ? 'border-red-400 bg-red-50 dark:bg-red-900/20 dark:border-red-600' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800'}`}
             />
             {belowMinAttendance && (
-              <p className="text-xs text-red-500 mt-1 font-medium">⚠ Below minimum {selectedTemplate!.min_attendance}%</p>
+              <p className="text-xs text-red-500 mt-1 font-medium">âš  Below minimum {selectedTemplate!.min_attendance}%</p>
             )}
           </div>
         </div>
@@ -1232,13 +1232,13 @@ function IssueModal({
               ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200'
               : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200'
           }`}>
-            <div className="font-semibold mb-1">{hasThresholdWarning ? '⚠ Template Requirements Not Met' : '✅ Template Requirements Met'}</div>
+            <div className="font-semibold mb-1">{hasThresholdWarning ? 'âš  Template Requirements Not Met' : 'âœ… Template Requirements Met'}</div>
             <div className="flex gap-4">
               {selectedTemplate.min_score > 0 && (
-                <span>Score: <strong>{score}%</strong> / {selectedTemplate.min_score}% min {score >= selectedTemplate.min_score ? '✓' : '✗'}</span>
+                <span>Score: <strong>{score}%</strong> / {selectedTemplate.min_score}% min {score >= selectedTemplate.min_score ? 'âœ“' : 'âœ—'}</span>
               )}
               {selectedTemplate.min_attendance > 0 && (
-                <span>Attendance: <strong>{attendance}%</strong> / {selectedTemplate.min_attendance}% min {attendance >= selectedTemplate.min_attendance ? '✓' : '✗'}</span>
+                <span>Attendance: <strong>{attendance}%</strong> / {selectedTemplate.min_attendance}% min {attendance >= selectedTemplate.min_attendance ? 'âœ“' : 'âœ—'}</span>
               )}
             </div>
           </div>
@@ -1251,7 +1251,7 @@ function IssueModal({
             disabled={issuing || !templateId || !studentId}
             className={hasThresholdWarning && !belowThresholdAcknowledged ? '' : hasThresholdWarning && belowThresholdAcknowledged ? 'bg-amber-600 hover:bg-amber-700' : ''}
           >
-            {issuing ? 'Issuing...' : hasThresholdWarning && !belowThresholdAcknowledged ? '⚠ Check Requirements' : hasThresholdWarning && belowThresholdAcknowledged ? '⚠ Issue Anyway' : '🎓 Issue Certificate'}
+            {issuing ? 'Issuing...' : hasThresholdWarning && !belowThresholdAcknowledged ? 'âš  Check Requirements' : hasThresholdWarning && belowThresholdAcknowledged ? 'âš  Issue Anyway' : 'ðŸŽ“ Issue Certificate'}
           </Button>
         </div>
       </div>
@@ -1296,7 +1296,7 @@ function CertificatePreviewCard({
     >
       {/* Header */}
       <div className="space-y-1">
-        <div className="text-3xl">{typeObj?.icon || '📜'}</div>
+        <div className="text-3xl">{typeObj?.icon || 'ðŸ“œ'}</div>
         <h2 className="text-xl font-bold tracking-wide" style={{ color: style.accent_color }}>
           CERTIFICATE
         </h2>
@@ -1308,7 +1308,7 @@ function CertificatePreviewCard({
       {/* Decorative line */}
       <div className="flex items-center gap-2 mx-auto max-w-xs">
         <div className="flex-1 h-px" style={{ backgroundColor: style.accent_color }} />
-        <span style={{ color: style.accent_color }}>✦</span>
+        <span style={{ color: style.accent_color }}>âœ¦</span>
         <div className="flex-1 h-px" style={{ backgroundColor: style.accent_color }} />
       </div>
 
@@ -1367,7 +1367,7 @@ function CertificatePreview({
       })
     : '(No content)';
 
-  const signerName = certificate.signature_name || tmpl?.signature_name || '—';
+  const signerName = certificate.signature_name || tmpl?.signature_name || 'â€”';
   const signerTitle = certificate.signature_title || tmpl?.signature_title || '';
 
   const handlePrint = () => {
@@ -1415,12 +1415,12 @@ function CertificatePreview({
       </head>
       <body>
         <div class="cert">
-          <div class="icon">${typeObj?.icon || '📜'}</div>
+          <div class="icon">${typeObj?.icon || 'ðŸ“œ'}</div>
           <div class="title">CERTIFICATE</div>
           <div class="subtitle">of ${tmpl?.template_type || 'completion'}</div>
           <div class="divider">
             <div class="divider-line"></div>
-            <span style="color: ${style.accent_color};">✦</span>
+            <span style="color: ${style.accent_color};">âœ¦</span>
             <div class="divider-line"></div>
           </div>
           <div class="body">${displayBody}</div>
@@ -1429,7 +1429,7 @@ function CertificatePreview({
             <div class="sig-name">${signerName}</div>
             <div class="sig-title">${signerTitle}</div>
           </div>
-          <div class="verify">Certificate #${certificate.certificate_number} · Verify: ${certificate.verification_code}</div>
+          <div class="verify">Certificate #${certificate.certificate_number} Â· Verify: ${certificate.verification_code}</div>
         </div>
       </body>
       </html>
@@ -1453,13 +1453,13 @@ function CertificatePreview({
           <span>#{certificate.certificate_number}</span>
           <span>Verify: <code className="font-mono text-blue-500">{certificate.verification_code}</code></span>
           {certificate.status === 'revoked' && (
-            <span className="text-red-500 font-bold">⚠️ REVOKED</span>
+            <span className="text-red-500 font-bold">âš ï¸ REVOKED</span>
           )}
         </div>
 
         <div className="flex justify-end gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
           <Button variant="outline" onClick={onClose}>Close</Button>
-          <Button onClick={handlePrint}>🖨 Print Certificate</Button>
+          <Button onClick={handlePrint}>ðŸ–¨ Print Certificate</Button>
         </div>
       </div>
     </Modal>

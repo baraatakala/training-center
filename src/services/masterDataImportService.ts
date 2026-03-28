@@ -1,11 +1,11 @@
 import * as XLSX from 'xlsx';
-import { supabase } from '../lib/supabase';
+import { supabase } from '@/shared/lib/supabase';
 import { teacherService } from './teacherService';
 import { studentService } from './studentService';
 import { courseService } from './courseService';
 import { sessionService } from './sessionService';
 import { enrollmentService } from './enrollmentService';
-import { Tables } from '../types/database.types';
+import { Tables } from '@/shared/types/database.types';
 import { getAll as getAllSpecializations } from './specializationService';
 
 export type MasterImportEntity = 'teachers' | 'students' | 'courses' | 'sessions' | 'enrollments';
@@ -178,7 +178,7 @@ function parseOptionalNumber(value: string | undefined) {
 
 function parseRequiredDate(value: string | undefined, field: string, rowIndex: number) {
   const normalized = normalizeText(value);
-  // Handle Excel date serial numbers (e.g., 46022 → 2026-01-18)
+  // Handle Excel date serial numbers (e.g., 46022 â†’ 2026-01-18)
   if (/^\d{4,5}$/.test(normalized)) {
     const serial = Number(normalized);
     if (serial > 25000 && serial < 100000) {

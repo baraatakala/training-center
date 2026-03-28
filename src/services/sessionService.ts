@@ -1,7 +1,7 @@
-import { supabase } from '../lib/supabase';
-import type { CreateSession, UpdateSession } from '../types/database.types';
-import { Tables } from '../types/database.types';
-import { logDelete, logUpdate, logInsert } from './auditService';
+import { supabase } from '@/shared/lib/supabase';
+import type { CreateSession, UpdateSession } from '@/shared/types/database.types';
+import { Tables } from '@/shared/types/database.types';
+import { logDelete, logUpdate, logInsert } from '@/shared/services/auditService';
 
 export interface SessionScheduleConflict {
   sessionId: string;
@@ -230,10 +230,10 @@ export const sessionService = {
 
   // Update session
   // dayChangeStrategy controls when the new day starts appearing in attendance:
-  //   'from_start'        – reset all day-change history, new day covers entire range
-  //   'after_last_attended' – new day starts after the last date with attendance records
-  //   'from_today'        – effective from today (default / legacy)
-  //   undefined           – auto (from_today when day changes)
+  //   'from_start'        â€“ reset all day-change history, new day covers entire range
+  //   'after_last_attended' â€“ new day starts after the last date with attendance records
+  //   'from_today'        â€“ effective from today (default / legacy)
+  //   undefined           â€“ auto (from_today when day changes)
   async update(id: string, updates: UpdateSession, dayChangeStrategy?: 'from_start' | 'after_last_attended' | 'from_today') {
     const { data: oldData } = await supabase
       .from(Tables.SESSION)
@@ -283,7 +283,7 @@ export const sessionService = {
         };
 
         if (strategy === 'from_start') {
-          // Wipe ALL day-change history — new day covers the entire session range
+          // Wipe ALL day-change history â€” new day covers the entire session range
           await deleteAllChanges();
           // No new record needed: session.day already updated to new value
         } else {
@@ -599,7 +599,7 @@ export const sessionService = {
       (a, b) => new Date(a.effective_date).getTime() - new Date(b.effective_date).getTime()
     );
 
-    // Build date-range → days mapping
+    // Build date-range â†’ days mapping
     const dayRanges: Array<{ from: Date; to: Date; dayNums: number[] }> = [];
 
     if (changes.length === 0) {
@@ -628,7 +628,7 @@ export const sessionService = {
         currentDays = change.new_day;
         rangeStart = effectiveDate;
       }
-      // Last range to end — clamp to at least start
+      // Last range to end â€” clamp to at least start
       if (rangeStart < start) rangeStart = start;
       const dayNums = currentDays.split(',').map(d => dayMap[d.trim()]).filter(n => n !== undefined);
       if (dayNums.length > 0) {

@@ -1,7 +1,7 @@
-import { supabase } from '../lib/supabase';
-import type { CreateStudent, UpdateStudent } from '../types/database.types';
-import { Tables } from '../types/database.types';
-import { logDelete, logUpdate, logInsert } from './auditService';
+import { supabase } from '@/shared/lib/supabase';
+import type { CreateStudent, UpdateStudent } from '@/shared/types/database.types';
+import { Tables } from '@/shared/types/database.types';
+import { logDelete, logUpdate, logInsert } from '@/shared/services/auditService';
 
 export const studentService = {
   // Get all students

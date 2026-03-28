@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { sessionRecordingService } from '../services/sessionRecordingService';
-import type { SessionRecording } from '../types/database.types';
-import { toast } from './ui/toastUtils';
+import type { SessionRecording } from '@/shared/types/database.types';
+import { toast } from '@/shared/components/ui/toastUtils';
 
 type Props = {
   sessionId: string;
@@ -9,28 +9,28 @@ type Props = {
   canManageInAttendance?: boolean;
 };
 
-// ─── Multi-format provider detection ────────────────────────
+// â”€â”€â”€ Multi-format provider detection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const PROVIDERS: Array<{ name: string; icon: string; patterns: RegExp[] }> = [
-  { name: 'YouTube', icon: '🔴', patterns: [/youtube\.com\/watch/i, /youtu\.be\//i, /youtube\.com\/embed/i, /youtube\.com\/live/i] },
-  { name: 'Google Drive', icon: '🟩', patterns: [/drive\.google\.com/i] },
-  { name: 'Google Meet', icon: '🟢', patterns: [/meet\.google\.com/i] },
-  { name: 'Zoom', icon: '🟦', patterns: [/zoom\.us/i, /zoom\.com/i] },
-  { name: 'MS Teams', icon: '🟪', patterns: [/teams\.microsoft\.com/i, /teams\.live\.com/i] },
-  { name: 'Vimeo', icon: '🟣', patterns: [/vimeo\.com/i] },
-  { name: 'Loom', icon: '🟠', patterns: [/loom\.com/i] },
-  { name: 'Telegram', icon: '✈️', patterns: [/t\.me\//i, /telegram\.me\//i] },
-  { name: 'WhatsApp', icon: '💬', patterns: [/wa\.me\//i, /whatsapp\.com/i] },
-  { name: 'OneDrive', icon: '☁️', patterns: [/onedrive\.live\.com/i, /1drv\.ms/i, /sharepoint\.com/i] },
-  { name: 'Dropbox', icon: '📦', patterns: [/dropbox\.com/i, /dl\.dropboxusercontent\.com/i] },
-  { name: 'Samsung Recorder', icon: '📱', patterns: [/samsungcloud/i, /samsung\.com/i] },
-  { name: 'Apple iCloud', icon: '🍎', patterns: [/icloud\.com/i] },
-  { name: 'Upgone', icon: '🎙️', patterns: [/upgone/i] },
-  { name: 'SoundCloud', icon: '🎵', patterns: [/soundcloud\.com/i] },
-  { name: 'Streamable', icon: '📹', patterns: [/streamable\.com/i] },
-  { name: 'Dailymotion', icon: '🎬', patterns: [/dailymotion\.com/i, /dai\.ly/i] },
-  { name: 'Facebook', icon: '🔵', patterns: [/facebook\.com\/.*video/i, /fb\.watch/i] },
-  { name: 'Instagram', icon: '📸', patterns: [/instagram\.com/i] },
-  { name: 'TikTok', icon: '🎶', patterns: [/tiktok\.com/i] },
+  { name: 'YouTube', icon: 'ðŸ”´', patterns: [/youtube\.com\/watch/i, /youtu\.be\//i, /youtube\.com\/embed/i, /youtube\.com\/live/i] },
+  { name: 'Google Drive', icon: 'ðŸŸ©', patterns: [/drive\.google\.com/i] },
+  { name: 'Google Meet', icon: 'ðŸŸ¢', patterns: [/meet\.google\.com/i] },
+  { name: 'Zoom', icon: 'ðŸŸ¦', patterns: [/zoom\.us/i, /zoom\.com/i] },
+  { name: 'MS Teams', icon: 'ðŸŸª', patterns: [/teams\.microsoft\.com/i, /teams\.live\.com/i] },
+  { name: 'Vimeo', icon: 'ðŸŸ£', patterns: [/vimeo\.com/i] },
+  { name: 'Loom', icon: 'ðŸŸ ', patterns: [/loom\.com/i] },
+  { name: 'Telegram', icon: 'âœˆï¸', patterns: [/t\.me\//i, /telegram\.me\//i] },
+  { name: 'WhatsApp', icon: 'ðŸ’¬', patterns: [/wa\.me\//i, /whatsapp\.com/i] },
+  { name: 'OneDrive', icon: 'â˜ï¸', patterns: [/onedrive\.live\.com/i, /1drv\.ms/i, /sharepoint\.com/i] },
+  { name: 'Dropbox', icon: 'ðŸ“¦', patterns: [/dropbox\.com/i, /dl\.dropboxusercontent\.com/i] },
+  { name: 'Samsung Recorder', icon: 'ðŸ“±', patterns: [/samsungcloud/i, /samsung\.com/i] },
+  { name: 'Apple iCloud', icon: 'ðŸŽ', patterns: [/icloud\.com/i] },
+  { name: 'Upgone', icon: 'ðŸŽ™ï¸', patterns: [/upgone/i] },
+  { name: 'SoundCloud', icon: 'ðŸŽµ', patterns: [/soundcloud\.com/i] },
+  { name: 'Streamable', icon: 'ðŸ“¹', patterns: [/streamable\.com/i] },
+  { name: 'Dailymotion', icon: 'ðŸŽ¬', patterns: [/dailymotion\.com/i, /dai\.ly/i] },
+  { name: 'Facebook', icon: 'ðŸ”µ', patterns: [/facebook\.com\/.*video/i, /fb\.watch/i] },
+  { name: 'Instagram', icon: 'ðŸ“¸', patterns: [/instagram\.com/i] },
+  { name: 'TikTok', icon: 'ðŸŽ¶', patterns: [/tiktok\.com/i] },
 ];
 
 // Direct media file extensions
@@ -40,11 +40,11 @@ function detectProvider(url: string): { name: string; icon: string } {
   for (const p of PROVIDERS) {
     if (p.patterns.some(rx => rx.test(url))) return { name: p.name, icon: p.icon };
   }
-  if (MEDIA_EXTENSIONS.test(url)) return { name: 'Direct Media', icon: '🎞️' };
-  return { name: '', icon: '🔗' };
+  if (MEDIA_EXTENSIONS.test(url)) return { name: 'Direct Media', icon: 'ðŸŽžï¸' };
+  return { name: '', icon: 'ðŸ”—' };
 }
 
-// ─── Embeddable URL transformer ─────────────────────────────
+// â”€â”€â”€ Embeddable URL transformer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function getEmbedUrl(url: string): string | null {
   // YouTube
   const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/live\/)([a-zA-Z0-9_-]{11})/);
@@ -94,7 +94,7 @@ function formatRecordingDate(date: string | null): string {
   });
 }
 
-// ─── Inline Player Component ────────────────────────────────
+// â”€â”€â”€ Inline Player Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function RecordingPlayer({ url }: { url: string }) {
   const embedUrl = getEmbedUrl(url);
 
@@ -169,7 +169,7 @@ export function SessionRecordingsManager({ sessionId, courseName, canManageInAtt
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-base font-semibold text-gray-900 dark:text-white">🎥 Session Recordings</h3>
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white">ðŸŽ¥ Session Recordings</h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
             Replays for {courseName}, grouped by attendance date. Supports YouTube, Zoom, Drive, Vimeo, Loom, Samsung Recorder, Upgone, direct media files, and more.
           </p>
@@ -199,7 +199,7 @@ export function SessionRecordingsManager({ sessionId, courseName, canManageInAtt
         <div className="text-center py-8 text-sm text-gray-400">Loading...</div>
       ) : recordings.length === 0 ? (
         <div className="rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 p-8 text-center">
-          <span className="text-4xl block mb-2">🎬</span>
+          <span className="text-4xl block mb-2">ðŸŽ¬</span>
           <p className="text-sm text-gray-500 dark:text-gray-400">No recordings published yet</p>
           <p className="text-xs text-gray-400 mt-1">When a replay link is saved in Attendance for a session date, it will appear here.</p>
         </div>
@@ -208,7 +208,7 @@ export function SessionRecordingsManager({ sessionId, courseName, canManageInAtt
           {sortedDates.map(date => (
             <div key={date}>
               <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 px-1 sticky top-0 bg-white dark:bg-gray-900 py-1 z-10">
-                📅 {date === 'No date' ? 'No date assigned' : formatRecordingDate(date)}
+                ðŸ“… {date === 'No date' ? 'No date assigned' : formatRecordingDate(date)}
                 <span className="ml-2 text-[10px] text-gray-400">({grouped[date].length} recording{grouped[date].length > 1 ? 's' : ''})</span>
               </p>
               <div className="space-y-1.5">
@@ -228,8 +228,8 @@ export function SessionRecordingsManager({ sessionId, courseName, canManageInAtt
                           <p className="text-xs text-blue-600 dark:text-blue-400 truncate">{r.recording_url}</p>
                           <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
                             {provider.name || 'External link'}
-                            {r.duration_seconds ? ` · ${Math.floor(r.duration_seconds / 60)}m ${r.duration_seconds % 60}s` : ''}
-                            {r.mime_type ? ` · ${r.mime_type}` : ''}
+                            {r.duration_seconds ? ` Â· ${Math.floor(r.duration_seconds / 60)}m ${r.duration_seconds % 60}s` : ''}
+                            {r.mime_type ? ` Â· ${r.mime_type}` : ''}
                           </p>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
@@ -243,7 +243,7 @@ export function SessionRecordingsManager({ sessionId, courseName, canManageInAtt
                                   : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/20'
                               }`}
                             >
-                              {isExpanded ? '▲ Hide' : '▶ Play'}
+                              {isExpanded ? 'â–² Hide' : 'â–¶ Play'}
                             </button>
                           )}
                           <a
@@ -252,7 +252,7 @@ export function SessionRecordingsManager({ sessionId, courseName, canManageInAtt
                             rel="noopener noreferrer"
                             className="text-xs font-medium text-blue-700 dark:text-blue-300 px-2 py-1 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
                           >
-                            Open ↗
+                            Open â†—
                           </a>
                         </div>
                       </div>

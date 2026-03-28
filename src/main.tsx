@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import App from './App.tsx'
+import App from './app/App.tsx'
 
 // Auto-reload when Vite chunk preload fails (stale deployment / MIME type error).
 // After a new deploy, old JS chunks no longer exist on the server. Vercel's

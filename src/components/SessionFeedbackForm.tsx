@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { feedbackService, type FeedbackQuestion } from '../services/feedbackService';
-import { Button } from './ui';
+import { Button } from '@/shared/components/ui';
 
 const MOOD_EMOJIS = [
-  { emoji: '😴', label: 'Tired' },
-  { emoji: '🤔', label: 'Confused' },
-  { emoji: '😐', label: 'Neutral' },
-  { emoji: '😊', label: 'Happy' },
-  { emoji: '🔥', label: 'Energized' },
+  { emoji: 'ðŸ˜´', label: 'Tired' },
+  { emoji: 'ðŸ¤”', label: 'Confused' },
+  { emoji: 'ðŸ˜', label: 'Neutral' },
+  { emoji: 'ðŸ˜Š', label: 'Happy' },
+  { emoji: 'ðŸ”¥', label: 'Energized' },
 ];
 
 interface Props {
@@ -152,7 +152,7 @@ export default function SessionFeedbackForm({
   if (submitted) {
     return (
       <div className="animate-scale-in mt-6 text-center p-6 bg-purple-50 dark:bg-purple-900/30 rounded-2xl border border-purple-200 dark:border-purple-700">
-        <span className="text-5xl block mb-3">💜</span>
+        <span className="text-5xl block mb-3">ðŸ’œ</span>
         <p className="text-lg font-semibold text-purple-700 dark:text-purple-300">
           Thank you for your feedback!
         </p>
@@ -221,7 +221,7 @@ export default function SessionFeedbackForm({
           onClick={onSkip}
           className="mt-3 text-sm text-blue-600 dark:text-blue-400 hover:underline"
         >
-          Continue →
+          Continue â†’
         </button>
       </div>
     );
@@ -271,7 +271,7 @@ export default function SessionFeedbackForm({
                         : 'bg-gray-100 dark:bg-gray-700 text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                   >
-                    ★
+                    â˜…
                   </button>
                 ))}
               </div>
@@ -354,7 +354,7 @@ export default function SessionFeedbackForm({
               />
             </div>
             <span className="text-xs text-gray-600 dark:text-gray-400">
-              🕵️ Submit anonymously
+              ðŸ•µï¸ Submit anonymously
             </span>
           </label>
         )}
@@ -366,7 +366,7 @@ export default function SessionFeedbackForm({
             onClick={onSkip}
             className="flex-1 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
           >
-            Skip for now →
+            Skip for now â†’
           </button>
           <Button
             onClick={handleSubmit}
@@ -380,7 +380,7 @@ export default function SessionFeedbackForm({
                 Sending...
               </span>
             ) : (
-              <span>💜 Submit Feedback</span>
+              <span>ðŸ’œ Submit Feedback</span>
             )}
           </Button>
         </div>

@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo, type FormEvent } from 'react';
-import { Input } from './ui/Input';
-import { Select } from './ui/Select';
-import { Button } from './ui/Button';
-import { supabase } from '../lib/supabase';
-import { Tables, type CreateSession } from '../types/database.types';
+import { Input } from '@/shared/components/ui/Input';
+import { Select } from '@/shared/components/ui/Select';
+import { Button } from '@/shared/components/ui/Button';
+import { supabase } from '@/shared/lib/supabase';
+import { Tables, type CreateSession } from '@/shared/types/database.types';
 
 interface Teacher {
   teacher_id: string;
@@ -153,7 +153,7 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
     if (formData.requires_recording) parts.push('recordings on');
     if (formData.feedback_enabled) parts.push('feedback on');
     if (formData.teacher_can_host === false) parts.push('student-hosted');
-    return parts.join(' • ');
+    return parts.join(' â€¢ ');
   }, [formData.feedback_enabled, formData.grace_period_minutes, formData.requires_recording, formData.teacher_can_host]);
 
   useEffect(() => {
@@ -527,7 +527,7 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
 
             <div className="space-y-3 rounded-lg border border-emerald-200 dark:border-emerald-700 p-4 bg-emerald-50/50 dark:bg-emerald-900/20">
               <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
-                <span>🏠</span> Session Host Control
+                <span>ðŸ </span> Session Host Control
               </p>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -545,7 +545,7 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
 
             <div className="space-y-3 rounded-lg border border-purple-200 dark:border-purple-700 p-4 bg-purple-50/50 dark:bg-purple-900/20">
               <p className="text-sm font-semibold text-purple-700 dark:text-purple-300 flex items-center gap-2">
-                <span>💜</span> Post Check-In Feedback
+                <span>ðŸ’œ</span> Post Check-In Feedback
               </p>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input

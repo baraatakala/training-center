@@ -1,25 +1,25 @@
 import { useEffect, useState, useCallback, useMemo, useRef, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from '../components/ui/Button';
-import { Badge } from '../components/ui/Badge';
-import { Modal } from '../components/ui/Modal';
-import { Select } from '../components/ui/Select';
-import { formatDate } from '../utils/formatDate';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
-import { SearchBar } from '../components/ui/SearchBar';
-import { Pagination } from '../components/ui/Pagination';
-import { PageSkeleton } from '../components/ui/Skeleton';
+import { Button } from '@/shared/components/ui/Button';
+import { Badge } from '@/shared/components/ui/Badge';
+import { Modal } from '@/shared/components/ui/Modal';
+import { Select } from '@/shared/components/ui/Select';
+import { formatDate } from '@/shared/utils/formatDate';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/shared/components/ui/Table';
+import { SearchBar } from '@/shared/components/ui/SearchBar';
+import { Pagination } from '@/shared/components/ui/Pagination';
+import { PageSkeleton } from '@/shared/components/ui/Skeleton';
 import { SessionForm } from '../components/SessionForm';
 import { SessionRecordingsManager } from '../components/SessionRecordingsManager';
 import BulkScheduleTable from '../components/BulkScheduleTable';
-import { supabase } from '../lib/supabase';
+import { supabase } from '@/shared/lib/supabase';
 import { sessionService } from '../services/sessionService';
-import { toast } from '../components/ui/toastUtils';
-import { ConfirmDialog } from '../components/ui/ConfirmDialog';
-import { useIsTeacher } from '../hooks/useIsTeacher';
-import { useDebounce } from '../hooks/useDebounce';
-import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
-import { Tables, type CreateSession } from '../types/database.types';
+import { toast } from '@/shared/components/ui/toastUtils';
+import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
+import { useIsTeacher } from '@/shared/hooks/useIsTeacher';
+import { useDebounce } from '@/shared/hooks/useDebounce';
+import { useRefreshOnFocus } from '@/shared/hooks/useRefreshOnFocus';
+import { Tables, type CreateSession } from '@/shared/types/database.types';
 
 type SessionWithDetails = {
   session_id: string;
@@ -330,7 +330,7 @@ export function Sessions() {
       return; // Wait for user to pick strategy via dialog
     }
 
-    // No day change — save directly
+    // No day change â€” save directly
     const { error } = await sessionService.update(editingSession.session_id, data);
 
     if (error) {
@@ -536,7 +536,7 @@ export function Sessions() {
       if (result.errors.length > 0) {
         toast.warning(`Import done with ${result.errors.length} error(s): ${result.errors.slice(0, 3).join('; ')}`);
       } else if (result.created === 0 && result.updated > 0) {
-        toast.info(`${result.updated} existing session(s) updated. No new sessions created — the imported data matched existing records.`);
+        toast.info(`${result.updated} existing session(s) updated. No new sessions created â€” the imported data matched existing records.`);
       } else {
         toast.success(`${result.created} created, ${result.updated} updated.`);
       }
@@ -578,7 +578,7 @@ export function Sessions() {
       {!isTeacher && (
         <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4">
           <p className="text-yellow-800 dark:text-yellow-200 text-sm">
-            ⚠️ You are viewing as a student. Edit and add functions are disabled.
+            âš ï¸ You are viewing as a student. Edit and add functions are disabled.
           </p>
         </div>
       )}
@@ -586,7 +586,7 @@ export function Sessions() {
       {/* Error Display */}
       {error && (
         <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg p-4">
-          <p className="text-red-800 dark:text-red-200 text-sm">❌ {error}</p>
+          <p className="text-red-800 dark:text-red-200 text-sm">âŒ {error}</p>
           <button 
             onClick={loadSessions} 
             className="mt-2 text-sm text-red-600 dark:text-red-400 underline hover:text-red-800 dark:hover:text-red-300"
@@ -657,7 +657,7 @@ export function Sessions() {
             onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
             className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300"
           >
-            {sortOrder === 'asc' ? '↑ Ascending' : '↓ Descending'}
+            {sortOrder === 'asc' ? 'â†‘ Ascending' : 'â†“ Descending'}
           </button>
           <span className="text-gray-600 dark:text-gray-400 ml-auto hidden sm:inline">
             Showing {filteredSessions.length} of {sessions.length} sessions
@@ -804,16 +804,16 @@ export function Sessions() {
                             <Badge variant="info">{formatVirtualProvider(session.virtual_provider)}</Badge>
                           )}
                           {session.requires_recording && (
-                            <Badge variant="success">🎥 {formatRecordingVisibility(session.default_recording_visibility) || 'Recording'}</Badge>
+                            <Badge variant="success">ðŸŽ¥ {formatRecordingVisibility(session.default_recording_visibility) || 'Recording'}</Badge>
                           )}
                           {session.feedback_enabled && (
-                            <Badge variant="info">💜 {!isTeacher && !isAdmin ? 'After Check-In' : 'Feedback'}</Badge>
+                            <Badge variant="info">ðŸ’œ {!isTeacher && !isAdmin ? 'After Check-In' : 'Feedback'}</Badge>
                           )}
                           {session.grace_period_minutes != null && session.grace_period_minutes > 0 && (
-                            <Badge variant="default">⏱ {session.grace_period_minutes}m grace</Badge>
+                            <Badge variant="default">â± {session.grace_period_minutes}m grace</Badge>
                           )}
                           {session.teacher_can_host === false && (
-                            <Badge variant="warning">🔒 Student-hosted</Badge>
+                            <Badge variant="warning">ðŸ”’ Student-hosted</Badge>
                           )}
                         </div>
 
@@ -830,7 +830,7 @@ export function Sessions() {
 
                         {/* Dates */}
                         <div className="text-xs text-gray-500 dark:text-gray-500 border-t border-gray-100 dark:border-gray-700 pt-2">
-                          {formatDate(session.start_date)} — {formatDate(session.end_date)}
+                          {formatDate(session.start_date)} â€” {formatDate(session.end_date)}
                         </div>
 
                         {/* Action Buttons */}
@@ -843,7 +843,7 @@ export function Sessions() {
                                 onClick={() => navigate(`/attendance/${session.session_id}`)}
                                 className="w-full min-h-[36px] justify-center"
                               >
-                                📋 Attendance
+                                ðŸ“‹ Attendance
                               </Button>
                               <Button
                                 size="sm"
@@ -851,7 +851,7 @@ export function Sessions() {
                                 onClick={() => { setSelectedSessionForSchedule(session); setIsScheduleModalOpen(true); }}
                                 className="w-full min-h-[36px] justify-center"
                               >
-                                📅 Host Schedule
+                                ðŸ“… Host Schedule
                               </Button>
                               <Button
                                 size="sm"
@@ -859,7 +859,7 @@ export function Sessions() {
                                 onClick={() => setSelectedSessionForRecordings(session)}
                                 className="w-full min-h-[36px] justify-center"
                               >
-                                🎥 Recordings
+                                ðŸŽ¥ Recordings
                               </Button>
                               {session.feedback_enabled && (
                                 <Button
@@ -868,7 +868,7 @@ export function Sessions() {
                                   onClick={() => navigate(`/feedback-analytics?session=${session.session_id}`)}
                                   className="w-full min-h-[36px] justify-center"
                                 >
-                                  💜 Feedback
+                                  ðŸ’œ Feedback
                                 </Button>
                               )}
                             </div>
@@ -882,7 +882,7 @@ export function Sessions() {
                                 title="Clone session with new dates and copy all students"
                                 className="w-full min-h-[36px] justify-center"
                               >
-                                📋 Clone
+                                ðŸ“‹ Clone
                               </Button>
                               <Button
                                 size="sm"
@@ -890,7 +890,7 @@ export function Sessions() {
                                 onClick={() => openEditModal(session)}
                                 className="w-full min-h-[36px] justify-center"
                               >
-                                ✏️ Edit
+                                âœï¸ Edit
                               </Button>
                               {!isTeacher && (
                                 <Button
@@ -899,7 +899,7 @@ export function Sessions() {
                                   onClick={() => setSelectedSessionForRecordings(session)}
                                   className="w-full min-h-[36px] justify-center"
                                 >
-                                  🎥 Recordings
+                                  ðŸŽ¥ Recordings
                                 </Button>
                               )}
                               {!isTeacher && session.feedback_enabled && (
@@ -909,7 +909,7 @@ export function Sessions() {
                                   onClick={() => navigate(`/feedback-analytics?session=${session.session_id}`)}
                                   className="w-full min-h-[36px] justify-center"
                                 >
-                                  💜 Feedback
+                                  ðŸ’œ Feedback
                                 </Button>
                               )}
                               <button
@@ -917,7 +917,7 @@ export function Sessions() {
                                 className="px-3 py-2 text-sm rounded border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors min-h-[36px]"
                                 title="Delete session"
                               >
-                                🗑️ Delete
+                                ðŸ—‘ï¸ Delete
                               </button>
                             </div>
                           )}
@@ -931,7 +931,7 @@ export function Sessions() {
                                   onClick={() => setSelectedSessionForRecordings(session)}
                                   className="min-h-[36px] justify-center"
                                 >
-                                  🎥 View Recordings
+                                  ðŸŽ¥ View Recordings
                                 </Button>
                               )}
                               <span className="text-xs text-gray-400 px-2 py-1">View only</span>
@@ -1046,8 +1046,8 @@ export function Sessions() {
                             <Badge variant={session.learning_method === 'online' ? 'info' : session.learning_method === 'hybrid' ? 'warning' : 'default'}>
                               {formatLearningMethod(session.learning_method)}
                             </Badge>
-                            {session.feedback_enabled && <Badge variant="info">💜 Feedback</Badge>}
-                            {session.requires_recording && <Badge variant="success">🎥 Rec</Badge>}
+                            {session.feedback_enabled && <Badge variant="info">ðŸ’œ Feedback</Badge>}
+                            {session.requires_recording && <Badge variant="success">ðŸŽ¥ Rec</Badge>}
                           </div>
                         </div>
                       </TableCell>
@@ -1075,7 +1075,7 @@ export function Sessions() {
                       <TableCell className="hidden lg:table-cell">
                         <div className="flex flex-col text-xs text-gray-600 dark:text-gray-300">
                           <span>{formatDate(session.start_date)}</span>
-                          <span className="text-gray-400">→ {formatDate(session.end_date)}</span>
+                          <span className="text-gray-400">â†’ {formatDate(session.end_date)}</span>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -1083,17 +1083,17 @@ export function Sessions() {
                           {isTeacher && (
                             <>
                               <Button size="sm" variant="success" onClick={() => navigate(`/attendance/${session.session_id}`)} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Attendance">
-                                📋
+                                ðŸ“‹
                               </Button>
                               <Button size="sm" variant="outline" onClick={() => { setSelectedSessionForSchedule(session); setIsScheduleModalOpen(true); }} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Host Schedule">
-                                📅
+                                ðŸ“…
                               </Button>
                               <Button size="sm" variant="outline" onClick={() => setSelectedSessionForRecordings(session)} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Recordings">
-                                🎥
+                                ðŸŽ¥
                               </Button>
                               {session.feedback_enabled && (
                                 <Button size="sm" variant="outline" onClick={() => navigate(`/feedback-analytics?session=${session.session_id}`)} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Feedback">
-                                  💜
+                                  ðŸ’œ
                                 </Button>
                               )}
                             </>
@@ -1101,19 +1101,19 @@ export function Sessions() {
                           {isAdmin && (
                             <>
                               <Button size="sm" variant="outline" onClick={() => openCloneModal(session)} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Clone">
-                                📋
+                                ðŸ“‹
                               </Button>
                               <Button size="sm" variant="outline" onClick={() => openEditModal(session)} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Edit">
-                                ✏️
+                                âœï¸
                               </Button>
                               {!isTeacher && (
                                 <Button size="sm" variant="outline" onClick={() => setSelectedSessionForRecordings(session)} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Recordings">
-                                  🎥
+                                  ðŸŽ¥
                                 </Button>
                               )}
                               {!isTeacher && session.feedback_enabled && (
                                 <Button size="sm" variant="outline" onClick={() => navigate(`/feedback-analytics?session=${session.session_id}`)} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Feedback">
-                                  💜
+                                  ðŸ’œ
                                 </Button>
                               )}
                               <button
@@ -1121,7 +1121,7 @@ export function Sessions() {
                                 className="px-2.5 py-1.5 text-xs rounded border min-h-[36px] text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
                                 title="Delete"
                               >
-                                🗑️
+                                ðŸ—‘ï¸
                               </button>
                             </>
                           )}
@@ -1129,7 +1129,7 @@ export function Sessions() {
                             <div className="flex gap-1">
                               {session.requires_recording && (
                                 <Button size="sm" variant="outline" onClick={() => setSelectedSessionForRecordings(session)} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Recordings">
-                                  🎥
+                                  ðŸŽ¥
                                 </Button>
                               )}
                               <span className="text-xs text-gray-400 px-2 self-center">View only</span>
@@ -1264,7 +1264,7 @@ export function Sessions() {
           <div className="space-y-4">
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
               <p className="text-sm text-blue-800 dark:text-blue-300">
-                <strong>Day changed:</strong> {dayChangeDialog.oldDay || 'None'} → {dayChangeDialog.newDay || 'None'}
+                <strong>Day changed:</strong> {dayChangeDialog.oldDay || 'None'} â†’ {dayChangeDialog.newDay || 'None'}
               </p>
               <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                 Choose when the new day should start appearing in the Attendance page.
@@ -1291,7 +1291,7 @@ export function Sessions() {
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   {dayChangeDialog.lastAttendedDate
                     ? `Keep old ${dayChangeDialog.oldDay} dates up to ${dayChangeDialog.lastAttendedDate}, then switch to ${dayChangeDialog.newDay}.`
-                    : 'No attendance records found — this option is not available.'}
+                    : 'No attendance records found â€” this option is not available.'}
                 </p>
               </button>
 
@@ -1310,7 +1310,7 @@ export function Sessions() {
               onClick={() => setDayChangeDialog(null)}
               className="w-full text-center text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 mt-2"
             >
-              Cancel — keep the old day
+              Cancel â€” keep the old day
             </button>
           </div>
         )}
@@ -1319,17 +1319,17 @@ export function Sessions() {
       <Modal
         isOpen={!!cloneSource}
         onClose={() => setCloneSource(null)}
-        title={`Clone Session — ${cloneSource?.course?.course_name || ''}`}
+        title={`Clone Session â€” ${cloneSource?.course?.course_name || ''}`}
       >
         {cloneSource && (
           <div className="space-y-4">
             {/* Source info */}
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
               <p className="text-sm text-blue-800 dark:text-blue-300">
-                <strong>Cloning from:</strong> {cloneSource.course?.course_name || 'Unknown'} — {cloneSource.teacher?.name || 'Unknown'}
+                <strong>Cloning from:</strong> {cloneSource.course?.course_name || 'Unknown'} â€” {cloneSource.teacher?.name || 'Unknown'}
               </p>
               <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                Original: {cloneSource.day} · {cloneSource.time || 'No time set'} · {enrollmentCounts[cloneSource.session_id] || 0} students
+                Original: {cloneSource.day} Â· {cloneSource.time || 'No time set'} Â· {enrollmentCounts[cloneSource.session_id] || 0} students
               </p>
               <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                 Suggested clone starts the day after this session ends and keeps the same duration.
@@ -1491,7 +1491,7 @@ export function Sessions() {
                 onClick={handleCloneSession}
                 disabled={cloning || !cloneForm.start_date || !cloneForm.end_date || selectedCloneDays.length === 0}
               >
-                {cloning ? 'Cloning...' : `📋 Clone Session${cloneForm.copyEnrollments ? ' + Students' : ''}`}
+                {cloning ? 'Cloning...' : `ðŸ“‹ Clone Session${cloneForm.copyEnrollments ? ' + Students' : ''}`}
               </Button>
             </div>
           </div>
