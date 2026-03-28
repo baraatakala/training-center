@@ -1,42 +1,61 @@
 # Copilot Instructions for AI Coding Agents
 
 ## Project Overview
-- This is a React + TypeScript application using Vite for build and HMR, with Supabase as the backend database.
-- The `src/services/` directory contains all data access logic, organized by entity (students, teachers, courses, sessions, enrollments, attendance).
-- Each service provides CRUD methods and returns `{ data, error }` objects. Always check for errors after service calls.
+- React 19 + TypeScript 5.9 + Vite 7 application with Supabase (PostgreSQL + Auth + RLS) backend.
+- Path alias: `@/*` maps to `./src/*`. Always use `@/` imports.
 
-## Key Architectural Patterns
-- **Service Layer**: All database interactions go through service modules in `src/services/`. Do not access Supabase directly from components.
-- **Component Structure**: UI components are in `src/components/` and `src/pages/`. Pages are route-level containers; components are reusable UI blocks.
-- **Context**: Authentication and global state are managed via React Context in `src/context/`.
-- **Type Safety**: Use TypeScript types from `src/types/` for all data models and API responses.
+## Architecture
+
+### Feature Modules (`src/features/`)
+The app is organized into 18 feature modules. Each feature contains:
+- `pages/` — route-level containers
+- `components/` — feature-specific UI components
+- `services/` — Supabase data access (the ONLY place to import `supabase`)
+- `constants/` — feature-specific constants
+- `utils/` — feature-specific utilities
+
+Features: `attendance`, `auth`, `certificates`, `checkin`, `communication`, `courses`, `dashboard`, `data-import`, `enrollments`, `excuses`, `exports`, `feedback`, `scoring`, `sessions`, `specializations`, `students`, `teachers`
+
+### Shared Code (`src/shared/`)
+- `components/ui/` — reusable UI primitives
+- `hooks/` — custom hooks (e.g., `useIsTeacher`)
+- `lib/supabase.ts` — Supabase client initialization
+- `services/` — cross-feature services (audit)
+- `types/` — TypeScript type definitions
+- `utils/` — shared utilities (photo, export)
+- `constants/` — app-wide constants
+
+### App Shell (`src/app/`)
+- `App.tsx`, `Layout.tsx`, `NotFound.tsx`
+
+## Critical Rules
+1. **Service Layer**: NEVER import `supabase` in pages or components. Create service methods instead. ESLint `no-restricted-imports` enforces this.
+2. **Error Handling**: Service calls return `{ data, error }`. Always check `error`.
+3. **Named Exports**: Use named exports, not default exports.
+4. **Type Safety**: Use types from `@/shared/types/` for all data models.
 
 ## Developer Workflows
-- **Development**: Use `npm run dev` to start the Vite dev server with HMR.
-- **Build**: Use `npm run build` to create a production build.
-- **Linting**: Run `npm run lint` to check code quality. ESLint is configured for TypeScript and React.
-- **Testing**: (Add details here if/when tests are present.)
+- `npm run dev` — Start Vite dev server with HMR
+- `npm run build` — Production build (`tsc -b && vite build`)
+- `npm run lint` — ESLint check
+- `npx tsc -b --noEmit` — Type-check only
 
-## Project-Specific Conventions
-- **Error Handling**: Always destructure and check `{ data, error }` from service calls. Log or display errors as appropriate.
-- **Naming**: Service files are named `<entity>Service.ts`. Components use PascalCase. Pages use singular nouns (e.g., `Student.tsx`).
-- **Data Flow**: Data flows from services → context (if global) → pages → components.
-- **Supabase**: All Supabase logic is centralized in `src/lib/supabase.ts`.
+## Database
+- 34 tables with RLS policies. See `database/README.md` for full schema.
+- Run order: `schema.sql` → `functions.sql` → `indexes.sql` → `rls-policies.sql` → `storage.sql` → `seed-data.sql`
+- Historical migrations in `database/archive/`
 
-## Integration Points
-- **Supabase**: Used for authentication and database. See `src/lib/supabase.ts` and service modules.
-- **Excel Export**: `src/services/excelExportService.ts` handles data export features.
-- **QR Code**: QR code logic is in `src/components/QRCodeModal.tsx` and related attendance pages.
+## Naming Conventions
+- Services: `<entity>Service.ts` (e.g., `studentService.ts`)
+- Components: PascalCase (e.g., `EnrollmentForm.tsx`)
+- Pages: PascalCase singular (e.g., `Attendance.tsx`)
+- Constants: UPPER_SNAKE_CASE
+
+## Data Flow
+Services → Context (if global) → Pages → Components
 
 ## Examples
-- Fetching students: `const { data, error } = await studentService.getAll();`
-- Creating a course: `await courseService.create({ name: 'Math 101', ... })`
-- Using context: `const { user } = useContext(AuthContext);`
-
-## References
-- See `src/services/README.md` for service usage patterns.
-- See `README.md` for build and lint instructions.
-
----
-
-_If any section is unclear or missing, please provide feedback for further refinement._
+```ts
+import { studentService } from '@/features/students/services/studentService';
+const { data, error } = await studentService.getAll();
+```
