@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/features/auth/AuthContext';
 import { useOnlineStatus } from '@/shared/hooks/useOnlineStatus';
 import { toast } from '@/shared/components/ui/toastUtils';
 
@@ -262,7 +262,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Offline Banner */}
       {!isOnline && (
         <div className="fixed top-0 left-0 right-0 z-[100] bg-red-600 text-white text-center py-2 text-sm font-medium shadow-lg">
-          ⚠️ You are offline — changes may not be saved
+          âš ï¸ You are offline â€” changes may not be saved
         </div>
       )}
       {/* Mobile Header */}
@@ -280,7 +280,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           
           <Link to="/" className="flex items-center space-x-2">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-              <span className="text-white text-lg">📚</span>
+              <span className="text-white text-lg">ðŸ“š</span>
             </div>
             <span className="font-bold text-gray-900 dark:text-white">Training Center</span>
           </Link>
@@ -336,7 +336,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center justify-between p-4 border-b border-gray-200/50 dark:border-gray-700/50">
             <Link to="/" className={`flex items-center space-x-3 ${sidebarCollapsed ? 'justify-center' : ''}`}>
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-blue-500/25">
-                <span className="text-white text-xl">📚</span>
+                <span className="text-white text-xl">ðŸ“š</span>
               </div>
               {!sidebarCollapsed && (
                 <div>
@@ -561,7 +561,7 @@ function MobileSidebar({
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
         <Link to="/" onClick={onClose} className="flex items-center space-x-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg">
-            <span className="text-white text-xl">📚</span>
+            <span className="text-white text-xl">ðŸ“š</span>
           </div>
           <div>
             <h1 className="font-bold text-gray-900 dark:text-white">Training</h1>
