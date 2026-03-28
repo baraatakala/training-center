@@ -187,7 +187,7 @@ const smartDateFormat = (date: Date, allDates: Date[]): string => {
   return format(date, years.size > 1 ? 'MMM dd, yy' : 'MMM dd');
 };
 
-const AttendanceRecords = () => {
+export const AttendanceRecords = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toasts, success, error: showError, warning, removeToast } = useToast();
@@ -6447,5 +6447,3 @@ const AttendanceRecords = () => {
     </div>
   );
 };
-
-export default AttendanceRecords;

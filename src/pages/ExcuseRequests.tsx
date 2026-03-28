@@ -1299,5 +1299,3 @@ function TimelineItem({ label, time }: { label: string; time: string }) {
     </div>
   );
 }
-
-export default ExcuseRequests;

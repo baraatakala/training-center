@@ -1465,5 +1465,3 @@ function CertificatePreview({
     </Modal>
   );
 }
-
-export default Certificates;

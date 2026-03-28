@@ -1657,5 +1657,3 @@ export function Announcements() {
     </div>
   );
 }
-
-export default Announcements;

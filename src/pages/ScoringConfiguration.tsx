@@ -1493,5 +1493,3 @@ export function ScoringConfiguration() {
     </div>
   );
 }
-
-export default ScoringConfiguration;

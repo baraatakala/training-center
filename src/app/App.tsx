@@ -1,8 +1,8 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import { Layout } from './Layout';
-import Login from '@/pages/Login';
-import PrivateRoute from '@/shared/components/PrivateRoute';
+import { Login } from '@/pages/Login';
+import { PrivateRoute } from '@/shared/components/PrivateRoute';
 import { AuthProvider } from '@/context/AuthContext';
 import { ToastContainer } from '@/shared/components/ui/Toast';
 import { ErrorBoundary } from '@/shared/components/ErrorBoundary';
@@ -17,17 +17,17 @@ const Courses = lazy(() => import('@/pages/Courses').then(m => ({ default: m.Cou
 const Sessions = lazy(() => import('@/pages/Sessions').then(m => ({ default: m.Sessions })));
 const Enrollments = lazy(() => import('@/pages/Enrollments').then(m => ({ default: m.Enrollments })));
 const Attendance = lazy(() => import('@/pages/Attendance').then(m => ({ default: m.Attendance })));
-const AttendanceRecords = lazy(() => import('@/pages/AttendanceRecords'));
+const AttendanceRecords = lazy(() => import('@/pages/AttendanceRecords').then(m => ({ default: m.AttendanceRecords })));
 const AuditLogs = lazy(() => import('@/pages/AuditLogs').then(m => ({ default: m.AuditLogs })));
 const StudentCheckIn = lazy(() => import('@/pages/StudentCheckIn').then(m => ({ default: m.StudentCheckIn })));
 const PhotoCheckIn = lazy(() => import('@/pages/PhotoCheckIn').then(m => ({ default: m.PhotoCheckIn })));
 const Announcements = lazy(() => import('@/pages/Announcements').then(m => ({ default: m.Announcements })));
 const Messages = lazy(() => import('@/pages/Messages').then(m => ({ default: m.Messages })));
-const ScoringConfiguration = lazy(() => import('@/pages/ScoringConfiguration'));
-const ExcuseRequests = lazy(() => import('@/pages/ExcuseRequests'));
-const Certificates = lazy(() => import('@/pages/Certificates'));
+const ScoringConfiguration = lazy(() => import('@/pages/ScoringConfiguration').then(m => ({ default: m.ScoringConfiguration })));
+const ExcuseRequests = lazy(() => import('@/pages/ExcuseRequests').then(m => ({ default: m.ExcuseRequests })));
+const Certificates = lazy(() => import('@/pages/Certificates').then(m => ({ default: m.Certificates })));
 const FeedbackAnalytics = lazy(() => import('@/pages/FeedbackAnalytics').then(m => ({ default: m.FeedbackAnalytics })));
-const NotFound = lazy(() => import('@/pages/NotFound'));
+const NotFound = lazy(() => import('@/pages/NotFound').then(m => ({ default: m.NotFound })));
 
 function PageLoader() {
   return (
