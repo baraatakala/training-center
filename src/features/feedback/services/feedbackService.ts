@@ -1,7 +1,7 @@
 import { supabase } from '@/shared/lib/supabase';
 import { logDelete, logInsert, logUpdate } from '@/shared/services/auditService';
 
-// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Types ───────────────────────────────────────────────────
 export interface FeedbackQuestion {
   id: string;
   session_id: string;
@@ -113,7 +113,7 @@ function toAuditRecord(value: unknown): Record<string, unknown> {
   return (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
 }
 
-// â”€â”€â”€ Feedback Submission â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Feedback Submission ─────────────────────────────────────
 export const feedbackService = {
   /** Submit feedback after check-in */
   async submit(feedback: {
@@ -195,7 +195,7 @@ export const feedbackService = {
     };
   },
 
-  // â”€â”€â”€ Questions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Questions ───────────────────────────────────────────
   /**
    * Get questions for a session.
    * - No date param: returns ALL questions (global + date-specific)
@@ -203,7 +203,7 @@ export const feedbackService = {
    */
   async getQuestions(sessionId: string, date?: string) {
     // Load ALL questions for the session, then filter in JS.
-    // The .or() PostgREST filter can misparse dates â€” this is safer.
+    // The .or() PostgREST filter can misparse dates — this is safer.
     const { data, error } = await supabase
       .from('feedback_question')
       .select('*')
@@ -263,7 +263,7 @@ export const feedbackService = {
 
     if (data) {
       const scope = question.attendance_date ? `date-specific (${question.attendance_date})` : 'global';
-      try { await logInsert('feedback_question', String(data.id), toAuditRecord(data), `Feedback question created â€” ${scope}`); } catch { /* audit non-critical */ }
+      try { await logInsert('feedback_question', String(data.id), toAuditRecord(data), `Feedback question created — ${scope}`); } catch { /* audit non-critical */ }
     }
 
     return { data, error: normalizeFeedbackError(error) };
@@ -310,7 +310,7 @@ export const feedbackService = {
     return { error: normalizeFeedbackError(error) };
   },
 
-  // â”€â”€â”€ Templates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Templates ───────────────────────────────────────────
   /** Get all feedback templates */
   async getTemplates() {
     const { data, error } = await supabase
@@ -452,7 +452,7 @@ export const feedbackService = {
           sessionId,
           { session_id: sessionId, question_count: existingQuestions?.length || 0 },
           { session_id: sessionId, question_count: questions.length, template_id: templateId, scope },
-          `Applied feedback template to session â€” ${scope}`
+          `Applied feedback template to session — ${scope}`
         );
       } catch {
         /* audit non-critical */
@@ -462,7 +462,7 @@ export const feedbackService = {
     return { error: normalizeFeedbackError(error) };
   },
 
-  // â”€â”€â”€ Analytics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Analytics ───────────────────────────────────────────
   /** Get all feedback for a session */
   async getBySession(sessionId: string) {
     const { data, error } = await supabase
@@ -664,7 +664,7 @@ export const feedbackService = {
     return { error: normalizeFeedbackError(error) };
   },
 
-  // â”€â”€â”€ Per-Date Analytics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Per-Date Analytics ──────────────────────────────────
   /** Get list of dates that have feedback for a session */
   async getDateList(sessionId: string): Promise<{ data: string[]; error: unknown }> {
     const { data, error } = await supabase

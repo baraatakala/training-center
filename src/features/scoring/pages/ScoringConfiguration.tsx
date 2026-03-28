@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/Card';
 import { Button } from '@/shared/components/ui/Button';
 import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
@@ -134,10 +134,10 @@ export function ScoringConfiguration() {
     setSaving(false);
     
     if (error && !data) {
-      // Complete failure Ã¢â‚¬â€ nothing saved
+      // Complete failure — nothing saved
       showError(`Save failed: ${error.message}`);
     } else if (error && data) {
-      // Partial success Ã¢â‚¬â€ saved to localStorage but DB failed
+      // Partial success — saved to localStorage but DB failed
       setHasChanges(false);
       success('Configuration saved locally. Note: ' + error.message);
     } else {
@@ -189,15 +189,15 @@ export function ScoringConfiguration() {
     );
   }
   
-  // No access-denied block Ã¢â‚¬â€ everyone can view the page.
+  // No access-denied block — everyone can view the page.
   // canEdit (admin/teacher) can modify; students see read-only.
   
   const sections = [
-    { id: 'weights' as const, label: t.sectionWeights, icon: 'Ã¢Å¡â€“Ã¯Â¸Â' },
-    { id: 'decay' as const, label: t.sectionDecay, icon: 'Ã°Å¸â€œâ€°' },
-    { id: 'coverage' as const, label: t.sectionCoverage, icon: 'Ã°Å¸â€œÅ ' },
-    { id: 'brackets' as const, label: t.sectionBrackets, icon: 'Ã°Å¸ÂÂ·Ã¯Â¸Â' },
-    { id: 'bonuses' as const, label: t.sectionBonuses, icon: 'Ã°Å¸Å½Â¯' },
+    { id: 'weights' as const, label: t.sectionWeights, icon: '⚖️' },
+    { id: 'decay' as const, label: t.sectionDecay, icon: '📉' },
+    { id: 'coverage' as const, label: t.sectionCoverage, icon: '📊' },
+    { id: 'brackets' as const, label: t.sectionBrackets, icon: '🏷️' },
+    { id: 'bonuses' as const, label: t.sectionBonuses, icon: '🎯' },
   ];
   
   const presetNames = [t.presetBalanced, t.presetStrict, t.presetLenient, t.presetQuality, t.presetAttendance, t.presetMilitary];
@@ -239,7 +239,7 @@ export function ScoringConfiguration() {
                   : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
               }`}
             >
-              Ã˜Â¹
+              ع
             </button>
           </div>
           {canEdit && (
@@ -262,7 +262,7 @@ export function ScoringConfiguration() {
       {/* Read-only banner for students */}
       {!canEdit && (
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 flex items-center gap-3">
-          <span className="text-2xl">Ã°Å¸â€˜ÂÃ¯Â¸Â</span>
+          <span className="text-2xl">👁️</span>
           <div>
             <p className="text-sm font-medium text-blue-700 dark:text-blue-300">{t.readOnlyBanner}</p>
             <p className="text-xs text-blue-500 dark:text-blue-400">{t.readOnlyBannerStudent}</p>
@@ -270,7 +270,7 @@ export function ScoringConfiguration() {
         </div>
       )}
       
-      {/* Presets Bar Ã¢â‚¬â€ only for editors */}
+      {/* Presets Bar — only for editors */}
       {canEdit && (
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
         <div className="flex items-center gap-2 mb-3">
@@ -401,7 +401,7 @@ export function ScoringConfiguration() {
                     rounded-xl p-4 border border-indigo-100 dark:border-indigo-800/50">
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 font-medium">{t.formula}</p>
                     <p className="text-sm font-mono text-indigo-800 dark:text-indigo-300">
-                      WeightedScore = ({config.weight_quality}% Ãƒâ€” QualityRate + {config.weight_attendance}% Ãƒâ€” AttendanceRate + {config.weight_punctuality}% Ãƒâ€” Punctuality) Ãƒâ€” CoverageFactor
+                      WeightedScore = ({config.weight_quality}% × QualityRate + {config.weight_attendance}% × AttendanceRate + {config.weight_punctuality}% × Punctuality) × CoverageFactor
                     </p>
                   </div>
                 </div>
@@ -412,7 +412,7 @@ export function ScoringConfiguration() {
                 <div className="space-y-6">
                   <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{t.decayTitle}</h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {t.decaySubtitle} <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">score = e^(-minutes/Ãâ€ž)</code>
+                    {t.decaySubtitle} <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">score = e^(-minutes/τ)</code>
                   </p>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -572,7 +572,7 @@ export function ScoringConfiguration() {
                         <div className="mt-2 flex flex-wrap gap-2 text-xs">
                           {[1, 5, 10, 20, 30].map(d => (
                             <span key={d} className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded">
-                              {d}d Ã¢â€ â€™ {Math.round(calcCoverageFactor(d, 30, config) * 100)}%
+                              {d}d → {Math.round(calcCoverageFactor(d, 30, config) * 100)}%
                             </span>
                           ))}
                         </div>
@@ -647,7 +647,7 @@ export function ScoringConfiguration() {
                           className="text-red-400 hover:text-red-600 p-1.5 min-h-[36px] min-w-[36px] flex items-center justify-center rounded"
                           aria-label={`Delete bracket ${bracket.name}`}
                         >
-                          Ã¢Å“â€¢
+                          ✕
                         </button>
                         )}
                       </div>
@@ -665,7 +665,7 @@ export function ScoringConfiguration() {
                         id: String(Date.now()),
                         min: lastMax,
                         max: lastMax + 30,
-                        name: isArabic ? 'Ã™ÂÃ˜Â¦Ã˜Â© Ã˜Â¬Ã˜Â¯Ã™Å Ã˜Â¯Ã˜Â©' : 'New Bracket',
+                        name: isArabic ? 'فئة جديدة' : 'New Bracket',
                         color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
                       }]);
                     }}
@@ -726,7 +726,7 @@ export function ScoringConfiguration() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <span>Ã°Å¸Â§Âª</span> {t.liveSimulation}
+                <span>🧪</span> {t.liveSimulation}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -738,7 +738,7 @@ export function ScoringConfiguration() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <span>Ã°Å¸â€œâ€“</span> {t.howItWorks}
+                <span>📖</span> {t.howItWorks}
               </CardTitle>
             </CardHeader>
             <CardContent className="text-xs text-gray-500 dark:text-gray-400 space-y-2">

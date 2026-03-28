@@ -126,12 +126,12 @@ export function resolveTemplate(
   }
 ): string {
   let result = template;
-  result = result.replace(/\{\{name\}\}/g, data.name || 'â€”');
-  result = result.replace(/\{\{course\}\}/g, data.course || 'â€”');
+  result = result.replace(/\{\{name\}\}/g, data.name || '—');
+  result = result.replace(/\{\{course\}\}/g, data.course || '—');
   result = result.replace(/\{\{date\}\}/g, data.date || new Date().toLocaleDateString());
-  result = result.replace(/\{\{score\}\}/g, String(data.score ?? 'â€”'));
-  result = result.replace(/\{\{attendance\}\}/g, String(data.attendance ?? 'â€”'));
-  result = result.replace(/\{\{teacher\}\}/g, data.teacher || 'â€”');
+  result = result.replace(/\{\{score\}\}/g, String(data.score ?? '—'));
+  result = result.replace(/\{\{attendance\}\}/g, String(data.attendance ?? '—'));
+  result = result.replace(/\{\{teacher\}\}/g, data.teacher || '—');
   return result;
 }
 
@@ -140,7 +140,7 @@ export function resolveTemplate(
 // =====================================================
 
 class CertificateService {
-  // â”€â”€ Templates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Templates ──────────────────────────────────────
 
   async getTemplates(activeOnly = false) {
     let query = supabase
@@ -204,7 +204,7 @@ class CertificateService {
     return { error };
   }
 
-  // â”€â”€ Issued Certificates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Issued Certificates ────────────────────────────
 
   async getIssuedCertificates(filters?: { student_id?: string; session_id?: string; status?: string }) {
     let query = supabase

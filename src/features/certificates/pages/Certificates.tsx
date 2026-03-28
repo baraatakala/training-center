@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/shared/components/ui/Button';
 import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
 import { toast } from '@/shared/components/ui/toastUtils';
@@ -134,7 +134,7 @@ export function Certificates() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            Ã°Å¸Ââ€  Certificates
+            🏆 Certificates
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             Generate and manage course completion certificates
@@ -142,10 +142,10 @@ export function Certificates() {
         </div>
         {isTeacher && (
           <div className="flex flex-col sm:flex-row w-full sm:w-auto gap-2">
-            <Button variant="outline" size="sm" onClick={fetchData} className="w-full sm:w-auto justify-center">Ã°Å¸â€â€ž Refresh</Button>
-            <Button size="sm" onClick={() => setShowIssueModal(true)} className="w-full sm:w-auto justify-center">Ã°Å¸Å½â€œ Issue Certificate</Button>
+            <Button variant="outline" size="sm" onClick={fetchData} className="w-full sm:w-auto justify-center">🔄 Refresh</Button>
+            <Button size="sm" onClick={() => setShowIssueModal(true)} className="w-full sm:w-auto justify-center">🎓 Issue Certificate</Button>
             <Button variant="outline" size="sm" onClick={() => { setEditingTemplate(null); setShowTemplateModal(true); }} className="w-full sm:w-auto justify-center">
-              Ã¢Å“ÂÃ¯Â¸Â New Template
+              ✏️ New Template
             </Button>
           </div>
         )}
@@ -164,9 +164,9 @@ export function Certificates() {
                   : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
               }`}
             >
-              {t === 'certificates' ? `Ã°Å¸â€œÅ“ Certificates (${certificates.length})` :
-               t === 'templates' ? `Ã°Å¸â€œâ€¹ Templates (${templates.length})` :
-               'Ã°Å¸â€Â Verify'}
+              {t === 'certificates' ? `📜 Certificates (${certificates.length})` :
+               t === 'templates' ? `📋 Templates (${templates.length})` :
+               '🔍 Verify'}
             </button>
           ))}
         </nav>

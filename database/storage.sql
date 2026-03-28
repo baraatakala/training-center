@@ -56,3 +56,33 @@ CREATE POLICY "Authenticated users can read announcement images"
 CREATE POLICY "Teachers can delete announcement images"
   ON storage.objects FOR DELETE TO authenticated
   USING (bucket_id = 'announcement-images');
+
+-- ============================================================================
+-- 3. STUDENT PHOTOS BUCKET
+-- ============================================================================
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'student-photos',
+  'student-photos',
+  false,
+  5242880,  -- 5 MB
+  ARRAY['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+)
+ON CONFLICT (id) DO NOTHING;
+
+CREATE POLICY "Authenticated users can upload student photos"
+  ON storage.objects FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'student-photos');
+
+CREATE POLICY "Authenticated users can view student photos"
+  ON storage.objects FOR SELECT TO authenticated
+  USING (bucket_id = 'student-photos');
+
+CREATE POLICY "Authenticated users can update student photos"
+  ON storage.objects FOR UPDATE TO authenticated
+  USING (bucket_id = 'student-photos');
+
+CREATE POLICY "Authenticated users can delete student photos"
+  ON storage.objects FOR DELETE TO authenticated
+  USING (bucket_id = 'student-photos');

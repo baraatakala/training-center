@@ -472,7 +472,7 @@ export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: Pho
     <Card className="w-full max-w-md">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <span>ðŸ“¸</span>
+          <span>📸</span>
           <span>Reference Photo</span>
         </CardTitle>
       </CardHeader>
@@ -498,7 +498,7 @@ export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: Pho
             />
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
-              <span className="text-6xl mb-2">ðŸ‘¤</span>
+              <span className="text-6xl mb-2">👤</span>
               <p className="text-sm">No photo uploaded</p>
               <p className="text-xs text-gray-300 mt-1">Required for face check-in</p>
             </div>
@@ -508,7 +508,7 @@ export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: Pho
         {/* Error message */}
         {error && (
           <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
-            âš ï¸ {error}
+            ⚠️ {error}
           </div>
         )}
 
@@ -521,14 +521,14 @@ export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: Pho
                 disabled={uploading}
                 className="flex-1 bg-green-600 hover:bg-green-700"
               >
-                ðŸ“· Capture
+                📷 Capture
               </Button>
               <Button
                 onClick={stopCamera}
                 variant="outline"
                 className="flex-1"
               >
-                âœ• Cancel
+                ✕ Cancel
               </Button>
             </>
           ) : (
@@ -538,7 +538,7 @@ export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: Pho
                 disabled={uploading}
                 className="flex-1"
               >
-                ðŸ“· Take Photo
+                📷 Take Photo
               </Button>
               <Button
                 onClick={() => fileInputRef.current?.click()}
@@ -546,7 +546,7 @@ export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: Pho
                 variant="outline"
                 className="flex-1"
               >
-                ðŸ“ Upload File
+                📁 Upload File
               </Button>
               {previewUrl && (
                 <Button
@@ -556,7 +556,7 @@ export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: Pho
                   className="w-full text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30"
                   aria-label="Delete student photo"
                 >
-                  ðŸ—‘ï¸ Delete Photo
+                  🗑️ Delete Photo
                 </Button>
               )}
             </>
@@ -590,14 +590,14 @@ export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: Pho
             {qualityResult.valid && (
               <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                 <p className="text-green-800 font-medium flex items-center gap-2">
-                  <span>âœ…</span>
+                  <span>✅</span>
                   <span>Photo quality: Excellent</span>
                 </p>
                 {qualityResult.warnings.length > 0 && (
                   <div className="mt-2 space-y-1">
                     {qualityResult.warnings.map((warning, idx) => (
                       <p key={idx} className="text-yellow-700 text-sm flex items-start gap-2">
-                        <span>âš ï¸</span>
+                        <span>⚠️</span>
                         <span>{warning}</span>
                       </p>
                     ))}
@@ -607,7 +607,7 @@ export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: Pho
             )}
             {!qualityResult.valid && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                <p className="text-red-800 font-medium mb-2">âŒ Photo quality issues:</p>
+                <p className="text-red-800 font-medium mb-2">❌ Photo quality issues:</p>
                 <ul className="list-disc list-inside space-y-1">
                   {qualityResult.issues.map((issue, idx) => (
                     <li key={idx} className="text-red-700 text-sm">{issue}</li>

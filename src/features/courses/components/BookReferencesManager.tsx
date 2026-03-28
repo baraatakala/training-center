@@ -26,7 +26,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
   // Which chapter is currently showing its "add subtopic" form
   const [addingSubtopicFor, setAddingSubtopicFor] = useState<string | null>(null);
 
-  // New top-level chapter form â€” only needs topic (pages auto-computed from subtopics or set after)
+  // New top-level chapter form — only needs topic (pages auto-computed from subtopics or set after)
   const [newTopic, setNewTopic] = useState('');
   const [newStartPage, setNewStartPage] = useState(1);
   const [newEndPage, setNewEndPage] = useState(1);
@@ -57,7 +57,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseId]);
 
-  // Build tree structure â€” chapters sorted by start_page
+  // Build tree structure — chapters sorted by start_page
   const { chapters, tree } = useMemo(() => {
     const chaps = references.filter(r => !r.parent_id)
       .sort((a, b) => a.start_page - b.start_page || a.display_order - b.display_order);
@@ -125,11 +125,11 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
 
   const handleAddChapter = async () => {
     if (!newTopic.trim()) {
-      toast.warning('Please enter a chapter name / Ø£Ø¯Ø®Ù„ Ø§Ø³Ù… Ø§Ù„ÙØµÙ„');
+      toast.warning('Please enter a chapter name / أدخل اسم الفصل');
       return;
     }
     if (newStartPage > newEndPage) {
-      toast.warning('End page must be â‰¥ start page');
+      toast.warning('End page must be ≥ start page');
       return;
     }
 
@@ -145,7 +145,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
     if (!error) {
       setNewTopic('');
       await loadReferences();
-      toast.success('Chapter added / ØªÙ… Ø¥Ø¶Ø§ÙØ© Ø§Ù„ÙØµÙ„');
+      toast.success('Chapter added / تم إضافة الفصل');
     } else {
       toast.error('Error: ' + error.message);
     }
@@ -153,11 +153,11 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
 
   const handleAddSubtopic = async (parentId: string) => {
     if (!subTopic.trim()) {
-      toast.warning('Please enter a subtopic name / Ø£Ø¯Ø®Ù„ Ø§Ø³Ù… Ø§Ù„Ø¹Ù†ÙˆØ§Ù† Ø§Ù„ÙØ±Ø¹ÙŠ');
+      toast.warning('Please enter a subtopic name / أدخل اسم العنوان الفرعي');
       return;
     }
     if (subStartPage > subEndPage) {
-      toast.warning('End page must be â‰¥ start page');
+      toast.warning('End page must be ≥ start page');
       return;
     }
 
@@ -176,13 +176,13 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
       const updatedSubs = [...existingSubs, { start_page: subStartPage, end_page: subEndPage } as CourseBookReference];
       await syncChapterRange(parentId, updatedSubs);
 
-      // Keep form open for continuous adding â€” advance start to this subtopic's end page
+      // Keep form open for continuous adding — advance start to this subtopic's end page
       setSubTopic('');
       setSubStartPage(subEndPage);
       setSubEndPage(subEndPage);
       // Keep addingSubtopicFor = parentId (don't close)
       await loadReferences();
-      toast.success('Subtopic added â€” add next or press âœ• / ØªÙ… Ø¥Ø¶Ø§ÙØ© Ø§Ù„Ø¹Ù†ÙˆØ§Ù† Ø§Ù„ÙØ±Ø¹ÙŠ');
+      toast.success('Subtopic added — add next or press ✕ / تم إضافة العنوان الفرعي');
     } else {
       toast.error('Error: ' + error.message);
     }
@@ -282,7 +282,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
           ));
         }}
         className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
-        placeholder="Topic name / Ø§Ø³Ù… Ø§Ù„Ù…ÙˆØ¶ÙˆØ¹"
+        placeholder="Topic name / اسم الموضوع"
       />
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -317,7 +317,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
       </div>
       {ref.start_page <= ref.end_page && (
         <div className="text-[10px] text-blue-600 dark:text-blue-400">
-          ðŸ“„ {ref.end_page - ref.start_page + 1} page{ref.end_page - ref.start_page + 1 !== 1 ? 's' : ''}
+          📄 {ref.end_page - ref.start_page + 1} page{ref.end_page - ref.start_page + 1 !== 1 ? 's' : ''}
         </div>
       )}
       <div className="flex gap-2">
@@ -367,7 +367,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
             </p>
           </div>
           <span className="shrink-0 text-[10px] text-gray-400 dark:text-gray-500 tabular-nums">
-            {sub.start_page}â€“{sub.end_page} <span className="text-gray-300 dark:text-gray-600">Â·</span> {pages}p
+            {sub.start_page}–{sub.end_page} <span className="text-gray-300 dark:text-gray-600">·</span> {pages}p
           </span>
           <div className="flex gap-0.5 sm:opacity-0 sm:group-hover/sub:opacity-100 transition-opacity shrink-0">
             <button
@@ -401,7 +401,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
             </svg>
           </div>
           <div className="flex-1">
-            <h2 className="text-xl font-bold tracking-tight">Book References / Ù…Ø±Ø§Ø¬Ø¹ Ø§Ù„ÙƒØªØ§Ø¨</h2>
+            <h2 className="text-xl font-bold tracking-tight">Book References / مراجع الكتاب</h2>
             <p className="text-purple-200 text-sm mt-0.5">{courseName}</p>
           </div>
 
@@ -415,17 +415,17 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
             <span className="text-purple-600 dark:text-purple-400 font-bold">{topLevel}</span>
             <span className="text-gray-500 dark:text-gray-400">chapters</span>
           </div>
-          <span className="text-gray-300 dark:text-gray-600">Â·</span>
+          <span className="text-gray-300 dark:text-gray-600">·</span>
           <div className="flex items-center gap-1.5">
             <span className="text-indigo-600 dark:text-indigo-400 font-bold">{subtopicCount}</span>
             <span className="text-gray-500 dark:text-gray-400">subtopics</span>
           </div>
-          <span className="text-gray-300 dark:text-gray-600">Â·</span>
+          <span className="text-gray-300 dark:text-gray-600">·</span>
           <div className="flex items-center gap-1.5">
             <span className="text-blue-600 dark:text-blue-400 font-bold">{totalRefs}</span>
             <span className="text-gray-500 dark:text-gray-400">total</span>
           </div>
-          <span className="text-gray-300 dark:text-gray-600">Â·</span>
+          <span className="text-gray-300 dark:text-gray-600">·</span>
           <div className="flex items-center gap-1.5">
             <span className="text-amber-600 dark:text-amber-400 font-bold">{totalPages}</span>
             <span className="text-gray-500 dark:text-gray-400">pages</span>
@@ -436,7 +436,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search... / Ø¨Ø­Ø«..."
+                placeholder="Search... / بحث..."
                 className="w-full px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-xs focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
               />
             </div>
@@ -444,12 +444,12 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
         </div>
 
 
-        {/* Add New Chapter â€” compact & smart */}
+        {/* Add New Chapter — compact & smart */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
           <div className="px-4 py-3 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/15 dark:to-indigo-900/15 border-b border-gray-200 dark:border-gray-700">
             <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-100 flex items-center gap-1.5">
               <svg className="w-4 h-4 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-              Add Chapter / Ø¥Ø¶Ø§ÙØ© ÙØµÙ„
+              Add Chapter / إضافة فصل
             </h3>
           </div>
           <div className="p-4">
@@ -460,7 +460,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
                   value={newTopic}
                   dir={isRTL(newTopic) ? 'rtl' : 'ltr'}
                   onChange={e => setNewTopic(e.target.value)}
-                  placeholder="Chapter name / Ø§Ø³Ù… Ø§Ù„ÙØµÙ„ â€” e.g. Ø§Ù„ÙØµÙ„ Ø§Ù„Ø«Ø§Ù„Ø«: Ø£Ø­ÙƒØ§Ù… Ø§Ù„ØªØ¬ÙˆÙŠØ¯"
+                  placeholder="Chapter name / اسم الفصل — e.g. الفصل الثالث: أحكام التجويد"
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-purple-500"
                   onKeyDown={e => e.key === 'Enter' && handleAddChapter()}
                 />
@@ -501,7 +501,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
             </div>
             {newStartPage > 0 && newEndPage >= newStartPage && newTopic.trim() && (
               <p className="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
-                ðŸ“„ {newEndPage - newStartPage + 1} pages Â· Pages will auto-adjust when subtopics are added
+                📄 {newEndPage - newStartPage + 1} pages · Pages will auto-adjust when subtopics are added
               </p>
             )}
           </div>
@@ -512,7 +512,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
           {chapters.length > 1 && (
             <div className="flex items-center justify-between px-1">
               <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                Table of Contents Â· {topLevel} chapter{topLevel !== 1 ? 's' : ''}
+                Table of Contents · {topLevel} chapter{topLevel !== 1 ? 's' : ''}
               </h3>
               <button
                 onClick={() => {
@@ -533,7 +533,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
             </div>
           ) : filteredChapters.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 space-y-2 bg-white dark:bg-gray-800 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700">
-              <span className="text-4xl">ðŸ“–</span>
+              <span className="text-4xl">📖</span>
               <h3 className="text-base font-semibold text-gray-900 dark:text-white">
                 {searchQuery ? 'No matching references' : 'No References Yet'}
               </h3>
@@ -588,7 +588,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
                         {/* Page badge */}
                         <div className="flex items-center gap-2 shrink-0 text-[11px] tabular-nums">
                           <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-md font-medium">
-                            pp. {chapter.start_page}â€“{chapter.end_page}
+                            pp. {chapter.start_page}–{chapter.end_page}
                           </span>
                           <span className="text-gray-400">{chapterPages}p</span>
                           {hasSubs && (
@@ -656,14 +656,14 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
                             <div className="flex gap-2 items-end">
                               <div className="flex-1">
                                 <label className="text-[10px] font-medium text-purple-700 dark:text-purple-300 mb-0.5 block">
-                                  Subtopic / Ø¹Ù†ÙˆØ§Ù† ÙØ±Ø¹ÙŠ
+                                  Subtopic / عنوان فرعي
                                 </label>
                                 <input
                                   type="text"
                                   value={subTopic}
                                   dir={isRTL(subTopic) ? 'rtl' : 'ltr'}
                                   onChange={e => setSubTopic(e.target.value)}
-                                  placeholder="Subtopic name / Ø§Ø³Ù… Ø§Ù„Ø¹Ù†ÙˆØ§Ù† Ø§Ù„ÙØ±Ø¹ÙŠ"
+                                  placeholder="Subtopic name / اسم العنوان الفرعي"
                                   className="w-full px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-purple-500"
                                   onKeyDown={e => e.key === 'Enter' && handleAddSubtopic(chapter.reference_id)}
                                   autoFocus
@@ -704,12 +704,12 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
                                 onClick={() => setAddingSubtopicFor(null)}
                                 className="px-2 py-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 text-xs shrink-0"
                               >
-                                âœ•
+                                ✕
                               </button>
                             </div>
                             {subStartPage <= subEndPage && subTopic.trim() && (
                               <p className="text-[10px] text-purple-500 dark:text-purple-400 mt-1.5">
-                                ðŸ“„ {subEndPage - subStartPage + 1} page{subEndPage - subStartPage + 1 !== 1 ? 's' : ''} Â· Chapter range will auto-update Â· Enter adds & keeps form open
+                                📄 {subEndPage - subStartPage + 1} page{subEndPage - subStartPage + 1 !== 1 ? 's' : ''} · Chapter range will auto-update · Enter adds & keeps form open
                               </p>
                             )}
                           </div>
@@ -723,7 +723,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
                               className="text-xs text-purple-500 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 flex items-center gap-1"
                             >
                               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                              Add subtopic / Ø¥Ø¶Ø§ÙØ© Ø¹Ù†ÙˆØ§Ù† ÙØ±Ø¹ÙŠ
+                              Add subtopic / إضافة عنوان فرعي
                             </button>
                           </div>
                         )}
@@ -751,7 +751,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
       <ConfirmDialog
         isOpen={!!deleteConfirmId}
         type="danger"
-        title="Delete Reference / Ø­Ø°Ù Ø§Ù„Ù…Ø±Ø¬Ø¹"
+        title="Delete Reference / حذف المرجع"
         message={
           deleteConfirmId && tree.has(deleteConfirmId)
             ? `This will delete the chapter and its ${tree.get(deleteConfirmId)!.length} subtopic(s). This action cannot be undone.`

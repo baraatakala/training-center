@@ -141,7 +141,7 @@ export function Teachers() {
       if (result.errors.length > 0) {
         toast.warning(`Import done with ${result.errors.length} error(s): ${result.errors.slice(0, 3).join('; ')}`);
       } else if (result.created === 0 && result.updated > 0) {
-        toast.info(`${result.updated} existing teacher(s) updated. No new teachers created Ã¢â‚¬â€ the imported data matched existing records.`);
+        toast.info(`${result.updated} existing teacher(s) updated. No new teachers created — the imported data matched existing records.`);
       } else {
         toast.success(`${result.created} created, ${result.updated} updated.`);
       }

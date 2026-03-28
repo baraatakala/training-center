@@ -2,7 +2,7 @@
  * Excuse Request Service
  * 
  * Handles CRUD operations for student absence excuse requests.
- * Students submit requests â†’ Teachers/Admins approve/reject.
+ * Students submit requests → Teachers/Admins approve/reject.
  * On approval, the corresponding attendance record is updated to 'excused'.
  */
 
@@ -50,12 +50,12 @@ export interface ReviewExcuseRequest {
 }
 
 export const EXCUSE_REASONS = [
-  { value: 'sick', label: 'Sick / Medical', labelAr: 'Ù…Ø±Ø¶ / Ø·Ø¨ÙŠ', icon: 'ðŸ¥' },
-  { value: 'abroad', label: 'Abroad / Travel', labelAr: 'Ø³ÙØ±', icon: 'âœˆï¸' },
-  { value: 'working', label: 'Work / Employment', labelAr: 'Ø¹Ù…Ù„', icon: 'ðŸ’¼' },
-  { value: 'family', label: 'Family Emergency', labelAr: 'Ø·ÙˆØ§Ø±Ø¦ Ø¹Ø§Ø¦Ù„ÙŠØ©', icon: 'ðŸ‘¨â€ðŸ‘©â€ðŸ‘§' },
-  { value: 'emergency', label: 'Personal Emergency', labelAr: 'Ø·ÙˆØ§Ø±Ø¦ Ø´Ø®ØµÙŠØ©', icon: 'ðŸš¨' },
-  { value: 'other', label: 'Other', labelAr: 'Ø£Ø®Ø±Ù‰', icon: 'ðŸ“' },
+  { value: 'sick', label: 'Sick / Medical', labelAr: 'مرض / طبي', icon: '🏥' },
+  { value: 'abroad', label: 'Abroad / Travel', labelAr: 'سفر', icon: '✈️' },
+  { value: 'working', label: 'Work / Employment', labelAr: 'عمل', icon: '💼' },
+  { value: 'family', label: 'Family Emergency', labelAr: 'طوارئ عائلية', icon: '👨‍👩‍👧' },
+  { value: 'emergency', label: 'Personal Emergency', labelAr: 'طوارئ شخصية', icon: '🚨' },
+  { value: 'other', label: 'Other', labelAr: 'أخرى', icon: '📝' },
 ] as const;
 
 const SESSION_DAY_MAP: Record<string, number> = {
@@ -349,7 +349,7 @@ class ExcuseRequestService {
 
     // Guard: prevent re-reviewing already-processed requests
     if (request.status !== 'pending') {
-      return { data: null, error: new Error(`Request already ${request.status} â€” cannot review again`) };
+      return { data: null, error: new Error(`Request already ${request.status} — cannot review again`) };
     }
 
     if (review.status === 'approved') {
@@ -416,7 +416,7 @@ class ExcuseRequestService {
 
         if (attendanceError) {
           console.error('Failed to upsert attendance on approval:', attendanceError);
-          // Don't fail the whole operation â€” request is approved.
+          // Don't fail the whole operation — request is approved.
         }
       } else {
         // Legacy fallback: update by student/session/date when enrollment is unavailable.

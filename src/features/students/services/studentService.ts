@@ -149,15 +149,15 @@ export const studentService = {
 
   // Photo storage
   async uploadPhoto(filePath: string, file: File) {
-    return await supabase.storage.from('student_photos').upload(filePath, file, { upsert: true });
+    return await supabase.storage.from('student-photos').upload(filePath, file, { upsert: true });
   },
 
   async getPhotoSignedUrl(filePath: string, expiresIn = 3600) {
-    return await supabase.storage.from('student_photos').createSignedUrl(filePath, expiresIn);
+    return await supabase.storage.from('student-photos').createSignedUrl(filePath, expiresIn);
   },
 
   async deletePhoto(filePath: string) {
-    return await supabase.storage.from('student_photos').remove([filePath]);
+    return await supabase.storage.from('student-photos').remove([filePath]);
   },
 
   // Lookup by email

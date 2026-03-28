@@ -103,7 +103,7 @@ export function Attendance() {
           .maybeSingle();
 
         if (adminRecord) {
-          // Admin user Ã¢â‚¬â€ no fake teacher record needed
+          // Admin user — no fake teacher record needed
           setIsTeacher(true);
           return;
         }
@@ -427,7 +427,7 @@ export function Attendance() {
 
       hostsWithAddresses.unshift({
         student_id: teacher.teacher_id,
-        student_name: `Ã°Å¸Å½â€œ ${teacher.name} (Teacher)`,
+        student_name: `🎓 ${teacher.name} (Teacher)`,
         address: teacher.address,
         host_date: teacherHostData?.host_date || null,
         is_active: true,
@@ -572,7 +572,7 @@ export function Attendance() {
       setSessionNotHeld(false);
     }
 
-    // Signal that host data has been loaded Ã¢â‚¬â€ auto-suggest can now safely fire
+    // Signal that host data has been loaded — auto-suggest can now safely fire
     setHostDataLoaded(true);
 
     // Get all enrollments for this session
@@ -879,7 +879,7 @@ export function Attendance() {
     if (!sessionId || !fbQuestionText.trim()) return;
     setFbSavingQuestion(true);
     const options = fbQuestionType === 'multiple_choice'
-      ? fbOptionsText.split(/[,Ã˜Å’]/).map(o => o.trim()).filter(Boolean)
+      ? fbOptionsText.split(/[,،]/).map(o => o.trim()).filter(Boolean)
       : [];
     if (fbEditingQuestionId) {
       const { error } = await feedbackService.updateQuestion(fbEditingQuestionId, {
@@ -1795,7 +1795,7 @@ export function Attendance() {
         <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle className="text-red-600 dark:text-red-400 flex items-center gap-2">
-              <span className="text-3xl">Ã°Å¸â€â€™</span>
+              <span className="text-3xl">🔒</span>
               <span>Access Denied</span>
             </CardTitle>
           </CardHeader>
@@ -1816,7 +1816,7 @@ export function Attendance() {
     return (
       <div className="text-center py-12">
         <div className="inline-block p-6 bg-red-50 border-2 border-red-200 rounded-lg">
-          <p className="text-red-600 font-semibold mb-2">Ã¢Å¡Â Ã¯Â¸Â Error Loading Attendance</p>
+          <p className="text-red-600 font-semibold mb-2">⚠️ Error Loading Attendance</p>
           <p className="text-red-500 text-sm">{error}</p>
           <Button onClick={() => { setError(null); setLoading(true); loadSession(); }} className="mt-4">
             Retry
@@ -1850,7 +1850,7 @@ export function Attendance() {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-3">
-              <span className="text-3xl">Ã°Å¸â€œâ€¹</span> Mark Attendance
+              <span className="text-3xl">📋</span> Mark Attendance
             </h1>
             <p className="text-white/80 text-sm mt-1">
               {courseName} &bull; {session.day || ''} {session.time ? `@ ${session.time}` : ''}
@@ -1868,7 +1868,7 @@ export function Attendance() {
                 }}
                 className="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white border border-white/30 flex items-center gap-2"
               >
-                <span className="text-xl">Ã°Å¸â€œÂ±</span>
+                <span className="text-xl">📱</span>
                 <span className="hidden sm:inline">Check-In</span>
               </Button>
             </div>
@@ -1893,7 +1893,7 @@ export function Attendance() {
               disabled={!selectedDate || availableDates.findIndex(d => d.value === selectedDate) === 0}
               className="bg-gray-600 hover:bg-gray-700 flex-1 sm:flex-none"
             >
-              Ã¢â€ Â Previous
+              ← Previous
             </Button>
             
             <div className="flex-1 text-center">
@@ -1914,14 +1914,14 @@ export function Attendance() {
               disabled={!selectedDate || availableDates.findIndex(d => d.value === selectedDate) === availableDates.length - 1}
               className="bg-gray-600 hover:bg-gray-700 flex-1 sm:flex-none"
             >
-              Next Ã¢â€ â€™
+              Next →
             </Button>
           </div>
           
           {/* Dropdown for jumping to specific date */}
           <details className="mt-3">
             <summary className="cursor-pointer text-sm text-blue-600 hover:text-blue-800 font-medium">
-              Ã°Å¸â€œâ€¦ Jump to specific date
+              📅 Jump to specific date
             </summary>
             <div className="mt-3">
               <Select
@@ -1975,7 +1975,7 @@ export function Attendance() {
               options={hostAddresses.map(host => ({
                 value: `${host.student_id}|||${host.address}`,
                 label: host.host_date === selectedDate 
-                  ? `Ã°Å¸â€œâ€¦ ${host.student_name} - ${host.address} (Scheduled Today)`
+                  ? `📅 ${host.student_name} - ${host.address} (Scheduled Today)`
                   : `${host.student_name} - ${host.address}`
               }))}
               placeholder="Select host address"
@@ -1983,18 +1983,18 @@ export function Attendance() {
             {selectedAddress && selectedAddress !== 'SESSION_NOT_HELD' && (
               <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-blue-800">
-                  Ã°Å¸â€œÂ Selected Address: <span className="font-medium">{selectedAddress.split('|||')[1] || selectedAddress}</span>
+                  📍 Selected Address: <span className="font-medium">{selectedAddress.split('|||')[1] || selectedAddress}</span>
                 </p>
                 
                 {/* GPS Coordinates Section */}
                 <div className="mt-4 border-t border-blue-200 pt-4">
-                  <p className="text-sm font-medium text-blue-900 mb-2">Ã°Å¸Å’Â GPS Coordinates (for proximity validation)</p>
+                  <p className="text-sm font-medium text-blue-900 mb-2">🌐 GPS Coordinates (for proximity validation)</p>
                   
                   {/* Show current coordinates if set */}
                   {hostCoordinates ? (
                     <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded">
                       <p className="text-sm text-green-800">
-                        Ã¢Å“â€¦ <span className="font-medium">Coordinates set:</span> {hostCoordinates.lat.toFixed(6)}, {hostCoordinates.lon.toFixed(6)}
+                        ✅ <span className="font-medium">Coordinates set:</span> {hostCoordinates.lat.toFixed(6)}, {hostCoordinates.lon.toFixed(6)}
                       </p>
                       <p className="text-xs text-green-600 mt-1">
                         Proximity validation is active. Students must be within {session?.proximity_radius || '?'}m to check in.
@@ -2002,7 +2002,7 @@ export function Attendance() {
                     </div>
                   ) : (
                     <p className="text-xs text-amber-700 mb-3 p-2 bg-amber-50 border border-amber-200 rounded">
-                      Ã¢Å¡Â Ã¯Â¸Â No coordinates set. Proximity validation is disabled. Students can check in from anywhere.
+                      ⚠️ No coordinates set. Proximity validation is disabled. Students can check in from anywhere.
                     </p>
                   )}
                   
@@ -2013,9 +2013,9 @@ export function Attendance() {
                         'Enter GPS coordinates in format: latitude,longitude\n\n' +
                         'Example: 33.5138,36.2765\n\n' +
                         'How to find coordinates:\n' +
-                        'Ã¢â‚¬Â¢ Right-click a location on Google Maps\n' +
-                        'Ã¢â‚¬Â¢ Use your phone GPS app\n' +
-                        'Ã¢â‚¬Â¢ Leave blank to disable proximity validation',
+                        '• Right-click a location on Google Maps\n' +
+                        '• Use your phone GPS app\n' +
+                        '• Leave blank to disable proximity validation',
                         currentCoords
                       );
                       
@@ -2084,10 +2084,10 @@ export function Attendance() {
                     }}
                     className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   >
-                    Ã°Å¸â€œÂ Set/Update GPS Coordinates
+                    📍 Set/Update GPS Coordinates
                   </button>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                    Ã°Å¸â€™Â¡ Tip: Proximity radius is {session?.proximity_radius || 'not set'}{session?.proximity_radius ? 'm' : ''}. Update in Sessions page if needed.
+                    💡 Tip: Proximity radius is {session?.proximity_radius || 'not set'}{session?.proximity_radius ? 'm' : ''}. Update in Sessions page if needed.
                   </p>
                 </div>
               </div>
@@ -2099,7 +2099,7 @@ export function Attendance() {
       {selectedDate && bookReferences.length > 0 && !sessionNotHeld && (
         <Card>
           <CardHeader>
-            <CardTitle>Ã°Å¸â€œÅ¡ Book Reference</CardTitle>
+            <CardTitle>📚 Book Reference</CardTitle>
           </CardHeader>
           <CardContent>
             <Select
@@ -2111,16 +2111,16 @@ export function Attendance() {
                   const chapters = bookReferences.filter(r => !r.parent_id);
                   const opts: Array<{ value: string; label: string }> = [];
                   chapters.forEach(ch => {
-                    opts.push({ value: ch.reference_id, label: `Ã°Å¸â€œâ€“ ${ch.topic} (pp. ${ch.start_page}Ã¢â‚¬â€œ${ch.end_page})` });
+                    opts.push({ value: ch.reference_id, label: `📖 ${ch.topic} (pp. ${ch.start_page}–${ch.end_page})` });
                     const subs = bookReferences.filter(r => r.parent_id === ch.reference_id);
                     subs.forEach(sub => {
-                      opts.push({ value: sub.reference_id, label: `    Ã¢â€ Â³ ${sub.topic} (pp. ${sub.start_page}Ã¢â‚¬â€œ${sub.end_page})` });
+                      opts.push({ value: sub.reference_id, label: `    ↳ ${sub.topic} (pp. ${sub.start_page}–${sub.end_page})` });
                     });
                   });
                   // Include any orphans (parent_id set but parent not found) - shouldn't happen but safe
                   const chapterIds = new Set(chapters.map(c => c.reference_id));
                   bookReferences.filter(r => r.parent_id && !chapterIds.has(r.parent_id)).forEach(orphan => {
-                    opts.push({ value: orphan.reference_id, label: `${orphan.topic} (pp. ${orphan.start_page}Ã¢â‚¬â€œ${orphan.end_page})` });
+                    opts.push({ value: orphan.reference_id, label: `${orphan.topic} (pp. ${orphan.start_page}–${orphan.end_page})` });
                   });
                   return opts;
                 })()
@@ -2134,7 +2134,7 @@ export function Attendance() {
                   if (selected) {
                     return (
                       <div className="flex items-start gap-2">
-                        <span className="text-xl">Ã°Å¸â€œÅ¡</span>
+                        <span className="text-xl">📚</span>
                         <div>
                           <p className="font-semibold text-blue-900">{selected.topic}</p>
                           <p className="text-sm text-blue-700 mt-1">
@@ -2150,7 +2150,7 @@ export function Attendance() {
             )}
             {bookReferences.length > 0 && !selectedBookReference && (
               <p className="mt-2 text-xs text-gray-500">
-                Ã°Å¸â€™Â¡ Tip: Select which topic was covered in today's session for better tracking
+                💡 Tip: Select which topic was covered in today's session for better tracking
               </p>
             )}
           </CardContent>
@@ -2162,7 +2162,7 @@ export function Attendance() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>Ã°Å¸Å½Â¥ Recording Link</CardTitle>
+              <CardTitle>🎥 Recording Link</CardTitle>
               {recordingId && recordingUrl.trim() && (
                 <Badge variant="success" className="text-[10px]">Saved</Badge>
               )}
@@ -2176,23 +2176,23 @@ export function Attendance() {
             {recordingId && recordingUrl.trim() && (() => {
               const u = recordingUrl.trim().toLowerCase();
               const providers: Array<{ test: (s: string) => boolean; name: string; icon: string; color: string }> = [
-                { test: s => /youtube\.com|youtu\.be/.test(s), name: 'YouTube', icon: 'Ã°Å¸â€Â´', color: 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20' },
-                { test: s => /drive\.google\.com/.test(s), name: 'Drive', icon: 'Ã°Å¸Å¸Â©', color: 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20' },
-                { test: s => /zoom\.(us|com)/.test(s), name: 'Zoom', icon: 'Ã°Å¸Å¸Â¦', color: 'border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20' },
-                { test: s => /vimeo\.com/.test(s), name: 'Vimeo', icon: 'Ã°Å¸Å¸Â£', color: 'border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20' },
-                { test: s => /loom\.com/.test(s), name: 'Loom', icon: 'Ã°Å¸Å¸Â ', color: 'border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20' },
-                { test: s => /teams\.microsoft\.com|teams\.live\.com/.test(s), name: 'Teams', icon: 'Ã°Å¸Å¸Âª', color: 'border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-900/20' },
-                { test: s => /meet\.google\.com/.test(s), name: 'Meet', icon: 'Ã°Å¸Å¸Â¢', color: 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20' },
-                { test: s => /t\.me\/|telegram\.me/.test(s), name: 'Telegram', icon: 'Ã¢Å“Ë†Ã¯Â¸Â', color: 'border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20' },
-                { test: s => /wa\.me|whatsapp/.test(s), name: 'WhatsApp', icon: 'Ã°Å¸â€™Â¬', color: 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20' },
-                { test: s => /onedrive|1drv\.ms|sharepoint/.test(s), name: 'OneDrive', icon: 'Ã¢ËœÂÃ¯Â¸Â', color: 'border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20' },
-                { test: s => /dropbox\.com/.test(s), name: 'Dropbox', icon: 'Ã°Å¸â€œÂ¦', color: 'border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20' },
-                { test: s => /samsungcloud|samsung\.com/.test(s), name: 'Samsung', icon: 'Ã°Å¸â€œÂ±', color: 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40' },
-                { test: s => /upgone/i.test(s), name: 'Upgone', icon: 'Ã°Å¸Å½â„¢Ã¯Â¸Â', color: 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20' },
-                { test: s => /soundcloud\.com/.test(s), name: 'SoundCloud', icon: 'Ã°Å¸Å½Âµ', color: 'border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20' },
-                { test: s => /\.(mp4|webm|ogg|mov|avi|mkv|m4v|mp3|wav|aac|m4a|flac|3gp)(\?|$)/.test(s), name: 'Media', icon: 'Ã°Å¸Å½Å¾Ã¯Â¸Â', color: 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40' },
+                { test: s => /youtube\.com|youtu\.be/.test(s), name: 'YouTube', icon: '🔴', color: 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20' },
+                { test: s => /drive\.google\.com/.test(s), name: 'Drive', icon: '🟩', color: 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20' },
+                { test: s => /zoom\.(us|com)/.test(s), name: 'Zoom', icon: '🟦', color: 'border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20' },
+                { test: s => /vimeo\.com/.test(s), name: 'Vimeo', icon: '🟣', color: 'border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20' },
+                { test: s => /loom\.com/.test(s), name: 'Loom', icon: '🟠', color: 'border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20' },
+                { test: s => /teams\.microsoft\.com|teams\.live\.com/.test(s), name: 'Teams', icon: '🟪', color: 'border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-900/20' },
+                { test: s => /meet\.google\.com/.test(s), name: 'Meet', icon: '🟢', color: 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20' },
+                { test: s => /t\.me\/|telegram\.me/.test(s), name: 'Telegram', icon: '✈️', color: 'border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20' },
+                { test: s => /wa\.me|whatsapp/.test(s), name: 'WhatsApp', icon: '💬', color: 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20' },
+                { test: s => /onedrive|1drv\.ms|sharepoint/.test(s), name: 'OneDrive', icon: '☁️', color: 'border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20' },
+                { test: s => /dropbox\.com/.test(s), name: 'Dropbox', icon: '📦', color: 'border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20' },
+                { test: s => /samsungcloud|samsung\.com/.test(s), name: 'Samsung', icon: '📱', color: 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40' },
+                { test: s => /upgone/i.test(s), name: 'Upgone', icon: '🎙️', color: 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20' },
+                { test: s => /soundcloud\.com/.test(s), name: 'SoundCloud', icon: '🎵', color: 'border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20' },
+                { test: s => /\.(mp4|webm|ogg|mov|avi|mkv|m4v|mp3|wav|aac|m4a|flac|3gp)(\?|$)/.test(s), name: 'Media', icon: '🎞️', color: 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40' },
               ];
-              const match = providers.find(p => p.test(u)) || { name: 'Link', icon: 'Ã°Å¸â€â€”', color: 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40' };
+              const match = providers.find(p => p.test(u)) || { name: 'Link', icon: '🔗', color: 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40' };
               return (
                 <div className={`mb-3 p-3 rounded-lg border ${match.color}`}>
                   <div className="flex items-center justify-between gap-2">
@@ -2206,7 +2206,7 @@ export function Attendance() {
                     <div className="flex items-center gap-1.5 flex-shrink-0">
                       <a href={recordingUrl.trim()} target="_blank" rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/40 rounded-md hover:bg-blue-200 dark:hover:bg-blue-800/60 transition-colors">
-                        Ã°Å¸â€â€” Open
+                        🔗 Open
                       </a>
                       <button
                         type="button"
@@ -2218,7 +2218,7 @@ export function Attendance() {
                         }}
                         className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 rounded-md hover:bg-red-100 dark:hover:bg-red-800/50 transition-colors"
                       >
-                        Ã°Å¸â€”â€˜ Remove
+                        🗑 Remove
                       </button>
                     </div>
                   </div>
@@ -2238,23 +2238,23 @@ export function Attendance() {
                 {recordingUrl.trim() && !recordingId && (() => {
                   const u = recordingUrl.trim().toLowerCase();
                   const providers: Array<{ test: (s: string) => boolean; name: string; icon: string }> = [
-                    { test: s => /youtube\.com|youtu\.be/.test(s), name: 'YouTube', icon: 'Ã°Å¸â€Â´' },
-                    { test: s => /drive\.google\.com/.test(s), name: 'Drive', icon: 'Ã°Å¸Å¸Â©' },
-                    { test: s => /zoom\.(us|com)/.test(s), name: 'Zoom', icon: 'Ã°Å¸Å¸Â¦' },
-                    { test: s => /vimeo\.com/.test(s), name: 'Vimeo', icon: 'Ã°Å¸Å¸Â£' },
-                    { test: s => /loom\.com/.test(s), name: 'Loom', icon: 'Ã°Å¸Å¸Â ' },
-                    { test: s => /teams\.microsoft\.com|teams\.live\.com/.test(s), name: 'Teams', icon: 'Ã°Å¸Å¸Âª' },
-                    { test: s => /meet\.google\.com/.test(s), name: 'Meet', icon: 'Ã°Å¸Å¸Â¢' },
-                    { test: s => /t\.me\/|telegram\.me/.test(s), name: 'Telegram', icon: 'Ã¢Å“Ë†Ã¯Â¸Â' },
-                    { test: s => /wa\.me|whatsapp/.test(s), name: 'WhatsApp', icon: 'Ã°Å¸â€™Â¬' },
-                    { test: s => /onedrive|1drv\.ms|sharepoint/.test(s), name: 'OneDrive', icon: 'Ã¢ËœÂÃ¯Â¸Â' },
-                    { test: s => /dropbox\.com/.test(s), name: 'Dropbox', icon: 'Ã°Å¸â€œÂ¦' },
-                    { test: s => /samsungcloud|samsung\.com/.test(s), name: 'Samsung', icon: 'Ã°Å¸â€œÂ±' },
-                    { test: s => /upgone/i.test(s), name: 'Upgone', icon: 'Ã°Å¸Å½â„¢Ã¯Â¸Â' },
-                    { test: s => /soundcloud\.com/.test(s), name: 'SoundCloud', icon: 'Ã°Å¸Å½Âµ' },
-                    { test: s => /streamable\.com/.test(s), name: 'Streamable', icon: 'Ã°Å¸â€œÂ¹' },
-                    { test: s => /dailymotion\.com|dai\.ly/.test(s), name: 'Dailymotion', icon: 'Ã°Å¸Å½Â¬' },
-                    { test: s => /\.(mp4|webm|ogg|mov|avi|mkv|m4v|mp3|wav|aac|m4a|flac|3gp)(\?|$)/.test(s), name: 'Media', icon: 'Ã°Å¸Å½Å¾Ã¯Â¸Â' },
+                    { test: s => /youtube\.com|youtu\.be/.test(s), name: 'YouTube', icon: '🔴' },
+                    { test: s => /drive\.google\.com/.test(s), name: 'Drive', icon: '🟩' },
+                    { test: s => /zoom\.(us|com)/.test(s), name: 'Zoom', icon: '🟦' },
+                    { test: s => /vimeo\.com/.test(s), name: 'Vimeo', icon: '🟣' },
+                    { test: s => /loom\.com/.test(s), name: 'Loom', icon: '🟠' },
+                    { test: s => /teams\.microsoft\.com|teams\.live\.com/.test(s), name: 'Teams', icon: '🟪' },
+                    { test: s => /meet\.google\.com/.test(s), name: 'Meet', icon: '🟢' },
+                    { test: s => /t\.me\/|telegram\.me/.test(s), name: 'Telegram', icon: '✈️' },
+                    { test: s => /wa\.me|whatsapp/.test(s), name: 'WhatsApp', icon: '💬' },
+                    { test: s => /onedrive|1drv\.ms|sharepoint/.test(s), name: 'OneDrive', icon: '☁️' },
+                    { test: s => /dropbox\.com/.test(s), name: 'Dropbox', icon: '📦' },
+                    { test: s => /samsungcloud|samsung\.com/.test(s), name: 'Samsung', icon: '📱' },
+                    { test: s => /upgone/i.test(s), name: 'Upgone', icon: '🎙️' },
+                    { test: s => /soundcloud\.com/.test(s), name: 'SoundCloud', icon: '🎵' },
+                    { test: s => /streamable\.com/.test(s), name: 'Streamable', icon: '📹' },
+                    { test: s => /dailymotion\.com|dai\.ly/.test(s), name: 'Dailymotion', icon: '🎬' },
+                    { test: s => /\.(mp4|webm|ogg|mov|avi|mkv|m4v|mp3|wav|aac|m4a|flac|3gp)(\?|$)/.test(s), name: 'Media', icon: '🎞️' },
                   ];
                   const match = providers.find(p => p.test(u));
                   return match ? (
@@ -2270,31 +2270,31 @@ export function Attendance() {
                 size="sm"
                 variant={recordingId ? 'outline' : 'primary'}
               >
-                {savingRecording ? '...' : recordingId ? 'Ã°Å¸â€™Â¾ Update' : 'Ã°Å¸â€™Â¾ Save'}
+                {savingRecording ? '...' : recordingId ? '💾 Update' : '💾 Save'}
               </Button>
             </div>
             <details className="mt-3">
               <summary className="text-[11px] text-gray-400 cursor-pointer hover:text-gray-600 dark:hover:text-gray-300 select-none">
-                Ã¢â€žÂ¹Ã¯Â¸Â Supported formats & tips
+                ℹ️ Supported formats & tips
               </summary>
               <div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400 space-y-1 bg-gray-50 dark:bg-gray-800/40 rounded-lg p-3 border border-gray-100 dark:border-gray-700">
                 <p className="font-medium text-gray-600 dark:text-gray-300 text-xs">Supported recording sources:</p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-0.5">
-                  <span>Ã°Å¸â€Â´ YouTube / YouTube Live</span>
-                  <span>Ã°Å¸Å¸Â¦ Zoom recordings</span>
-                  <span>Ã°Å¸Å¸Â¢ Google Meet</span>
-                  <span>Ã°Å¸Å¸Â© Google Drive videos</span>
-                  <span>Ã°Å¸Å¸Â£ Vimeo</span>
-                  <span>Ã°Å¸Å¸Â  Loom</span>
-                  <span>Ã°Å¸Å¸Âª MS Teams</span>
-                  <span>Ã°Å¸â€œÂ± Samsung Recorder</span>
-                  <span>Ã°Å¸Å½â„¢Ã¯Â¸Â Upgone</span>
-                  <span>Ã¢ËœÂÃ¯Â¸Â OneDrive / SharePoint</span>
-                  <span>Ã°Å¸â€œÂ¦ Dropbox</span>
-                  <span>Ã°Å¸Å½Âµ SoundCloud</span>
-                  <span>Ã°Å¸â€œÂ¹ Streamable</span>
-                  <span>Ã°Å¸Å½Â¬ Dailymotion</span>
-                  <span>Ã°Å¸Å½Å¾Ã¯Â¸Â Direct MP4/MP3/WAV files</span>
+                  <span>🔴 YouTube / YouTube Live</span>
+                  <span>🟦 Zoom recordings</span>
+                  <span>🟢 Google Meet</span>
+                  <span>🟩 Google Drive videos</span>
+                  <span>🟣 Vimeo</span>
+                  <span>🟠 Loom</span>
+                  <span>🟪 MS Teams</span>
+                  <span>📱 Samsung Recorder</span>
+                  <span>🎙️ Upgone</span>
+                  <span>☁️ OneDrive / SharePoint</span>
+                  <span>📦 Dropbox</span>
+                  <span>🎵 SoundCloud</span>
+                  <span>📹 Streamable</span>
+                  <span>🎬 Dailymotion</span>
+                  <span>🎞️ Direct MP4/MP3/WAV files</span>
                 </div>
                 <p className="mt-1.5 pt-1.5 border-t border-gray-200 dark:border-gray-600">
                   <strong>Tip:</strong> For Samsung Recorder or Upgone, upload the file to Google Drive or YouTube first, then paste the share link.
@@ -2306,14 +2306,14 @@ export function Attendance() {
         </Card>
       )}
 
-      {/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Feedback Question Management Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
+      {/* ─── Feedback Question Management ─── */}
       {selectedDate && session && (
         <Card>
           <CardContent className="pt-6 space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div>
                 <h3 className="text-base font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                  Ã°Å¸â€œâ€¹ Feedback Setup
+                  📋 Feedback Setup
                 </h3>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   This config applies only to {format(new Date(selectedDate), 'MMMM dd, yyyy')}.
@@ -2327,12 +2327,12 @@ export function Attendance() {
                     const { error } = await feedbackService.toggleFeedback(sessionId!, next);
                     if (error) { toast.error('Failed to toggle feedback'); return; }
                     setSession(prev => prev ? { ...prev, feedback_enabled: next } : prev);
-                    toast.success(next ? 'Feedback enabled Ã¢â‚¬â€ students will see the form after check-in' : 'Feedback disabled');
+                    toast.success(next ? 'Feedback enabled — students will see the form after check-in' : 'Feedback disabled');
                   }}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                     session?.feedback_enabled ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600'
                   }`}
-                  title={session?.feedback_enabled ? 'Feedback is ON for students' : 'Feedback is OFF Ã¢â‚¬â€ students will NOT see the form'}
+                  title={session?.feedback_enabled ? 'Feedback is ON for students' : 'Feedback is OFF — students will NOT see the form'}
                 >
                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                     session?.feedback_enabled ? 'translate-x-6' : 'translate-x-1'
@@ -2364,7 +2364,7 @@ export function Attendance() {
 
             {!session?.feedback_enabled && fbQuestions.length > 0 && (
               <div className="rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-700 dark:text-amber-300 flex items-center gap-2">
-                <span className="text-lg">Ã¢Å¡Â Ã¯Â¸Â</span>
+                <span className="text-lg">⚠️</span>
                 <span>You have {fbQuestions.length} question{fbQuestions.length === 1 ? '' : 's'} ready but feedback is <strong>OFF</strong>. Turn the toggle ON so students see the form after check-in.</span>
               </div>
             )}
@@ -2502,7 +2502,7 @@ export function Attendance() {
                             className="text-xs p-1.5 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 transition-colors"
                             title="Edit"
                           >
-                            Ã¢Å“ÂÃ¯Â¸Â
+                            ✏️
                           </button>
                           <button
                             type="button"
@@ -2510,7 +2510,7 @@ export function Attendance() {
                             className="text-xs p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 dark:text-red-400 transition-colors"
                             title="Delete"
                           >
-                            Ã°Å¸â€”â€˜Ã¯Â¸Â
+                            🗑️
                           </button>
                         </div>
                       </div>
@@ -2534,7 +2534,7 @@ export function Attendance() {
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div className="text-white">
                   <h2 className="text-lg font-bold flex items-center gap-2">
-                    Ã°Å¸â€œâ€¦ Attendance for {format(new Date(selectedDate), 'MMMM dd, yyyy')}
+                    📅 Attendance for {format(new Date(selectedDate), 'MMMM dd, yyyy')}
                   </h2>
                   <p className="text-white/80 text-sm mt-0.5">
                     {session.location || 'No location specified'} &bull; {session.time || 'No time specified'} &bull; {courseName}
@@ -2547,19 +2547,19 @@ export function Attendance() {
                         onClick={() => handleBulkUpdate('on time')}
                         className="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white border border-white/30 text-xs sm:text-sm"
                       >
-                        Ã¢Å“â€¦ On Time ({selectedStudents.size})
+                        ✅ On Time ({selectedStudents.size})
                       </Button>
                       <Button
                         onClick={() => handleBulkUpdate('absent')}
                         className="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white border border-white/30 text-xs sm:text-sm"
                       >
-                        Ã¢ÂÅ’ Absent ({selectedStudents.size})
+                        ❌ Absent ({selectedStudents.size})
                       </Button>
                       <Button
                         onClick={() => handleBulkUpdate('late')}
                         className="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white border border-white/30 text-xs sm:text-sm"
                       >
-                        Ã¢ÂÂ° Late ({selectedStudents.size})
+                        ⏰ Late ({selectedStudents.size})
                       </Button>
                     </>
                   ) : (
@@ -2586,43 +2586,43 @@ export function Attendance() {
                       <div className="text-2xl sm:text-3xl font-bold text-slate-800 dark:text-white">
                         {attendanceStats.total}
                       </div>
-                      <div className="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">Ã°Å¸â€˜Â¥ Total</div>
+                      <div className="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">👥 Total</div>
                     </div>
                     <div className="bg-gradient-to-br from-emerald-50 to-green-100 dark:from-emerald-900/30 dark:to-green-800/30 rounded-xl p-3 text-center shadow-sm border border-emerald-200 dark:border-emerald-700">
                       <div className="text-2xl sm:text-3xl font-bold text-emerald-600 dark:text-emerald-400">
                         {attendanceStats.onTime}
                       </div>
-                      <div className="text-xs font-medium text-emerald-700 dark:text-emerald-400 mt-1">Ã¢Å“â€¦ On Time</div>
+                      <div className="text-xs font-medium text-emerald-700 dark:text-emerald-400 mt-1">✅ On Time</div>
                     </div>
                     <div className="bg-gradient-to-br from-red-50 to-rose-100 dark:from-red-900/30 dark:to-rose-800/30 rounded-xl p-3 text-center shadow-sm border border-red-200 dark:border-red-700">
                       <div className="text-2xl sm:text-3xl font-bold text-red-600 dark:text-red-400">
                         {attendanceStats.absent}
                       </div>
-                      <div className="text-xs font-medium text-red-700 dark:text-red-400 mt-1">Ã¢ÂÅ’ Absent</div>
+                      <div className="text-xs font-medium text-red-700 dark:text-red-400 mt-1">❌ Absent</div>
                     </div>
                     <div className="bg-gradient-to-br from-amber-50 to-yellow-100 dark:from-amber-900/30 dark:to-yellow-800/30 rounded-xl p-3 text-center shadow-sm border border-amber-200 dark:border-amber-700">
                       <div className="text-2xl sm:text-3xl font-bold text-amber-600 dark:text-amber-400">
                         {attendanceStats.late}
                       </div>
-                      <div className="text-xs font-medium text-amber-700 dark:text-amber-400 mt-1">Ã¢ÂÂ° Late</div>
+                      <div className="text-xs font-medium text-amber-700 dark:text-amber-400 mt-1">⏰ Late</div>
                     </div>
                     <div className="bg-gradient-to-br from-blue-50 to-sky-100 dark:from-blue-900/30 dark:to-sky-800/30 rounded-xl p-3 text-center shadow-sm border border-blue-200 dark:border-blue-700">
                       <div className="text-2xl sm:text-3xl font-bold text-blue-600 dark:text-blue-400">
                         {attendanceStats.excused}
                       </div>
-                      <div className="text-xs font-medium text-blue-700 dark:text-blue-400 mt-1">Ã°Å¸â€œÂ Excused</div>
+                      <div className="text-xs font-medium text-blue-700 dark:text-blue-400 mt-1">📝 Excused</div>
                     </div>
                     <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 rounded-xl p-3 text-center shadow-sm border border-gray-200 dark:border-gray-600">
                       <div className="text-2xl sm:text-3xl font-bold text-gray-400 dark:text-gray-500">
                         {attendanceStats.pending}
                       </div>
-                      <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1">Ã¢Â¬Å“ Not Marked</div>
+                      <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1">⬜ Not Marked</div>
                     </div>
                     <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 rounded-xl p-3 text-center shadow-sm border border-gray-200 dark:border-gray-600">
                       <div className="text-2xl sm:text-3xl font-bold text-gray-500 dark:text-gray-400">
                         {attendanceStats.notEnrolled}
                       </div>
-                      <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1">Ã°Å¸Å¡Â« Not Enrolled</div>
+                      <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1">🚫 Not Enrolled</div>
                     </div>
                   </div>
 
@@ -2630,7 +2630,7 @@ export function Attendance() {
                   {pendingExcuseRequests.length > 0 && (
                     <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3 space-y-2">
                       <div className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-300">
-                        <span>Ã°Å¸â€œâ€¹</span>
+                        <span>📋</span>
                         <span>{pendingExcuseRequests.length} Pending Excuse Request{pendingExcuseRequests.length > 1 ? 's' : ''}</span>
                       </div>
                       {pendingExcuseRequests.map(req => {
@@ -2646,7 +2646,7 @@ export function Attendance() {
                                 <p className="text-xs text-gray-400 dark:text-gray-500 truncate mt-0.5">&ldquo;{req.description}&rdquo;</p>
                               )}
                               {req.supporting_doc_url && (
-                                <a href={req.supporting_doc_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline">Ã°Å¸â€œÅ½ Document</a>
+                                <a href={req.supporting_doc_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline">📎 Document</a>
                               )}
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
@@ -2655,14 +2655,14 @@ export function Attendance() {
                                 className="bg-emerald-600 hover:bg-emerald-700 text-xs px-2.5 py-1"
                                 size="sm"
                               >
-                                Ã¢Å“â€¦ Approve
+                                ✅ Approve
                               </Button>
                               <Button
                                 onClick={() => handleExcuseAction(req.request_id, 'rejected')}
                                 className="bg-red-500 hover:bg-red-600 text-white text-xs px-2.5 py-1"
                                 size="sm"
                               >
-                                Ã¢ÂÅ’ Reject
+                                ❌ Reject
                               </Button>
                             </div>
                           </div>
@@ -2736,7 +2736,7 @@ export function Attendance() {
                             <h3 className="font-medium truncate dark:text-white">{record.student.name}</h3>
                             {studentExcuseReq && (
                               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 animate-pulse" title={`Pending excuse: ${studentExcuseReq.reason}`}>
-                                Ã°Å¸â€œâ€¹ Excuse Pending
+                                📋 Excuse Pending
                               </span>
                             )}
                           </div>
@@ -2793,7 +2793,7 @@ export function Attendance() {
                                   className="group flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-800/50 transition-colors"
                                   title="Click to edit late duration"
                                 >
-                                  {record.late_minutes != null ? `${record.late_minutes} min` : 'Ã¢â‚¬â€'}
+                                  {record.late_minutes != null ? `${record.late_minutes} min` : '—'}
                                   <svg className="w-3 h-3 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                 </button>
                               )}
@@ -2814,19 +2814,19 @@ export function Attendance() {
                           onClick={() => updateAttendance(record.attendance_id, 'on time')}
                           className="bg-emerald-500 hover:bg-emerald-600 text-xs sm:text-sm px-3 sm:px-4 rounded-full shadow-sm"
                         >
-                          Ã¢Å“â€¦ On Time
+                          ✅ On Time
                         </Button>
                         <Button
                           onClick={() => updateAttendance(record.attendance_id, 'absent')}
                           className="bg-red-500 hover:bg-red-600 text-xs sm:text-sm px-3 sm:px-4 rounded-full shadow-sm"
                         >
-                          Ã¢ÂÅ’ Absent
+                          ❌ Absent
                         </Button>
                         <Button
                           onClick={() => updateAttendance(record.attendance_id, 'late')}
                           className="bg-amber-500 hover:bg-amber-600 text-xs sm:text-sm px-3 sm:px-4 rounded-full shadow-sm"
                         >
-                          Ã¢ÂÂ° Late
+                          ⏰ Late
                         </Button>
                         <div className="flex items-center gap-1">
                           {excuseDropdownOpen === record.attendance_id ? (
@@ -2931,7 +2931,7 @@ export function Attendance() {
       <ConfirmDialog
         isOpen={confirmSessionNotHeld}
         title="Mark Session Not Held"
-        message={'Mark this session as NOT HELD?\n\nThis will:\nÃ¢â‚¬Â¢ Mark all students as EXCUSED (session cancelled)\nÃ¢â‚¬Â¢ Set excuse reason to "Session Not Held"\nÃ¢â‚¬Â¢ Set host address to "Session Not Held"\nÃ¢â‚¬Â¢ This date will be skipped in rotation calculations'}
+        message={'Mark this session as NOT HELD?\n\nThis will:\n• Mark all students as EXCUSED (session cancelled)\n• Set excuse reason to "Session Not Held"\n• Set host address to "Session Not Held"\n• This date will be skipped in rotation calculations'}
         confirmText="Mark Not Held"
         cancelText="Cancel"
         type="warning"

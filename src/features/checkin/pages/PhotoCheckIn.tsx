@@ -227,7 +227,7 @@ export function PhotoCheckIn() {
       if (teacher?.address && teacher.address.trim() !== '') {
         hostList.push({
           student_id: teacher.teacher_id,
-          student_name: `Ã°Å¸Å½â€œ ${teacher.name} (Teacher)`,
+          student_name: `🎓 ${teacher.name} (Teacher)`,
           address: teacher.address,
           host_date: null,
           is_teacher: true
@@ -255,7 +255,7 @@ export function PhotoCheckIn() {
 
       // VALIDATION: Host address MUST be set by teacher
       if (!hostData?.host_address || hostData.host_address === 'SESSION_NOT_HELD') {
-        setError('Ã¢ÂÅ’ Host address not set. Please ask your teacher to select a host address before check-in.');
+        setError('❌ Host address not set. Please ask your teacher to select a host address before check-in.');
         setLoading(false);
         return;
       }
@@ -498,12 +498,12 @@ export function PhotoCheckIn() {
       
       // Adaptive confidence calculation:
       // Use a sigmoid-based mapping for smoother confidence values
-      // distance 0.0 Ã¢â€ â€™ ~100%, distance 0.4 Ã¢â€ â€™ ~80%, distance 0.6 Ã¢â€ â€™ ~50%, distance 1.0 Ã¢â€ â€™ ~10%
+      // distance 0.0 → ~100%, distance 0.4 → ~80%, distance 0.6 → ~50%, distance 1.0 → ~10%
       const confidence = Math.round(Math.max(0, Math.min(100, (1 - distance) * 120 - 5)));
       
       // Adaptive threshold based on detection quality:
-      // - Both detections have high score Ã¢â€ â€™ be slightly more lenient (0.55)
-      // - Normal case Ã¢â€ â€™ standard threshold (0.50)
+      // - Both detections have high score → be slightly more lenient (0.55)
+      // - Normal case → standard threshold (0.50)
       // - This reduces false negatives for good-quality photos
       const refScore = refDetection.detection.score;
       const capScore = capturedDetection.detection.score;
@@ -605,13 +605,13 @@ export function PhotoCheckIn() {
         if (proximityRequired) {
           // GPS is REQUIRED but failed - block check-in
           if (errorMessage === 'GPS_PERMISSION_DENIED') {
-            setError('Ã¢ÂÅ’ Location permission denied!\n\nGPS is required for check-in at this session.\n\nPlease enable location access in your browser settings and try again.');
+            setError('❌ Location permission denied!\n\nGPS is required for check-in at this session.\n\nPlease enable location access in your browser settings and try again.');
           } else if (errorMessage === 'GPS_TIMEOUT') {
-            setError('Ã¢ÂÅ’ Could not get your location (timeout).\n\nGPS is required for check-in. Please ensure you have a clear view of the sky and try again.');
+            setError('❌ Could not get your location (timeout).\n\nGPS is required for check-in. Please ensure you have a clear view of the sky and try again.');
           } else if (errorMessage === 'GPS_NOT_SUPPORTED') {
-            setError('Ã¢ÂÅ’ Your browser does not support GPS.\n\nPlease use a modern browser with location services enabled.');
+            setError('❌ Your browser does not support GPS.\n\nPlease use a modern browser with location services enabled.');
           } else {
-            setError('Ã¢ÂÅ’ Could not get your location.\n\nGPS is required for check-in at this session. Please try again.');
+            setError('❌ Could not get your location.\n\nGPS is required for check-in at this session. Please try again.');
           }
           setSubmitting(false);
           return;
@@ -637,7 +637,7 @@ export function PhotoCheckIn() {
 
         if (!proximityResult.isWithinRadius) {
           setError(
-            `Ã¢Å¡Â Ã¯Â¸Â You are too far from the session location!\n\n` +
+            `⚠️ You are too far from the session location!\n\n` +
             `Your distance: ${formatDistance(proximityResult.distance)}\n` +
             `Maximum allowed: ${formatDistance(checkInData.session!.proximity_radius!)}\n\n` +
             `Please move closer to ${hostData?.host_address || 'the host'} to check in.`
@@ -647,7 +647,7 @@ export function PhotoCheckIn() {
         }
 
       } else if (checkInData.session?.proximity_radius && !hostLat) {
-        console.warn('Ã°Å¸â€œÂ Proximity radius configured but no host coordinates set - validation skipped');
+        console.warn('📍 Proximity radius configured but no host coordinates set - validation skipped');
       }
 
       const { data: enrollment } = await checkinService.getEnrollmentId(checkInData.session_id, studentInfo.student_id);
@@ -684,7 +684,7 @@ export function PhotoCheckIn() {
         };
         
         // Split by common separators and parse each time
-        const timeParts = checkInData.session.time.split(/[-Ã¢â‚¬â€œÃ¢â‚¬â€]/);
+        const timeParts = checkInData.session.time.split(/[-–—]/);
         const startTime = timeParts[0] ? parseTime(timeParts[0].trim()) : null;
         const endTime = timeParts[1] ? parseTime(timeParts[1].trim()) : null;
         
@@ -823,7 +823,7 @@ export function PhotoCheckIn() {
         <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle className="text-red-600 dark:text-red-400 flex items-center gap-2">
-              <span className="text-3xl">Ã¢Å¡Â Ã¯Â¸Â</span>
+              <span className="text-3xl">⚠️</span>
               <span>Check-In Error</span>
             </CardTitle>
           </CardHeader>
@@ -845,7 +845,7 @@ export function PhotoCheckIn() {
         <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle className={`flex items-center gap-2 ${wasLate ? 'text-orange-600 dark:text-orange-400' : 'text-green-600 dark:text-green-400'}`}>
-              <span className="text-5xl">{wasLate ? 'Ã¢ÂÂ°' : 'Ã¢Å“â€¦'}</span>
+              <span className="text-5xl">{wasLate ? '⏰' : '✅'}</span>
               <span>Face Check-In Successful!</span>
             </CardTitle>
           </CardHeader>
@@ -861,8 +861,8 @@ export function PhotoCheckIn() {
                 <div className={`${checkedInAfterSession ? 'bg-red-100 dark:bg-red-900/40 border-red-300 dark:border-red-700' : 'bg-yellow-100 dark:bg-yellow-900/40 border-yellow-300 dark:border-yellow-700'} border rounded-lg p-3 mb-3`}>
                   <p className={`text-sm font-semibold ${checkedInAfterSession ? 'text-red-800 dark:text-red-300' : 'text-yellow-800 dark:text-yellow-300'}`}>
                     {checkedInAfterSession 
-                      ? 'Ã°Å¸Å¡Â« You checked in AFTER the session ended' 
-                      : `Ã¢Å¡Â Ã¯Â¸Â You were marked as LATE`}
+                      ? '🚫 You checked in AFTER the session ended' 
+                      : `⚠️ You were marked as LATE`}
                   </p>
                 </div>
               )}
@@ -905,7 +905,7 @@ export function PhotoCheckIn() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <span className="text-3xl">Ã°Å¸â€œÂ¸</span>
+            <span className="text-3xl">📸</span>
             <span>Face Check-In</span>
           </CardTitle>
         </CardHeader>
@@ -913,7 +913,7 @@ export function PhotoCheckIn() {
           {/* Session Info */}
           <div className="bg-purple-50 dark:bg-purple-900/40 rounded-lg p-4 space-y-2">
             <div className="flex items-center gap-2">
-              <span className="text-xl">Ã°Å¸â€œÅ¡</span>
+              <span className="text-xl">📚</span>
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Course</p>
                 <p className="font-semibold text-gray-900 dark:text-white text-sm">
@@ -922,7 +922,7 @@ export function PhotoCheckIn() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xl">Ã°Å¸â€œâ€¦</span>
+              <span className="text-xl">📅</span>
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Date</p>
                 <p className="font-semibold text-gray-900 dark:text-white text-sm">
@@ -944,7 +944,7 @@ export function PhotoCheckIn() {
                 />
               ) : (
                 <div className="w-16 h-16 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                  <span className="text-2xl">Ã°Å¸â€˜Â¤</span>
+                  <span className="text-2xl">👤</span>
                 </div>
               )}
               <div>
@@ -980,7 +980,7 @@ export function PhotoCheckIn() {
               />
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-500">
-                <span className="text-5xl mb-2">Ã°Å¸â€œÂ·</span>
+                <span className="text-5xl mb-2">📷</span>
                 <p className="text-sm">Click "Open Camera" to start</p>
               </div>
             )}
@@ -1000,15 +1000,15 @@ export function PhotoCheckIn() {
               : 'bg-red-50 dark:bg-red-900/40 border-red-300 dark:border-red-700'}`}
             >
               {faceMatchResult.error ? (
-                <p className="text-red-600 dark:text-red-400 text-sm">Ã¢ÂÅ’ {faceMatchResult.error}</p>
+                <p className="text-red-600 dark:text-red-400 text-sm">❌ {faceMatchResult.error}</p>
               ) : faceMatchResult.matched ? (
                 <div className="text-center">
-                  <p className="text-green-700 dark:text-green-300 font-semibold text-lg">Ã¢Å“â€¦ Face Verified!</p>
+                  <p className="text-green-700 dark:text-green-300 font-semibold text-lg">✅ Face Verified!</p>
                   <p className="text-green-600 dark:text-green-400 text-sm">{faceMatchResult.confidence}% confidence match</p>
                 </div>
               ) : (
                 <div className="text-center">
-                  <p className="text-red-700 dark:text-red-300 font-semibold">Ã¢ÂÅ’ Face Not Matched</p>
+                  <p className="text-red-700 dark:text-red-300 font-semibold">❌ Face Not Matched</p>
                   <p className="text-red-600 dark:text-red-400 text-sm">Only {faceMatchResult.confidence}% match (need 40%+)</p>
                 </div>
               )}
@@ -1019,10 +1019,10 @@ export function PhotoCheckIn() {
           {selectedAddress && faceMatchResult?.matched && (
             <div>
               <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                Ã°Å¸ÂÂ  Session Location
+                🏠 Session Location
               </label>
               <div className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
-                Ã°Å¸â€œÂ {selectedAddress.split('|||')[1] || selectedAddress}
+                📍 {selectedAddress.split('|||')[1] || selectedAddress}
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Location set by teacher. Your GPS will be checked against this address.
@@ -1033,7 +1033,7 @@ export function PhotoCheckIn() {
           {/* Error message */}
           {error && capturedPhoto && (
             <div className="p-3 bg-red-50 dark:bg-red-900/40 border border-red-200 dark:border-red-700 rounded-lg text-red-600 dark:text-red-400 text-sm">
-              Ã¢Å¡Â Ã¯Â¸Â {error}
+              ⚠️ {error}
             </div>
           )}
 
@@ -1045,7 +1045,7 @@ export function PhotoCheckIn() {
                   onClick={capturePhoto}
                   className="flex-1 bg-purple-600 hover:bg-purple-700"
                 >
-                  Ã°Å¸â€œÂ· Capture
+                  📷 Capture
                 </Button>
                 <Button
                   onClick={stopCamera}
@@ -1068,7 +1068,7 @@ export function PhotoCheckIn() {
                       Checking In...
                     </span>
                   ) : (
-                    <span>Ã¢Å“â€œ Confirm Check-In</span>
+                    <span>✓ Confirm Check-In</span>
                   )}
                 </Button>
               ) : (
@@ -1076,7 +1076,7 @@ export function PhotoCheckIn() {
                   onClick={retryCapture}
                   className="w-full bg-orange-600 hover:bg-orange-700"
                 >
-                  Ã°Å¸â€â€ž Retry Photo
+                  🔄 Retry Photo
                 </Button>
               )
             ) : (
@@ -1084,7 +1084,7 @@ export function PhotoCheckIn() {
                 onClick={startCamera}
                 className="w-full py-4 bg-purple-600 hover:bg-purple-700 text-lg"
               >
-                Ã°Å¸â€œÂ· Open Camera
+                📷 Open Camera
               </Button>
             )}
           </div>

@@ -245,7 +245,7 @@ export function Sessions() {
       return; // Wait for user to pick strategy via dialog
     }
 
-    // No day change Ã¢â‚¬â€ save directly
+    // No day change — save directly
     const { error } = await sessionService.update(editingSession.session_id, data);
 
     if (error) {
@@ -424,7 +424,7 @@ export function Sessions() {
       if (result.errors.length > 0) {
         toast.warning(`Import done with ${result.errors.length} error(s): ${result.errors.slice(0, 3).join('; ')}`);
       } else if (result.created === 0 && result.updated > 0) {
-        toast.info(`${result.updated} existing session(s) updated. No new sessions created Ã¢â‚¬â€ the imported data matched existing records.`);
+        toast.info(`${result.updated} existing session(s) updated. No new sessions created — the imported data matched existing records.`);
       } else {
         toast.success(`${result.created} created, ${result.updated} updated.`);
       }
@@ -466,7 +466,7 @@ export function Sessions() {
       {!isTeacher && (
         <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4">
           <p className="text-yellow-800 dark:text-yellow-200 text-sm">
-            Ã¢Å¡Â Ã¯Â¸Â You are viewing as a student. Edit and add functions are disabled.
+            ⚠️ You are viewing as a student. Edit and add functions are disabled.
           </p>
         </div>
       )}
@@ -474,7 +474,7 @@ export function Sessions() {
       {/* Error Display */}
       {error && (
         <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg p-4">
-          <p className="text-red-800 dark:text-red-200 text-sm">Ã¢ÂÅ’ {error}</p>
+          <p className="text-red-800 dark:text-red-200 text-sm">❌ {error}</p>
           <button 
             onClick={loadSessions} 
             className="mt-2 text-sm text-red-600 dark:text-red-400 underline hover:text-red-800 dark:hover:text-red-300"
@@ -533,7 +533,7 @@ export function Sessions() {
             onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
             className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300"
           >
-            {sortOrder === 'asc' ? 'Ã¢â€ â€˜ Ascending' : 'Ã¢â€ â€œ Descending'}
+            {sortOrder === 'asc' ? '↑ Ascending' : '↓ Descending'}
           </button>
           <span className="text-gray-600 dark:text-gray-400 ml-auto hidden sm:inline">
             Showing {filteredSessions.length} of {sessions.length} sessions
@@ -807,7 +807,7 @@ export function Sessions() {
       <Modal
         isOpen={!!cloneSource}
         onClose={() => setCloneSource(null)}
-        title={`Clone Session Ã¢â‚¬â€ ${cloneSource?.course?.course_name || ''}`}
+        title={`Clone Session — ${cloneSource?.course?.course_name || ''}`}
       >
         {cloneSource && (
           <CloneSessionModal

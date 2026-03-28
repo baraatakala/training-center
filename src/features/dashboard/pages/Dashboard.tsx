@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/Card';
 import { Button } from '@/shared/components/ui/Button';
@@ -149,8 +149,8 @@ export function Dashboard() {
     setComposerChannel(channel);
     setComposerTemplate('attendance_alert');
     setBulkMode(true);
-    setComposerSubject('[BULK] Attendance Alert / ÃƒËœÃ‚Â¥ÃƒËœÃ‚Â´ÃƒËœÃ‚Â¹ÃƒËœÃ‚Â§ÃƒËœÃ‚Â± ÃƒËœÃ‚Â­ÃƒËœÃ‚Â¶Ãƒâ„¢Ã‹â€ ÃƒËœÃ‚Â±');
-    setComposerBody('Each student will receive a personalized message based on their attendance data.\nÃƒËœÃ‚Â³Ãƒâ„¢Ã…Â ÃƒËœÃ‚ÂªÃƒâ„¢Ã¢â‚¬Å¾Ãƒâ„¢Ã¢â‚¬Å¡Ãƒâ„¢Ã¢â‚¬Â° Ãƒâ„¢Ã†â€™Ãƒâ„¢Ã¢â‚¬Å¾ ÃƒËœÃ‚Â·ÃƒËœÃ‚Â§Ãƒâ„¢Ã¢â‚¬Å¾ÃƒËœÃ‚Â¨ ÃƒËœÃ‚Â±ÃƒËœÃ‚Â³ÃƒËœÃ‚Â§Ãƒâ„¢Ã¢â‚¬Å¾ÃƒËœÃ‚Â© Ãƒâ„¢Ã¢â‚¬Â¦ÃƒËœÃ‚Â®ÃƒËœÃ‚ÂµÃƒËœÃ‚ÂµÃƒËœÃ‚Â© ÃƒËœÃ‚Â¨Ãƒâ„¢Ã¢â‚¬Â ÃƒËœÃ‚Â§ÃƒËœÃ‚Â¡Ãƒâ„¢Ã¢â‚¬Â¹ ÃƒËœÃ‚Â¹Ãƒâ„¢Ã¢â‚¬Å¾Ãƒâ„¢Ã¢â‚¬Â° ÃƒËœÃ‚Â¨Ãƒâ„¢Ã…Â ÃƒËœÃ‚Â§Ãƒâ„¢Ã¢â‚¬Â ÃƒËœÃ‚Â§ÃƒËœÃ‚Âª ÃƒËœÃ‚Â­ÃƒËœÃ‚Â¶Ãƒâ„¢Ã‹â€ ÃƒËœÃ‚Â±Ãƒâ„¢Ã¢â‚¬Â¡.');
+    setComposerSubject('[BULK] Attendance Alert / إشعار حضور');
+    setComposerBody('Each student will receive a personalized message based on their attendance data.\nسيتلقى كل طالب رسالة مخصصة بناءً على بيانات حضوره.');
     setComposerOpen(true);
   }, [filteredStudents]);
 
@@ -184,7 +184,7 @@ export function Dashboard() {
     setComposerOpen(false);
   }, [bulkMode, filteredStudents, composerStudent, composerChannel, composerTemplate, composerSubject, composerBody, generateTemplateBody]);
 
-  // Load pending excuses count ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â uses service layer
+  // Load pending excuses count — uses service layer
   const loadPendingExcuses = async () => {
     try {
       const { count } = await excuseRequestService.getPendingCount();
@@ -281,7 +281,7 @@ export function Dashboard() {
         <CardHeader className="flex flex-col gap-4">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <CardTitle>ÃƒÂ°Ã…Â¸Ã…Â½Ã‚Â¯ Smart Attendance Analytics</CardTitle>
+              <CardTitle>🎯 Smart Attendance Analytics</CardTitle>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">AI-powered risk assessment with trend analysis</p>
             </div>
             <Button 
@@ -353,7 +353,7 @@ export function Dashboard() {
             
             return filtered.length === 0 ? (
               <div className="text-center py-8">
-                <div className="text-5xl mb-3">ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“</div>
+                <div className="text-5xl mb-3">✓</div>
                 <p className="text-green-600 dark:text-green-400 font-medium text-lg">Excellent! No attendance concerns</p>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">All students are maintaining healthy attendance patterns</p>
               </div>
@@ -381,25 +381,25 @@ export function Dashboard() {
 
                 {/* Bulk Messaging Toolbar */}
                 <div className="flex flex-wrap items-center gap-2 mb-4 p-3 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-lg">
-                  <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã‚Â¨ Bulk Message ({filtered.length} students):</span>
+                  <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">📨 Bulk Message ({filtered.length} students):</span>
                   <div className="flex gap-2">
                     <button
                       onClick={() => openBulkComposer('email')}
                       className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs font-medium flex items-center gap-1"
                     >
-                      ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã‚Â§ Email All
+                      📧 Email All
                     </button>
                     <button
                       onClick={() => openBulkComposer('sms')}
                       className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs font-medium flex items-center gap-1"
                     >
-                      ÃƒÂ°Ã…Â¸Ã¢â‚¬â„¢Ã‚Â¬ SMS All
+                      💬 SMS All
                     </button>
                     <button
                       onClick={() => openBulkComposer('whatsapp')}
                       className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-xs font-medium flex items-center gap-1"
                     >
-                      ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã‚Â± WhatsApp All
+                      📱 WhatsApp All
                     </button>
                   </div>
                 </div>
@@ -483,7 +483,7 @@ export function Dashboard() {
                             {/* Patterns */}
                             {student.patterns.length > 0 && (
                               <div className="mb-2">
-                                <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">ÃƒÂ°Ã…Â¸Ã¢â‚¬ÂÃ‚Â Detected Patterns:</div>
+                                <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">🔍 Detected Patterns:</div>
                                 <div className="flex flex-wrap gap-1">
                                   {student.patterns.map((pattern, idx) => (
                                     <span key={idx} className="text-xs bg-white dark:bg-gray-800 bg-opacity-70 dark:bg-opacity-50 px-2 py-0.5 rounded border border-gray-300 dark:border-gray-600 dark:text-gray-300">
@@ -504,7 +504,7 @@ export function Dashboard() {
                               )}
                               <div>
                                 <span className="font-semibold">History:</span> {student.presentDays} present / {student.totalDays} total sessions
-                                {student.lastAttendedDate && ` ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ Last attended: ${format(new Date(student.lastAttendedDate), 'MMM dd')}`}
+                                {student.lastAttendedDate && ` • Last attended: ${format(new Date(student.lastAttendedDate), 'MMM dd')}`}
                               </div>
                               <div>
                                 <span className="font-semibold">Email:</span> {student.email}
@@ -519,7 +519,7 @@ export function Dashboard() {
                               className="flex-shrink-0 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap text-sm font-medium text-center"
                               title="Compose Email"
                             >
-                              ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã‚Â§ Email
+                              📧 Email
                             </button>
                             {student.phone && (
                               <>
@@ -528,7 +528,7 @@ export function Dashboard() {
                                   className="flex-shrink-0 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors whitespace-nowrap text-sm font-medium text-center"
                                   title="Compose SMS"
                                 >
-                                  ÃƒÂ°Ã…Â¸Ã¢â‚¬â„¢Ã‚Â¬ SMS
+                                  💬 SMS
                                 </button>
                                 <a
                                   href={generateWhatsAppLink(student)}
@@ -539,7 +539,7 @@ export function Dashboard() {
                                   title="Send WhatsApp"
                                   tabIndex={-1}
                                 >
-                                  ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã‚Â± WhatsApp
+                                  📱 WhatsApp
                                 </a>
                               </>
                             )}
@@ -561,7 +561,7 @@ export function Dashboard() {
         <div className="space-y-6">
           <Card>
             <CardContent className="py-8 text-center">
-              <div className="text-4xl mb-3">ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã…Â¡</div>
+              <div className="text-4xl mb-3">📚</div>
               <p className="text-gray-700 dark:text-gray-200 font-medium text-lg">Welcome to the Training Center</p>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Navigate to your courses, sessions, and attendance records using the menu above.</p>
             </CardContent>
@@ -570,7 +570,7 @@ export function Dashboard() {
             <Link to="/attendance-records">
               <Card className="hover:shadow-lg transition-shadow cursor-pointer">
                 <CardContent className="py-6 text-center">
-                  <div className="text-3xl mb-2">ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã¢â‚¬Â¹</div>
+                  <div className="text-3xl mb-2">📋</div>
                   <p className="font-medium text-gray-800 dark:text-gray-200">My Attendance</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">View your attendance records</p>
                 </CardContent>
@@ -579,7 +579,7 @@ export function Dashboard() {
             <Link to="/excuse-requests">
               <Card className="hover:shadow-lg transition-shadow cursor-pointer">
                 <CardContent className="py-6 text-center">
-                  <div className="text-3xl mb-2">ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã‚Â</div>
+                  <div className="text-3xl mb-2">📝</div>
                   <p className="font-medium text-gray-800 dark:text-gray-200">Excuse Requests</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Submit or track excuse requests</p>
                 </CardContent>
@@ -588,7 +588,7 @@ export function Dashboard() {
             <Link to="/certificates">
               <Card className="hover:shadow-lg transition-shadow cursor-pointer">
                 <CardContent className="py-6 text-center">
-                  <div className="text-3xl mb-2">ÃƒÂ°Ã…Â¸Ã‚ÂÃ¢â‚¬Â </div>
+                  <div className="text-3xl mb-2">🏆</div>
                   <p className="font-medium text-gray-800 dark:text-gray-200">My Certificates</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">View and download certificates</p>
                 </CardContent>

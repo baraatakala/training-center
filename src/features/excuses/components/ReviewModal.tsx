@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { Modal } from '@/shared/components/ui/Modal';
 import { Button } from '@/shared/components/ui/Button';
 import { format, parseISO } from 'date-fns';
@@ -35,7 +35,7 @@ export function ReviewModal({
         <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 space-y-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-lg">
-              Ã°Å¸Å½â€œ
+              🎓
             </div>
             <div>
               <h3 className="text-sm font-bold text-gray-900 dark:text-white">
@@ -48,8 +48,8 @@ export function ReviewModal({
           </div>
 
           <div className="grid grid-cols-2 gap-3 text-sm">
-            <InfoRow label="Course" value={request.session?.course?.course_name || 'Ã¢â‚¬â€'} />
-            <InfoRow label="Date" value={request.attendance_date ? format(parseISO(request.attendance_date), 'EEEE, MMM d, yyyy') : 'Ã¢â‚¬â€'} />
+            <InfoRow label="Course" value={request.session?.course?.course_name || '—'} />
+            <InfoRow label="Date" value={request.attendance_date ? format(parseISO(request.attendance_date), 'EEEE, MMM d, yyyy') : '—'} />
             <InfoRow label="Reason" value={reasonObj ? `${reasonObj.icon} ${reasonObj.label}` : request.reason} />
             <InfoRow label="Submitted" value={format(parseISO(request.created_at), 'MMM d, h:mm a')} />
           </div>
@@ -70,7 +70,7 @@ export function ReviewModal({
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:underline"
             >
-              Ã°Å¸â€œÅ½ View Document: {request.supporting_doc_name || 'Attachment'}
+              📎 View Document: {request.supporting_doc_name || 'Attachment'}
             </a>
           )}
         </div>
@@ -98,14 +98,14 @@ export function ReviewModal({
               disabled={submitting}
               className="bg-red-600 hover:bg-red-700 text-white"
             >
-              {submitting ? '...' : 'Ã¢ÂÅ’ Reject'}
+              {submitting ? '...' : '❌ Reject'}
             </Button>
             <Button
               onClick={() => handleAction('approved')}
               disabled={submitting}
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
             >
-              {submitting ? '...' : 'Ã¢Å“â€¦ Approve'}
+              {submitting ? '...' : '✅ Approve'}
             </Button>
           </div>
         </div>

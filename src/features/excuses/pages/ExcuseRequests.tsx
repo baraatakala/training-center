@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent } from '@/shared/components/ui/Card';
 import { Button } from '@/shared/components/ui/Button';
 import { Select } from '@/shared/components/ui/Select';
@@ -163,7 +163,7 @@ export function ExcuseRequests() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            Ã°Å¸â€œâ€¹ Excuse Requests
+            📋 Excuse Requests
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             {isTeacher
@@ -173,11 +173,11 @@ export function ExcuseRequests() {
         </div>
         <div className="flex items-center gap-2">
           <Button onClick={refresh} variant="outline" size="sm">
-            Ã°Å¸â€â€ž Refresh
+            🔄 Refresh
           </Button>
           {!isTeacher && (
             <Button onClick={() => setShowCreateModal(true)} size="sm">
-              Ã¢Å¾â€¢ New Request
+              ➕ New Request
             </Button>
           )}
         </div>
@@ -185,11 +185,11 @@ export function ExcuseRequests() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
-        <StatsCard label="Total" value={stats.total} color="text-blue-600 dark:text-blue-400" icon="Ã°Å¸â€œÅ " />
-        <StatsCard label="Pending" value={stats.pending} color="text-amber-600 dark:text-amber-400" icon="Ã¢ÂÂ³" highlight={stats.pending > 0} />
-        <StatsCard label="Approved" value={stats.approved} color="text-emerald-600 dark:text-emerald-400" icon="Ã¢Å“â€¦" />
-        <StatsCard label="Rejected" value={stats.rejected} color="text-red-600 dark:text-red-400" icon="Ã¢ÂÅ’" />
-        <StatsCard label="Approval %" value={`${stats.approvalRate}%`} color="text-purple-600 dark:text-purple-400" icon="Ã°Å¸â€œË†" className="hidden lg:block" />
+        <StatsCard label="Total" value={stats.total} color="text-blue-600 dark:text-blue-400" icon="📊" />
+        <StatsCard label="Pending" value={stats.pending} color="text-amber-600 dark:text-amber-400" icon="⏳" highlight={stats.pending > 0} />
+        <StatsCard label="Approved" value={stats.approved} color="text-emerald-600 dark:text-emerald-400" icon="✅" />
+        <StatsCard label="Rejected" value={stats.rejected} color="text-red-600 dark:text-red-400" icon="❌" />
+        <StatsCard label="Approval %" value={`${stats.approvalRate}%`} color="text-purple-600 dark:text-purple-400" icon="📈" className="hidden lg:block" />
       </div>
 
       {/* Filters */}
@@ -210,10 +210,10 @@ export function ExcuseRequests() {
               onChange={value => setStatusFilter(value)}
               options={[
                 { value: 'all', label: 'All Statuses' },
-                { value: 'pending', label: 'Ã¢ÂÂ³ Pending' },
-                { value: 'approved', label: 'Ã¢Å“â€¦ Approved' },
-                { value: 'rejected', label: 'Ã¢ÂÅ’ Rejected' },
-                { value: 'cancelled', label: 'Ã°Å¸Å¡Â« Cancelled' },
+                { value: 'pending', label: '⏳ Pending' },
+                { value: 'approved', label: '✅ Approved' },
+                { value: 'rejected', label: '❌ Rejected' },
+                { value: 'cancelled', label: '🚫 Cancelled' },
               ]}
             />
             <Select
@@ -236,7 +236,7 @@ export function ExcuseRequests() {
       ) : filteredRequests.length === 0 ? (
         <Card>
           <CardContent className="p-12 text-center">
-            <div className="text-4xl mb-3">Ã°Å¸â€œÂ­</div>
+            <div className="text-4xl mb-3">📭</div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">No Requests Found</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               {statusFilter !== 'all'

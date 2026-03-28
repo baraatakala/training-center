@@ -127,7 +127,7 @@ export const Login: React.FC = () => {
         {/* Logo/Brand */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg shadow-purple-500/25 mb-4">
-            <span className="text-3xl">ðŸ“š</span>
+            <span className="text-3xl">📚</span>
           </div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Training Center</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">Manage your educational platform</p>
@@ -140,7 +140,7 @@ export const Login: React.FC = () => {
           {isCheckInFlow && (
             <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 border border-blue-200/50 dark:border-blue-700/50 rounded-2xl">
               <p className="text-sm text-blue-700 dark:text-blue-300 flex items-center gap-3">
-                <span className="flex-shrink-0 w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-xl">ðŸ“±</span>
+                <span className="flex-shrink-0 w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-xl">📱</span>
                 <span>Please log in to complete your attendance check-in</span>
               </p>
             </div>
@@ -207,7 +207,7 @@ export const Login: React.FC = () => {
                       setValidationErrors(prev => ({ ...prev, password: undefined }));
                     }
                   }}
-                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                  placeholder="••••••••"
                   className={`w-full pl-12 pr-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-0 bg-gray-50 dark:bg-gray-700/50 dark:text-white dark:placeholder-gray-400 transition-all ${
                     validationErrors.password 
                       ? 'border-red-400 focus:border-red-500' 
@@ -229,7 +229,7 @@ export const Login: React.FC = () => {
             {error && (
               <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700/50 text-red-700 dark:text-red-300 rounded-xl" role="alert">
                 <span className="flex items-center gap-3">
-                  <span className="flex-shrink-0 w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center">âš ï¸</span>
+                  <span className="flex-shrink-0 w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center">⚠️</span>
                   <span className="text-sm">{error}</span>
                 </span>
               </div>

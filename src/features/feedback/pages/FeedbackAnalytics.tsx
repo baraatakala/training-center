@@ -26,11 +26,11 @@ import {
   PolarRadiusAxis,
 } from 'recharts';
 
-// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Constants Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// ─── Constants ─────────────────────────────────────────────
 const RATING_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#8b5cf6'];
-const RATING_EMOJIS = ['Ã°Å¸ËœÂ¢', 'Ã°Å¸Ëœâ€¢', 'Ã°Å¸ËœÂ', 'Ã°Å¸ËœÅ ', 'Ã°Å¸Â¤Â©'];
+const RATING_EMOJIS = ['😢', '😕', '😐', '😊', '🤩'];
 const MOOD_EMOJIS: Record<string, string> = {
-  Tired: 'Ã°Å¸ËœÂ´', Confused: 'Ã°Å¸Â¤â€', Neutral: 'Ã°Å¸ËœÂ', Happy: 'Ã°Å¸ËœÅ ', Energized: 'Ã°Å¸â€Â¥',
+  Tired: '😴', Confused: '🤔', Neutral: '😐', Happy: '😊', Energized: '🔥',
 };
 const PIE_COLORS = ['#8b5cf6', '#06b6d4', '#f59e0b', '#10b981', '#ef4444', '#ec4899', '#6366f1'];
 
@@ -48,7 +48,7 @@ interface SessionOption {
   feedback_anonymous_allowed: boolean;
 }
 
-// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Per-question analytics helpers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// ─── Per-question analytics helpers ────────────────────────
 function aggregateQuestionResponses(
   question: FeedbackQuestion,
   feedbacks: SessionFeedback[]
@@ -83,7 +83,7 @@ function aggregateQuestionResponses(
   return { type: 'text' as const, answers: values.map(String), total: values.length };
 }
 
-// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ CSV export helper Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// ─── CSV export helper ─────────────────────────────────────
 function exportFeedbackCSV(
   feedbacks: SessionFeedback[],
   questions: FeedbackQuestion[],
@@ -130,9 +130,9 @@ function exportFeedbackCSV(
   URL.revokeObjectURL(url);
 }
 
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// ═══════════════════════════════════════════════════════════
 // MAIN COMPONENT
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// ═══════════════════════════════════════════════════════════
 export function FeedbackAnalytics() {
   const [searchParams] = useSearchParams();
   const sessionParam = searchParams.get('session');
@@ -163,7 +163,7 @@ export function FeedbackAnalytics() {
 
   const selectedSession = sessions.find(s => s.session_id === selectedSessionId);
 
-  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Load sessions Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  // ─── Load sessions ────────────────────────────────────────
   useEffect(() => {
     async function loadSessions() {
       const { data, error } = await feedbackService.getSessionsForAnalytics();
@@ -206,7 +206,7 @@ export function FeedbackAnalytics() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionParam]);
 
-  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Load data for selected session Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  // ─── Load data for selected session ────────────────────────
   useEffect(() => {
     if (!selectedSessionId) return;
     let cancelled = false;
@@ -283,7 +283,7 @@ export function FeedbackAnalytics() {
     return () => { cancelled = true; };
   }, [selectedSessionId, selectedAnalyticsDate]);
 
-  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Derived data Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  // ─── Derived data ──────────────────────────────────────────
 
 
   // Per-question aggregation
@@ -508,9 +508,9 @@ export function FeedbackAnalytics() {
 
 
 
-  // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+  // ═══════════════════════════════════════════════════════════
   // RENDER
-  // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+  // ═══════════════════════════════════════════════════════════
   return (
     <div className="space-y-5">
       {/* Breadcrumb Navigation */}
@@ -518,10 +518,10 @@ export function FeedbackAnalytics() {
         { label: 'Dashboard', path: '/' },
         { label: 'Feedback Analytics' },
       ]} />
-      {/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Header Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
+      {/* ─── Header ─────────────────────────────────────────── */}
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center text-white text-lg shadow-lg shadow-purple-500/20 shrink-0">Ã°Å¸â€™Å“</div>
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center text-white text-lg shadow-lg shadow-purple-500/20 shrink-0">💜</div>
           <div className="min-w-0">
             <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white truncate">Feedback Analytics</h1>
             <p className="text-[11px] text-gray-400 dark:text-gray-500">Student feedback insights & analytics</p>
@@ -535,7 +535,7 @@ export function FeedbackAnalytics() {
               onChange={setSelectedSessionId}
               options={sessions.map(s => ({
                 value: s.session_id,
-                label: `${s.course_name}${s.feedback_enabled ? '' : ' Ã‚Â· Feedback Off'}`,
+                label: `${s.course_name}${s.feedback_enabled ? '' : ' · Feedback Off'}`,
               }))}
               placeholder="Select session..."
             />
@@ -553,16 +553,16 @@ export function FeedbackAnalytics() {
               )}
               className="shrink-0"
             >
-              Ã°Å¸â€œÂ¥ CSV
+              📥 CSV
             </Button>
           )}
         </div>
       </div>
 
-      {/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ No sessions Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
+      {/* ─── No sessions ─────────────────────────────────────── */}
       {sessions.length === 0 && !loading && (
         <div className="text-center py-20">
-          <span className="text-5xl block mb-4">Ã°Å¸â€œÂ­</span>
+          <span className="text-5xl block mb-4">📭</span>
           <h3 className="text-base font-semibold text-gray-900 dark:text-white">No Feedback Sessions</h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 max-w-sm mx-auto">
             Enable feedback in Session settings to start collecting student responses.
@@ -649,12 +649,12 @@ export function FeedbackAnalytics() {
             </div>
           )}
 
-          {/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Tabs (pill style) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
+          {/* ─── Tabs (pill style) ──────────────────────────────── */}
           <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl overflow-x-auto">
             {([
-              { key: 'analytics' as ActiveTab, label: 'Analytics', icon: 'Ã°Å¸â€œÅ ', badge: stats?.totalResponses },
-              { key: 'questions' as ActiveTab, label: 'Questions', icon: 'Ã°Å¸Â§Â©', badge: questions.length },
-              { key: 'dates' as ActiveTab, label: 'By Date', icon: 'Ã°Å¸â€œâ€¦', badge: dateComparison?.dates.length },
+              { key: 'analytics' as ActiveTab, label: 'Analytics', icon: '📊', badge: stats?.totalResponses },
+              { key: 'questions' as ActiveTab, label: 'Questions', icon: '🧩', badge: questions.length },
+              { key: 'dates' as ActiveTab, label: 'By Date', icon: '📅', badge: dateComparison?.dates.length },
             ]).map(t => (
               <button
                 key={t.key}
@@ -734,9 +734,9 @@ export function FeedbackAnalytics() {
             </div>
           </div>
 
-          {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
+          {/* ═══════════════════════════════════════════════════ */}
           {/* TAB: ANALYTICS                                     */}
-          {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
+          {/* ═══════════════════════════════════════════════════ */}
           {activeTab === 'analytics' && (
             <>
               {feedbacks.length > 0 ? (
@@ -746,7 +746,7 @@ export function FeedbackAnalytics() {
                     {[
                       { label: 'Responses', value: String(filteredStats.totalResponses), sub: `${filteredStats.datesCovered} filtered dates`, color: 'purple' },
                       { label: 'Students', value: `${filteredStats.engagedStudents}`, sub: `${filteredResponseRate}% response rate`, color: 'green' },
-                      { label: 'Avg Rating', value: `${filteredStats.averageRating || 'Ã¢â‚¬â€'}`, sub: filteredStats.averageRating ? (RATING_EMOJIS[Math.round(filteredStats.averageRating) - 1] || '') : 'No ratings', color: 'yellow' },
+                      { label: 'Avg Rating', value: `${filteredStats.averageRating || '—'}`, sub: filteredStats.averageRating ? (RATING_EMOJIS[Math.round(filteredStats.averageRating) - 1] || '') : 'No ratings', color: 'yellow' },
                       { label: 'Questions Used', value: `${filteredQuestionAnalytics.filter(item => item.data.total > 0).length}`, sub: filteredStats.latestResponseDate ? `Latest ${filteredStats.latestResponseDate}` : 'No feedback yet', color: 'purple' },
                     ].map(kpi => (
                       <div key={kpi.label} className={`p-4 rounded-xl border ${
@@ -766,7 +766,7 @@ export function FeedbackAnalytics() {
                   <div className="grid grid-cols-1 lg:grid-cols-[1.1fr,0.9fr] gap-4">
                     <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/30 p-4">
                       <div className="flex items-center justify-between gap-3 mb-3">
-                        <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">Ã°Å¸â€œÂ¡ Check-In Method Mix</p>
+                        <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">📡 Check-In Method Mix</p>
                         <span className="text-[10px] text-gray-400">Filtered results only</span>
                       </div>
                       {methodChartData.length > 0 ? (
@@ -786,7 +786,7 @@ export function FeedbackAnalytics() {
 
                     <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/30 p-4">
                       <div className="flex items-center justify-between gap-3 mb-3">
-                        <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">Ã°Å¸Â§Â© Question Coverage</p>
+                        <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">🧩 Question Coverage</p>
                         <Button size="sm" variant="outline" onClick={() => setActiveTab('questions')}>Open Insights</Button>
                       </div>
                       <div className="space-y-2">
@@ -804,7 +804,7 @@ export function FeedbackAnalytics() {
                               <p className="text-xs font-medium text-gray-800 dark:text-gray-200 line-clamp-2">{question.question_text}</p>
                               <span className="text-[10px] rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 px-1.5 py-0.5 shrink-0">{data.total}</span>
                             </div>
-                            <p className="text-[10px] text-gray-400 mt-1">{question.question_type.replace('_', ' ')} Ã‚Â· {question.attendance_date || 'all dates'}</p>
+                            <p className="text-[10px] text-gray-400 mt-1">{question.question_type.replace('_', ' ')} · {question.attendance_date || 'all dates'}</p>
                           </button>
                         ))}
                         {filteredQuestionAnalytics.length === 0 && (
@@ -817,19 +817,19 @@ export function FeedbackAnalytics() {
                   {/* Recent Comments */}
                   {filteredStats.recentComments.length > 0 && (
                     <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/30 p-4">
-                      <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">Ã°Å¸â€™Â¬ Matching Comments</p>
+                      <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">💬 Matching Comments</p>
                       <div className="space-y-2 max-h-[300px] overflow-y-auto">
                         {filteredStats.recentComments.map((c, i) => (
                           <div key={i} className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800/40">
-                            <span className="text-lg shrink-0 mt-0.5">{RATING_EMOJIS[c.rating - 1] || 'Ã¢Ââ€œ'}</span>
+                            <span className="text-lg shrink-0 mt-0.5">{RATING_EMOJIS[c.rating - 1] || '❓'}</span>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm text-gray-800 dark:text-gray-200">{c.comment}</p>
                               <div className="flex items-center gap-2 mt-1">
                                 <span className="text-[10px] text-gray-400">{c.date}</span>
-                                {c.is_anonymous && <span className="text-[10px] text-gray-400">Ã°Å¸â€¢ÂµÃ¯Â¸Â Anonymous</span>}
+                                {c.is_anonymous && <span className="text-[10px] text-gray-400">🕵️ Anonymous</span>}
                                 <div className="flex gap-0.5 ml-auto">
                                   {[1, 2, 3, 4, 5].map(s => (
-                                    <span key={s} className={`text-[10px] ${s <= c.rating ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'}`}>Ã¢Ëœâ€¦</span>
+                                    <span key={s} className={`text-[10px] ${s <= c.rating ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'}`}>★</span>
                                   ))}
                                 </div>
                               </div>
@@ -842,7 +842,7 @@ export function FeedbackAnalytics() {
                 </div>
               ) : (
                 <div className="text-center py-16">
-                  <span className="text-5xl block mb-3">Ã°Å¸â€œÅ </span>
+                  <span className="text-5xl block mb-3">📊</span>
                   <h3 className="text-base font-semibold text-gray-900 dark:text-white">No Responses Yet</h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 max-w-sm mx-auto">
                     Set up questions in the Attendance page, then students can respond after checking in.
@@ -875,7 +875,7 @@ export function FeedbackAnalytics() {
 
               {filteredQuestionAnalytics.length === 0 ? (
                 <div className="text-center py-16">
-                  <span className="text-5xl block mb-3">Ã°Å¸Â§Â©</span>
+                  <span className="text-5xl block mb-3">🧩</span>
                   <h3 className="text-base font-semibold text-gray-900 dark:text-white">No Question Matches</h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 max-w-sm mx-auto">
                     Try clearing a filter or selecting another question type/date combination.
@@ -959,9 +959,9 @@ export function FeedbackAnalytics() {
             </div>
           )}
 
-          {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
+          {/* ═══════════════════════════════════════════════════ */}
           {/* TAB: DATES (Per-Date Deep Analytics)              */}
-          {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
+          {/* ═══════════════════════════════════════════════════ */}
           {activeTab === 'dates' && (
             <div className="space-y-5">
               {/* Trend Overview Banner */}
@@ -973,16 +973,16 @@ export function FeedbackAnalytics() {
                 }`}>
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">
-                      {dateComparison.trendDirection === 'improving' ? 'Ã°Å¸â€œË†' : dateComparison.trendDirection === 'declining' ? 'Ã°Å¸â€œâ€°' : 'Ã¢Å¾Â¡Ã¯Â¸Â'}
+                      {dateComparison.trendDirection === 'improving' ? '📈' : dateComparison.trendDirection === 'declining' ? '📉' : '➡️'}
                     </span>
                     <div>
                       <p className="text-sm font-semibold text-gray-900 dark:text-white">
                         Feedback trend: <span className="capitalize">{dateComparison.trendDirection}</span>
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {dateComparison.dates.length} session dates tracked Ã‚Â· Overall avg: {dateComparison.overallAvg}/5
-                        {dateComparison.bestDate && ` Ã‚Â· Best: ${dateComparison.bestDate}`}
-                        {dateComparison.worstDate && dateComparison.worstDate !== dateComparison.bestDate && ` Ã‚Â· Needs attention: ${dateComparison.worstDate}`}
+                        {dateComparison.dates.length} session dates tracked · Overall avg: {dateComparison.overallAvg}/5
+                        {dateComparison.bestDate && ` · Best: ${dateComparison.bestDate}`}
+                        {dateComparison.worstDate && dateComparison.worstDate !== dateComparison.bestDate && ` · Needs attention: ${dateComparison.worstDate}`}
                       </p>
                     </div>
                   </div>
@@ -993,10 +993,10 @@ export function FeedbackAnalytics() {
               <div className="flex flex-wrap items-center gap-2 rounded-xl bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700 px-3 py-2">
                 <span className="text-xs text-gray-500 shrink-0">Sort by:</span>
                 {([
-                  { key: 'date' as const, label: 'Ã°Å¸â€œâ€¦ Date' },
-                  { key: 'rating' as const, label: 'Ã¢Â­Â Rating' },
-                  { key: 'responses' as const, label: 'Ã°Å¸â€œÅ  Volume' },
-                  { key: 'rate' as const, label: 'Ã°Å¸â€œË† Engagement' },
+                  { key: 'date' as const, label: '📅 Date' },
+                  { key: 'rating' as const, label: '⭐ Rating' },
+                  { key: 'responses' as const, label: '📊 Volume' },
+                  { key: 'rate' as const, label: '📈 Engagement' },
                 ] as const).map(s => (
                   <button
                     key={s.key}
@@ -1011,7 +1011,7 @@ export function FeedbackAnalytics() {
                         : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-purple-300'
                     }`}
                   >
-                    {s.label} {analyticsSortBy === s.key ? (analyticsSortDir === 'asc' ? 'Ã¢â€ â€˜' : 'Ã¢â€ â€œ') : ''}
+                    {s.label} {analyticsSortBy === s.key ? (analyticsSortDir === 'asc' ? '↑' : '↓') : ''}
                   </button>
                 ))}
                 <span className="text-[10px] text-gray-400 ml-auto">{sortedDateSummaries.length} dates</span>
@@ -1020,7 +1020,7 @@ export function FeedbackAnalytics() {
               {/* Date Heatmap */}
               {dateHeatmapData.length > 0 && (
                 <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/30 p-4">
-                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">Ã°Å¸â€”â€œÃ¯Â¸Â Rating Heatmap</p>
+                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">🗓️ Rating Heatmap</p>
                   <div className="flex flex-wrap gap-2">
                     {dateHeatmapData.map(d => {
                       const intensity = d.rating > 0 ? Math.max(0.15, d.rating / 5) : 0;
@@ -1032,7 +1032,7 @@ export function FeedbackAnalytics() {
                           key={d.date}
                           type="button"
                           onClick={() => setSelectedAnalyticsDate(selectedAnalyticsDate === d.date ? '' : d.date)}
-                          title={`${d.date}: ${d.rating}/5 avg Ã‚Â· ${d.responses} responses Ã‚Â· ${d.rate}% engagement`}
+                          title={`${d.date}: ${d.rating}/5 avg · ${d.responses} responses · ${d.rate}% engagement`}
                           className={`relative rounded-lg px-3 py-2 text-center transition-all min-w-[70px] border ${
                             selectedAnalyticsDate === d.date
                               ? 'ring-2 ring-purple-500 border-purple-400 dark:border-purple-600 shadow-md'
@@ -1041,8 +1041,8 @@ export function FeedbackAnalytics() {
                           style={{ backgroundColor: color }}
                         >
                           <p className="text-[10px] font-medium text-gray-700 dark:text-gray-200">{d.label}</p>
-                          <p className="text-lg font-bold text-gray-900 dark:text-white">{d.rating > 0 ? d.rating : 'Ã¢â‚¬â€'}</p>
-                          <p className="text-[10px] text-gray-500 dark:text-gray-400">{d.responses}r Ã‚Â· {d.rate}%</p>
+                          <p className="text-lg font-bold text-gray-900 dark:text-white">{d.rating > 0 ? d.rating : '—'}</p>
+                          <p className="text-[10px] text-gray-500 dark:text-gray-400">{d.responses}r · {d.rate}%</p>
                         </button>
                       );
                     })}
@@ -1056,7 +1056,7 @@ export function FeedbackAnalytics() {
                 <div className="rounded-xl border-2 border-purple-200 dark:border-purple-700 bg-purple-50/30 dark:bg-purple-900/10 p-4 space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-lg">Ã°Å¸â€œâ€¦</span>
+                      <span className="text-lg">📅</span>
                       <div>
                         <p className="text-sm font-semibold text-gray-900 dark:text-white">{selectedAnalyticsDate}</p>
                         <p className="text-[11px] text-gray-500 dark:text-gray-400">
@@ -1069,7 +1069,7 @@ export function FeedbackAnalytics() {
                       onClick={() => setSelectedAnalyticsDate('')}
                       className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 px-2 py-1 rounded-md hover:bg-purple-100 dark:hover:bg-purple-900/30"
                     >
-                      Ã¢Å“â€¢ Close
+                      ✕ Close
                     </button>
                   </div>
 
@@ -1113,7 +1113,7 @@ export function FeedbackAnalytics() {
 
                       {/* Per-date rating distribution */}
                       <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/30 p-4">
-                        <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">Ã¢Â­Â Rating Distribution for {selectedAnalyticsDate}</p>
+                        <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">⭐ Rating Distribution for {selectedAnalyticsDate}</p>
                         <ResponsiveContainer width="100%" height={180}>
                           <BarChart data={[1,2,3,4,5].map(r => ({ rating: `${RATING_EMOJIS[r-1]} ${r}`, count: dateStats.ratingDistribution[r] || 0, fill: RATING_COLORS[r-1] }))}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.4} />
@@ -1132,7 +1132,7 @@ export function FeedbackAnalytics() {
                       {/* Per-date question breakdown */}
                       {dateFilteredQuestionAnalytics.length > 0 && (
                         <div className="space-y-3">
-                          <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">Ã°Å¸â€Â Question Breakdown for {selectedAnalyticsDate}</p>
+                          <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">🔍 Question Breakdown for {selectedAnalyticsDate}</p>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             {dateFilteredQuestionAnalytics.map(({ question, data: qData }, qi) => (
                               <div key={question.id} className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/30 p-3">
@@ -1204,18 +1204,18 @@ export function FeedbackAnalytics() {
                       {/* Per-date comments */}
                       {dateStats.recentComments.length > 0 && (
                         <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/30 p-4">
-                          <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">Ã°Å¸â€™Â¬ Comments from {selectedAnalyticsDate}</p>
+                          <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">💬 Comments from {selectedAnalyticsDate}</p>
                           <div className="space-y-2 max-h-[250px] overflow-y-auto">
                             {dateStats.recentComments.map((c, i) => (
                               <div key={i} className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800/40">
-                                <span className="text-lg shrink-0 mt-0.5">{RATING_EMOJIS[c.rating - 1] || 'Ã¢Ââ€œ'}</span>
+                                <span className="text-lg shrink-0 mt-0.5">{RATING_EMOJIS[c.rating - 1] || '❓'}</span>
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm text-gray-800 dark:text-gray-200">{c.comment}</p>
                                   <div className="flex items-center gap-2 mt-1">
-                                    {c.is_anonymous && <span className="text-[10px] text-gray-400">Ã°Å¸â€¢ÂµÃ¯Â¸Â Anonymous</span>}
+                                    {c.is_anonymous && <span className="text-[10px] text-gray-400">🕵️ Anonymous</span>}
                                     <div className="flex gap-0.5 ml-auto">
                                       {[1,2,3,4,5].map(s => (
-                                        <span key={s} className={`text-[10px] ${s <= c.rating ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'}`}>Ã¢Ëœâ€¦</span>
+                                        <span key={s} className={`text-[10px] ${s <= c.rating ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'}`}>★</span>
                                       ))}
                                     </div>
                                   </div>
@@ -1236,7 +1236,7 @@ export function FeedbackAnalytics() {
               {sortedDateSummaries.length > 0 && (
                 <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/30 overflow-hidden">
                   <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">Ã°Å¸â€œâ€¹ Date-by-Date Comparison</p>
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">📋 Date-by-Date Comparison</p>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs">
@@ -1267,8 +1267,8 @@ export function FeedbackAnalytics() {
                             >
                               <td className="px-3 py-2.5">
                                 <span className="font-medium text-gray-900 dark:text-white">{d.date}</span>
-                                {isBest && <span className="ml-1 text-[10px] text-emerald-600">Ã¢Ëœâ€¦ Best</span>}
-                                {isWorst && <span className="ml-1 text-[10px] text-red-500">Ã¢Å¡Â  Low</span>}
+                                {isBest && <span className="ml-1 text-[10px] text-emerald-600">★ Best</span>}
+                                {isWorst && <span className="ml-1 text-[10px] text-red-500">⚠ Low</span>}
                               </td>
                               <td className="px-3 py-2.5 text-center">
                                 <span className={`font-bold ${
@@ -1319,7 +1319,7 @@ export function FeedbackAnalytics() {
               {radarData.length >= 3 && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/30 p-4">
-                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">Ã°Å¸â€œË† Rating Trend by Date</p>
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">📈 Rating Trend by Date</p>
                     <ResponsiveContainer width="100%" height={220}>
                       <AreaChart data={radarData}>
                         <defs>
@@ -1340,7 +1340,7 @@ export function FeedbackAnalytics() {
                   </div>
 
                   <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/30 p-4">
-                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">Ã°Å¸Å½Â¯ Engagement Overview</p>
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">🎯 Engagement Overview</p>
                     <ResponsiveContainer width="100%" height={220}>
                       <RadarChart data={radarData.slice(-8)}>
                         <PolarGrid stroke="#e5e7eb" />
@@ -1358,7 +1358,7 @@ export function FeedbackAnalytics() {
 
               {sortedDateSummaries.length === 0 && (
                 <div className="text-center py-16">
-                  <span className="text-5xl block mb-3">Ã°Å¸â€œâ€¦</span>
+                  <span className="text-5xl block mb-3">📅</span>
                   <h3 className="text-base font-semibold text-gray-900 dark:text-white">No Date Data Yet</h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 max-w-sm mx-auto">
                     Feedback responses filed against specific session dates will appear here with per-date breakdowns, comparisons, and trend tracking.

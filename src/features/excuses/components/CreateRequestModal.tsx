@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Modal } from '@/shared/components/ui/Modal';
 import { Button } from '@/shared/components/ui/Button';
 import { toast } from '@/shared/components/ui/toastUtils';
@@ -221,7 +221,7 @@ export function CreateRequestModal({
               <div className="py-8 text-center text-gray-400">Loading your sessions...</div>
             ) : sessions.length === 0 ? (
               <div className="py-8 text-center">
-                <div className="text-3xl mb-2">Ã°Å¸â€œÂ­</div>
+                <div className="text-3xl mb-2">📭</div>
                 <p className="text-gray-500 dark:text-gray-400">No active enrollments found.</p>
               </div>
             ) : (
@@ -339,7 +339,7 @@ export function CreateRequestModal({
                                 <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400" />
                               )}
                               {isToday && !isSelected && (
-                                <span className="absolute top-0.5 right-1 text-[8px]">Ã¢â€”Â</span>
+                                <span className="absolute top-0.5 right-1 text-[8px]">●</span>
                               )}
                             </button>
                           ))}
@@ -374,33 +374,33 @@ export function CreateRequestModal({
                     ) : attendanceStatus ? (
                       attendanceStatus.status === 'excused' ? (
                         <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-2">
-                          <span>Ã¢â€žÂ¹Ã¯Â¸Â</span>
+                          <span>ℹ️</span>
                           <span>Your attendance is already marked as <strong>excused</strong>{attendanceStatus.excuse_reason ? ` (${attendanceStatus.excuse_reason})` : ''}. No request needed.</span>
                         </div>
                       ) : attendanceStatus.status === 'on time' ? (
                         <div className="flex items-center gap-2 text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 rounded-lg p-2">
-                          <span>Ã¢Å“â€¦</span>
+                          <span>✅</span>
                           <span>You are marked as <strong>present (on time)</strong> for this date.</span>
                         </div>
                       ) : attendanceStatus.status === 'late' ? (
                         <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-2">
-                          <span>Ã¢Å¡Â¡</span>
+                          <span>⚡</span>
                           <span>You are marked as <strong>late</strong> for this date.</span>
                         </div>
                       ) : attendanceStatus.status === 'absent' ? (
                         <div className="flex items-center gap-2 text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 rounded-lg p-2">
-                          <span>Ã¢Ââ€”</span>
-                          <span>You are marked as <strong>absent</strong> Ã¢â‚¬â€ submitting an excuse may change this to excused.</span>
+                          <span>❗</span>
+                          <span>You are marked as <strong>absent</strong> — submitting an excuse may change this to excused.</span>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-                          <span>Ã°Å¸â€œÂ</span>
+                          <span>📝</span>
                           <span>Current status: <strong>{attendanceStatus.status}</strong></span>
                         </div>
                       )
                     ) : (
                       <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
-                        <span>Ã°Å¸â€œÂ</span>
+                        <span>📝</span>
                         <span>No attendance record yet for this date.</span>
                       </div>
                     )}
@@ -415,7 +415,7 @@ export function CreateRequestModal({
                 onClick={() => setStep(2)}
                 disabled={!selectedSession || !attendanceDate || !isScheduledSessionDate(attendanceDate) || attendanceStatus?.status === 'excused'}
               >
-                Next Ã¢â€ â€™
+                Next →
               </Button>
             </div>
           </div>
@@ -479,14 +479,14 @@ export function CreateRequestModal({
                 className="w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 dark:file:bg-blue-900/20 dark:file:text-blue-300 hover:file:bg-blue-100"
               />
               {document && (
-                <p className="text-xs text-gray-400 mt-1">Ã°Å¸â€œÅ½ {document.name} ({(document.size / 1024).toFixed(1)} KB)</p>
+                <p className="text-xs text-gray-400 mt-1">📎 {document.name} ({(document.size / 1024).toFixed(1)} KB)</p>
               )}
               <p className="text-xs text-gray-400 mt-1">Max 10MB. Accepted: PDF, images, Office docs</p>
             </div>
 
             <div className="flex justify-between pt-2">
               <Button variant="outline" onClick={() => setStep(1)}>
-                Ã¢â€ Â Back
+                ← Back
               </Button>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={onClose}>Cancel</Button>
@@ -499,7 +499,7 @@ export function CreateRequestModal({
                       </svg>
                       Submitting...
                     </span>
-                  ) : 'Ã°Å¸â€œÂ¤ Submit Request'}
+                  ) : '📤 Submit Request'}
                 </Button>
               </div>
             </div>

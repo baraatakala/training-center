@@ -1,4 +1,4 @@
-﻿import { Modal } from '@/shared/components/ui/Modal';
+import { Modal } from '@/shared/components/ui/Modal';
 import { Button } from '@/shared/components/ui/Button';
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
 import { EXCUSE_REASONS, type ExcuseRequest } from '@/features/excuses/services/excuseRequestService';
@@ -30,24 +30,24 @@ export function DetailModal({
 
         {/* Details Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <DetailCard label="Student" icon="Ã°Å¸Å½â€œ">
-            <p className="text-sm font-semibold text-gray-900 dark:text-white">{request.student?.name || 'Ã¢â‚¬â€'}</p>
+          <DetailCard label="Student" icon="🎓">
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">{request.student?.name || '—'}</p>
             <p className="text-xs text-gray-500">{request.student?.email}</p>
-            {request.student?.phone && <p className="text-xs text-gray-500">Ã°Å¸â€œÅ¾ {request.student.phone}</p>}
+            {request.student?.phone && <p className="text-xs text-gray-500">📞 {request.student.phone}</p>}
           </DetailCard>
 
-          <DetailCard label="Session" icon="Ã°Å¸â€œÅ¡">
-            <p className="text-sm font-semibold text-gray-900 dark:text-white">{request.session?.course?.course_name || 'Ã¢â‚¬â€'}</p>
-            <p className="text-xs text-gray-500">Teacher: {request.session?.teacher?.name || 'Ã¢â‚¬â€'}</p>
+          <DetailCard label="Session" icon="📚">
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">{request.session?.course?.course_name || '—'}</p>
+            <p className="text-xs text-gray-500">Teacher: {request.session?.teacher?.name || '—'}</p>
           </DetailCard>
 
-          <DetailCard label="Absence Date" icon="Ã°Å¸â€œâ€¦">
+          <DetailCard label="Absence Date" icon="📅">
             <p className="text-sm font-semibold text-gray-900 dark:text-white">
-              {request.attendance_date ? format(parseISO(request.attendance_date), 'EEEE, MMMM d, yyyy') : 'Ã¢â‚¬â€'}
+              {request.attendance_date ? format(parseISO(request.attendance_date), 'EEEE, MMMM d, yyyy') : '—'}
             </p>
           </DetailCard>
 
-          <DetailCard label="Reason" icon={reasonObj?.icon || 'Ã°Å¸â€œÂ'}>
+          <DetailCard label="Reason" icon={reasonObj?.icon || '📝'}>
             <p className="text-sm font-semibold text-gray-900 dark:text-white">
               {reasonObj?.label || request.reason}
             </p>
@@ -74,7 +74,7 @@ export function DetailModal({
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 px-3 py-2 rounded-lg text-sm hover:bg-blue-100 dark:hover:bg-blue-900/40 transition"
             >
-              Ã°Å¸â€œÅ½ {request.supporting_doc_name || 'View Document'}
+              📎 {request.supporting_doc_name || 'View Document'}
             </a>
           </div>
         )}
@@ -85,7 +85,7 @@ export function DetailModal({
             <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Review Information</h4>
             <div className="grid grid-cols-2 gap-3 text-sm">
               <InfoRow label="Reviewed By" value={request.reviewed_by} />
-              <InfoRow label="Reviewed At" value={request.reviewed_at ? format(parseISO(request.reviewed_at), 'MMM d, yyyy h:mm a') : 'Ã¢â‚¬â€'} />
+              <InfoRow label="Reviewed At" value={request.reviewed_at ? format(parseISO(request.reviewed_at), 'MMM d, yyyy h:mm a') : '—'} />
             </div>
             {request.review_note && (
               <div className="mt-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 text-sm text-gray-700 dark:text-gray-300">

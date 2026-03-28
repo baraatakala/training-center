@@ -1,25 +1,25 @@
-﻿import { format } from 'date-fns';
+import { format } from 'date-fns';
 import type { AbsentStudent } from '@/shared/utils/attendanceAnalytics';
 import type { MessageTemplate, MessageChannel } from '../constants/dashboardConstants';
 
 export function generateEmailLink(student: AbsentStudent): string {
     const riskLevelText = student.riskLevel.toUpperCase();
-    const subject = `[${riskLevelText} PRIORITY] Attendance Concern - ${student.student_name} | Ã˜Â¥Ã˜Â´Ã˜Â¹Ã˜Â§Ã˜Â± Ã˜Â­Ã˜Â¶Ã™Ë†Ã˜Â± - ${student.student_name}`;
+    const subject = `[${riskLevelText} PRIORITY] Attendance Concern - ${student.student_name} | إشعار حضور - ${student.student_name}`;
     
     const trendText = {
-      improving: 'showing improvement Ã¢Å“â€¦',
-      declining: 'declining Ã¢Â¬â€¡Ã¯Â¸Â',
-      stable: 'stable but concerning Ã¢Å¡Â Ã¯Â¸Â'
+      improving: 'showing improvement ✅',
+      declining: 'declining ⬇️',
+      stable: 'stable but concerning ⚠️'
     }[student.trend];
 
     const trendTextAr = {
-      improving: 'Ã™ÂÃ™Å  Ã˜ÂªÃ˜Â­Ã˜Â³Ã™â€˜Ã™â€  Ã¢Å“â€¦',
-      declining: 'Ã™ÂÃ™Å  Ã˜ÂªÃ˜Â±Ã˜Â§Ã˜Â¬Ã˜Â¹ Ã¢Â¬â€¡Ã¯Â¸Â',
-      stable: 'Ã™â€¦Ã˜Â³Ã˜ÂªÃ™â€šÃ˜Â± Ã™â€žÃ™Æ’Ã™â€ Ã™â€¡ Ã™â€¦Ã™â€šÃ™â€žÃ™â€š Ã¢Å¡Â Ã¯Â¸Â'
+      improving: 'في تحسّن ✅',
+      declining: 'في تراجع ⬇️',
+      stable: 'مستقر لكنه مقلق ⚠️'
     }[student.trend];
 
     const patternsText = student.patterns.length > 0 
-      ? `\n\nÃ°Å¸â€Â Detected Patterns:\n${student.patterns.map(p => `  Ã¢â‚¬Â¢ ${p}`).join('\n')}`
+      ? `\n\n🔍 Detected Patterns:\n${student.patterns.map(p => `  • ${p}`).join('\n')}`
       : '';
 
     // Calculate absence severity metrics
@@ -35,127 +35,127 @@ export function generateEmailLink(student: AbsentStudent): string {
 
     // Risk-specific recommendation
     const recommendation = {
-      critical: `Ã°Å¸Å¡Â¨ URGENT ACTION REQUIRED:\nYour attendance has dropped to a critical level (${student.attendanceRate}%). This may result in:\n  Ã¢â‚¬Â¢ Academic probation or course failure\n  Ã¢â‚¬Â¢ Loss of enrollment eligibility\n  Ã¢â‚¬Â¢ Impact on certification/completion\n\nPlease schedule an immediate meeting with the administration within 48 hours.\n\nÃ°Å¸Å¡Â¨ Ã˜Â¥Ã˜Â¬Ã˜Â±Ã˜Â§Ã˜Â¡ Ã˜Â¹Ã˜Â§Ã˜Â¬Ã™â€ž Ã™â€¦Ã˜Â·Ã™â€žÃ™Ë†Ã˜Â¨:\nÃ™â€žÃ™â€šÃ˜Â¯ Ã˜Â§Ã™â€ Ã˜Â®Ã™ÂÃ˜Â¶ Ã˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±Ã™Æ’ Ã˜Â¥Ã™â€žÃ™â€° Ã™â€¦Ã˜Â³Ã˜ÂªÃ™Ë†Ã™â€° Ã˜Â­Ã˜Â±Ã˜Â¬ (${student.attendanceRate}%). Ã™â€šÃ˜Â¯ Ã™Å Ã˜Â¤Ã˜Â¯Ã™Å  Ã™â€¡Ã˜Â°Ã˜Â§ Ã˜Â¥Ã™â€žÃ™â€°:\n  Ã¢â‚¬Â¢ Ã˜Â§Ã™â€žÃ˜Â¥Ã™â€ Ã˜Â°Ã˜Â§Ã˜Â± Ã˜Â§Ã™â€žÃ˜Â£Ã™Æ’Ã˜Â§Ã˜Â¯Ã™Å Ã™â€¦Ã™Å  Ã˜Â£Ã™Ë† Ã˜Â§Ã™â€žÃ˜Â¥Ã˜Â®Ã™ÂÃ˜Â§Ã™â€š\n  Ã¢â‚¬Â¢ Ã™ÂÃ™â€šÃ˜Â¯Ã˜Â§Ã™â€  Ã˜Â£Ã™â€¡Ã™â€žÃ™Å Ã˜Â© Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â³Ã˜Â¬Ã™Å Ã™â€ž\n  Ã¢â‚¬Â¢ Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â£Ã˜Â«Ã™Å Ã˜Â± Ã˜Â¹Ã™â€žÃ™â€° Ã˜Â§Ã™â€žÃ˜Â´Ã™â€¡Ã˜Â§Ã˜Â¯Ã˜Â©/Ã˜Â§Ã™â€žÃ˜Â¥Ã˜ÂªÃ™â€¦Ã˜Â§Ã™â€¦\n\nÃ™Å Ã˜Â±Ã˜Â¬Ã™â€° Ã˜ÂªÃ˜Â­Ã˜Â¯Ã™Å Ã˜Â¯ Ã™â€¦Ã™Ë†Ã˜Â¹Ã˜Â¯ Ã˜Â§Ã˜Â¬Ã˜ÂªÃ™â€¦Ã˜Â§Ã˜Â¹ Ã™ÂÃ™Ë†Ã˜Â±Ã™Å  Ã™â€¦Ã˜Â¹ Ã˜Â§Ã™â€žÃ˜Â¥Ã˜Â¯Ã˜Â§Ã˜Â±Ã˜Â© Ã˜Â®Ã™â€žÃ˜Â§Ã™â€ž 48 Ã˜Â³Ã˜Â§Ã˜Â¹Ã˜Â©.`,
-      high: `Ã¢Å¡Â Ã¯Â¸Â HIGH PRIORITY:\nYour attendance pattern (${student.attendanceRate}%) shows significant risk. We recommend:\n  Ã¢â‚¬Â¢ Meeting with your instructor this week\n  Ã¢â‚¬Â¢ Setting up an attendance improvement plan\n  Ã¢â‚¬Â¢ Contacting us about any difficulties\n\nÃ¢Å¡Â Ã¯Â¸Â Ã˜Â£Ã™Ë†Ã™â€žÃ™Ë†Ã™Å Ã˜Â© Ã˜Â¹Ã˜Â§Ã™â€žÃ™Å Ã˜Â©:\nÃ™â€ Ã™â€¦Ã˜Â· Ã˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±Ã™Æ’ (${student.attendanceRate}%) Ã™Å Ã™ÂÃ˜Â¸Ã™â€¡Ã˜Â± Ã˜Â®Ã˜Â·Ã˜Â±Ã˜Â§Ã™â€¹ Ã™Æ’Ã˜Â¨Ã™Å Ã˜Â±Ã˜Â§Ã™â€¹. Ã™â€ Ã™â€ Ã˜ÂµÃ˜Â­Ã™Æ’ Ã˜Â¨Ã™â‚¬:\n  Ã¢â‚¬Â¢ Ã˜Â§Ã™â€žÃ˜Â§Ã˜Â¬Ã˜ÂªÃ™â€¦Ã˜Â§Ã˜Â¹ Ã™â€¦Ã˜Â¹ Ã™â€¦Ã˜Â¹Ã™â€žÃ™â€¦Ã™Æ’ Ã™â€¡Ã˜Â°Ã˜Â§ Ã˜Â§Ã™â€žÃ˜Â£Ã˜Â³Ã˜Â¨Ã™Ë†Ã˜Â¹\n  Ã¢â‚¬Â¢ Ã™Ë†Ã˜Â¶Ã˜Â¹ Ã˜Â®Ã˜Â·Ã˜Â© Ã™â€žÃ˜ÂªÃ˜Â­Ã˜Â³Ã™Å Ã™â€  Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±\n  Ã¢â‚¬Â¢ Ã˜Â§Ã™â€žÃ˜ÂªÃ™Ë†Ã˜Â§Ã˜ÂµÃ™â€ž Ã™â€¦Ã˜Â¹Ã™â€ Ã˜Â§ Ã˜Â¨Ã˜Â´Ã˜Â£Ã™â€  Ã˜Â£Ã™Å  Ã˜ÂµÃ˜Â¹Ã™Ë†Ã˜Â¨Ã˜Â§Ã˜Âª`,
-      medium: `Ã¢Å¡Â¡ ATTENTION NEEDED:\nYour attendance (${student.attendanceRate}%) is below our recommended minimum of 75%. To get back on track:\n  Ã¢â‚¬Â¢ Attend all upcoming sessions without exception\n  Ã¢â‚¬Â¢ ${daysToReach75 > 0 ? `You need ${daysToReach75} consecutive sessions to reach 75%` : 'Keep maintaining current attendance'}\n  Ã¢â‚¬Â¢ Reach out if you need schedule accommodation\n\nÃ¢Å¡Â¡ Ã™Å Ã˜Â­Ã˜ÂªÃ˜Â§Ã˜Â¬ Ã˜Â§Ã™â€ Ã˜ÂªÃ˜Â¨Ã˜Â§Ã™â€¡Ã™Æ’:\nÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±Ã™Æ’ (${student.attendanceRate}%) Ã˜Â£Ã™â€šÃ™â€ž Ã™â€¦Ã™â€  Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜Â£Ã˜Â¯Ã™â€ Ã™â€° Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã˜ÂµÃ™â€° Ã˜Â¨Ã™â€¡ 75%. Ã™â€žÃ™â€žÃ˜Â¹Ã™Ë†Ã˜Â¯Ã˜Â© Ã˜Â¥Ã™â€žÃ™â€° Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â³Ã˜Â§Ã˜Â±:\n  Ã¢â‚¬Â¢ Ã˜Â§Ã˜Â­Ã˜Â¶Ã˜Â± Ã˜Â¬Ã™â€¦Ã™Å Ã˜Â¹ Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€žÃ˜Â³Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ™â€šÃ˜Â§Ã˜Â¯Ã™â€¦Ã˜Â© Ã˜Â¨Ã˜Â¯Ã™Ë†Ã™â€  Ã˜Â§Ã˜Â³Ã˜ÂªÃ˜Â«Ã™â€ Ã˜Â§Ã˜Â¡\n  Ã¢â‚¬Â¢ ${daysToReach75 > 0 ? `Ã˜ÂªÃ˜Â­Ã˜ÂªÃ˜Â§Ã˜Â¬ ${daysToReach75} Ã˜Â¬Ã™â€žÃ˜Â³Ã˜Â§Ã˜Âª Ã™â€¦Ã˜ÂªÃ˜ÂªÃ˜Â§Ã™â€žÃ™Å Ã˜Â© Ã™â€žÃ™â€žÃ™Ë†Ã˜ÂµÃ™Ë†Ã™â€ž Ã˜Â¥Ã™â€žÃ™â€° 75%` : 'Ã˜Â­Ã˜Â§Ã™ÂÃ˜Â¸ Ã˜Â¹Ã™â€žÃ™â€° Ã˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±Ã™Æ’ Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â§Ã™â€žÃ™Å '}\n  Ã¢â‚¬Â¢ Ã˜ÂªÃ™Ë†Ã˜Â§Ã˜ÂµÃ™â€ž Ã™â€¦Ã˜Â¹Ã™â€ Ã˜Â§ Ã˜Â¥Ã˜Â°Ã˜Â§ Ã˜Â§Ã˜Â­Ã˜ÂªÃ˜Â¬Ã˜Âª Ã˜ÂªÃ˜Â±Ã˜ÂªÃ™Å Ã˜Â¨Ã˜Â§Ã™â€¹ Ã˜Â®Ã˜Â§Ã˜ÂµÃ˜Â§Ã™â€¹`,
-      watch: `Ã°Å¸â€˜ÂÃ¯Â¸Â EARLY NOTICE:\nWe've noticed some attendance patterns that may affect your progress. Current rate: ${student.attendanceRate}%.\nThis is an early intervention Ã¢â‚¬â€ maintaining regular attendance ensures you get the most from the course.\n\nÃ°Å¸â€˜ÂÃ¯Â¸Â Ã˜Â¥Ã˜Â´Ã˜Â¹Ã˜Â§Ã˜Â± Ã™â€¦Ã˜Â¨Ã™Æ’Ã˜Â±:\nÃ™â€žÃ˜Â§Ã˜Â­Ã˜Â¸Ã™â€ Ã˜Â§ Ã˜Â¨Ã˜Â¹Ã˜Â¶ Ã˜Â£Ã™â€ Ã™â€¦Ã˜Â§Ã˜Â· Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â± Ã˜Â§Ã™â€žÃ˜ÂªÃ™Å  Ã™â€šÃ˜Â¯ Ã˜ÂªÃ˜Â¤Ã˜Â«Ã˜Â± Ã˜Â¹Ã™â€žÃ™â€° Ã˜ÂªÃ™â€šÃ˜Â¯Ã™â€¦Ã™Æ’. Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â§Ã™â€žÃ™Å : ${student.attendanceRate}%.\nÃ™â€¡Ã˜Â°Ã˜Â§ Ã˜ÂªÃ˜Â¯Ã˜Â®Ã™â€ž Ã™â€¦Ã˜Â¨Ã™Æ’Ã˜Â± Ã¢â‚¬â€ Ã˜Â§Ã™â€žÃ˜Â­Ã™ÂÃ˜Â§Ã˜Â¸ Ã˜Â¹Ã™â€žÃ™â€° Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â± Ã˜Â§Ã™â€žÃ™â€¦Ã™â€ Ã˜ÂªÃ˜Â¸Ã™â€¦ Ã™Å Ã˜Â¶Ã™â€¦Ã™â€  Ã™â€žÃ™Æ’ Ã˜Â£Ã™â€šÃ˜ÂµÃ™â€° Ã˜Â§Ã˜Â³Ã˜ÂªÃ™ÂÃ˜Â§Ã˜Â¯Ã˜Â© Ã™â€¦Ã™â€  Ã˜Â§Ã™â€žÃ˜Â¯Ã™Ë†Ã˜Â±Ã˜Â©.`
+      critical: `🚨 URGENT ACTION REQUIRED:\nYour attendance has dropped to a critical level (${student.attendanceRate}%). This may result in:\n  • Academic probation or course failure\n  • Loss of enrollment eligibility\n  • Impact on certification/completion\n\nPlease schedule an immediate meeting with the administration within 48 hours.\n\n🚨 إجراء عاجل مطلوب:\nلقد انخفض حضورك إلى مستوى حرج (${student.attendanceRate}%). قد يؤدي هذا إلى:\n  • الإنذار الأكاديمي أو الإخفاق\n  • فقدان أهلية التسجيل\n  • التأثير على الشهادة/الإتمام\n\nيرجى تحديد موعد اجتماع فوري مع الإدارة خلال 48 ساعة.`,
+      high: `⚠️ HIGH PRIORITY:\nYour attendance pattern (${student.attendanceRate}%) shows significant risk. We recommend:\n  • Meeting with your instructor this week\n  • Setting up an attendance improvement plan\n  • Contacting us about any difficulties\n\n⚠️ أولوية عالية:\nنمط حضورك (${student.attendanceRate}%) يُظهر خطراً كبيراً. ننصحك بـ:\n  • الاجتماع مع معلمك هذا الأسبوع\n  • وضع خطة لتحسين الحضور\n  • التواصل معنا بشأن أي صعوبات`,
+      medium: `⚡ ATTENTION NEEDED:\nYour attendance (${student.attendanceRate}%) is below our recommended minimum of 75%. To get back on track:\n  • Attend all upcoming sessions without exception\n  • ${daysToReach75 > 0 ? `You need ${daysToReach75} consecutive sessions to reach 75%` : 'Keep maintaining current attendance'}\n  • Reach out if you need schedule accommodation\n\n⚡ يحتاج انتباهك:\nحضورك (${student.attendanceRate}%) أقل من الحد الأدنى الموصى به 75%. للعودة إلى المسار:\n  • احضر جميع الجلسات القادمة بدون استثناء\n  • ${daysToReach75 > 0 ? `تحتاج ${daysToReach75} جلسات متتالية للوصول إلى 75%` : 'حافظ على حضورك الحالي'}\n  • تواصل معنا إذا احتجت ترتيباً خاصاً`,
+      watch: `👁️ EARLY NOTICE:\nWe've noticed some attendance patterns that may affect your progress. Current rate: ${student.attendanceRate}%.\nThis is an early intervention — maintaining regular attendance ensures you get the most from the course.\n\n👁️ إشعار مبكر:\nلاحظنا بعض أنماط الحضور التي قد تؤثر على تقدمك. المعدل الحالي: ${student.attendanceRate}%.\nهذا تدخل مبكر — الحفاظ على الحضور المنتظم يضمن لك أقصى استفادة من الدورة.`
     }[student.riskLevel];
 
     // Formatted absence list with day names
     const absencesList = student.absentDates.slice(0, 15).map(d => {
       const dateObj = new Date(d);
-      return `  Ã¢â‚¬Â¢ ${format(dateObj, 'EEEE, MMMM dd, yyyy')}`;
+      return `  • ${format(dateObj, 'EEEE, MMMM dd, yyyy')}`;
     }).join('\n');
     const moreAbsences = student.absentDates.length > 15 
       ? `\n  ... and ${student.absentDates.length - 15} additional absences` 
       : '';
 
     const body = `Dear ${student.student_name},
-Ã˜Â¹Ã˜Â²Ã™Å Ã˜Â²Ã™Å /Ã˜Â¹Ã˜Â²Ã™Å Ã˜Â²Ã˜ÂªÃ™Å  ${student.student_name}Ã˜Å’
+عزيزي/عزيزتي ${student.student_name}،
 
-Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â
-Ã°Å¸â€œÅ  ATTENDANCE REPORT / Ã˜ÂªÃ™â€šÃ˜Â±Ã™Å Ã˜Â± Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±
-Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â
-Priority Level / Ã™â€¦Ã˜Â³Ã˜ÂªÃ™Ë†Ã™â€° Ã˜Â§Ã™â€žÃ˜Â£Ã™Ë†Ã™â€žÃ™Ë†Ã™Å Ã˜Â©: ${riskLevelText}
-Course / Ã˜Â§Ã™â€žÃ˜Â¯Ã™Ë†Ã˜Â±Ã˜Â©: ${student.course_name}
-Report Date / Ã˜ÂªÃ˜Â§Ã˜Â±Ã™Å Ã˜Â® Ã˜Â§Ã™â€žÃ˜ÂªÃ™â€šÃ˜Â±Ã™Å Ã˜Â±: ${format(new Date(), 'EEEE, MMMM dd, yyyy')}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 ATTENDANCE REPORT / تقرير الحضور
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Priority Level / مستوى الأولوية: ${riskLevelText}
+Course / الدورة: ${student.course_name}
+Report Date / تاريخ التقرير: ${format(new Date(), 'EEEE, MMMM dd, yyyy')}
 
-Ã°Å¸â€œË† DETAILED STATISTICS / Ã˜Â¥Ã˜Â­Ã˜ÂµÃ˜Â§Ã˜Â¦Ã™Å Ã˜Â§Ã˜Âª Ã™â€¦Ã™ÂÃ˜ÂµÃ™â€žÃ˜Â©:
-  Ã¢â‚¬Â¢ Attendance Rate / Ã™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±: ${student.attendanceRate}%
-  Ã¢â‚¬Â¢ Absence Rate / Ã™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž Ã˜Â§Ã™â€žÃ˜ÂºÃ™Å Ã˜Â§Ã˜Â¨: ${absencePercentage}%
-  Ã¢â‚¬Â¢ Sessions Attended / Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€žÃ˜Â³Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±Ã˜Â©: ${student.presentDays} / ${student.totalDays}
-  Ã¢â‚¬Â¢ Sessions Missed / Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€žÃ˜Â³Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ™ÂÃ˜Â§Ã˜Â¦Ã˜ÂªÃ˜Â©: ${student.totalDays - student.presentDays}
-  Ã¢â‚¬Â¢ Consecutive Absences / Ã˜ÂºÃ™Å Ã˜Â§Ã˜Â¨ Ã™â€¦Ã˜ÂªÃ˜ÂªÃ˜Â§Ã™â€žÃ™Å : ${student.consecutiveAbsences} sessions
-  Ã¢â‚¬Â¢ Engagement Score / Ã˜Â¯Ã˜Â±Ã˜Â¬Ã˜Â© Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â´Ã˜Â§Ã˜Â±Ã™Æ’Ã˜Â©: ${student.engagementScore}/100
-  Ã¢â‚¬Â¢ Current Trend / Ã˜Â§Ã™â€žÃ˜Â§Ã˜ÂªÃ˜Â¬Ã˜Â§Ã™â€¡ Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â§Ã™â€žÃ™Å : ${trendText} / ${trendTextAr}
-  Ã¢â‚¬Â¢ Projected Rate / Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž Ã˜Â§Ã™â€žÃ™â€¦Ã˜ÂªÃ™Ë†Ã™â€šÃ˜Â¹: ~${projectedEndRate}% (if trend continues)${student.lastAttendedDate ? `\n  Ã¢â‚¬Â¢ Last Attended / Ã˜Â¢Ã˜Â®Ã˜Â± Ã˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±: ${format(new Date(student.lastAttendedDate), 'EEEE, MMMM dd, yyyy')}` : ''}
+📈 DETAILED STATISTICS / إحصائيات مفصلة:
+  • Attendance Rate / معدل الحضور: ${student.attendanceRate}%
+  • Absence Rate / معدل الغياب: ${absencePercentage}%
+  • Sessions Attended / الجلسات المحضورة: ${student.presentDays} / ${student.totalDays}
+  • Sessions Missed / الجلسات الفائتة: ${student.totalDays - student.presentDays}
+  • Consecutive Absences / غياب متتالي: ${student.consecutiveAbsences} sessions
+  • Engagement Score / درجة المشاركة: ${student.engagementScore}/100
+  • Current Trend / الاتجاه الحالي: ${trendText} / ${trendTextAr}
+  • Projected Rate / المعدل المتوقع: ~${projectedEndRate}% (if trend continues)${student.lastAttendedDate ? `\n  • Last Attended / آخر حضور: ${format(new Date(student.lastAttendedDate), 'EEEE, MMMM dd, yyyy')}` : ''}
 ${patternsText}
 
-Ã°Å¸â€œâ€¦ ABSENCE RECORD / Ã˜Â³Ã˜Â¬Ã™â€ž Ã˜Â§Ã™â€žÃ˜ÂºÃ™Å Ã˜Â§Ã˜Â¨:
+📅 ABSENCE RECORD / سجل الغياب:
 ${absencesList}${moreAbsences}
 
-Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${recommendation}
-Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Ã°Å¸â€œÅ¾ NEXT STEPS / Ã˜Â§Ã™â€žÃ˜Â®Ã˜Â·Ã™Ë†Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â§Ã™â€žÃ™Å Ã˜Â©:
-  1. Please respond to this email within 3 business days / Ã™Å Ã˜Â±Ã˜Â¬Ã™â€° Ã˜Â§Ã™â€žÃ˜Â±Ã˜Â¯ Ã˜Â®Ã™â€žÃ˜Â§Ã™â€ž 3 Ã˜Â£Ã™Å Ã˜Â§Ã™â€¦ Ã˜Â¹Ã™â€¦Ã™â€ž
-  2. Schedule a meeting if needed / Ã˜Â­Ã˜Â¯Ã˜Â¯ Ã™â€¦Ã™Ë†Ã˜Â¹Ã˜Â¯ Ã˜Â§Ã˜Â¬Ã˜ÂªÃ™â€¦Ã˜Â§Ã˜Â¹ Ã˜Â¥Ã˜Â°Ã˜Â§ Ã™â€žÃ˜Â²Ã™â€¦ Ã˜Â§Ã™â€žÃ˜Â£Ã™â€¦Ã˜Â±
-  3. Provide documentation for any excused absences / Ã™â€šÃ˜Â¯Ã™â€˜Ã™â€¦ Ã™Ë†Ã˜Â«Ã˜Â§Ã˜Â¦Ã™â€š Ã™â€žÃ˜Â£Ã™Å  Ã˜ÂºÃ™Å Ã˜Â§Ã˜Â¨ Ã˜Â¨Ã˜Â¹Ã˜Â°Ã˜Â±
-  4. Contact us at any time for support / Ã˜ÂªÃ™Ë†Ã˜Â§Ã˜ÂµÃ™â€ž Ã™â€¦Ã˜Â¹Ã™â€ Ã˜Â§ Ã™ÂÃ™Å  Ã˜Â£Ã™Å  Ã™Ë†Ã™â€šÃ˜Âª Ã™â€žÃ™â€žÃ˜Â¯Ã˜Â¹Ã™â€¦
+📞 NEXT STEPS / الخطوات التالية:
+  1. Please respond to this email within 3 business days / يرجى الرد خلال 3 أيام عمل
+  2. Schedule a meeting if needed / حدد موعد اجتماع إذا لزم الأمر
+  3. Provide documentation for any excused absences / قدّم وثائق لأي غياب بعذر
+  4. Contact us at any time for support / تواصل معنا في أي وقت للدعم
 
-Best regards / Ã™â€¦Ã˜Â¹ Ã˜Â£Ã˜Â·Ã™Å Ã˜Â¨ Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â­Ã™Å Ã˜Â§Ã˜Âª,
-Training Center Management / Ã˜Â¥Ã˜Â¯Ã˜Â§Ã˜Â±Ã˜Â© Ã™â€¦Ã˜Â±Ã™Æ’Ã˜Â² Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â¯Ã˜Â±Ã™Å Ã˜Â¨
+Best regards / مع أطيب التحيات,
+Training Center Management / إدارة مركز التدريب
 
 ---
 This is an automated attendance report generated by the Training Center Management System.
-Ã™â€¡Ã˜Â°Ã˜Â§ Ã˜ÂªÃ™â€šÃ˜Â±Ã™Å Ã˜Â± Ã˜Â­Ã˜Â¶Ã™Ë†Ã˜Â± Ã˜Â¢Ã™â€žÃ™Å  Ã˜ÂªÃ™â€¦ Ã˜Â¥Ã™â€ Ã˜Â´Ã˜Â§Ã˜Â¤Ã™â€¡ Ã˜Â¨Ã™Ë†Ã˜Â§Ã˜Â³Ã˜Â·Ã˜Â© Ã™â€ Ã˜Â¸Ã˜Â§Ã™â€¦ Ã˜Â¥Ã˜Â¯Ã˜Â§Ã˜Â±Ã˜Â© Ã™â€¦Ã˜Â±Ã™Æ’Ã˜Â² Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â¯Ã˜Â±Ã™Å Ã˜Â¨.`;
+هذا تقرير حضور آلي تم إنشاؤه بواسطة نظام إدارة مركز التدريب.`;
 
     return `mailto:${student.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
 export function generateSMSLink(student: AbsentStudent): string {
     const riskEmoji = {
-      critical: 'Ã°Å¸Å¡Â¨',
-      high: 'Ã¢Å¡Â Ã¯Â¸Â',
-      medium: 'Ã¢Å¡Â¡',
-      watch: 'Ã°Å¸â€˜ÂÃ¯Â¸Â'
+      critical: '🚨',
+      high: '⚠️',
+      medium: '⚡',
+      watch: '👁️'
     }[student.riskLevel];
 
     const riskTextAr = {
-      critical: 'Ã˜Â­Ã˜Â±Ã˜Â¬',
-      high: 'Ã˜Â¹Ã˜Â§Ã™â€žÃ™Å ',
-      medium: 'Ã™â€¦Ã˜ÂªÃ™Ë†Ã˜Â³Ã˜Â·',
-      watch: 'Ã™â€¦Ã˜Â±Ã˜Â§Ã™â€šÃ˜Â¨Ã˜Â©'
+      critical: 'حرج',
+      high: 'عالي',
+      medium: 'متوسط',
+      watch: 'مراقبة'
     }[student.riskLevel];
 
     const urgencyNote = {
-      critical: 'IMMEDIATE response required / Ã™â€¦Ã˜Â·Ã™â€žÃ™Ë†Ã˜Â¨ Ã˜Â±Ã˜Â¯ Ã™ÂÃ™Ë†Ã˜Â±Ã™Å ',
-      high: 'Please respond within 24 hours / Ã™Å Ã˜Â±Ã˜Â¬Ã™â€° Ã˜Â§Ã™â€žÃ˜Â±Ã˜Â¯ Ã˜Â®Ã™â€žÃ˜Â§Ã™â€ž 24 Ã˜Â³Ã˜Â§Ã˜Â¹Ã˜Â©',
-      medium: 'Please respond within 3 days / Ã™Å Ã˜Â±Ã˜Â¬Ã™â€° Ã˜Â§Ã™â€žÃ˜Â±Ã˜Â¯ Ã˜Â®Ã™â€žÃ˜Â§Ã™â€ž 3 Ã˜Â£Ã™Å Ã˜Â§Ã™â€¦',
-      watch: 'For your information / Ã™â€žÃ™â€žÃ˜Â¹Ã™â€žÃ™â€¦'
+      critical: 'IMMEDIATE response required / مطلوب رد فوري',
+      high: 'Please respond within 24 hours / يرجى الرد خلال 24 ساعة',
+      medium: 'Please respond within 3 days / يرجى الرد خلال 3 أيام',
+      watch: 'For your information / للعلم'
     }[student.riskLevel];
 
     // Recent absences for SMS (compact)
     const recentDates = student.absentDates.slice(0, 3).map(d => format(new Date(d), 'MMM dd')).join(', ');
     const moreDates = student.absentDates.length > 3 ? ` +${student.absentDates.length - 3} more` : '';
 
-    const message = `${riskEmoji} ATTENDANCE ALERT / Ã˜Â¥Ã˜Â´Ã˜Â¹Ã˜Â§Ã˜Â± Ã˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±
+    const message = `${riskEmoji} ATTENDANCE ALERT / إشعار حضور
 ${student.student_name}
 
-Course/Ã˜Â§Ã™â€žÃ˜Â¯Ã™Ë†Ã˜Â±Ã˜Â©: ${student.course_name}
-Rate/Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž: ${student.attendanceRate}%
-Attended/Ã˜Â­Ã˜Â¶Ã˜Â±: ${student.presentDays}/${student.totalDays} sessions
-Consecutive Absences/Ã˜ÂºÃ™Å Ã˜Â§Ã˜Â¨ Ã™â€¦Ã˜ÂªÃ˜ÂªÃ˜Â§Ã™â€žÃ™Å : ${student.consecutiveAbsences}
-Trend/Ã˜Â§Ã™â€žÃ˜Â§Ã˜ÂªÃ˜Â¬Ã˜Â§Ã™â€¡: ${student.trend}
-Risk/Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â³Ã˜ÂªÃ™Ë†Ã™â€°: ${student.riskLevel.toUpperCase()} (${riskTextAr})
-${recentDates ? `Recent Absences/Ã˜ÂºÃ™Å Ã˜Â§Ã˜Â¨ Ã˜Â­Ã˜Â¯Ã™Å Ã˜Â«: ${recentDates}${moreDates}` : ''}
+Course/الدورة: ${student.course_name}
+Rate/المعدل: ${student.attendanceRate}%
+Attended/حضر: ${student.presentDays}/${student.totalDays} sessions
+Consecutive Absences/غياب متتالي: ${student.consecutiveAbsences}
+Trend/الاتجاه: ${student.trend}
+Risk/المستوى: ${student.riskLevel.toUpperCase()} (${riskTextAr})
+${recentDates ? `Recent Absences/غياب حديث: ${recentDates}${moreDates}` : ''}
 
 ${urgencyNote}
 
-Contact training center / Ã˜ÂªÃ™Ë†Ã˜Â§Ã˜ÂµÃ™â€ž Ã™â€¦Ã˜Â¹ Ã™â€¦Ã˜Â±Ã™Æ’Ã˜Â² Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â¯Ã˜Â±Ã™Å Ã˜Â¨`;
+Contact training center / تواصل مع مركز التدريب`;
 
     // SMS link format - works on most devices
     return `sms:${student.phone || ''}?body=${encodeURIComponent(message)}`;
 }
 
 export function generateWhatsAppLink(student: AbsentStudent): string {
-    const riskEmoji = { critical: 'Ã°Å¸Å¡Â¨', high: 'Ã¢Å¡Â Ã¯Â¸Â', medium: 'Ã¢Å¡Â¡', watch: 'Ã°Å¸â€˜ÂÃ¯Â¸Â' }[student.riskLevel];
-    const riskTextAr = { critical: 'Ã˜Â­Ã˜Â±Ã˜Â¬', high: 'Ã˜Â¹Ã˜Â§Ã™â€žÃ™Å ', medium: 'Ã™â€¦Ã˜ÂªÃ™Ë†Ã˜Â³Ã˜Â·', watch: 'Ã™â€¦Ã˜Â±Ã˜Â§Ã™â€šÃ˜Â¨Ã˜Â©' }[student.riskLevel];
+    const riskEmoji = { critical: '🚨', high: '⚠️', medium: '⚡', watch: '👁️' }[student.riskLevel];
+    const riskTextAr = { critical: 'حرج', high: 'عالي', medium: 'متوسط', watch: 'مراقبة' }[student.riskLevel];
     const recentDates = student.absentDates.slice(0, 3).map(d => format(new Date(d), 'MMM dd')).join(', ');
 
-    const message = `${riskEmoji} *ATTENDANCE ALERT / Ã˜Â¥Ã˜Â´Ã˜Â¹Ã˜Â§Ã˜Â± Ã˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±*
+    const message = `${riskEmoji} *ATTENDANCE ALERT / إشعار حضور*
 
-*Student/Ã˜Â§Ã™â€žÃ˜Â·Ã˜Â§Ã™â€žÃ˜Â¨:* ${student.student_name}
-*Course/Ã˜Â§Ã™â€žÃ˜Â¯Ã™Ë†Ã˜Â±Ã˜Â©:* ${student.course_name}
-*Rate/Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž:* ${student.attendanceRate}%
-*Attended/Ã˜Â­Ã˜Â¶Ã˜Â±:* ${student.presentDays}/${student.totalDays} sessions
-*Consecutive Absences/Ã˜ÂºÃ™Å Ã˜Â§Ã˜Â¨ Ã™â€¦Ã˜ÂªÃ˜ÂªÃ˜Â§Ã™â€žÃ™Å :* ${student.consecutiveAbsences}
-*Risk Level/Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â³Ã˜ÂªÃ™Ë†Ã™â€°:* ${student.riskLevel.toUpperCase()} (${riskTextAr})
-${recentDates ? `*Recent/Ã˜Â­Ã˜Â¯Ã™Å Ã˜Â«:* ${recentDates}` : ''}
+*Student/الطالب:* ${student.student_name}
+*Course/الدورة:* ${student.course_name}
+*Rate/المعدل:* ${student.attendanceRate}%
+*Attended/حضر:* ${student.presentDays}/${student.totalDays} sessions
+*Consecutive Absences/غياب متتالي:* ${student.consecutiveAbsences}
+*Risk Level/المستوى:* ${student.riskLevel.toUpperCase()} (${riskTextAr})
+${recentDates ? `*Recent/حديث:* ${recentDates}` : ''}
 
 Please contact the training center.
-Ã™Å Ã˜Â±Ã˜Â¬Ã™â€° Ã˜Â§Ã™â€žÃ˜ÂªÃ™Ë†Ã˜Â§Ã˜ÂµÃ™â€ž Ã™â€¦Ã˜Â¹ Ã™â€¦Ã˜Â±Ã™Æ’Ã˜Â² Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â¯Ã˜Â±Ã™Å Ã˜Â¨.`;
+يرجى التواصل مع مركز التدريب.`;
 
     const phone = (student.phone || '').replace(/[^0-9]/g, '');
     return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
@@ -166,43 +166,43 @@ export function generateTemplateBody(template: MessageTemplate, student: AbsentS
     
     switch (template) {
       case 'encouragement': {
-        const subject = `Great Progress! Keep Going - ${student.student_name} | Ã˜Â£Ã˜Â­Ã˜Â³Ã™â€ Ã˜Âª! Ã™Ë†Ã˜Â§Ã˜ÂµÃ™â€ž Ã˜Â§Ã™â€žÃ˜ÂªÃ™â€šÃ˜Â¯Ã™â€¦`;
+        const subject = `Great Progress! Keep Going - ${student.student_name} | أحسنت! واصل التقدم`;
         const body = isEmail
-          ? `Dear ${student.student_name},\nÃ˜Â¹Ã˜Â²Ã™Å Ã˜Â²Ã™Å /Ã˜Â¹Ã˜Â²Ã™Å Ã˜Â²Ã˜ÂªÃ™Å  ${student.student_name}Ã˜Å’\n\n` +
+          ? `Dear ${student.student_name},\nعزيزي/عزيزتي ${student.student_name}،\n\n` +
             `We want to acknowledge your efforts in "${student.course_name}".\n` +
-            `Ã™â€ Ã™Ë†Ã˜Â¯ Ã˜Â£Ã™â€  Ã™â€ Ã™â€šÃ˜Â¯Ã˜Â± Ã˜Â¬Ã™â€¡Ã™Ë†Ã˜Â¯Ã™Æ’ Ã™ÂÃ™Å  "${student.course_name}".\n\n` +
-            `Ã°Å¸â€œÅ  Your Stats / Ã˜Â¥Ã˜Â­Ã˜ÂµÃ˜Â§Ã˜Â¦Ã™Å Ã˜Â§Ã˜ÂªÃ™Æ’:\n` +
-            `  Ã¢â‚¬Â¢ Attendance Rate / Ã™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±: ${student.attendanceRate}%\n` +
-            `  Ã¢â‚¬Â¢ Sessions Attended / Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€žÃ˜Â³Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±Ã˜Â©: ${student.presentDays}/${student.totalDays}\n` +
-            `  Ã¢â‚¬Â¢ Engagement / Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â´Ã˜Â§Ã˜Â±Ã™Æ’Ã˜Â©: ${student.engagementScore}/100\n` +
-            `  Ã¢â‚¬Â¢ Trend / Ã˜Â§Ã™â€žÃ˜Â§Ã˜ÂªÃ˜Â¬Ã˜Â§Ã™â€¡: ${student.trend}\n\n` +
+            `نود أن نقدر جهودك في "${student.course_name}".\n\n` +
+            `📊 Your Stats / إحصائياتك:\n` +
+            `  • Attendance Rate / معدل الحضور: ${student.attendanceRate}%\n` +
+            `  • Sessions Attended / الجلسات المحضورة: ${student.presentDays}/${student.totalDays}\n` +
+            `  • Engagement / المشاركة: ${student.engagementScore}/100\n` +
+            `  • Trend / الاتجاه: ${student.trend}\n\n` +
             (student.trend === 'improving' 
-              ? `Ã°Å¸Å’Å¸ Your attendance trend is improving Ã¢â‚¬â€ keep up the great work!\nÃ˜Â§Ã˜ÂªÃ˜Â¬Ã˜Â§Ã™â€¡ Ã˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±Ã™Æ’ Ã™ÂÃ™Å  Ã˜ÂªÃ˜Â­Ã˜Â³Ã™â€˜Ã™â€  Ã¢â‚¬â€ Ã˜Â§Ã˜Â³Ã˜ÂªÃ™â€¦Ã˜Â± Ã™ÂÃ™Å  Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â±Ã˜Â§Ã˜Â¦Ã˜Â¹!\n\n`
-              : `Ã°Å¸â€™Âª We believe in your ability to succeed. Every session counts!\nÃ™â€ Ã˜Â­Ã™â€  Ã™â€ Ã˜Â¤Ã™â€¦Ã™â€  Ã˜Â¨Ã™â€šÃ˜Â¯Ã˜Â±Ã˜ÂªÃ™Æ’ Ã˜Â¹Ã™â€žÃ™â€° Ã˜Â§Ã™â€žÃ™â€ Ã˜Â¬Ã˜Â§Ã˜Â­. Ã™Æ’Ã™â€ž Ã˜Â¬Ã™â€žÃ˜Â³Ã˜Â© Ã™â€¦Ã™â€¡Ã™â€¦Ã˜Â©!\n\n`) +
-            `Best regards / Ã™â€¦Ã˜Â¹ Ã˜Â£Ã˜Â·Ã™Å Ã˜Â¨ Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â­Ã™Å Ã˜Â§Ã˜Âª,\nTraining Center Management / Ã˜Â¥Ã˜Â¯Ã˜Â§Ã˜Â±Ã˜Â© Ã™â€¦Ã˜Â±Ã™Æ’Ã˜Â² Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â¯Ã˜Â±Ã™Å Ã˜Â¨`
-          : `Ã°Å¸Å’Å¸ ${student.student_name}\n` +
+              ? `🌟 Your attendance trend is improving — keep up the great work!\nاتجاه حضورك في تحسّن — استمر في العمل الرائع!\n\n`
+              : `💪 We believe in your ability to succeed. Every session counts!\nنحن نؤمن بقدرتك على النجاح. كل جلسة مهمة!\n\n`) +
+            `Best regards / مع أطيب التحيات,\nTraining Center Management / إدارة مركز التدريب`
+          : `🌟 ${student.student_name}\n` +
             `Course: ${student.course_name}\n` +
             `Rate: ${student.attendanceRate}% | ${student.presentDays}/${student.totalDays}\n` +
-            `Keep up the great work! Ã™Ë†Ã˜Â§Ã˜ÂµÃ™â€ž Ã˜Â§Ã™â€žÃ˜ÂªÃ™â€šÃ˜Â¯Ã™â€¦!`;
+            `Keep up the great work! واصل التقدم!`;
         return { subject, body };
       }
       case 'reminder': {
-        const subject = `Session Reminder - ${student.course_name} | Ã˜ÂªÃ˜Â°Ã™Æ’Ã™Å Ã˜Â± Ã˜Â¨Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€žÃ˜Â³Ã˜Â© - ${student.course_name}`;
+        const subject = `Session Reminder - ${student.course_name} | تذكير بالجلسة - ${student.course_name}`;
         const body = isEmail
-          ? `Dear ${student.student_name},\nÃ˜Â¹Ã˜Â²Ã™Å Ã˜Â²Ã™Å /Ã˜Â¹Ã˜Â²Ã™Å Ã˜Â²Ã˜ÂªÃ™Å  ${student.student_name}Ã˜Å’\n\n` +
-            `This is a friendly reminder about your upcoming session.\nÃ™â€¡Ã˜Â°Ã˜Â§ Ã˜ÂªÃ˜Â°Ã™Æ’Ã™Å Ã˜Â± Ã™Ë†Ã˜Â¯Ã™Å  Ã˜Â¨Ã˜Â¬Ã™â€žÃ˜Â³Ã˜ÂªÃ™Æ’ Ã˜Â§Ã™â€žÃ™â€šÃ˜Â§Ã˜Â¯Ã™â€¦Ã˜Â©.\n\n` +
-            `Ã°Å¸â€œâ€¦ Course / Ã˜Â§Ã™â€žÃ˜Â¯Ã™Ë†Ã˜Â±Ã˜Â©: ${student.course_name}\n` +
-            `Ã°Å¸â€œÅ  Current Attendance / Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â± Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â§Ã™â€žÃ™Å : ${student.attendanceRate}%\n` +
-            `Ã°Å¸â€œË† Sessions Completed / Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€žÃ˜Â³Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ™â€¦Ã™Æ’Ã˜ÂªÃ™â€¦Ã™â€žÃ˜Â©: ${student.presentDays}/${student.totalDays}\n\n` +
+          ? `Dear ${student.student_name},\nعزيزي/عزيزتي ${student.student_name}،\n\n` +
+            `This is a friendly reminder about your upcoming session.\nهذا تذكير ودي بجلستك القادمة.\n\n` +
+            `📅 Course / الدورة: ${student.course_name}\n` +
+            `📊 Current Attendance / الحضور الحالي: ${student.attendanceRate}%\n` +
+            `📈 Sessions Completed / الجلسات المكتملة: ${student.presentDays}/${student.totalDays}\n\n` +
             (student.attendanceRate < 75 
-              ? `Ã¢Å¡Â Ã¯Â¸Â Your attendance is below 75%. Please make every effort to attend.\nÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±Ã™Æ’ Ã˜Â£Ã™â€šÃ™â€ž Ã™â€¦Ã™â€  75%. Ã™Å Ã˜Â±Ã˜Â¬Ã™â€° Ã˜Â¨Ã˜Â°Ã™â€ž Ã™Æ’Ã™â€ž Ã˜Â¬Ã™â€¡Ã˜Â¯ Ã™â€žÃ™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±.\n\n`
+              ? `⚠️ Your attendance is below 75%. Please make every effort to attend.\nحضورك أقل من 75%. يرجى بذل كل جهد للحضور.\n\n`
               : '') +
-            `We look forward to seeing you!\nÃ™â€ Ã˜ÂªÃ˜Â·Ã™â€žÃ˜Â¹ Ã™â€žÃ˜Â±Ã˜Â¤Ã™Å Ã˜ÂªÃ™Æ’!\n\n` +
-            `Training Center Management / Ã˜Â¥Ã˜Â¯Ã˜Â§Ã˜Â±Ã˜Â© Ã™â€¦Ã˜Â±Ã™Æ’Ã˜Â² Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â¯Ã˜Â±Ã™Å Ã˜Â¨`
-          : `Ã°Å¸â€œâ€¦ REMINDER / Ã˜ÂªÃ˜Â°Ã™Æ’Ã™Å Ã˜Â±\n${student.student_name}\n` +
+            `We look forward to seeing you!\nنتطلع لرؤيتك!\n\n` +
+            `Training Center Management / إدارة مركز التدريب`
+          : `📅 REMINDER / تذكير\n${student.student_name}\n` +
             `Course: ${student.course_name}\n` +
             `Rate: ${student.attendanceRate}%\n` +
-            `Don't miss your next session! Ã™â€žÃ˜Â§ Ã˜ÂªÃ™ÂÃ™Ë†Ã˜Âª Ã˜Â¬Ã™â€žÃ˜Â³Ã˜ÂªÃ™Æ’ Ã˜Â§Ã™â€žÃ™â€šÃ˜Â§Ã˜Â¯Ã™â€¦Ã˜Â©!`;
+            `Don't miss your next session! لا تفوت جلستك القادمة!`;
         return { subject, body };
       }
       case 'custom':

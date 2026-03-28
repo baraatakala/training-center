@@ -81,7 +81,7 @@ export function Announcements() {
     
     const announcementIds = announcementsList.map(a => a.announcement_id);
 
-    // Batch-fetch reactions and comment counts in 2 queries instead of 2Ãƒâ€”N
+    // Batch-fetch reactions and comment counts in 2 queries instead of 2×N
     const [reactionsResult, commentCountsResult] = await Promise.all([
       announcementReactionService.getForMultipleAnnouncements(announcementIds, userId || undefined),
       announcementCommentService.getCountsForMultiple(announcementIds)
@@ -490,7 +490,7 @@ export function Announcements() {
 
   const getPriorityBadge = (priority: AnnouncementPriority) => {
     const styles: Record<AnnouncementPriority, { variant: 'default' | 'info' | 'warning' | 'success' | 'danger'; text: string }> = {
-      urgent: { variant: 'danger', text: 'Ã°Å¸Å¡Â¨ Urgent' },
+      urgent: { variant: 'danger', text: '🚨 Urgent' },
       high: { variant: 'warning', text: 'High' },
       normal: { variant: 'info', text: 'Normal' },
       low: { variant: 'default', text: 'Low' }
@@ -558,7 +558,7 @@ export function Announcements() {
     return (
       <div className="text-center py-12">
         <div className="inline-block p-6 bg-red-50 dark:bg-red-900/30 border-2 border-red-200 dark:border-red-700 rounded-lg">
-          <p className="text-red-600 dark:text-red-400 font-semibold">Ã¢Å¡Â Ã¯Â¸Â {error}</p>
+          <p className="text-red-600 dark:text-red-400 font-semibold">⚠️ {error}</p>
           <button
             onClick={() => { setError(null); checkUserAndLoadData(); }}
             className="mt-3 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-sm"
@@ -575,14 +575,14 @@ export function Announcements() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold dark:text-white">Ã°Å¸â€œÂ¢ Announcements</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold dark:text-white">📢 Announcements</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
             {isTeacher ? 'Manage announcements for your courses' : `Stay updated with course announcements${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
           </p>
         </div>
         {isTeacher && (
           <Button onClick={openCreateModal} className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
-            Ã¢Å“Â¨ New Announcement
+            ✨ New Announcement
           </Button>
         )}
       </div>
@@ -593,7 +593,7 @@ export function Announcements() {
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
               <Input
-                placeholder="Ã°Å¸â€Â Search announcements..."
+                placeholder="🔍 Search announcements..."
                 value={searchTerm}
                 onChange={(v) => setSearchTerm(v)}
               />
@@ -603,7 +603,7 @@ export function Announcements() {
               onChange={(v) => setFilterPriority(v)}
               options={[
                 { value: 'all', label: 'All Priorities' },
-                { value: 'urgent', label: 'Ã°Å¸Å¡Â¨ Urgent' },
+                { value: 'urgent', label: '🚨 Urgent' },
                 { value: 'high', label: 'High' },
                 { value: 'normal', label: 'Normal' },
                 { value: 'low', label: 'Low' }
@@ -655,7 +655,7 @@ export function Announcements() {
       {sortedAnnouncements.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
-            <span className="text-5xl mb-4 block">Ã°Å¸â€œÂ­</span>
+            <span className="text-5xl mb-4 block">📭</span>
             <p className="text-gray-500 dark:text-gray-400">No announcements found</p>
           </CardContent>
         </Card>
@@ -678,7 +678,7 @@ export function Announcements() {
               
               <div className="flex items-start justify-between gap-2 mb-2">
                 <div className="flex items-center gap-2 flex-wrap">
-                  {announcement.is_pinned && <span className="text-lg animate-pulse">Ã°Å¸â€œÅ’</span>}
+                  {announcement.is_pinned && <span className="text-lg animate-pulse">📌</span>}
                   {getCategoryBadge(announcement.category)}
                   {getPriorityBadge(announcement.priority)}
                 </div>
@@ -749,17 +749,17 @@ export function Announcements() {
                   </span>
                   {announcement.teacher?.name || announcement.creator?.name || 'Unknown'}
                 </span>
-                <span>Ã¢â‚¬Â¢</span>
+                <span>•</span>
                 <span title={format(new Date(announcement.created_at), 'PPpp')}>{formatTimeAgo(announcement.created_at)}</span>
                 {announcement.commentCount !== undefined && announcement.commentCount > 0 && (
                   <>
-                    <span>Ã¢â‚¬Â¢</span>
-                    <span className="inline-flex items-center gap-1">Ã°Å¸â€™Â¬ {announcement.commentCount}</span>
+                    <span>•</span>
+                    <span className="inline-flex items-center gap-1">💬 {announcement.commentCount}</span>
                   </>
                 )}
                 {announcement.course?.course_name && (
                   <>
-                    <span>Ã¢â‚¬Â¢</span>
+                    <span>•</span>
                     <Badge variant="default">{announcement.course.course_name}</Badge>
                   </>
                 )}
@@ -776,7 +776,7 @@ export function Announcements() {
                       }}
                       className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full transition-colors"
                     >
-                      Ã°Å¸ËœÅ  React
+                      😊 React
                     </button>
                     {showReactionPicker === announcement.announcement_id && (
                       <div className="absolute bottom-full left-0 mb-2 bg-white dark:bg-gray-800 rounded-xl shadow-lg p-2 flex gap-1 z-10 animate-in fade-in zoom-in duration-200">
@@ -800,7 +800,7 @@ export function Announcements() {
                     }}
                     className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full transition-colors"
                   >
-                    Ã°Å¸â€™Â¬ Comment
+                    💬 Comment
                   </button>
                 </div>
               )}
@@ -808,10 +808,10 @@ export function Announcements() {
               {isTeacher && (
                 <div className="flex gap-2 mt-4 pt-3 border-t dark:border-gray-700" onClick={(e) => e.stopPropagation()}>
                   <Button size="sm" variant="outline" onClick={() => openEditModal(announcement)}>
-                    Ã¢Å“ÂÃ¯Â¸Â Edit
+                    ✏️ Edit
                   </Button>
                   <Button size="sm" variant="danger" onClick={() => setDeleteConfirmId(announcement.announcement_id)}>
-                    Ã°Å¸â€”â€˜Ã¯Â¸Â Delete
+                    🗑️ Delete
                   </Button>
                 </div>
               )}
@@ -836,11 +836,11 @@ export function Announcements() {
       <Modal
         isOpen={showCreateModal}
         onClose={closeModal}
-        title={editingAnnouncement ? 'Ã¢Å“ÂÃ¯Â¸Â Edit Announcement' : 'Ã¢Å“Â¨ New Announcement'}
+        title={editingAnnouncement ? '✏️ Edit Announcement' : '✨ New Announcement'}
         size="lg"
       >
         <div className="space-y-4">
-          {/* Template Picker Ã¢â‚¬â€ Only for new announcements */}
+          {/* Template Picker — Only for new announcements */}
           {!editingAnnouncement && (
             <div>
               <button
@@ -848,7 +848,7 @@ export function Announcements() {
                 onClick={() => setShowTemplatePicker(prev => !prev)}
                 className="flex items-center gap-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
               >
-                <span>Ã°Å¸â€œâ€¹</span>
+                <span>📋</span>
                 <span>{showTemplatePicker ? 'Hide Templates' : 'Use a Template'}</span>
                 <svg className={`w-4 h-4 transition-transform ${showTemplatePicker ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -910,7 +910,7 @@ export function Announcements() {
                   { value: 'low', label: 'Low' },
                   { value: 'normal', label: 'Normal' },
                   { value: 'high', label: 'High' },
-                  { value: 'urgent', label: 'Ã°Å¸Å¡Â¨ Urgent' }
+                  { value: 'urgent', label: '🚨 Urgent' }
                 ]}
               />
             </div>
@@ -933,7 +933,7 @@ export function Announcements() {
                 value={formCourseId}
                 onChange={(v) => setFormCourseId(v)}
                 options={[
-                  { value: '', label: 'Ã°Å¸Å’Â All Courses (Global)' },
+                  { value: '', label: '🌐 All Courses (Global)' },
                   ...courses.map(c => ({ value: c.course_id, label: c.course_name }))
                 ]}
               />
@@ -955,13 +955,13 @@ export function Announcements() {
                 onChange={(e) => setFormIsPinned(e.target.checked)}
                 className="h-4 w-4 text-blue-600 rounded"
               />
-              <span className="text-sm dark:text-gray-300">Ã°Å¸â€œÅ’ Pin to top</span>
+              <span className="text-sm dark:text-gray-300">📌 Pin to top</span>
             </label>
           </div>
 
           {/* Image Upload */}
           <div>
-            <label className="block text-sm font-medium mb-2 dark:text-gray-300">Ã°Å¸â€œÂ· Image (Optional)</label>
+            <label className="block text-sm font-medium mb-2 dark:text-gray-300">📷 Image (Optional)</label>
             {formImagePreview ? (
               <div className="relative group">
                 <img
@@ -989,7 +989,7 @@ export function Announcements() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Click to upload an image</p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">JPEG, PNG, GIF, WebP Ã¢â‚¬Â¢ Max 5MB</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">JPEG, PNG, GIF, WebP • Max 5MB</p>
               </div>
             )}
             <input
@@ -1003,7 +1003,7 @@ export function Announcements() {
           <div className="flex justify-end gap-3 pt-4 border-t dark:border-gray-700">
             <Button variant="outline" onClick={closeModal}>Cancel</Button>
             <Button onClick={handleCreateOrUpdate} disabled={submitting || uploadingImage}>
-              {uploadingImage ? 'Ã°Å¸â€œÂ· Uploading...' : submitting ? 'Saving...' : (editingAnnouncement ? 'Update' : 'Create')}
+              {uploadingImage ? '📷 Uploading...' : submitting ? 'Saving...' : (editingAnnouncement ? 'Update' : 'Create')}
             </Button>
           </div>
         </div>
@@ -1025,7 +1025,7 @@ export function Announcements() {
           <div className="space-y-4 max-h-[70vh] overflow-y-auto">
             {/* Header with meta info */}
             <div className="flex flex-wrap items-center gap-3 pb-4 border-b dark:border-gray-700">
-              {viewingAnnouncement.is_pinned && <span className="text-xl animate-pulse">Ã°Å¸â€œÅ’</span>}
+              {viewingAnnouncement.is_pinned && <span className="text-xl animate-pulse">📌</span>}
               {getCategoryBadge(viewingAnnouncement.category)}
               {getPriorityBadge(viewingAnnouncement.priority)}
               <div className="flex items-center gap-2">
@@ -1062,7 +1062,7 @@ export function Announcements() {
             
             {viewingAnnouncement.expires_at && (
               <div className="text-sm text-orange-600 dark:text-orange-400 flex items-center gap-2 bg-orange-50 dark:bg-orange-900/20 px-3 py-2 rounded-lg">
-                <span className="animate-pulse">Ã¢ÂÂ°</span> Expires: {format(new Date(viewingAnnouncement.expires_at), 'MMMM dd, yyyy')}
+                <span className="animate-pulse">⏰</span> Expires: {format(new Date(viewingAnnouncement.expires_at), 'MMMM dd, yyyy')}
               </div>
             )}
             
@@ -1117,7 +1117,7 @@ export function Announcements() {
             {/* Comments Section */}
             <div className="pt-2">
               <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-                Ã°Å¸â€™Â¬ Comments {comments.length > 0 && <span className="text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 px-2 py-0.5 rounded-full">{comments.length}</span>}
+                💬 Comments {comments.length > 0 && <span className="text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 px-2 py-0.5 rounded-full">{comments.length}</span>}
               </h4>
               
               {loadingComments ? (
@@ -1126,7 +1126,7 @@ export function Announcements() {
                 </div>
               ) : comments.length === 0 ? (
                 <div className="text-center py-6 text-gray-400 dark:text-gray-500">
-                  <span className="text-3xl block mb-2">Ã°Å¸â€™Â­</span>
+                  <span className="text-3xl block mb-2">💭</span>
                   <p className="text-sm">No comments yet. Be the first to comment!</p>
                 </div>
               ) : (
@@ -1145,7 +1145,7 @@ export function Announcements() {
                             {comment.commenter_type === 'teacher' && (
                               <Badge variant="info" className="text-[10px] px-1.5 py-0">Teacher</Badge>
                             )}
-                            {comment.is_pinned && <span className="text-xs">Ã°Å¸â€œÅ’</span>}
+                            {comment.is_pinned && <span className="text-xs">📌</span>}
                             <span className="text-xs text-gray-400">{formatTimeAgo(comment.created_at)}</span>
                           </div>
                           <p className="text-sm text-gray-700 dark:text-gray-300">{comment.content}</p>
@@ -1156,14 +1156,14 @@ export function Announcements() {
                               onClick={() => setReplyingTo(replyingTo === comment.comment_id ? null : comment.comment_id)}
                               className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
                             >
-                              Ã¢â€ Â©Ã¯Â¸Â Reply
+                              ↩️ Reply
                             </button>
                             {(isTeacher || comment.commenter_id === currentUserId) && (
                               <button 
                                 onClick={() => handleDeleteComment(comment.comment_id)}
                                 className="text-xs text-red-500 hover:underline"
                               >
-                                Ã°Å¸â€”â€˜Ã¯Â¸Â Delete
+                                🗑️ Delete
                               </button>
                             )}
                           </div>

@@ -27,7 +27,7 @@ export interface AttendanceExportData {
   gps_accuracy: number | null;
 }
 
-// Late display brackets â€” reads from saved scoring config (dynamic)
+// Late display brackets — reads from saved scoring config (dynamic)
 const getLateBracketName = (lateMinutes: number | null | undefined): string => {
   if (!lateMinutes || lateMinutes <= 0) return '-';
   const config = loadConfigSync();
@@ -73,7 +73,7 @@ export class ExcelExportService {
       'Notes': record.notes || '',
       'GPS Latitude': record.gps_latitude !== null ? record.gps_latitude.toFixed(6) : 'N/A',
       'GPS Longitude': record.gps_longitude !== null ? record.gps_longitude.toFixed(6) : 'N/A',
-      'GPS Accuracy (m)': record.gps_accuracy !== null ? `Â±${record.gps_accuracy.toFixed(1)}` : 'N/A'
+      'GPS Accuracy (m)': record.gps_accuracy !== null ? `±${record.gps_accuracy.toFixed(1)}` : 'N/A'
     }));
 
     // Create worksheet

@@ -124,7 +124,7 @@ interface FilterOptions {
 // ============================================================================
 // All scoring parameters are read from scoringConfigService (loadConfigSync).
 // Config is set via the Score Configuration page and stored in localStorage + Supabase.
-// Components: Weight %, Late Decay Ãâ€ž, Coverage method, Display Brackets, Bonuses.
+// Components: Weight %, Late Decay τ, Coverage method, Display Brackets, Bonuses.
 // ============================================================================
 
 // Display brackets (for UI only - scoring uses smooth decay)
@@ -318,7 +318,7 @@ export const AttendanceRecords = () => {
     collapseChartsSection,
   ]);
 
-  // Table include/exclude toggles for exports Ã¢â‚¬â€ persisted in localStorage
+  // Table include/exclude toggles for exports — persisted in localStorage
   const [includedTables, setIncludedTables] = useState<{
     summary: boolean;
     student: boolean;
@@ -336,8 +336,8 @@ export const AttendanceRecords = () => {
     localStorage.setItem('analyticsIncludedTables', JSON.stringify(includedTables));
   }, [includedTables]);
 
-  // Matrix date selection Ã¢â‚¬â€ which dates to include in the cross-tab matrix (all exports + UI)
-  // null means "all dates" (default), otherwise a Set of selected date strings Ã¢â‚¬â€ persisted in localStorage
+  // Matrix date selection — which dates to include in the cross-tab matrix (all exports + UI)
+  // null means "all dates" (default), otherwise a Set of selected date strings — persisted in localStorage
   const [matrixSelectedDates, setMatrixSelectedDates] = useState<Set<string> | null>(() => {
     try {
       const saved = localStorage.getItem('matrixSelectedDates');
@@ -355,7 +355,7 @@ export const AttendanceRecords = () => {
   }, [matrixSelectedDates]);
   const [showMatrixDatePicker, setShowMatrixDatePicker] = useState(false);
 
-  // Matrix sorting Ã¢â‚¬â€ persisted in localStorage
+  // Matrix sorting — persisted in localStorage
   type MatrixSortField = 'name' | 'score' | 'attendance' | 'present' | 'absent' | 'late';
   type MatrixSortDir = 'asc' | 'desc';
   const [matrixSortField, setMatrixSortField] = useState<MatrixSortField>(() => {
@@ -401,7 +401,7 @@ export const AttendanceRecords = () => {
   // Arabic display mode for the table
   const [arabicMode, setArabicMode] = useState(false);
 
-  // Scoring config key Ã¢â‚¬â€ a serialized snapshot of the config from localStorage.
+  // Scoring config key — a serialized snapshot of the config from localStorage.
   // Changes when the user saves new scoring config. Used as a dependency to
   // force analytics recalculation with updated weights.
   const [scoringConfigKey, setScoringConfigKey] = useState(() => JSON.stringify(loadConfigSync()));
@@ -728,11 +728,11 @@ export const AttendanceRecords = () => {
   const getStatusLabel = (status: string) => {
     if (arabicMode) {
       switch (status) {
-        case ATTENDANCE_STATUS.ON_TIME: return 'Ã™ÂÃ™Å  Ã˜Â§Ã™â€žÃ™Ë†Ã™â€šÃ˜Âª';
-        case ATTENDANCE_STATUS.ABSENT: return 'Ã˜ÂºÃ˜Â§Ã˜Â¦Ã˜Â¨';
-        case ATTENDANCE_STATUS.LATE: return 'Ã™â€¦Ã˜ÂªÃ˜Â£Ã˜Â®Ã˜Â±';
-        case ATTENDANCE_STATUS.EXCUSED: return 'Ã™â€¦Ã˜Â¹Ã˜Â°Ã™Ë†Ã˜Â±';
-        case ATTENDANCE_STATUS.NOT_ENROLLED: return 'Ã˜ÂºÃ™Å Ã˜Â± Ã™â€¦Ã˜Â³Ã˜Â¬Ã™â€ž';
+        case ATTENDANCE_STATUS.ON_TIME: return 'في الوقت';
+        case ATTENDANCE_STATUS.ABSENT: return 'غائب';
+        case ATTENDANCE_STATUS.LATE: return 'متأخر';
+        case ATTENDANCE_STATUS.EXCUSED: return 'معذور';
+        case ATTENDANCE_STATUS.NOT_ENROLLED: return 'غير مسجل';
         default: return status;
       }
     }
@@ -748,113 +748,113 @@ export const AttendanceRecords = () => {
 
   // Arabic translations for table headers and values
   const t = useMemo(() => arabicMode ? {
-    attendanceRecords: 'Ã˜Â³Ã˜Â¬Ã™â€žÃ˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±',
-    subtitle: 'Ã°Å¸â€œÂ Ã˜Â­Ã˜Â¶Ã™Ë†Ã˜Â± Ã™â€¦Ã™ÂÃ˜ÂªÃ˜ÂªÃ˜Â¨Ã˜Â¹ Ã˜Â¨Ã˜Â§Ã™â€žÃ™â‚¬ GPS Ã™â€¦Ã˜Â¹ Ã˜ÂªÃ˜Â­Ã™â€žÃ™Å Ã™â€žÃ˜Â§Ã˜Âª Ã™â€¦Ã˜ÂªÃ™â€šÃ˜Â¯Ã™â€¦Ã˜Â©',
-    showing: 'Ã˜Â¹Ã˜Â±Ã˜Â¶',
-    records: 'Ã˜Â³Ã˜Â¬Ã™â€žÃ˜Â§Ã˜Âª',
-    filteredFrom: 'Ã™â€¦Ã˜ÂµÃ™ÂÃ˜Â§Ã˜Â© Ã™â€¦Ã™â€ ',
-    total: 'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å ',
-    advancedExport: 'Ã˜ÂªÃ˜ÂµÃ˜Â¯Ã™Å Ã˜Â± Ã™â€¦Ã˜ÂªÃ™â€šÃ˜Â¯Ã™â€¦',
-    itemsPerPage: 'Ã˜Â¹Ã™â€ Ã˜Â§Ã˜ÂµÃ˜Â± Ã™â€žÃ™Æ’Ã™â€ž Ã˜ÂµÃ™ÂÃ˜Â­Ã˜Â©:',
-    date: 'Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â§Ã˜Â±Ã™Å Ã˜Â®',
-    student: 'Ã˜Â§Ã™â€žÃ˜Â·Ã˜Â§Ã™â€žÃ˜Â¨',
-    course: 'Ã˜Â§Ã™â€žÃ˜Â¯Ã™Ë†Ã˜Â±Ã˜Â©',
-    instructor: 'Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¯Ã˜Â±Ã˜Â³',
-    status: 'Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â§Ã™â€žÃ˜Â©',
-    lateDuration: 'Ã™â€¦Ã˜Â¯Ã˜Â© Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â£Ã˜Â®Ã™Å Ã˜Â±',
-    method: 'Ã˜Â§Ã™â€žÃ˜Â·Ã˜Â±Ã™Å Ã™â€šÃ˜Â©',
-    excuseReason: 'Ã˜Â³Ã˜Â¨Ã˜Â¨ Ã˜Â§Ã™â€žÃ˜Â¹Ã˜Â°Ã˜Â±',
-    location: 'Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã™â€šÃ˜Â¹',
+    attendanceRecords: 'سجلات الحضور',
+    subtitle: '📍 حضور مُتتبع بالـ GPS مع تحليلات متقدمة',
+    showing: 'عرض',
+    records: 'سجلات',
+    filteredFrom: 'مصفاة من',
+    total: 'إجمالي',
+    advancedExport: 'تصدير متقدم',
+    itemsPerPage: 'عناصر لكل صفحة:',
+    date: 'التاريخ',
+    student: 'الطالب',
+    course: 'الدورة',
+    instructor: 'المدرس',
+    status: 'الحالة',
+    lateDuration: 'مدة التأخير',
+    method: 'الطريقة',
+    excuseReason: 'سبب العذر',
+    location: 'الموقع',
     gps: 'GPS',
-    markedAt: 'Ã™Ë†Ã™â€šÃ˜Âª Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â³Ã˜Â¬Ã™Å Ã™â€ž',
-    actions: 'Ã˜Â§Ã™â€žÃ˜Â¥Ã˜Â¬Ã˜Â±Ã˜Â§Ã˜Â¡Ã˜Â§Ã˜Âª',
-    viewMap: 'Ã˜Â¹Ã˜Â±Ã˜Â¶ Ã˜Â§Ã™â€žÃ˜Â®Ã˜Â±Ã™Å Ã˜Â·Ã˜Â©',
-    notRecorded: 'Ã˜ÂºÃ™Å Ã˜Â± Ã™â€¦Ã˜Â³Ã˜Â¬Ã™â€ž',
-    noGps: 'Ã˜Â¨Ã˜Â¯Ã™Ë†Ã™â€  GPS',
-    minEarly: 'Ã˜Â¯Ã™â€šÃ™Å Ã™â€šÃ˜Â© Ã™â€¦Ã˜Â¨Ã™Æ’Ã˜Â±Ã˜Â§Ã™â€¹',
-    min: 'Ã˜Â¯Ã™â€šÃ™Å Ã™â€šÃ˜Â©',
-    loading: 'Ã˜Â¬Ã˜Â§Ã˜Â±Ã™Å  Ã˜ÂªÃ˜Â­Ã™â€¦Ã™Å Ã™â€ž Ã˜Â³Ã˜Â¬Ã™â€žÃ˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±...',
-    loadingSubtext: 'Ã™Å Ã˜Â±Ã˜Â¬Ã™â€° Ã˜Â§Ã™â€žÃ˜Â§Ã™â€ Ã˜ÂªÃ˜Â¸Ã˜Â§Ã˜Â± Ã˜Â¨Ã™Å Ã™â€ Ã™â€¦Ã˜Â§ Ã™â€ Ã˜Â­Ã˜Â¶Ã˜Â± Ã˜Â§Ã™â€žÃ˜Â¨Ã™Å Ã˜Â§Ã™â€ Ã˜Â§Ã˜Âª',
-    noRecords: 'Ã™â€žÃ˜Â§ Ã˜ÂªÃ™Ë†Ã˜Â¬Ã˜Â¯ Ã˜Â³Ã˜Â¬Ã™â€žÃ˜Â§Ã˜Âª',
-    noRecordsDesc: 'Ã˜Â­Ã˜Â§Ã™Ë†Ã™â€ž Ã˜ÂªÃ˜Â¹Ã˜Â¯Ã™Å Ã™â€ž Ã˜Â§Ã™â€žÃ™ÂÃ™â€žÃ˜Â§Ã˜ÂªÃ˜Â± Ã˜Â£Ã™Ë† Ã™â€ Ã˜Â·Ã˜Â§Ã™â€š Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â§Ã˜Â±Ã™Å Ã˜Â® Ã™â€žÃ˜Â±Ã˜Â¤Ã™Å Ã˜Â© Ã˜Â³Ã˜Â¬Ã™â€žÃ˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±',
-    resetFilters: 'Ã˜Â¥Ã˜Â¹Ã˜Â§Ã˜Â¯Ã˜Â© Ã˜ÂªÃ˜Â¹Ã™Å Ã™Å Ã™â€  Ã˜Â§Ã™â€žÃ™ÂÃ™â€žÃ˜Â§Ã˜ÂªÃ˜Â±',
-    advancedFilters: 'Ã™ÂÃ™â€žÃ˜Â§Ã˜ÂªÃ˜Â± Ã™â€¦Ã˜ÂªÃ™â€šÃ˜Â¯Ã™â€¦Ã˜Â©',
-    activeFilters: 'Ã™ÂÃ™â€žÃ˜ÂªÃ˜Â± Ã™â€ Ã˜Â´Ã˜Â·',
-    hideFilters: 'Ã˜Â¥Ã˜Â®Ã™ÂÃ˜Â§Ã˜Â¡ Ã˜Â§Ã™â€žÃ™ÂÃ™â€žÃ˜Â§Ã˜ÂªÃ˜Â±',
-    showFilters: 'Ã˜Â¥Ã˜Â¸Ã™â€¡Ã˜Â§Ã˜Â± Ã˜Â§Ã™â€žÃ™ÂÃ™â€žÃ˜Â§Ã˜ÂªÃ˜Â±',
-    lastWeek: 'Ã˜Â§Ã™â€žÃ˜Â£Ã˜Â³Ã˜Â¨Ã™Ë†Ã˜Â¹ Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â§Ã˜Â¶Ã™Å ',
-    lastMonth: 'Ã˜Â§Ã™â€žÃ˜Â´Ã™â€¡Ã˜Â± Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â§Ã˜Â¶Ã™Å ',
-    absentOnly: 'Ã˜Â§Ã™â€žÃ˜ÂºÃ˜Â§Ã˜Â¦Ã˜Â¨Ã™Ë†Ã™â€  Ã™ÂÃ™â€šÃ˜Â·',
-    resetAll: 'Ã˜Â¥Ã˜Â¹Ã˜Â§Ã˜Â¯Ã˜Â© Ã˜ÂªÃ˜Â¹Ã™Å Ã™Å Ã™â€  Ã˜Â§Ã™â€žÃ™Æ’Ã™â€ž',
-    statusLabel: 'Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â§Ã™â€žÃ˜Â©',
-    allStudents: 'Ã˜Â¬Ã™â€¦Ã™Å Ã˜Â¹ Ã˜Â§Ã™â€žÃ˜Â·Ã™â€žÃ˜Â§Ã˜Â¨',
-    allCourses: 'Ã˜Â¬Ã™â€¦Ã™Å Ã˜Â¹ Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã˜Â§Ã˜Â¯',
-    allInstructors: 'Ã˜Â¬Ã™â€¦Ã™Å Ã˜Â¹ Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¹Ã™â€žÃ™â€¦Ã™Å Ã™â€ ',
-    allStatuses: 'Ã˜Â¬Ã™â€¦Ã™Å Ã˜Â¹ Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â§Ã™â€žÃ˜Â§Ã˜Âª',
-    startDateLabel: 'Ã˜ÂªÃ˜Â§Ã˜Â±Ã™Å Ã˜Â® Ã˜Â§Ã™â€žÃ˜Â¨Ã˜Â¯Ã˜Â§Ã™Å Ã˜Â©',
-    endDateLabel: 'Ã˜ÂªÃ˜Â§Ã˜Â±Ã™Å Ã˜Â® Ã˜Â§Ã™â€žÃ™â€ Ã™â€¡Ã˜Â§Ã™Å Ã˜Â©',
-    clearAll: 'Ã™â€¦Ã˜Â³Ã˜Â­ Ã˜Â§Ã™â€žÃ™Æ’Ã™â€ž',
-    selected: 'Ã™â€¦Ã˜Â­Ã˜Â¯Ã˜Â¯',
-    qrCode: 'Ã˜Â±Ã™â€¦Ã˜Â² QR',
-    photo: 'Ã˜ÂµÃ™Ë†Ã˜Â±Ã˜Â©',
-    bulk: 'Ã˜Â§Ã˜Â³Ã˜ÂªÃ™Å Ã˜Â±Ã˜Â§Ã˜Â¯ Ã˜Â¬Ã™â€¦Ã˜Â§Ã˜Â¹Ã™Å ',
-    manual: 'Ã™Å Ã˜Â¯Ã™Ë†Ã™Å ',
-    by: 'Ã˜Â¨Ã™Ë†Ã˜Â§Ã˜Â³Ã˜Â·Ã˜Â©',
+    markedAt: 'وقت التسجيل',
+    actions: 'الإجراءات',
+    viewMap: 'عرض الخريطة',
+    notRecorded: 'غير مسجل',
+    noGps: 'بدون GPS',
+    minEarly: 'دقيقة مبكراً',
+    min: 'دقيقة',
+    loading: 'جاري تحميل سجلات الحضور...',
+    loadingSubtext: 'يرجى الانتظار بينما نحضر البيانات',
+    noRecords: 'لا توجد سجلات',
+    noRecordsDesc: 'حاول تعديل الفلاتر أو نطاق التاريخ لرؤية سجلات الحضور',
+    resetFilters: 'إعادة تعيين الفلاتر',
+    advancedFilters: 'فلاتر متقدمة',
+    activeFilters: 'فلتر نشط',
+    hideFilters: 'إخفاء الفلاتر',
+    showFilters: 'إظهار الفلاتر',
+    lastWeek: 'الأسبوع الماضي',
+    lastMonth: 'الشهر الماضي',
+    absentOnly: 'الغائبون فقط',
+    resetAll: 'إعادة تعيين الكل',
+    statusLabel: 'الحالة',
+    allStudents: 'جميع الطلاب',
+    allCourses: 'جميع المواد',
+    allInstructors: 'جميع المعلمين',
+    allStatuses: 'جميع الحالات',
+    startDateLabel: 'تاريخ البداية',
+    endDateLabel: 'تاريخ النهاية',
+    clearAll: 'مسح الكل',
+    selected: 'محدد',
+    qrCode: 'رمز QR',
+    photo: 'صورة',
+    bulk: 'استيراد جماعي',
+    manual: 'يدوي',
+    by: 'بواسطة',
     // Analytics & Summary
-    hideAnalytics: 'Ã˜Â¥Ã˜Â®Ã™ÂÃ˜Â§Ã˜Â¡ Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â­Ã™â€žÃ™Å Ã™â€žÃ˜Â§Ã˜Âª',
-    showAnalytics: 'Ã˜Â¹Ã˜Â±Ã˜Â¶ Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â­Ã™â€žÃ™Å Ã™â€žÃ˜Â§Ã˜Âª',
-    refresh: 'Ã˜ÂªÃ˜Â­Ã˜Â¯Ã™Å Ã˜Â«',
-    summaryStatistics: 'Ã°Å¸â€œÅ  Ã˜Â¥Ã˜Â­Ã˜ÂµÃ˜Â§Ã˜Â¦Ã™Å Ã˜Â§Ã˜Âª Ã™â€¦Ã™â€žÃ˜Â®Ã˜ÂµÃ˜Â©',
-    totalStudents: 'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ˜Â·Ã™â€žÃ˜Â§Ã˜Â¨',
-    classAvgRate: 'Ã™â€¦Ã˜ÂªÃ™Ë†Ã˜Â³Ã˜Â· Ã™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž Ã˜Â§Ã™â€žÃ˜ÂµÃ™Â',
-    avgWeightedScore: 'Ã™â€¦Ã˜ÂªÃ™Ë†Ã˜Â³Ã˜Â· Ã˜Â§Ã™â€žÃ˜Â¯Ã˜Â±Ã˜Â¬Ã˜Â© Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã˜Â²Ã™Ë†Ã™â€ Ã˜Â©',
-    avgAttendanceByDate: 'Ã™â€¦Ã˜ÂªÃ™Ë†Ã˜Â³Ã˜Â· Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â± Ã˜Â­Ã˜Â³Ã˜Â¨ Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â§Ã˜Â±Ã™Å Ã˜Â®',
-    medianRateByDate: 'Ã˜Â§Ã™â€žÃ™Ë†Ã˜Â³Ã™Å Ã˜Â· Ã™â€žÃ™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â± Ã˜Â­Ã˜Â³Ã˜Â¨ Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â§Ã˜Â±Ã™Å Ã˜Â®',
-    exportAnalytics: 'Ã˜ÂªÃ˜ÂµÃ˜Â¯Ã™Å Ã˜Â± Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â­Ã™â€žÃ™Å Ã™â€žÃ˜Â§Ã˜Âª',
-    exportAnalyticsDesc: 'Ã˜ÂªÃ™â€ Ã˜Â²Ã™Å Ã™â€ž Ã˜Â§Ã™â€žÃ˜ÂªÃ™â€šÃ˜Â§Ã˜Â±Ã™Å Ã˜Â± Ã˜Â£Ã™Ë† Ã˜ÂªÃ™â€¡Ã™Å Ã˜Â¦Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â­Ã™â€šÃ™Ë†Ã™â€ž Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¹Ã˜Â±Ã™Ë†Ã˜Â¶Ã˜Â© Ã™ÂÃ™Å  Ã˜Â§Ã™â€žÃ˜Â¬Ã˜Â¯Ã˜Â§Ã™Ë†Ã™â€ž Ã˜Â£Ã˜Â¯Ã™â€ Ã˜Â§Ã™â€¡',
-    exporting: 'Ã˜Â¬Ã˜Â§Ã˜Â±Ã™Å  Ã˜Â§Ã™â€žÃ˜ÂªÃ˜ÂµÃ˜Â¯Ã™Å Ã˜Â±...',
-    studentPerformance: 'Ã°Å¸Å½â€œ Ã˜ÂªÃ˜Â­Ã™â€žÃ™Å Ã™â€žÃ˜Â§Ã˜Âª Ã˜Â£Ã˜Â¯Ã˜Â§Ã˜Â¡ Ã˜Â§Ã™â€žÃ˜Â·Ã™â€žÃ˜Â§Ã˜Â¨',
-    attendanceByDate: 'Ã°Å¸â€œâ€¦ Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â± Ã˜Â­Ã˜Â³Ã˜Â¨ Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â§Ã˜Â±Ã™Å Ã˜Â®',
-    hostAnalyticsTitle: 'Ã°Å¸ÂÂ  Ã˜ÂªÃ˜Â­Ã™â€žÃ™Å Ã™â€žÃ˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¶Ã™Å Ã™Â',
-    crosstabTitle: 'Ã°Å¸â€”â€œÃ¯Â¸Â Ã™â€¦Ã˜ÂµÃ™ÂÃ™Ë†Ã™ÂÃ˜Â© Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±',
-    crosstabDesc: 'Ã˜Â§Ã™â€žÃ˜Â·Ã™â€žÃ˜Â§Ã˜Â¨ Ãƒâ€” Ã˜Â§Ã™â€žÃ˜ÂªÃ™Ë†Ã˜Â§Ã˜Â±Ã™Å Ã˜Â® Ã™â€¦Ã˜Â¹ Ã™â€¦Ã˜Â¤Ã˜Â´Ã˜Â±Ã˜Â§Ã˜Âª Ã™â€¦Ã™â€žÃ™Ë†Ã™â€ Ã˜Â©',
-    includeTables: 'Ã˜ÂªÃ˜Â¶Ã™â€¦Ã™Å Ã™â€  Ã˜Â§Ã™â€žÃ˜Â¬Ã˜Â¯Ã˜Â§Ã™Ë†Ã™â€ž',
-    summaryTable: 'Ã˜Â§Ã™â€žÃ˜Â¥Ã˜Â­Ã˜ÂµÃ˜Â§Ã˜Â¦Ã™Å Ã˜Â§Ã˜Âª',
-    studentTable: 'Ã˜Â§Ã™â€žÃ˜Â·Ã™â€žÃ˜Â§Ã˜Â¨',
-    dateTable: 'Ã˜Â§Ã™â€žÃ˜ÂªÃ™Ë†Ã˜Â§Ã˜Â±Ã™Å Ã˜Â®',
-    hostTable: 'Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¶Ã™Å Ã™ÂÃ™Å Ã™â€ ',
-    crosstabTable: 'Ã˜Â§Ã™â€žÃ™â€¦Ã˜ÂµÃ™ÂÃ™Ë†Ã™ÂÃ˜Â©',
-    locationMap: 'Ã°Å¸â€œÂ Ã˜Â®Ã˜Â±Ã™Å Ã˜Â·Ã˜Â© Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã˜Â§Ã™â€šÃ˜Â¹',
-    locationMapDesc: 'Ã™â€¦Ã™Ë†Ã˜Â§Ã™â€šÃ˜Â¹ Ã˜Â§Ã™â€žÃ˜Â§Ã˜Â³Ã˜ÂªÃ˜Â¶Ã˜Â§Ã™ÂÃ˜Â© Ã™â€¦Ã˜Â¹ Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â³Ã˜Â§Ã™ÂÃ˜Â§Ã˜Âª Ã™Ë†Ã˜Â§Ã™â€žÃ˜ÂªÃ™Ë†Ã˜Â¬Ã™Å Ã™â€¡',
-    viewOnMap: 'Ã˜Â¹Ã˜Â±Ã˜Â¶ Ã˜Â¹Ã™â€žÃ™â€° Ã˜Â§Ã™â€žÃ˜Â®Ã˜Â±Ã™Å Ã˜Â·Ã˜Â©',
-    getDirections: 'Ã˜Â§Ã™â€žÃ˜Â§Ã˜ÂªÃ˜Â¬Ã˜Â§Ã™â€¡Ã˜Â§Ã˜Âª',
-    distanceBetween: 'Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â³Ã˜Â§Ã™ÂÃ˜Â© Ã˜Â¨Ã™Å Ã™â€  Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã˜Â§Ã™â€šÃ˜Â¹',
-    noGpsData: 'Ã™â€žÃ˜Â§ Ã˜ÂªÃ™Ë†Ã˜Â¬Ã˜Â¯ Ã˜Â¨Ã™Å Ã˜Â§Ã™â€ Ã˜Â§Ã˜Âª GPS',
-    locationSummary: 'Ã™â€¦Ã™â€žÃ˜Â®Ã˜Âµ Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã˜Â§Ã™â€šÃ˜Â¹',
-    uniqueLocations: 'Ã™â€¦Ã™Ë†Ã˜Â§Ã™â€šÃ˜Â¹ Ã™ÂÃ˜Â±Ã™Å Ã˜Â¯Ã˜Â©',
-    totalSessions: 'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€žÃ˜Â³Ã˜Â§Ã˜Âª',
-    avgDistance: 'Ã™â€¦Ã˜ÂªÃ™Ë†Ã˜Â³Ã˜Â· Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â³Ã˜Â§Ã™ÂÃ˜Â©',
-    students: 'Ã˜Â·Ã™â€žÃ˜Â§Ã˜Â¨',
-    sessions: 'Ã˜Â¬Ã™â€žÃ˜Â³Ã˜Â§Ã˜Âª',
-    hosts: 'Ã™â€¦Ã˜Â¶Ã™Å Ã™ÂÃ™Å Ã™â€ ',
-    fields: 'Ã˜Â­Ã™â€šÃ™Ë†Ã™â€ž',
-    all: 'Ã˜Â§Ã™â€žÃ™Æ’Ã™â€ž',
-    edit: 'Ã˜ÂªÃ˜Â¹Ã˜Â¯Ã™Å Ã™â€ž',
-    totalRecords: 'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ˜Â³Ã˜Â¬Ã™â€žÃ˜Â§Ã˜Âª',
-    allEntries: 'Ã˜Â¬Ã™â€¦Ã™Å Ã˜Â¹ Ã˜Â³Ã˜Â¬Ã™â€žÃ˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±',
-    onTime: 'Ã™ÂÃ™Å  Ã˜Â§Ã™â€žÃ™Ë†Ã™â€šÃ˜Âª',
-    absent: 'Ã˜ÂºÃ™Å Ã˜Â§Ã˜Â¨',
-    late: 'Ã™â€¦Ã˜ÂªÃ˜Â£Ã˜Â®Ã˜Â±',
-    excused: 'Ã™â€¦Ã˜Â¹Ã˜Â°Ã™Ë†Ã˜Â±',
-    ofTotal: 'Ã™â€¦Ã™â€  Ã˜Â§Ã™â€žÃ˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å ',
-    filters: 'Ã˜Â§Ã™â€žÃ˜ÂªÃ˜ÂµÃ™ÂÃ™Å Ã˜Â©',
-    studentPerformanceReport: 'Ã˜ÂªÃ™â€šÃ˜Â±Ã™Å Ã˜Â± Ã˜Â£Ã˜Â¯Ã˜Â§Ã˜Â¡ Ã˜Â§Ã™â€žÃ˜Â·Ã™â€žÃ˜Â§Ã˜Â¨',
-    attendanceByDateReport: 'Ã˜ÂªÃ™â€šÃ˜Â±Ã™Å Ã˜Â± Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â± Ã˜Â­Ã˜Â³Ã˜Â¨ Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â§Ã˜Â±Ã™Å Ã˜Â®',
-    hostRankingsReport: 'Ã˜ÂªÃ™â€šÃ˜Â±Ã™Å Ã˜Â± Ã˜ÂªÃ˜Â±Ã˜ÂªÃ™Å Ã˜Â¨ Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¶Ã™Å Ã™ÂÃ™Å Ã™â€ ',
-    dateRowsToExport: 'Ã°Å¸â€œâ€¦ Ã˜ÂµÃ™ÂÃ™Ë†Ã™Â Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â§Ã˜Â±Ã™Å Ã˜Â® Ã™â€žÃ™â€žÃ˜ÂªÃ˜ÂµÃ˜Â¯Ã™Å Ã˜Â±',
+    hideAnalytics: 'إخفاء التحليلات',
+    showAnalytics: 'عرض التحليلات',
+    refresh: 'تحديث',
+    summaryStatistics: '📊 إحصائيات ملخصة',
+    totalStudents: 'إجمالي الطلاب',
+    classAvgRate: 'متوسط معدل الصف',
+    avgWeightedScore: 'متوسط الدرجة الموزونة',
+    avgAttendanceByDate: 'متوسط الحضور حسب التاريخ',
+    medianRateByDate: 'الوسيط لمعدل الحضور حسب التاريخ',
+    exportAnalytics: 'تصدير التحليلات',
+    exportAnalyticsDesc: 'تنزيل التقارير أو تهيئة الحقول المعروضة في الجداول أدناه',
+    exporting: 'جاري التصدير...',
+    studentPerformance: '🎓 تحليلات أداء الطلاب',
+    attendanceByDate: '📅 الحضور حسب التاريخ',
+    hostAnalyticsTitle: '🏠 تحليلات المضيف',
+    crosstabTitle: '🗓️ مصفوفة الحضور',
+    crosstabDesc: 'الطلاب × التواريخ مع مؤشرات ملونة',
+    includeTables: 'تضمين الجداول',
+    summaryTable: 'الإحصائيات',
+    studentTable: 'الطلاب',
+    dateTable: 'التواريخ',
+    hostTable: 'المضيفين',
+    crosstabTable: 'المصفوفة',
+    locationMap: '📍 خريطة المواقع',
+    locationMapDesc: 'مواقع الاستضافة مع المسافات والتوجيه',
+    viewOnMap: 'عرض على الخريطة',
+    getDirections: 'الاتجاهات',
+    distanceBetween: 'المسافة بين المواقع',
+    noGpsData: 'لا توجد بيانات GPS',
+    locationSummary: 'ملخص المواقع',
+    uniqueLocations: 'مواقع فريدة',
+    totalSessions: 'إجمالي الجلسات',
+    avgDistance: 'متوسط المسافة',
+    students: 'طلاب',
+    sessions: 'جلسات',
+    hosts: 'مضيفين',
+    fields: 'حقول',
+    all: 'الكل',
+    edit: 'تعديل',
+    totalRecords: 'إجمالي السجلات',
+    allEntries: 'جميع سجلات الحضور',
+    onTime: 'في الوقت',
+    absent: 'غياب',
+    late: 'متأخر',
+    excused: 'معذور',
+    ofTotal: 'من الإجمالي',
+    filters: 'التصفية',
+    studentPerformanceReport: 'تقرير أداء الطلاب',
+    attendanceByDateReport: 'تقرير الحضور حسب التاريخ',
+    hostRankingsReport: 'تقرير ترتيب المضيفين',
+    dateRowsToExport: '📅 صفوف التاريخ للتصدير',
   } : {
     attendanceRecords: 'Attendance Records',
-    subtitle: 'Ã°Å¸â€œÂ GPS-Tracked Attendance with Advanced Analytics',
+    subtitle: '📍 GPS-Tracked Attendance with Advanced Analytics',
     showing: 'Showing',
     records: 'records',
     filteredFrom: 'filtered from',
@@ -909,7 +909,7 @@ export const AttendanceRecords = () => {
     hideAnalytics: 'Hide Analytics',
     showAnalytics: 'Show Analytics',
     refresh: 'Refresh',
-    summaryStatistics: 'Ã°Å¸â€œÅ  Summary Statistics',
+    summaryStatistics: '📊 Summary Statistics',
     totalStudents: 'Total Students',
     classAvgRate: 'Class Avg Rate',
     avgWeightedScore: 'Avg Weighted Score',
@@ -918,18 +918,18 @@ export const AttendanceRecords = () => {
     exportAnalytics: 'Export Analytics',
     exportAnalyticsDesc: 'Download reports or configure fields shown in tables below',
     exporting: 'Exporting...',
-    studentPerformance: 'Ã°Å¸Å½â€œ Student Performance Analytics',
-    attendanceByDate: 'Ã°Å¸â€œâ€¦ Attendance by Date',
-    hostAnalyticsTitle: 'Ã°Å¸ÂÂ  Host Analytics',
-    crosstabTitle: 'Ã°Å¸â€”â€œÃ¯Â¸Â Attendance Matrix',
-    crosstabDesc: 'Students Ãƒâ€” Dates with color-coded status',
+    studentPerformance: '🎓 Student Performance Analytics',
+    attendanceByDate: '📅 Attendance by Date',
+    hostAnalyticsTitle: '🏠 Host Analytics',
+    crosstabTitle: '🗓️ Attendance Matrix',
+    crosstabDesc: 'Students × Dates with color-coded status',
     includeTables: 'Include Tables',
     summaryTable: 'Summary',
     studentTable: 'Students',
     dateTable: 'Dates',
     hostTable: 'Hosts',
     crosstabTable: 'Matrix',
-    locationMap: 'Ã°Å¸â€œÂ Location Map',
+    locationMap: '📍 Location Map',
     locationMapDesc: 'Host locations with distances & routing',
     viewOnMap: 'View on Map',
     getDirections: 'Directions',
@@ -956,7 +956,7 @@ export const AttendanceRecords = () => {
     studentPerformanceReport: 'Student Performance Report',
     attendanceByDateReport: 'Attendance by Date Report',
     hostRankingsReport: 'Host Rankings Report',
-    dateRowsToExport: 'Ã°Å¸â€œâ€¦ Date Rows to Export',
+    dateRowsToExport: '📅 Date Rows to Export',
   }, [arabicMode]);
 
   // Sort filteredRecords based on Advanced Export Builder sort settings for records
@@ -1066,41 +1066,41 @@ export const AttendanceRecords = () => {
   // Column definitions mapping field keys to labels and sort keys
   const RECORD_COLUMN_DEFS: Record<string, { label: string; sortKey?: string; icon?: React.ReactNode }> = useMemo(() => ({
     date: { label: t.date, sortKey: 'date', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg> },
-    dayOfWeek: { label: arabicMode ? 'Ã™Å Ã™Ë†Ã™â€¦ Ã˜Â§Ã™â€žÃ˜Â£Ã˜Â³Ã˜Â¨Ã™Ë†Ã˜Â¹' : 'Day', sortKey: 'dayOfWeek' },
-    attendance_id: { label: arabicMode ? 'Ã˜Â±Ã™â€šÃ™â€¦ Ã˜Â§Ã™â€žÃ˜Â³Ã˜Â¬Ã™â€ž' : 'Record ID', sortKey: 'attendance_id' },
+    dayOfWeek: { label: arabicMode ? 'يوم الأسبوع' : 'Day', sortKey: 'dayOfWeek' },
+    attendance_id: { label: arabicMode ? 'رقم السجل' : 'Record ID', sortKey: 'attendance_id' },
     student_name: { label: t.student, sortKey: 'student_name', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg> },
-    student_id: { label: arabicMode ? 'Ã˜Â±Ã™â€šÃ™â€¦ Ã˜Â§Ã™â€žÃ˜Â·Ã˜Â§Ã™â€žÃ˜Â¨' : 'Student ID', sortKey: 'student_id' },
+    student_id: { label: arabicMode ? 'رقم الطالب' : 'Student ID', sortKey: 'student_id' },
     course_name: { label: t.course, sortKey: 'course_name' },
-    course_id: { label: arabicMode ? 'Ã˜Â±Ã™â€šÃ™â€¦ Ã˜Â§Ã™â€žÃ˜Â¯Ã™Ë†Ã˜Â±Ã˜Â©' : 'Course ID', sortKey: 'course_id' },
+    course_id: { label: arabicMode ? 'رقم الدورة' : 'Course ID', sortKey: 'course_id' },
     instructor_name: { label: t.instructor, sortKey: 'instructor_name' },
-    session_location: { label: arabicMode ? 'Ã™â€¦Ã™Ë†Ã™â€šÃ˜Â¹ Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€žÃ˜Â³Ã˜Â©' : 'Session Location', sortKey: 'session_location' },
-    book_topic: { label: arabicMode ? 'Ã™â€¦Ã™Ë†Ã˜Â¶Ã™Ë†Ã˜Â¹ Ã˜Â§Ã™â€žÃ™Æ’Ã˜ÂªÃ˜Â§Ã˜Â¨' : 'Book Topic' },
-    book_pages: { label: arabicMode ? 'Ã˜ÂµÃ™ÂÃ˜Â­Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ™Æ’Ã˜ÂªÃ˜Â§Ã˜Â¨' : 'Book Pages' },
-    book_start_page: { label: arabicMode ? 'Ã˜ÂµÃ™ÂÃ˜Â­Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â¨Ã˜Â¯Ã˜Â§Ã™Å Ã˜Â©' : 'Start Page' },
-    book_end_page: { label: arabicMode ? 'Ã˜ÂµÃ™ÂÃ˜Â­Ã˜Â© Ã˜Â§Ã™â€žÃ™â€ Ã™â€¡Ã˜Â§Ã™Å Ã˜Â©' : 'End Page' },
+    session_location: { label: arabicMode ? 'موقع الجلسة' : 'Session Location', sortKey: 'session_location' },
+    book_topic: { label: arabicMode ? 'موضوع الكتاب' : 'Book Topic' },
+    book_pages: { label: arabicMode ? 'صفحات الكتاب' : 'Book Pages' },
+    book_start_page: { label: arabicMode ? 'صفحة البداية' : 'Start Page' },
+    book_end_page: { label: arabicMode ? 'صفحة النهاية' : 'End Page' },
     status: { label: t.status, sortKey: 'status' },
-    status_display: { label: arabicMode ? 'Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â§Ã™â€žÃ˜Â© (Ã˜Â¹Ã˜Â±Ã˜Â¶)' : 'Status (Display)' },
-    is_present: { label: arabicMode ? 'Ã˜Â­Ã˜Â§Ã˜Â¶Ã˜Â±' : 'Is Present' },
-    is_late: { label: arabicMode ? 'Ã™â€¦Ã˜ÂªÃ˜Â£Ã˜Â®Ã˜Â±' : 'Is Late' },
-    is_excused: { label: arabicMode ? 'Ã™â€¦Ã˜Â¹Ã˜Â°Ã™Ë†Ã˜Â±' : 'Is Excused' },
-    is_absent: { label: arabicMode ? 'Ã˜ÂºÃ˜Â§Ã˜Â¦Ã˜Â¨' : 'Is Absent' },
+    status_display: { label: arabicMode ? 'الحالة (عرض)' : 'Status (Display)' },
+    is_present: { label: arabicMode ? 'حاضر' : 'Is Present' },
+    is_late: { label: arabicMode ? 'متأخر' : 'Is Late' },
+    is_excused: { label: arabicMode ? 'معذور' : 'Is Excused' },
+    is_absent: { label: arabicMode ? 'غائب' : 'Is Absent' },
     late_minutes: { label: t.lateDuration, sortKey: 'late_minutes' },
-    late_bracket: { label: arabicMode ? 'Ã™ÂÃ˜Â¦Ã˜Â© Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â£Ã˜Â®Ã˜Â±' : 'Late Bracket' },
-    early_minutes: { label: arabicMode ? 'Ã™â€¦Ã˜Â¨Ã™Æ’Ã˜Â±' : 'Early (min)' },
-    check_in_time: { label: arabicMode ? 'Ã™Ë†Ã™â€šÃ˜Âª Ã˜Â§Ã™â€žÃ˜Â¯Ã˜Â®Ã™Ë†Ã™â€ž' : 'Check-in Time' },
-    gps_timestamp: { label: arabicMode ? 'Ã™Ë†Ã™â€šÃ˜Âª GPS' : 'GPS Timestamp' },
+    late_bracket: { label: arabicMode ? 'فئة التأخر' : 'Late Bracket' },
+    early_minutes: { label: arabicMode ? 'مبكر' : 'Early (min)' },
+    check_in_time: { label: arabicMode ? 'وقت الدخول' : 'Check-in Time' },
+    gps_timestamp: { label: arabicMode ? 'وقت GPS' : 'GPS Timestamp' },
     excuse_reason: { label: t.excuseReason, sortKey: 'excuse_reason' },
     check_in_method: { label: t.method, sortKey: 'check_in_method' },
     host_address: { label: t.location, sortKey: 'host_address' },
-    gps_latitude: { label: arabicMode ? 'Ã˜Â®Ã˜Â· Ã˜Â§Ã™â€žÃ˜Â¹Ã˜Â±Ã˜Â¶' : 'GPS Lat' },
-    gps_longitude: { label: arabicMode ? 'Ã˜Â®Ã˜Â· Ã˜Â§Ã™â€žÃ˜Â·Ã™Ë†Ã™â€ž' : 'GPS Lng' },
-    gps_coordinates: { label: arabicMode ? 'Ã˜Â¥Ã˜Â­Ã˜Â¯Ã˜Â§Ã˜Â«Ã™Å Ã˜Â§Ã˜Âª GPS' : 'GPS Coords' },
-    gps_accuracy: { label: arabicMode ? 'Ã˜Â¯Ã™â€šÃ˜Â© GPS' : 'GPS Accuracy' },
-    distance_from_host: { label: arabicMode ? 'Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â³Ã˜Â§Ã™ÂÃ˜Â© Ã™â€¦Ã™â€  Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¶Ã™Å Ã™Â' : 'Distance' },
-    marked_by: { label: arabicMode ? 'Ã˜Â³Ã˜Â¬Ã™â€ž Ã˜Â¨Ã™Ë†Ã˜Â§Ã˜Â³Ã˜Â·Ã˜Â©' : 'Marked By' },
+    gps_latitude: { label: arabicMode ? 'خط العرض' : 'GPS Lat' },
+    gps_longitude: { label: arabicMode ? 'خط الطول' : 'GPS Lng' },
+    gps_coordinates: { label: arabicMode ? 'إحداثيات GPS' : 'GPS Coords' },
+    gps_accuracy: { label: arabicMode ? 'دقة GPS' : 'GPS Accuracy' },
+    distance_from_host: { label: arabicMode ? 'المسافة من المضيف' : 'Distance' },
+    marked_by: { label: arabicMode ? 'سجل بواسطة' : 'Marked By' },
     marked_at: { label: t.markedAt, sortKey: 'marked_at' },
-    session_id: { label: arabicMode ? 'Ã˜Â±Ã™â€šÃ™â€¦ Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€žÃ˜Â³Ã˜Â©' : 'Session ID' },
-    teacher_id: { label: arabicMode ? 'Ã˜Â±Ã™â€šÃ™â€¦ Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¯Ã˜Â±Ã˜Â¨' : 'Teacher ID' },
+    session_id: { label: arabicMode ? 'رقم الجلسة' : 'Session ID' },
+    teacher_id: { label: arabicMode ? 'رقم المدرب' : 'Teacher ID' },
     _gps: { label: t.gps }, // virtual composite GPS column
   }), [arabicMode, t]);
 
@@ -1136,7 +1136,7 @@ export const AttendanceRecords = () => {
         <div className="flex items-center gap-1">
           {def.icon && def.icon}
           {def.label}
-          {si && <span className="ml-1 text-blue-500 dark:text-blue-400 text-[10px] font-bold">{si.direction === 'asc' ? 'Ã¢â€ â€˜' : 'Ã¢â€ â€œ'}{si.total > 1 ? si.priority : ''}</span>}
+          {si && <span className="ml-1 text-blue-500 dark:text-blue-400 text-[10px] font-bold">{si.direction === 'asc' ? '↑' : '↓'}{si.total > 1 ? si.priority : ''}</span>}
         </div>
       </th>
     );
@@ -1284,9 +1284,9 @@ export const AttendanceRecords = () => {
       case 'gps_longitude':
         return <td key={colKey} className={`${tdClass} text-gray-600 dark:text-gray-300 font-mono text-[10px]`}>{record.gps_longitude ? record.gps_longitude.toFixed(6) : '-'}</td>;
       case 'gps_coordinates':
-        return <td key={colKey} className={`${tdClass} text-gray-600 dark:text-gray-300 font-mono text-[10px]`}>{record.gps_latitude && record.gps_longitude ? `${record.gps_latitude.toFixed(4)}Ã‚Â°, ${record.gps_longitude.toFixed(4)}Ã‚Â°` : '-'}</td>;
+        return <td key={colKey} className={`${tdClass} text-gray-600 dark:text-gray-300 font-mono text-[10px]`}>{record.gps_latitude && record.gps_longitude ? `${record.gps_latitude.toFixed(4)}°, ${record.gps_longitude.toFixed(4)}°` : '-'}</td>;
       case 'gps_accuracy':
-        return <td key={colKey} className={`${tdClass} text-gray-600 dark:text-gray-300`}>{record.gps_accuracy ? `Ã‚Â±${Math.round(record.gps_accuracy)}m` : '-'}</td>;
+        return <td key={colKey} className={`${tdClass} text-gray-600 dark:text-gray-300`}>{record.gps_accuracy ? `±${Math.round(record.gps_accuracy)}m` : '-'}</td>;
       case 'distance_from_host':
         return <td key={colKey} className={`${tdClass} text-gray-600 dark:text-gray-300`}>{record.distance_from_host ? `${Math.round(record.distance_from_host)}m` : '-'}</td>;
       case '_gps': // Composite GPS column
@@ -1295,7 +1295,7 @@ export const AttendanceRecords = () => {
             {record.gps_latitude && record.gps_longitude ? (
               <div className="space-y-0.5">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-mono">{record.gps_latitude.toFixed(4)}Ã‚Â°, {record.gps_longitude.toFixed(4)}Ã‚Â°</span>
+                  <span className="text-xs font-mono">{record.gps_latitude.toFixed(4)}°, {record.gps_longitude.toFixed(4)}°</span>
                   <a
                     href={`https://www.google.com/maps/search/?api=1&query=${record.gps_latitude},${record.gps_longitude}`}
                     target="_blank"
@@ -1310,10 +1310,10 @@ export const AttendanceRecords = () => {
                   </a>
                 </div>
                 {record.gps_accuracy && (
-                  <div className="text-xs text-gray-500 dark:text-gray-400">Ã‚Â±{record.gps_accuracy.toFixed(0)}m</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">±{record.gps_accuracy.toFixed(0)}m</div>
                 )}
                 {record.distance_from_host != null && (
-                  <div className="text-[10px] text-gray-400 dark:text-gray-500">Ã¢â€ â€ {formatDistance(record.distance_from_host)} from host</div>
+                  <div className="text-[10px] text-gray-400 dark:text-gray-500">↔ {formatDistance(record.distance_from_host)} from host</div>
                 )}
               </div>
             ) : (
@@ -1357,7 +1357,7 @@ export const AttendanceRecords = () => {
 
     // Summary Statistics Sheet (always included)
     const summaryHeaders = isArabic
-      ? ['Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€ Ã˜ÂµÃ˜Â±', 'Ã˜Â§Ã™â€žÃ™â€šÃ™Å Ã™â€¦Ã˜Â©']
+      ? ['العنصر', 'القيمة']
       : ['Metric', 'Value'];
 
     // Calculate summary values
@@ -1390,17 +1390,17 @@ export const AttendanceRecords = () => {
 
     const summaryRows = isArabic
       ? [
-          ['Ã˜Â¹Ã˜Â¯Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜Â·Ã™â€žÃ˜Â§Ã˜Â¨', totalStudents],
-          ['Ã˜Â¹Ã˜Â¯Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€žÃ˜Â³Ã˜Â§Ã˜Âª', totalSessions],
-          ['Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â± Ã™ÂÃ™Å  Ã˜Â§Ã™â€žÃ™Ë†Ã™â€šÃ˜Âª', totalPresent],
-          ['Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ™â€¦Ã˜ÂªÃ˜Â£Ã˜Â®Ã˜Â±Ã™Å Ã™â€ ', totalLate],
-          ['Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ˜ÂºÃ™Å Ã˜Â§Ã˜Â¨ Ã˜Â¨Ã˜Â¯Ã™Ë†Ã™â€  Ã˜Â¹Ã˜Â°Ã˜Â±', totalAbsent],
-          ['Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ˜ÂºÃ™Å Ã˜Â§Ã˜Â¨ Ã˜Â¨Ã˜Â¹Ã˜Â°Ã˜Â±', totalExcused],
-          ['Ã™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â± Ã™â€žÃ™â€žÃ˜ÂµÃ™Â (%)', `${classAvgRate}%`],
-          ['Ã™â€¦Ã˜ÂªÃ™Ë†Ã˜Â³Ã˜Â· Ã˜Â§Ã™â€žÃ™â€ Ã™â€šÃ˜Â§Ã˜Â· Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â±Ã˜Â¬Ã˜Â­Ã˜Â©', avgWeightedScore],
-          ['Ã™â€¦Ã˜ÂªÃ™Ë†Ã˜Â³Ã˜Â· Ã™â€¦Ã˜Â¤Ã˜Â´Ã˜Â± Ã˜Â§Ã™â€žÃ˜Â§Ã™â€ Ã˜ÂªÃ˜Â¸Ã˜Â§Ã™â€¦', avgConsistency],
-          ['Ã™â€¦Ã˜ÂªÃ™Ë†Ã˜Â³Ã˜Â· Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â± Ã˜Â­Ã˜Â³Ã˜Â¨ Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â§Ã˜Â±Ã™Å Ã˜Â® (%)', `${avgAttendanceByDate}%`],
-          ['Ã˜Â§Ã™â€žÃ™Ë†Ã˜Â³Ã™Å Ã˜Â· Ã™â€žÃ™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â± Ã˜Â­Ã˜Â³Ã˜Â¨ Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â§Ã˜Â±Ã™Å Ã˜Â® (%)', `${medianRateByDate}%`],
+          ['عدد الطلاب', totalStudents],
+          ['عدد الجلسات', totalSessions],
+          ['إجمالي الحضور في الوقت', totalPresent],
+          ['إجمالي المتأخرين', totalLate],
+          ['إجمالي الغياب بدون عذر', totalAbsent],
+          ['إجمالي الغياب بعذر', totalExcused],
+          ['معدل الحضور للصف (%)', `${classAvgRate}%`],
+          ['متوسط النقاط المرجحة', avgWeightedScore],
+          ['متوسط مؤشر الانتظام', avgConsistency],
+          ['متوسط الحضور حسب التاريخ (%)', `${avgAttendanceByDate}%`],
+          ['الوسيط لمعدل الحضور حسب التاريخ (%)', `${medianRateByDate}%`],
         ]
       : [
           ['Total Students', totalStudents],
@@ -1454,7 +1454,7 @@ export const AttendanceRecords = () => {
         qualityAdjustedRate: Math.round((student.qualityAdjustedRate || 0) * 100) / 100,
         rawWeightedScore: Math.round((student.rawWeightedScore || 0) * 100) / 100,
         coverageFactor: Math.round((student.coverageFactor || 0) * 1000) / 1000,
-        scoreFormula: `(${Math.round((student.rawWeightedScore || 0) * 100) / 100} Ãƒâ€” ${Math.round((student.coverageFactor || 0) * 1000) / 1000}) = ${student.weightedScore}`,
+        scoreFormula: `(${Math.round((student.rawWeightedScore || 0) * 100) / 100} × ${Math.round((student.coverageFactor || 0) * 1000) / 1000}) = ${student.weightedScore}`,
         // Late Duration
         totalLateMinutes: Math.round((student.totalLateMinutes || 0) * 10) / 10,
         avgLateMinutes: Math.round((student.avgLateMinutes || 0) * 10) / 10,
@@ -1482,7 +1482,7 @@ export const AttendanceRecords = () => {
         dateData.hostAddress === 'SESSION_NOT_HELD' ||
         (dateData.hostAddress && dateData.hostAddress.toUpperCase() === 'SESSION_NOT_HELD')
       ) {
-        excusedLabel = reportLanguage === 'ar' ? 'Ã˜Â¬Ã™â€¦Ã™Å Ã˜Â¹ Ã˜Â§Ã™â€žÃ˜Â·Ã™â€žÃ˜Â§Ã˜Â¨' : 'All Students';
+        excusedLabel = reportLanguage === 'ar' ? 'جميع الطلاب' : 'All Students';
       }
       
       const bookPages = dateData.bookStartPage && dateData.bookEndPage 
@@ -1495,9 +1495,9 @@ export const AttendanceRecords = () => {
       const totalStudents = totalPresent + dateData.excusedAbsentCount + dateData.unexcusedAbsentCount;
       // Accountable = those who should have attended (excused excluded from denominator)
       const totalAccountable = totalPresent + dateData.unexcusedAbsentCount;
-      // Attendance Rate: (Total Present / Accountable) Ãƒâ€” 100
+      // Attendance Rate: (Total Present / Accountable) × 100
       const attendanceRate = totalAccountable > 0 ? Math.round((totalPresent / totalAccountable) * 100) : 0;
-      // Absence Rate: (Unexcused Absent / Accountable) Ãƒâ€” 100
+      // Absence Rate: (Unexcused Absent / Accountable) × 100
       const absentRate = totalAccountable > 0 ? Math.round((dateData.unexcusedAbsentCount / totalAccountable) * 100) : 0;
       const punctRate = totalPresent > 0 
         ? Math.round(dateData.presentCount / totalPresent * 100)
@@ -1605,34 +1605,34 @@ export const AttendanceRecords = () => {
       hostConfig.getData(data as Record<string, unknown>, index)
     );
 
-    // Create workbook with sheets Ã¢â‚¬â€ respect includedTables toggles
+    // Create workbook with sheets — respect includedTables toggles
     const wb = XLSX.utils.book_new();
 
     // Sheet 1: Summary Statistics
     if (includedTables.summary) {
       const wsSummary = XLSX.utils.aoa_to_sheet([summaryHeaders, ...summaryRows]);
-      XLSX.utils.book_append_sheet(wb, wsSummary, isArabic ? 'Ã˜Â¥Ã˜Â­Ã˜ÂµÃ˜Â§Ã˜Â¦Ã™Å Ã˜Â§Ã˜Âª Ã˜Â¹Ã˜Â§Ã™â€¦Ã˜Â©' : 'Summary Statistics');
+      XLSX.utils.book_append_sheet(wb, wsSummary, isArabic ? 'إحصائيات عامة' : 'Summary Statistics');
     }
 
     // Sheet 2: Student Performance (filtered by saved selection)
     if (includedTables.student) {
       const ws1 = XLSX.utils.aoa_to_sheet([studentConfig.headers, ...studentRows]);
-      XLSX.utils.book_append_sheet(wb, ws1, isArabic ? 'Ã˜Â£Ã˜Â¯Ã˜Â§Ã˜Â¡ Ã˜Â§Ã™â€žÃ˜Â·Ã™â€žÃ˜Â§Ã˜Â¨' : 'Student Performance');
+      XLSX.utils.book_append_sheet(wb, ws1, isArabic ? 'أداء الطلاب' : 'Student Performance');
     }
 
     // Sheet 3: Attendance by Date (filtered by saved selection)
     if (includedTables.date) {
       const ws2 = XLSX.utils.aoa_to_sheet([dateConfig.headers, ...dateRows]);
-      XLSX.utils.book_append_sheet(wb, ws2, isArabic ? 'Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â± Ã˜Â¨Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â§Ã˜Â±Ã™Å Ã˜Â®' : 'Attendance by Date');
+      XLSX.utils.book_append_sheet(wb, ws2, isArabic ? 'الحضور بالتاريخ' : 'Attendance by Date');
     }
 
     // Sheet 4: Host Rankings (filtered by saved selection)
     if (includedTables.host) {
       const ws3 = XLSX.utils.aoa_to_sheet([hostConfig.headers, ...hostRows]);
-      XLSX.utils.book_append_sheet(wb, ws3, isArabic ? 'Ã˜ÂªÃ˜ÂµÃ™â€ Ã™Å Ã™Â Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¶Ã™Å Ã™ÂÃ™Å Ã™â€ ' : 'Host Rankings');
+      XLSX.utils.book_append_sheet(wb, ws3, isArabic ? 'تصنيف المضيفين' : 'Host Rankings');
     }
 
-    // Sheet 5: Cross-Tab Heatmap (Student Ãƒâ€” Date matrix)
+    // Sheet 5: Cross-Tab Heatmap (Student × Date matrix)
     if (includedTables.crosstab) {
       const sortedStudents = sortStudentsForMatrix(studentAnalytics);
       const allSortedDates = [...dateAnalytics].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -1640,21 +1640,21 @@ export const AttendanceRecords = () => {
         ? allSortedDates.filter(d => matrixSelectedDates.has(d.date))
         : allSortedDates;
       const ctAllRawDates = sortedDates.map(d => new Date(d.date));
-      const ctHeaders = [isArabic ? 'Ã˜Â§Ã™â€žÃ˜Â·Ã˜Â§Ã™â€žÃ˜Â¨' : 'Student', ...sortedDates.map(d => smartDateFormat(new Date(d.date), ctAllRawDates))];
+      const ctHeaders = [isArabic ? 'الطالب' : 'Student', ...sortedDates.map(d => smartDateFormat(new Date(d.date), ctAllRawDates))];
       const ctRows = sortedStudents.map(student => {
         const row: (string | number)[] = [student.student_name];
         sortedDates.forEach(dateData => {
           const record = filteredRecords.find(r => r.student_id === student.student_id && r.attendance_date === dateData.date);
           if (!record) { row.push('-'); return; }
-          if (record.status === 'on time') row.push(isArabic ? 'Ã˜Â­Ã˜Â§Ã˜Â¶Ã˜Â±' : 'On Time');
-          else if (record.status === 'late') row.push(`${isArabic ? 'Ã™â€¦Ã˜ÂªÃ˜Â£Ã˜Â®Ã˜Â±' : 'Late'} ${record.late_minutes ? `(${record.late_minutes}m)` : ''}`);
-          else if (record.status === 'excused' || (record.status === 'absent' && record.excuse_reason)) row.push(isArabic ? 'Ã™â€¦Ã˜Â¹Ã˜Â°Ã™Ë†Ã˜Â±' : 'Excused');
-          else row.push(isArabic ? 'Ã˜ÂºÃ˜Â§Ã˜Â¦Ã˜Â¨' : 'Absent');
+          if (record.status === 'on time') row.push(isArabic ? 'حاضر' : 'On Time');
+          else if (record.status === 'late') row.push(`${isArabic ? 'متأخر' : 'Late'} ${record.late_minutes ? `(${record.late_minutes}m)` : ''}`);
+          else if (record.status === 'excused' || (record.status === 'absent' && record.excuse_reason)) row.push(isArabic ? 'معذور' : 'Excused');
+          else row.push(isArabic ? 'غائب' : 'Absent');
         });
         return row;
       });
       const wsCT = XLSX.utils.aoa_to_sheet([ctHeaders, ...ctRows]);
-      XLSX.utils.book_append_sheet(wb, wsCT, isArabic ? 'Ã™â€¦Ã˜ÂµÃ™ÂÃ™Ë†Ã™ÂÃ˜Â© Ã˜Â§Ã™â€žÃ˜Â·Ã™â€žÃ˜Â§Ã˜Â¨ Ãƒâ€” Ã˜Â§Ã™â€žÃ˜ÂªÃ™Ë†Ã˜Â§Ã˜Â±Ã™Å Ã˜Â®' : 'Student Ãƒâ€” Date Matrix');
+      XLSX.utils.book_append_sheet(wb, wsCT, isArabic ? 'مصفوفة الطلاب × التواريخ' : 'Student × Date Matrix');
     }
 
     // Ensure at least one sheet exists
@@ -1665,7 +1665,7 @@ export const AttendanceRecords = () => {
 
     // Export to file
     const excelFileName = isArabic 
-      ? `Ã˜ÂªÃ™â€šÃ˜Â±Ã™Å Ã˜Â±_Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â­Ã™â€žÃ™Å Ã™â€žÃ˜Â§Ã˜Âª_${format(new Date(), 'yyyy-MM-dd')}.xlsx`
+      ? `تقرير_التحليلات_${format(new Date(), 'yyyy-MM-dd')}.xlsx`
       : `analytics-report-${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
     XLSX.writeFile(wb, excelFileName);
   };
@@ -1725,7 +1725,7 @@ export const AttendanceRecords = () => {
         qualityAdjustedRate: Math.round((student.qualityAdjustedRate || 0) * 100) / 100,
         rawWeightedScore: Math.round((student.rawWeightedScore || 0) * 100) / 100,
         coverageFactor: Math.round((student.coverageFactor || 0) * 1000) / 1000,
-        scoreFormula: `(${Math.round((student.rawWeightedScore || 0) * 100) / 100} Ãƒâ€” ${Math.round((student.coverageFactor || 0) * 1000) / 1000}) = ${student.weightedScore}`,
+        scoreFormula: `(${Math.round((student.rawWeightedScore || 0) * 100) / 100} × ${Math.round((student.coverageFactor || 0) * 1000) / 1000}) = ${student.weightedScore}`,
         // Late Duration
         totalLateMinutes: Math.round((student.totalLateMinutes || 0) * 10) / 10,
         avgLateMinutes: Math.round((student.avgLateMinutes || 0) * 10) / 10,
@@ -1828,12 +1828,12 @@ export const AttendanceRecords = () => {
     const hostDataObjects = sortDataBySettings(hostDataObjectsUnsorted, 'hostAnalytics');
     hostDataObjects.forEach((obj, idx) => { obj.rank = idx + 1; });
 
-    // Build CSV content with sections Ã¢â‚¬â€ respect includedTables toggles
+    // Build CSV content with sections — respect includedTables toggles
     const sections: string[] = [];
     
     // Section 1: Student Performance
     if (includedTables.student) {
-      const studentTitle = isArabic ? '# Ã˜Â£Ã˜Â¯Ã˜Â§Ã˜Â¡ Ã˜Â§Ã™â€žÃ˜Â·Ã™â€žÃ˜Â§Ã˜Â¨' : '# Student Performance';
+      const studentTitle = isArabic ? '# أداء الطلاب' : '# Student Performance';
       const studentHeaderRow = studentConfig.headers.map(escapeCSV).join(',');
       const studentRows = studentDataObjects.map((data, index) => 
         studentConfig.getData(data as Record<string, unknown>, index).map(escapeCSV).join(',')
@@ -1846,7 +1846,7 @@ export const AttendanceRecords = () => {
 
     // Section 2: Attendance by Date
     if (includedTables.date) {
-      const dateTitle = isArabic ? '# Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â± Ã˜Â­Ã˜Â³Ã˜Â¨ Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â§Ã˜Â±Ã™Å Ã˜Â®' : '# Attendance by Date';
+      const dateTitle = isArabic ? '# الحضور حسب التاريخ' : '# Attendance by Date';
       const dateHeaderRow = dateConfig.headers.map(escapeCSV).join(',');
       const dateRows = dateDataObjects.map((data, index) => 
         dateConfig.getData(data as Record<string, unknown>, index).map(escapeCSV).join(',')
@@ -1859,7 +1859,7 @@ export const AttendanceRecords = () => {
 
     // Section 3: Host Rankings
     if (includedTables.host && hostDataObjects.length > 0) {
-      const hostTitle = isArabic ? '# Ã˜ÂªÃ˜ÂµÃ™â€ Ã™Å Ã™Â Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¶Ã™Å Ã™ÂÃ™Å Ã™â€ ' : '# Host Rankings';
+      const hostTitle = isArabic ? '# تصنيف المضيفين' : '# Host Rankings';
       const hostHeaderRow = hostConfig.headers.map(escapeCSV).join(',');
       const hostRows = hostDataObjects.map((data, index) => 
         hostConfig.getData(data as Record<string, unknown>, index).map(escapeCSV).join(',')
@@ -1877,17 +1877,17 @@ export const AttendanceRecords = () => {
       const sortedDates = matrixSelectedDates
         ? allSortedDates.filter(d => matrixSelectedDates.has(d.date))
         : allSortedDates;
-      const ctTitle = isArabic ? '# Ã™â€¦Ã˜ÂµÃ™ÂÃ™Ë†Ã™ÂÃ˜Â© Ã˜Â§Ã™â€žÃ˜Â·Ã™â€žÃ˜Â§Ã˜Â¨ Ãƒâ€” Ã˜Â§Ã™â€žÃ˜ÂªÃ™Ë†Ã˜Â§Ã˜Â±Ã™Å Ã˜Â®' : '# Student Ãƒâ€” Date Matrix';
-      const ctHeaders = [isArabic ? 'Ã˜Â§Ã™â€žÃ˜Â·Ã˜Â§Ã™â€žÃ˜Â¨' : 'Student', ...sortedDates.map(d => smartDateFormat(new Date(d.date), sortedDates.map(x => new Date(x.date))))].map(escapeCSV).join(',');
+      const ctTitle = isArabic ? '# مصفوفة الطلاب × التواريخ' : '# Student × Date Matrix';
+      const ctHeaders = [isArabic ? 'الطالب' : 'Student', ...sortedDates.map(d => smartDateFormat(new Date(d.date), sortedDates.map(x => new Date(x.date))))].map(escapeCSV).join(',');
       const ctRows = sortedStudents.map(student => {
         const cells: string[] = [student.student_name];
         sortedDates.forEach(dateData => {
           const record = filteredRecords.find(r => r.student_id === student.student_id && r.attendance_date === dateData.date);
           if (!record) { cells.push('-'); return; }
-          if (record.status === 'on time') cells.push(isArabic ? 'Ã˜Â­Ã˜Â§Ã˜Â¶Ã˜Â±' : 'On Time');
-          else if (record.status === 'late') cells.push(`${isArabic ? 'Ã™â€¦Ã˜ÂªÃ˜Â£Ã˜Â®Ã˜Â±' : 'Late'} ${record.late_minutes ? `(${record.late_minutes}m)` : ''}`);
-          else if (record.status === 'excused' || (record.status === 'absent' && record.excuse_reason)) cells.push(isArabic ? 'Ã™â€¦Ã˜Â¹Ã˜Â°Ã™Ë†Ã˜Â±' : 'Excused');
-          else cells.push(isArabic ? 'Ã˜ÂºÃ˜Â§Ã˜Â¦Ã˜Â¨' : 'Absent');
+          if (record.status === 'on time') cells.push(isArabic ? 'حاضر' : 'On Time');
+          else if (record.status === 'late') cells.push(`${isArabic ? 'متأخر' : 'Late'} ${record.late_minutes ? `(${record.late_minutes}m)` : ''}`);
+          else if (record.status === 'excused' || (record.status === 'absent' && record.excuse_reason)) cells.push(isArabic ? 'معذور' : 'Excused');
+          else cells.push(isArabic ? 'غائب' : 'Absent');
         });
         return cells.map(escapeCSV).join(',');
       });
@@ -1908,7 +1908,7 @@ export const AttendanceRecords = () => {
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
     const csvFileName = isArabic 
-      ? `Ã˜ÂªÃ™â€šÃ˜Â±Ã™Å Ã˜Â±_Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â­Ã™â€žÃ™Å Ã™â€žÃ˜Â§Ã˜Âª_${format(new Date(), 'yyyy-MM-dd')}.csv`
+      ? `تقرير_التحليلات_${format(new Date(), 'yyyy-MM-dd')}.csv`
       : `analytics-report-${format(new Date(), 'yyyy-MM-dd')}.csv`;
     link.setAttribute('download', csvFileName);
     document.body.appendChild(link);
@@ -2018,7 +2018,7 @@ export const AttendanceRecords = () => {
         qualityAdjustedRate: `${Math.round((student.qualityAdjustedRate || 0) * 100) / 100}%`,
         rawWeightedScore: (student.rawWeightedScore || 0).toFixed(1),
         coverageFactor: (student.coverageFactor || 0).toFixed(3),
-        scoreFormula: `(${(student.rawWeightedScore || 0).toFixed(1)} Ãƒâ€” ${(student.coverageFactor || 0).toFixed(3)}) = ${student.weightedScore.toFixed(1)}`,
+        scoreFormula: `(${(student.rawWeightedScore || 0).toFixed(1)} × ${(student.coverageFactor || 0).toFixed(3)}) = ${student.weightedScore.toFixed(1)}`,
         // Late Duration
         totalLateMinutes: Math.round((student.totalLateMinutes || 0) * 10) / 10,
         avgLateMinutes: Math.round((student.avgLateMinutes || 0) * 10) / 10,
@@ -2057,7 +2057,7 @@ export const AttendanceRecords = () => {
       if (!settings.enableConditionalColoring) return { colorColumns: [], theme: settings.coloringTheme, enabled: false };
       
       if (settings.coloringFields.length > 0) {
-        // User explicitly selected fields to color Ã¢â‚¬â€ map field keys to column indices
+        // User explicitly selected fields to color — map field keys to column indices
         const selectedKeys = getSelectedFieldsForType(dataType);
         const colorColumns = settings.coloringFields
           .map(fieldKey => selectedKeys.indexOf(fieldKey))
@@ -2311,7 +2311,7 @@ export const AttendanceRecords = () => {
     }
     } // end includedTables.host
 
-    // Cross-Tab Matrix (Student Ãƒâ€” Date) for PDF Ã¢â‚¬â€ Smart Auto-Builder
+    // Cross-Tab Matrix (Student × Date) for PDF — Smart Auto-Builder
     // Automatically handles any number of dates/students with orientation & pagination
     if (includedTables.crosstab && studentAnalytics.length > 0 && dateAnalytics.length > 0) {
       const sortedStudents = sortStudentsForMatrix(studentAnalytics);
@@ -2330,7 +2330,7 @@ export const AttendanceRecords = () => {
 
       const totalDates = sortedDates.length;
 
-      // Smart layout calculation Ã¢â‚¬â€ aggressive scaling to fit all on one page
+      // Smart layout calculation — aggressive scaling to fit all on one page
       // Portrait usable width ~182mm, Landscape usable width ~269mm
       // Dynamic name column & date column widths based on date count
       const nameColWidth = totalDates <= 20 ? 30 : totalDates <= 35 ? 26 : 22;
@@ -2344,7 +2344,7 @@ export const AttendanceRecords = () => {
       const portraitMaxCols = Math.floor((portraitUsable - nameColWidth) / minDateColWidth);
       const landscapeMaxCols = Math.floor((landscapeUsable - nameColWidth) / minDateColWidth);
 
-      // Decide orientation and chunking Ã¢â‚¬â€ try to fit everything on one page
+      // Decide orientation and chunking — try to fit everything on one page
       let useLandscape = false;
       let colsPerChunk: number;
 
@@ -2355,12 +2355,12 @@ export const AttendanceRecords = () => {
         useLandscape = true;
         colsPerChunk = totalDates;
       } else {
-        // Too many Ã¢â‚¬â€ split into chunks, use landscape for max cols
+        // Too many — split into chunks, use landscape for max cols
         useLandscape = true;
         colsPerChunk = landscapeMaxCols;
       }
 
-      // Dynamic font sizing Ã¢â‚¬â€ scale down for more dates
+      // Dynamic font sizing — scale down for more dates
       const fontSize = totalDates <= 14 ? 6.5
         : totalDates <= 20 ? 5.5
         : totalDates <= 30 ? 5
@@ -2383,12 +2383,12 @@ export const AttendanceRecords = () => {
 
         // Title with chunk info and selection info
         doc.setFontSize(11);
-        let matrixTitle = 'Student Ãƒâ€” Date Matrix';
+        let matrixTitle = 'Student × Date Matrix';
         if (matrixSelectedDates) {
           matrixTitle += ` (${totalDates} of ${allSortedDates.length} dates selected)`;
         }
         if (numChunks > 1) {
-          matrixTitle += ` Ã¢â‚¬â€ Page ${chunkIdx + 1}/${numChunks} (Dates ${startCol + 1}Ã¢â‚¬â€œ${endCol})`;
+          matrixTitle += ` — Page ${chunkIdx + 1}/${numChunks} (Dates ${startCol + 1}–${endCol})`;
         }
         doc.text(matrixTitle, 14, 14);
 
@@ -2396,22 +2396,22 @@ export const AttendanceRecords = () => {
         const dateFormat = totalDates <= 15 ? 'MM/dd' : totalDates <= 30 ? 'dd' : 'd';
         const ctHeaders = ['Student', ...chunkDates.map(d => format(new Date(d.date), dateFormat))];
 
-        // ALL students Ã¢â‚¬â€ auto page break handled by autoTable
+        // ALL students — auto page break handled by autoTable
         const ctBody = sortedStudents.map(student => {
           const row: string[] = [student.student_name];
           chunkDates.forEach(dateData => {
             const key = `${student.student_id}|${dateData.date}`;
             const rec = statusLookup.get(key);
             if (!rec) { row.push('-'); return; }
-            if (rec.status === 'on time') row.push('Ã¢Å“â€œ');
+            if (rec.status === 'on time') row.push('✓');
             else if (rec.status === 'late') row.push(`L${rec.late_minutes || ''}`);
             else if (rec.status === 'excused') row.push('E');
-            else row.push('Ã¢Å“â€”');
+            else row.push('✗');
           });
           return row;
         });
 
-        // Calculate dynamic column width for dates Ã¢â‚¬â€ fill available space
+        // Calculate dynamic column width for dates — fill available space
         const availableWidth = matrixPageWidth - 28; // margins
         const dateColWidth = (availableWidth - nameColWidth) / chunkDates.length;
 
@@ -2437,9 +2437,9 @@ export const AttendanceRecords = () => {
           didParseCell: (hookData) => {
             if (hookData.section === 'body' && hookData.column.index > 0) {
               const text = hookData.cell.text.join('');
-              if (text === 'Ã¢Å“â€œ') hookData.cell.styles.fillColor = [209, 250, 229]; // emerald (on time)
+              if (text === '✓') hookData.cell.styles.fillColor = [209, 250, 229]; // emerald (on time)
               else if (text.startsWith('L')) hookData.cell.styles.fillColor = [254, 249, 195]; // yellow (late)
-              else if (text === 'Ã¢Å“â€”') hookData.cell.styles.fillColor = [254, 202, 202]; // red (absent)
+              else if (text === '✗') hookData.cell.styles.fillColor = [254, 202, 202]; // red (absent)
               else if (text === 'E') hookData.cell.styles.fillColor = [219, 234, 254]; // blue (excused)
             }
           },
@@ -2494,7 +2494,7 @@ export const AttendanceRecords = () => {
     }
 
     const pdfFileName = isArabic 
-      ? `Ã˜ÂªÃ™â€šÃ˜Â±Ã™Å Ã˜Â±_Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â­Ã™â€žÃ™Å Ã™â€žÃ˜Â§Ã˜Âª_${format(new Date(), 'yyyy-MM-dd')}.pdf`
+      ? `تقرير_التحليلات_${format(new Date(), 'yyyy-MM-dd')}.pdf`
       : `analytics-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`;
     doc.save(pdfFileName);
   };
@@ -2588,7 +2588,7 @@ export const AttendanceRecords = () => {
         qualityAdjustedRate: `${Math.round((s.qualityAdjustedRate || 0) * 100) / 100}%`,
         rawWeightedScore: (s.rawWeightedScore || 0).toFixed(1),
         coverageFactor: (s.coverageFactor || 0).toFixed(3),
-        scoreFormula: `(${(s.rawWeightedScore || 0).toFixed(1)} Ãƒâ€” ${(s.coverageFactor || 0).toFixed(3)}) = ${s.weightedScore.toFixed(1)}`,
+        scoreFormula: `(${(s.rawWeightedScore || 0).toFixed(1)} × ${(s.coverageFactor || 0).toFixed(3)}) = ${s.weightedScore.toFixed(1)}`,
         // Late Duration
         totalLateMinutes: Math.round((s.totalLateMinutes || 0) * 10) / 10,
         avgLateMinutes: Math.round((s.avgLateMinutes || 0) * 10) / 10,
@@ -2610,7 +2610,7 @@ export const AttendanceRecords = () => {
       const totalAbs = d.excusedAbsentCount + d.unexcusedAbsentCount;
       
       if (d.hostAddress === 'SESSION_NOT_HELD' || (d.hostAddress && d.hostAddress.toUpperCase() === 'SESSION_NOT_HELD')) {
-        excusedNames = isArabic ? 'Ã˜Â¬Ã™â€¦Ã™Å Ã˜Â¹ Ã˜Â§Ã™â€žÃ˜Â·Ã™â€žÃ˜Â§Ã˜Â¨' : 'All Students';
+        excusedNames = isArabic ? 'جميع الطلاب' : 'All Students';
       }
       
       const bookPages = d.bookStartPage && d.bookEndPage ? `${d.bookStartPage}-${d.bookEndPage}` : '-';
@@ -2779,16 +2779,16 @@ export const AttendanceRecords = () => {
         ? allSortedDates.filter(d => matrixSelectedDates.has(d.date))
         : allSortedDates;
       crosstabForWord = {
-        headers: [isArabic ? 'Ã˜Â§Ã™â€žÃ˜Â·Ã˜Â§Ã™â€žÃ˜Â¨' : 'Student', ...sortedDates.map(d => smartDateFormat(new Date(d.date), sortedDates.map(x => new Date(x.date))))],
+        headers: [isArabic ? 'الطالب' : 'Student', ...sortedDates.map(d => smartDateFormat(new Date(d.date), sortedDates.map(x => new Date(x.date))))],
         rows: sortedStudents.map(student => {
           const cells: string[] = [student.student_name];
           sortedDates.forEach(dateData => {
             const record = filteredRecords.find(r => r.student_id === student.student_id && r.attendance_date === dateData.date);
             if (!record) { cells.push('-'); return; }
-            if (record.status === 'on time') cells.push(isArabic ? 'Ã˜Â­Ã˜Â§Ã˜Â¶Ã˜Â±' : 'Ã¢Å“â€œ');
-            else if (record.status === 'late') cells.push(`${isArabic ? 'Ã™â€¦Ã˜ÂªÃ˜Â£Ã˜Â®Ã˜Â±' : 'L'}${record.late_minutes ? ` (${record.late_minutes}m)` : ''}`);
-            else if (record.status === 'excused') cells.push(isArabic ? 'Ã™â€¦Ã˜Â¹Ã˜Â°Ã™Ë†Ã˜Â±' : 'E');
-            else cells.push(isArabic ? 'Ã˜ÂºÃ˜Â§Ã˜Â¦Ã˜Â¨' : 'Ã¢Å“â€”');
+            if (record.status === 'on time') cells.push(isArabic ? 'حاضر' : '✓');
+            else if (record.status === 'late') cells.push(`${isArabic ? 'متأخر' : 'L'}${record.late_minutes ? ` (${record.late_minutes}m)` : ''}`);
+            else if (record.status === 'excused') cells.push(isArabic ? 'معذور' : 'E');
+            else cells.push(isArabic ? 'غائب' : '✗');
           });
           return cells;
         }),
@@ -2956,7 +2956,7 @@ export const AttendanceRecords = () => {
       const scoringConfig = loadConfigSync();
       const punctualityPercentage = totalPresent > 0 ? (presentCount / totalPresent) * 100 : 0;
       
-      // Calculate consistency (informational Ã¢â‚¬â€ NOT part of weighted score)
+      // Calculate consistency (informational — NOT part of weighted score)
       const dailyPattern = studentEffectiveDates.map(date => {
         const record = studentRecords.find(r => r.attendance_date === date);
         if (!record || record.status === 'excused') return -1; // Exclude excused
@@ -2974,11 +2974,7 @@ export const AttendanceRecords = () => {
         (w2 * attendanceRate) +          // Attendance (showed up)
         (w3 * punctualityPercentage);    // Punctuality (on-time ratio)
       
-      // Debug: log first student's score breakdown to verify config integration
-      // Debug: log first student's score breakdown to verify config integration
-      if (_idx === 0) {
-        console.log(`[ScoreCalc] ${studentName}: w=${scoringConfig.weight_quality}/${scoringConfig.weight_attendance}/${scoringConfig.weight_punctuality} | Q=${qualityAdjustedRate.toFixed(1)} A=${attendanceRate.toFixed(1)} P=${punctualityPercentage.toFixed(1)} | raw=${rawWeightedScore.toFixed(2)}`);
-      }
+
 
       // ==================== COVERAGE FACTOR ====================
       // Now uses dynamic config from scoringConfigService
@@ -3246,13 +3242,13 @@ export const AttendanceRecords = () => {
     //   1. Scatter Ratio: Are absences fragmented into many small streaks?
     //   2. Streak Penalty: How long is the longest consecutive absence block?
     //
-    // Dampening: With only 1-2 absences, clustering barely matters Ã¢â€ â€™ trends to 100%
+    // Dampening: With only 1-2 absences, clustering barely matters → trends to 100%
     //
     // Examples:
-    //   Ã¢Å“â€¦Ã¢ÂÅ’Ã¢Å“â€¦Ã¢ÂÅ’Ã¢Å“â€¦Ã¢ÂÅ’Ã¢Å“â€¦Ã¢ÂÅ’ (perfectly scattered)     Ã¢â€ â€™ ~100%
-    //   Ã¢Å“â€¦Ã¢Å“â€¦Ã¢ÂÅ’Ã¢Å“â€¦Ã¢Å“â€¦Ã¢ÂÅ’Ã¢Å“â€¦Ã¢Å“â€¦ (spread out singles)      Ã¢â€ â€™ ~100%
-    //   Ã¢Å“â€¦Ã¢Å“â€¦Ã¢Å“â€¦Ã¢ÂÅ’Ã¢ÂÅ’Ã¢Å“â€¦Ã¢Å“â€¦Ã¢Å“â€¦ (2-day block)             Ã¢â€ â€™ ~72%
-    //   Ã¢Å“â€¦Ã¢Å“â€¦Ã¢Å“â€¦Ã¢Å“â€¦Ã¢ÂÅ’Ã¢ÂÅ’Ã¢ÂÅ’Ã¢ÂÅ’ (all clustered at end)    Ã¢â€ â€™ ~20%
+    //   ✅❌✅❌✅❌✅❌ (perfectly scattered)     → ~100%
+    //   ✅✅❌✅✅❌✅✅ (spread out singles)      → ~100%
+    //   ✅✅✅❌❌✅✅✅ (2-day block)             → ~72%
+    //   ✅✅✅✅❌❌❌❌ (all clustered at end)    → ~20%
     if (pattern.length <= 1) return pattern.length === 1 ? pattern[0] : 0;
 
     const presentDays = pattern.filter(v => v === 1).length;
@@ -3278,14 +3274,14 @@ export const AttendanceRecords = () => {
 
     const longestStreak = Math.max(...absenceStreaks);
 
-    // Component 1: Scatter ratio Ã¢â‚¬â€ are absences fragmented into many small streaks?
-    // Best case: each absence is isolated (ratio = 1). Worst: one big block (ratio Ã¢â€°Ë† 0).
+    // Component 1: Scatter ratio — are absences fragmented into many small streaks?
+    // Best case: each absence is isolated (ratio = 1). Worst: one big block (ratio ≈ 0).
     const scatterRatio = absenceStreaks.length / totalAbsent;
     const normalizedScatter = totalAbsent > 1
       ? (scatterRatio - 1 / totalAbsent) / (1 - 1 / totalAbsent)
       : 1;
 
-    // Component 2: Longest streak penalty Ã¢â‚¬â€ is there one dominant absence block?
+    // Component 2: Longest streak penalty — is there one dominant absence block?
     // Missing 3 days in a row hurts more than missing 3 separate days.
     const streakPenalty = totalAbsent > 1
       ? 1 - (longestStreak - 1) / (totalAbsent - 1)
@@ -3373,89 +3369,89 @@ export const AttendanceRecords = () => {
         {
           id: 'basic',
           label: 'Basic Info',
-          labelAr: 'Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¹Ã™â€žÃ™Ë†Ã™â€¦Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜Â£Ã˜Â³Ã˜Â§Ã˜Â³Ã™Å Ã˜Â©',
-          icon: 'Ã°Å¸â€˜Â¤',
+          labelAr: 'المعلومات الأساسية',
+          icon: '👤',
           fields: [
-            { key: 'rank', label: 'Rank', labelAr: 'Ã˜Â§Ã™â€žÃ˜Â±Ã˜ÂªÃ˜Â¨Ã˜Â©', category: 'basic', defaultSelected: true },
-            { key: 'student_id', label: 'Student ID', labelAr: 'Ã˜Â±Ã™â€šÃ™â€¦ Ã˜Â§Ã™â€žÃ˜Â·Ã˜Â§Ã™â€žÃ˜Â¨', category: 'basic', defaultSelected: false },
-            { key: 'student_name', label: 'Student Name', labelAr: 'Ã˜Â§Ã˜Â³Ã™â€¦ Ã˜Â§Ã™â€žÃ˜Â·Ã˜Â§Ã™â€žÃ˜Â¨', category: 'basic', defaultSelected: true },
+            { key: 'rank', label: 'Rank', labelAr: 'الرتبة', category: 'basic', defaultSelected: true },
+            { key: 'student_id', label: 'Student ID', labelAr: 'رقم الطالب', category: 'basic', defaultSelected: false },
+            { key: 'student_name', label: 'Student Name', labelAr: 'اسم الطالب', category: 'basic', defaultSelected: true },
           ]
         },
         {
           id: 'attendance',
           label: 'Attendance Stats',
-          labelAr: 'Ã˜Â¥Ã˜Â­Ã˜ÂµÃ˜Â§Ã˜Â¦Ã™Å Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±',
-          icon: 'Ã°Å¸â€œÅ ',
+          labelAr: 'إحصائيات الحضور',
+          icon: '📊',
           fields: [
-            { key: 'presentCount', label: 'On Time', labelAr: 'Ã™ÂÃ™Å  Ã˜Â§Ã™â€žÃ™Ë†Ã™â€šÃ˜Âª', category: 'attendance', defaultSelected: true },
-            { key: 'lateCount', label: 'Late', labelAr: 'Ã™â€¦Ã˜ÂªÃ˜Â£Ã˜Â®Ã˜Â±', category: 'attendance', defaultSelected: true },
-            { key: 'totalPresent', label: 'Total Present', labelAr: 'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±', category: 'attendance', defaultSelected: true },
-            { key: 'absentCount', label: 'Total Absent', labelAr: 'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ˜ÂºÃ™Å Ã˜Â§Ã˜Â¨', category: 'attendance', defaultSelected: false },
-            { key: 'unexcusedAbsent', label: 'Unexcused Absent', labelAr: 'Ã˜ÂºÃ™Å Ã˜Â§Ã˜Â¨ Ã˜Â¨Ã˜Â¯Ã™Ë†Ã™â€  Ã˜Â¹Ã˜Â°Ã˜Â±', category: 'attendance', defaultSelected: true },
-            { key: 'excusedCount', label: 'Excused', labelAr: 'Ã™â€¦Ã˜Â¹Ã˜Â°Ã™Ë†Ã˜Â±', category: 'attendance', defaultSelected: true },
-            { key: 'sessionNotHeldCount', label: 'Not Held', labelAr: 'Ã˜Â¬Ã™â€žÃ˜Â³Ã˜Â§Ã˜Âª Ã™â€žÃ™â€¦ Ã˜ÂªÃ˜Â¹Ã™â€šÃ˜Â¯', category: 'attendance', defaultSelected: true },
-            { key: 'totalRecords', label: 'Total Records', labelAr: 'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ˜Â³Ã˜Â¬Ã™â€žÃ˜Â§Ã˜Âª', category: 'attendance', defaultSelected: false },
+            { key: 'presentCount', label: 'On Time', labelAr: 'في الوقت', category: 'attendance', defaultSelected: true },
+            { key: 'lateCount', label: 'Late', labelAr: 'متأخر', category: 'attendance', defaultSelected: true },
+            { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحضور', category: 'attendance', defaultSelected: true },
+            { key: 'absentCount', label: 'Total Absent', labelAr: 'إجمالي الغياب', category: 'attendance', defaultSelected: false },
+            { key: 'unexcusedAbsent', label: 'Unexcused Absent', labelAr: 'غياب بدون عذر', category: 'attendance', defaultSelected: true },
+            { key: 'excusedCount', label: 'Excused', labelAr: 'معذور', category: 'attendance', defaultSelected: true },
+            { key: 'sessionNotHeldCount', label: 'Not Held', labelAr: 'جلسات لم تعقد', category: 'attendance', defaultSelected: true },
+            { key: 'totalRecords', label: 'Total Records', labelAr: 'إجمالي السجلات', category: 'attendance', defaultSelected: false },
           ]
         },
         {
           id: 'metrics',
           label: 'Performance Metrics',
-          labelAr: 'Ã™â€¦Ã™â€šÃ˜Â§Ã™Å Ã™Å Ã˜Â³ Ã˜Â§Ã™â€žÃ˜Â£Ã˜Â¯Ã˜Â§Ã˜Â¡',
-          icon: 'Ã°Å¸â€œË†',
+          labelAr: 'مقاييس الأداء',
+          icon: '📈',
           fields: [
-            { key: 'effectiveDays', label: 'Effective Days', labelAr: 'Ã˜Â§Ã™â€žÃ˜Â£Ã™Å Ã˜Â§Ã™â€¦ Ã˜Â§Ã™â€žÃ™ÂÃ˜Â¹Ã™â€žÃ™Å Ã˜Â©', category: 'metrics', defaultSelected: true },
-            { key: 'daysCovered', label: 'Days Covered', labelAr: 'Ã˜Â§Ã™â€žÃ˜Â£Ã™Å Ã˜Â§Ã™â€¦ Ã˜Â§Ã™â€žÃ™â€¦Ã˜ÂºÃ˜Â·Ã˜Â§Ã˜Â©', category: 'metrics', defaultSelected: true },
-            { key: 'attendanceRate', label: 'Attendance Rate %', labelAr: 'Ã™â€ Ã˜Â³Ã˜Â¨Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±', category: 'metrics', defaultSelected: true },
-            { key: 'punctualityRate', label: 'Punctuality Rate %', labelAr: 'Ã™â€ Ã˜Â³Ã˜Â¨Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â§Ã™â€žÃ˜ÂªÃ˜Â²Ã˜Â§Ã™â€¦', category: 'metrics', defaultSelected: true },
-            { key: 'weightedScore', label: 'Weighted Score', labelAr: 'Ã˜Â§Ã™â€žÃ˜Â¯Ã˜Â±Ã˜Â¬Ã˜Â© Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã˜Â²Ã™Ë†Ã™â€ Ã˜Â©', category: 'metrics', defaultSelected: true },
-            { key: 'consistencyIndex', label: 'Consistency Index', labelAr: 'Ã™â€¦Ã˜Â¤Ã˜Â´Ã˜Â± Ã˜Â§Ã™â€žÃ˜Â§Ã™â€ Ã˜ÂªÃ˜Â¸Ã˜Â§Ã™â€¦', category: 'metrics', defaultSelected: false },
+            { key: 'effectiveDays', label: 'Effective Days', labelAr: 'الأيام الفعلية', category: 'metrics', defaultSelected: true },
+            { key: 'daysCovered', label: 'Days Covered', labelAr: 'الأيام المغطاة', category: 'metrics', defaultSelected: true },
+            { key: 'attendanceRate', label: 'Attendance Rate %', labelAr: 'نسبة الحضور', category: 'metrics', defaultSelected: true },
+            { key: 'punctualityRate', label: 'Punctuality Rate %', labelAr: 'نسبة الالتزام', category: 'metrics', defaultSelected: true },
+            { key: 'weightedScore', label: 'Weighted Score', labelAr: 'الدرجة الموزونة', category: 'metrics', defaultSelected: true },
+            { key: 'consistencyIndex', label: 'Consistency Index', labelAr: 'مؤشر الانتظام', category: 'metrics', defaultSelected: false },
           ]
         },
         {
           id: 'trend',
           label: 'Trend Analysis',
-          labelAr: 'Ã˜ÂªÃ˜Â­Ã™â€žÃ™Å Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â§Ã˜ÂªÃ˜Â¬Ã˜Â§Ã™â€¡',
-          icon: 'Ã°Å¸â€œâ€°',
+          labelAr: 'تحليل الاتجاه',
+          icon: '📉',
           fields: [
-            { key: 'trendSlope', label: 'Trend Slope', labelAr: 'Ã™â€¦Ã™Å Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â§Ã˜ÂªÃ˜Â¬Ã˜Â§Ã™â€¡', category: 'trend', defaultSelected: false },
-            { key: 'trendClassification', label: 'Trend Classification', labelAr: 'Ã˜ÂªÃ˜ÂµÃ™â€ Ã™Å Ã™Â Ã˜Â§Ã™â€žÃ˜Â§Ã˜ÂªÃ˜Â¬Ã˜Â§Ã™â€¡', category: 'trend', defaultSelected: false },
-            { key: 'trendRSquared', label: 'Trend RÃ‚Â² Value', labelAr: 'Ã™â€šÃ™Å Ã™â€¦Ã˜Â© RÃ‚Â²', category: 'trend', defaultSelected: false },
-            { key: 'weeklyChange', label: 'Weekly Change %', labelAr: 'Ã˜Â§Ã™â€žÃ˜ÂªÃ˜ÂºÃ™Å Ã˜Â± Ã˜Â§Ã™â€žÃ˜Â£Ã˜Â³Ã˜Â¨Ã™Ë†Ã˜Â¹Ã™Å ', category: 'trend', defaultSelected: false },
+            { key: 'trendSlope', label: 'Trend Slope', labelAr: 'ميل الاتجاه', category: 'trend', defaultSelected: false },
+            { key: 'trendClassification', label: 'Trend Classification', labelAr: 'تصنيف الاتجاه', category: 'trend', defaultSelected: false },
+            { key: 'trendRSquared', label: 'Trend R² Value', labelAr: 'قيمة R²', category: 'trend', defaultSelected: false },
+            { key: 'weeklyChange', label: 'Weekly Change %', labelAr: 'التغير الأسبوعي', category: 'trend', defaultSelected: false },
           ]
         },
         {
           id: 'rates',
           label: 'Rate Statistics',
-          labelAr: 'Ã˜Â¥Ã˜Â­Ã˜ÂµÃ˜Â§Ã˜Â¦Ã™Å Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¹Ã˜Â¯Ã™â€žÃ˜Â§Ã˜Âª',
-          icon: 'Ã°Å¸â€œÂ',
+          labelAr: 'إحصائيات المعدلات',
+          icon: '📏',
           fields: [
-            { key: 'avgRate', label: 'Average Rate', labelAr: 'Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž Ã˜Â§Ã™â€žÃ™â€¦Ã˜ÂªÃ™Ë†Ã˜Â³Ã˜Â·', category: 'rates', defaultSelected: false },
-            { key: 'minRate', label: 'Minimum Rate', labelAr: 'Ã˜Â£Ã˜Â¯Ã™â€ Ã™â€° Ã™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž', category: 'rates', defaultSelected: false },
-            { key: 'maxRate', label: 'Maximum Rate', labelAr: 'Ã˜Â£Ã˜Â¹Ã™â€žÃ™â€° Ã™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž', category: 'rates', defaultSelected: false },
+            { key: 'avgRate', label: 'Average Rate', labelAr: 'المعدل المتوسط', category: 'rates', defaultSelected: false },
+            { key: 'minRate', label: 'Minimum Rate', labelAr: 'أدنى معدل', category: 'rates', defaultSelected: false },
+            { key: 'maxRate', label: 'Maximum Rate', labelAr: 'أعلى معدل', category: 'rates', defaultSelected: false },
           ]
         },
         {
           id: 'scoreBreakdown',
-          label: 'Ã°Å¸â€Â Score Breakdown',
-          labelAr: 'Ã°Å¸â€Â Ã˜ÂªÃ™ÂÃ˜ÂµÃ™Å Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â¯Ã˜Â±Ã˜Â¬Ã˜Â©',
-          icon: 'Ã°Å¸Â§Â®',
+          label: '🔍 Score Breakdown',
+          labelAr: '🔍 تفصيل الدرجة',
+          icon: '🧮',
           fields: [
-            { key: 'qualityAdjustedRate', label: 'Quality-Adjusted Rate %', labelAr: 'Ã™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â¬Ã™Ë†Ã˜Â¯Ã˜Â© Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž', category: 'scoreBreakdown', defaultSelected: false },
-            { key: 'rawWeightedScore', label: 'Raw Score (before coverage)', labelAr: 'Ã˜Â§Ã™â€žÃ˜Â¯Ã˜Â±Ã˜Â¬Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â®Ã˜Â§Ã™â€¦', category: 'scoreBreakdown', defaultSelected: false },
-            { key: 'coverageFactor', label: 'Coverage Factor', labelAr: 'Ã˜Â¹Ã˜Â§Ã™â€¦Ã™â€ž Ã˜Â§Ã™â€žÃ˜ÂªÃ˜ÂºÃ˜Â·Ã™Å Ã˜Â©', category: 'scoreBreakdown', defaultSelected: false },
-            { key: 'scoreFormula', label: 'Score Formula', labelAr: 'Ã™â€¦Ã˜Â¹Ã˜Â§Ã˜Â¯Ã™â€žÃ˜Â© Ã˜Â§Ã™â€žÃ˜Â¯Ã˜Â±Ã˜Â¬Ã˜Â©', category: 'scoreBreakdown', defaultSelected: false },
+            { key: 'qualityAdjustedRate', label: 'Quality-Adjusted Rate %', labelAr: 'معدل الجودة المعدل', category: 'scoreBreakdown', defaultSelected: false },
+            { key: 'rawWeightedScore', label: 'Raw Score (before coverage)', labelAr: 'الدرجة الخام', category: 'scoreBreakdown', defaultSelected: false },
+            { key: 'coverageFactor', label: 'Coverage Factor', labelAr: 'عامل التغطية', category: 'scoreBreakdown', defaultSelected: false },
+            { key: 'scoreFormula', label: 'Score Formula', labelAr: 'معادلة الدرجة', category: 'scoreBreakdown', defaultSelected: false },
           ]
         },
         {
           id: 'lateDuration',
-          label: 'Ã¢ÂÂ±Ã¯Â¸Â Late Duration',
-          labelAr: 'Ã¢ÂÂ±Ã¯Â¸Â Ã™â€¦Ã˜Â¯Ã˜Â© Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â£Ã˜Â®Ã™Å Ã˜Â±',
-          icon: 'Ã¢ÂÂ°',
+          label: '⏱️ Late Duration',
+          labelAr: '⏱️ مدة التأخير',
+          icon: '⏰',
           fields: [
-            { key: 'totalLateMinutes', label: 'Total Late (min)', labelAr: 'Ã™â€¦Ã˜Â¬Ã™â€¦Ã™Ë†Ã˜Â¹ Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â£Ã˜Â®Ã™Å Ã˜Â± (Ã˜Â¯Ã™â€šÃ™Å Ã™â€šÃ˜Â©)', category: 'lateDuration', defaultSelected: false },
-            { key: 'avgLateMinutes', label: 'Avg Late (min)', labelAr: 'Ã™â€¦Ã˜ÂªÃ™Ë†Ã˜Â³Ã˜Â· Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â£Ã˜Â®Ã™Å Ã˜Â±', category: 'lateDuration', defaultSelected: false },
-            { key: 'maxLateMinutes', label: 'Max Late (min)', labelAr: 'Ã˜Â£Ã™â€šÃ˜ÂµÃ™â€° Ã˜ÂªÃ˜Â£Ã˜Â®Ã™Å Ã˜Â±', category: 'lateDuration', defaultSelected: false },
-            { key: 'lateScoreAvg', label: 'Avg Late Credit (0-1)', labelAr: 'Ã™â€¦Ã˜ÂªÃ™Ë†Ã˜Â³Ã˜Â· Ã˜Â±Ã˜ÂµÃ™Å Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â£Ã˜Â®Ã™Å Ã˜Â±', category: 'lateDuration', defaultSelected: false },
+            { key: 'totalLateMinutes', label: 'Total Late (min)', labelAr: 'مجموع التأخير (دقيقة)', category: 'lateDuration', defaultSelected: false },
+            { key: 'avgLateMinutes', label: 'Avg Late (min)', labelAr: 'متوسط التأخير', category: 'lateDuration', defaultSelected: false },
+            { key: 'maxLateMinutes', label: 'Max Late (min)', labelAr: 'أقصى تأخير', category: 'lateDuration', defaultSelected: false },
+            { key: 'lateScoreAvg', label: 'Avg Late Credit (0-1)', labelAr: 'متوسط رصيد التأخير', category: 'lateDuration', defaultSelected: false },
           ]
         }
       ];
@@ -3464,82 +3460,82 @@ export const AttendanceRecords = () => {
         {
           id: 'session',
           label: 'Session Info',
-          labelAr: 'Ã™â€¦Ã˜Â¹Ã™â€žÃ™Ë†Ã™â€¦Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€žÃ˜Â³Ã˜Â©',
-          icon: 'Ã°Å¸â€œâ€¦',
+          labelAr: 'معلومات الجلسة',
+          icon: '📅',
           fields: [
-            { key: 'date', label: 'Date', labelAr: 'Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â§Ã˜Â±Ã™Å Ã˜Â®', category: 'session', defaultSelected: true },
-            { key: 'dayOfWeek', label: 'Day of Week', labelAr: 'Ã™Å Ã™Ë†Ã™â€¦ Ã˜Â§Ã™â€žÃ˜Â£Ã˜Â³Ã˜Â¨Ã™Ë†Ã˜Â¹', category: 'session', defaultSelected: false },
-            { key: 'hostAddress', label: 'Host Address', labelAr: 'Ã˜Â¹Ã™â€ Ã™Ë†Ã˜Â§Ã™â€  Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¶Ã™Å Ã™Â', category: 'session', defaultSelected: true },
+            { key: 'date', label: 'Date', labelAr: 'التاريخ', category: 'session', defaultSelected: true },
+            { key: 'dayOfWeek', label: 'Day of Week', labelAr: 'يوم الأسبوع', category: 'session', defaultSelected: false },
+            { key: 'hostAddress', label: 'Host Address', labelAr: 'عنوان المضيف', category: 'session', defaultSelected: true },
           ]
         },
         {
           id: 'book',
           label: 'Book Coverage',
-          labelAr: 'Ã˜ÂªÃ˜ÂºÃ˜Â·Ã™Å Ã˜Â© Ã˜Â§Ã™â€žÃ™Æ’Ã˜ÂªÃ˜Â§Ã˜Â¨',
-          icon: 'Ã°Å¸â€œÅ¡',
+          labelAr: 'تغطية الكتاب',
+          icon: '📚',
           fields: [
-            { key: 'bookTopic', label: 'Book Topic', labelAr: 'Ã™â€¦Ã™Ë†Ã˜Â¶Ã™Ë†Ã˜Â¹ Ã˜Â§Ã™â€žÃ™Æ’Ã˜ÂªÃ˜Â§Ã˜Â¨', category: 'book', defaultSelected: true },
-            { key: 'bookPages', label: 'Pages', labelAr: 'Ã˜Â§Ã™â€žÃ˜ÂµÃ™ÂÃ˜Â­Ã˜Â§Ã˜Âª', category: 'book', defaultSelected: true },
-            { key: 'bookStartPage', label: 'Start Page', labelAr: 'Ã˜ÂµÃ™ÂÃ˜Â­Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â¨Ã˜Â¯Ã˜Â§Ã™Å Ã˜Â©', category: 'book', defaultSelected: false },
-            { key: 'bookEndPage', label: 'End Page', labelAr: 'Ã˜ÂµÃ™ÂÃ˜Â­Ã˜Â© Ã˜Â§Ã™â€žÃ™â€ Ã™â€¡Ã˜Â§Ã™Å Ã˜Â©', category: 'book', defaultSelected: false },
-            { key: 'pagesCount', label: 'Pages Count', labelAr: 'Ã˜Â¹Ã˜Â¯Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜ÂµÃ™ÂÃ˜Â­Ã˜Â§Ã˜Âª', category: 'book', defaultSelected: false },
+            { key: 'bookTopic', label: 'Book Topic', labelAr: 'موضوع الكتاب', category: 'book', defaultSelected: true },
+            { key: 'bookPages', label: 'Pages', labelAr: 'الصفحات', category: 'book', defaultSelected: true },
+            { key: 'bookStartPage', label: 'Start Page', labelAr: 'صفحة البداية', category: 'book', defaultSelected: false },
+            { key: 'bookEndPage', label: 'End Page', labelAr: 'صفحة النهاية', category: 'book', defaultSelected: false },
+            { key: 'pagesCount', label: 'Pages Count', labelAr: 'عدد الصفحات', category: 'book', defaultSelected: false },
           ]
         },
         {
           id: 'counts',
           label: 'Attendance Counts',
-          labelAr: 'Ã˜Â£Ã˜Â¹Ã˜Â¯Ã˜Â§Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±',
-          icon: 'Ã°Å¸â€Â¢',
+          labelAr: 'أعداد الحضور',
+          icon: '🔢',
           fields: [
-            { key: 'presentCount', label: 'On Time', labelAr: 'Ã™ÂÃ™Å  Ã˜Â§Ã™â€žÃ™Ë†Ã™â€šÃ˜Âª', category: 'counts', defaultSelected: true },
-            { key: 'lateCount', label: 'Late', labelAr: 'Ã™â€¦Ã˜ÂªÃ˜Â£Ã˜Â®Ã˜Â±', category: 'counts', defaultSelected: true },
-            { key: 'totalPresent', label: 'Total Present', labelAr: 'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±', category: 'counts', defaultSelected: false },
-            { key: 'excusedAbsentCount', label: 'Excused', labelAr: 'Ã™â€¦Ã˜Â¹Ã˜Â°Ã™Ë†Ã˜Â±', category: 'counts', defaultSelected: true },
-            { key: 'unexcusedAbsentCount', label: 'Absent', labelAr: 'Ã˜ÂºÃ˜Â§Ã˜Â¦Ã˜Â¨', category: 'counts', defaultSelected: true },
-            { key: 'totalAbsent', label: 'Total Absent', labelAr: 'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ˜ÂºÃ™Å Ã˜Â§Ã˜Â¨', category: 'counts', defaultSelected: false },
-            { key: 'totalStudents', label: 'Total Students', labelAr: 'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ˜Â·Ã™â€žÃ˜Â§Ã˜Â¨', category: 'counts', defaultSelected: false },
+            { key: 'presentCount', label: 'On Time', labelAr: 'في الوقت', category: 'counts', defaultSelected: true },
+            { key: 'lateCount', label: 'Late', labelAr: 'متأخر', category: 'counts', defaultSelected: true },
+            { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحضور', category: 'counts', defaultSelected: false },
+            { key: 'excusedAbsentCount', label: 'Excused', labelAr: 'معذور', category: 'counts', defaultSelected: true },
+            { key: 'unexcusedAbsentCount', label: 'Absent', labelAr: 'غائب', category: 'counts', defaultSelected: true },
+            { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب', category: 'counts', defaultSelected: false },
+            { key: 'totalStudents', label: 'Total Students', labelAr: 'إجمالي الطلاب', category: 'counts', defaultSelected: false },
           ]
         },
         {
           id: 'rates',
           label: 'Rates & Percentages',
-          labelAr: 'Ã˜Â§Ã™â€žÃ™â€ Ã˜Â³Ã˜Â¨ Ã™Ë†Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¹Ã˜Â¯Ã™â€žÃ˜Â§Ã˜Âª',
-          icon: 'Ã°Å¸â€œÅ ',
+          labelAr: 'النسب والمعدلات',
+          icon: '📊',
           fields: [
-            { key: 'attendanceRate', label: 'Attendance Rate %', labelAr: 'Ã™â€ Ã˜Â³Ã˜Â¨Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±', category: 'rates', defaultSelected: true },
-            { key: 'punctualityRate', label: 'Punctuality Rate %', labelAr: 'Ã™â€ Ã˜Â³Ã˜Â¨Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â§Ã™â€žÃ˜ÂªÃ˜Â²Ã˜Â§Ã™â€¦', category: 'rates', defaultSelected: false },
-            { key: 'absentRate', label: 'Absence Rate %', labelAr: 'Ã™â€ Ã˜Â³Ã˜Â¨Ã˜Â© Ã˜Â§Ã™â€žÃ˜ÂºÃ™Å Ã˜Â§Ã˜Â¨', category: 'rates', defaultSelected: false },
+            { key: 'attendanceRate', label: 'Attendance Rate %', labelAr: 'نسبة الحضور', category: 'rates', defaultSelected: true },
+            { key: 'punctualityRate', label: 'Punctuality Rate %', labelAr: 'نسبة الالتزام', category: 'rates', defaultSelected: false },
+            { key: 'absentRate', label: 'Absence Rate %', labelAr: 'نسبة الغياب', category: 'rates', defaultSelected: false },
           ]
         },
         {
           id: 'lateDuration',
-          label: 'Ã¢ÂÂ±Ã¯Â¸Â Late Duration',
-          labelAr: 'Ã¢ÂÂ±Ã¯Â¸Â Ã™â€¦Ã˜Â¯Ã˜Â© Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â£Ã˜Â®Ã™Å Ã˜Â±',
-          icon: 'Ã¢ÂÂ°',
+          label: '⏱️ Late Duration',
+          labelAr: '⏱️ مدة التأخير',
+          icon: '⏰',
           fields: [
-            { key: 'totalLateMinutes', label: 'Total Late (min)', labelAr: 'Ã™â€¦Ã˜Â¬Ã™â€¦Ã™Ë†Ã˜Â¹ Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â£Ã˜Â®Ã™Å Ã˜Â± (Ã˜Â¯Ã™â€šÃ™Å Ã™â€šÃ˜Â©)', category: 'lateDuration', defaultSelected: false },
-            { key: 'avgLateMinutes', label: 'Avg Late (min)', labelAr: 'Ã™â€¦Ã˜ÂªÃ™Ë†Ã˜Â³Ã˜Â· Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â£Ã˜Â®Ã™Å Ã˜Â±', category: 'lateDuration', defaultSelected: false },
+            { key: 'totalLateMinutes', label: 'Total Late (min)', labelAr: 'مجموع التأخير (دقيقة)', category: 'lateDuration', defaultSelected: false },
+            { key: 'avgLateMinutes', label: 'Avg Late (min)', labelAr: 'متوسط التأخير', category: 'lateDuration', defaultSelected: false },
           ]
         },
         {
           id: 'specialization',
           label: 'Specialization',
-          labelAr: 'Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â®Ã˜ÂµÃ˜Âµ',
-          icon: 'Ã°Å¸Å½â€œ',
+          labelAr: 'التخصص',
+          icon: '🎓',
           fields: [
-            { key: 'topSpecialization', label: 'Most Present Specialization', labelAr: 'Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â®Ã˜ÂµÃ˜Âµ Ã˜Â§Ã™â€žÃ˜Â£Ã™Æ’Ã˜Â«Ã˜Â± Ã˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±Ã˜Â§Ã™â€¹', category: 'specialization', defaultSelected: true },
+            { key: 'topSpecialization', label: 'Most Present Specialization', labelAr: 'التخصص الأكثر حضوراً', category: 'specialization', defaultSelected: true },
           ]
         },
         {
           id: 'names',
           label: 'Student Names',
-          labelAr: 'Ã˜Â£Ã˜Â³Ã™â€¦Ã˜Â§Ã˜Â¡ Ã˜Â§Ã™â€žÃ˜Â·Ã™â€žÃ˜Â§Ã˜Â¨',
-          icon: 'Ã°Å¸â€˜Â¥',
+          labelAr: 'أسماء الطلاب',
+          icon: '👥',
           fields: [
-            { key: 'presentNames', label: 'On Time Names', labelAr: 'Ã˜Â£Ã˜Â³Ã™â€¦Ã˜Â§Ã˜Â¡ Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â§Ã˜Â¶Ã˜Â±Ã™Å Ã™â€ ', category: 'names', defaultSelected: false },
-            { key: 'lateNames', label: 'Late Names', labelAr: 'Ã˜Â£Ã˜Â³Ã™â€¦Ã˜Â§Ã˜Â¡ Ã˜Â§Ã™â€žÃ™â€¦Ã˜ÂªÃ˜Â£Ã˜Â®Ã˜Â±Ã™Å Ã™â€ ', category: 'names', defaultSelected: false },
-            { key: 'excusedNames', label: 'Excused Names', labelAr: 'Ã˜Â£Ã˜Â³Ã™â€¦Ã˜Â§Ã˜Â¡ Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¹Ã˜Â°Ã™Ë†Ã˜Â±Ã™Å Ã™â€ ', category: 'names', defaultSelected: false },
-            { key: 'absentNames', label: 'Absent Names', labelAr: 'Ã˜Â£Ã˜Â³Ã™â€¦Ã˜Â§Ã˜Â¡ Ã˜Â§Ã™â€žÃ˜ÂºÃ˜Â§Ã˜Â¦Ã˜Â¨Ã™Å Ã™â€ ', category: 'names', defaultSelected: false },
+            { key: 'presentNames', label: 'On Time Names', labelAr: 'أسماء الحاضرين', category: 'names', defaultSelected: false },
+            { key: 'lateNames', label: 'Late Names', labelAr: 'أسماء المتأخرين', category: 'names', defaultSelected: false },
+            { key: 'excusedNames', label: 'Excused Names', labelAr: 'أسماء المعذورين', category: 'names', defaultSelected: false },
+            { key: 'absentNames', label: 'Absent Names', labelAr: 'أسماء الغائبين', category: 'names', defaultSelected: false },
           ]
         }
       ];
@@ -3548,48 +3544,48 @@ export const AttendanceRecords = () => {
         {
           id: 'host',
           label: 'Host Info',
-          labelAr: 'Ã™â€¦Ã˜Â¹Ã™â€žÃ™Ë†Ã™â€¦Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¶Ã™Å Ã™Â',
-          icon: 'Ã°Å¸ÂÂ ',
+          labelAr: 'معلومات المضيف',
+          icon: '🏠',
           fields: [
-            { key: 'rank', label: 'Rank', labelAr: 'Ã˜Â§Ã™â€žÃ˜Â±Ã˜ÂªÃ˜Â¨Ã˜Â©', category: 'host', defaultSelected: true },
-            { key: 'address', label: 'Host Address', labelAr: 'Ã˜Â¹Ã™â€ Ã™Ë†Ã˜Â§Ã™â€  Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¶Ã™Å Ã™Â', category: 'host', defaultSelected: true },
+            { key: 'rank', label: 'Rank', labelAr: 'الرتبة', category: 'host', defaultSelected: true },
+            { key: 'address', label: 'Host Address', labelAr: 'عنوان المضيف', category: 'host', defaultSelected: true },
           ]
         },
         {
           id: 'stats',
           label: 'Hosting Statistics',
-          labelAr: 'Ã˜Â¥Ã˜Â­Ã˜ÂµÃ˜Â§Ã˜Â¦Ã™Å Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜Â§Ã˜Â³Ã˜ÂªÃ˜Â¶Ã˜Â§Ã™ÂÃ˜Â©',
-          icon: 'Ã°Å¸â€œÅ ',
+          labelAr: 'إحصائيات الاستضافة',
+          icon: '📊',
           fields: [
-            { key: 'count', label: 'Times Hosted', labelAr: 'Ã˜Â¹Ã˜Â¯Ã˜Â¯ Ã™â€¦Ã˜Â±Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜Â§Ã˜Â³Ã˜ÂªÃ˜Â¶Ã˜Â§Ã™ÂÃ˜Â©', category: 'stats', defaultSelected: true },
-            { key: 'percentage', label: 'Hosting Percentage %', labelAr: 'Ã™â€ Ã˜Â³Ã˜Â¨Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â§Ã˜Â³Ã˜ÂªÃ˜Â¶Ã˜Â§Ã™ÂÃ˜Â©', category: 'stats', defaultSelected: false },
-            { key: 'firstHostDate', label: 'First Host Date', labelAr: 'Ã˜Â£Ã™Ë†Ã™â€ž Ã˜ÂªÃ˜Â§Ã˜Â±Ã™Å Ã˜Â® Ã˜Â§Ã˜Â³Ã˜ÂªÃ˜Â¶Ã˜Â§Ã™ÂÃ˜Â©', category: 'stats', defaultSelected: false },
-            { key: 'lastHostDate', label: 'Last Host Date', labelAr: 'Ã˜Â¢Ã˜Â®Ã˜Â± Ã˜ÂªÃ˜Â§Ã˜Â±Ã™Å Ã˜Â® Ã˜Â§Ã˜Â³Ã˜ÂªÃ˜Â¶Ã˜Â§Ã™ÂÃ˜Â©', category: 'stats', defaultSelected: false },
+            { key: 'count', label: 'Times Hosted', labelAr: 'عدد مرات الاستضافة', category: 'stats', defaultSelected: true },
+            { key: 'percentage', label: 'Hosting Percentage %', labelAr: 'نسبة الاستضافة', category: 'stats', defaultSelected: false },
+            { key: 'firstHostDate', label: 'First Host Date', labelAr: 'أول تاريخ استضافة', category: 'stats', defaultSelected: false },
+            { key: 'lastHostDate', label: 'Last Host Date', labelAr: 'آخر تاريخ استضافة', category: 'stats', defaultSelected: false },
           ]
         },
         {
           id: 'attendance',
           label: 'Attendance Stats',
-          labelAr: 'Ã˜Â¥Ã˜Â­Ã˜ÂµÃ˜Â§Ã˜Â¦Ã™Å Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±',
-          icon: 'Ã¢Å“â€¦',
+          labelAr: 'إحصائيات الحضور',
+          icon: '✅',
           fields: [
-            { key: 'attendanceRate', label: 'Avg Attendance Rate %', labelAr: 'Ã™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±', category: 'attendance', defaultSelected: true },
-            { key: 'totalOnTime', label: 'Total On Time', labelAr: 'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã™ÂÃ™Å  Ã˜Â§Ã™â€žÃ™Ë†Ã™â€šÃ˜Âª', category: 'attendance', defaultSelected: true },
-            { key: 'totalLate', label: 'Total Late', labelAr: 'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ™â€¦Ã˜ÂªÃ˜Â£Ã˜Â®Ã˜Â±Ã™Å Ã™â€ ', category: 'attendance', defaultSelected: true },
-            { key: 'totalPresent', label: 'Total Present', labelAr: 'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±', category: 'attendance', defaultSelected: true },
-            { key: 'totalAbsent', label: 'Total Absent', labelAr: 'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ˜ÂºÃ™Å Ã˜Â§Ã˜Â¨', category: 'attendance', defaultSelected: true },
-            { key: 'totalExcused', label: 'Total Excused', labelAr: 'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¹Ã˜Â°Ã™Ë†Ã˜Â±Ã™Å Ã™â€ ', category: 'attendance', defaultSelected: true },
-            { key: 'totalStudents', label: 'Total Students', labelAr: 'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ˜Â·Ã™â€žÃ˜Â§Ã˜Â¨', category: 'attendance', defaultSelected: false },
+            { key: 'attendanceRate', label: 'Avg Attendance Rate %', labelAr: 'معدل الحضور', category: 'attendance', defaultSelected: true },
+            { key: 'totalOnTime', label: 'Total On Time', labelAr: 'إجمالي في الوقت', category: 'attendance', defaultSelected: true },
+            { key: 'totalLate', label: 'Total Late', labelAr: 'إجمالي المتأخرين', category: 'attendance', defaultSelected: true },
+            { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحضور', category: 'attendance', defaultSelected: true },
+            { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب', category: 'attendance', defaultSelected: true },
+            { key: 'totalExcused', label: 'Total Excused', labelAr: 'إجمالي المعذورين', category: 'attendance', defaultSelected: true },
+            { key: 'totalStudents', label: 'Total Students', labelAr: 'إجمالي الطلاب', category: 'attendance', defaultSelected: false },
           ]
         },
         {
           id: 'dates',
           label: 'Hosting Dates',
-          labelAr: 'Ã˜ÂªÃ™Ë†Ã˜Â§Ã˜Â±Ã™Å Ã˜Â® Ã˜Â§Ã™â€žÃ˜Â§Ã˜Â³Ã˜ÂªÃ˜Â¶Ã˜Â§Ã™ÂÃ˜Â©',
-          icon: 'Ã°Å¸â€œâ€¦',
+          labelAr: 'تواريخ الاستضافة',
+          icon: '📅',
           fields: [
-            { key: 'dates', label: 'All Dates', labelAr: 'Ã˜Â¬Ã™â€¦Ã™Å Ã˜Â¹ Ã˜Â§Ã™â€žÃ˜ÂªÃ™Ë†Ã˜Â§Ã˜Â±Ã™Å Ã˜Â®', category: 'dates', defaultSelected: true },
-            { key: 'datesList', label: 'Dates List (separate rows)', labelAr: 'Ã™â€šÃ˜Â§Ã˜Â¦Ã™â€¦Ã˜Â© Ã˜Â§Ã™â€žÃ˜ÂªÃ™Ë†Ã˜Â§Ã˜Â±Ã™Å Ã˜Â®', category: 'dates', defaultSelected: false },
+            { key: 'dates', label: 'All Dates', labelAr: 'جميع التواريخ', category: 'dates', defaultSelected: true },
+            { key: 'datesList', label: 'Dates List (separate rows)', labelAr: 'قائمة التواريخ', category: 'dates', defaultSelected: false },
           ]
         }
       ];
@@ -3599,109 +3595,109 @@ export const AttendanceRecords = () => {
       {
         id: 'basic',
         label: 'Basic Info',
-        labelAr: 'Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¹Ã™â€žÃ™Ë†Ã™â€¦Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜Â£Ã˜Â³Ã˜Â§Ã˜Â³Ã™Å Ã˜Â©',
-        icon: 'Ã°Å¸â€œâ€¹',
+        labelAr: 'المعلومات الأساسية',
+        icon: '📋',
         fields: [
-          { key: 'date', label: 'Date', labelAr: 'Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â§Ã˜Â±Ã™Å Ã˜Â®', category: 'basic', defaultSelected: true },
-          { key: 'dayOfWeek', label: 'Day of Week', labelAr: 'Ã™Å Ã™Ë†Ã™â€¦ Ã˜Â§Ã™â€žÃ˜Â£Ã˜Â³Ã˜Â¨Ã™Ë†Ã˜Â¹', category: 'basic', defaultSelected: false },
-          { key: 'attendance_id', label: 'Record ID', labelAr: 'Ã˜Â±Ã™â€šÃ™â€¦ Ã˜Â§Ã™â€žÃ˜Â³Ã˜Â¬Ã™â€ž', category: 'basic', defaultSelected: false },
+          { key: 'date', label: 'Date', labelAr: 'التاريخ', category: 'basic', defaultSelected: true },
+          { key: 'dayOfWeek', label: 'Day of Week', labelAr: 'يوم الأسبوع', category: 'basic', defaultSelected: false },
+          { key: 'attendance_id', label: 'Record ID', labelAr: 'رقم السجل', category: 'basic', defaultSelected: false },
         ]
       },
       {
         id: 'student',
         label: 'Student Info',
-        labelAr: 'Ã™â€¦Ã˜Â¹Ã™â€žÃ™Ë†Ã™â€¦Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜Â·Ã˜Â§Ã™â€žÃ˜Â¨',
-        icon: 'Ã°Å¸â€˜Â¤',
+        labelAr: 'معلومات الطالب',
+        icon: '👤',
         fields: [
-          { key: 'student_name', label: 'Student Name', labelAr: 'Ã˜Â§Ã˜Â³Ã™â€¦ Ã˜Â§Ã™â€žÃ˜Â·Ã˜Â§Ã™â€žÃ˜Â¨', category: 'student', defaultSelected: true },
-          { key: 'student_id', label: 'Student ID', labelAr: 'Ã˜Â±Ã™â€šÃ™â€¦ Ã˜Â§Ã™â€žÃ˜Â·Ã˜Â§Ã™â€žÃ˜Â¨', category: 'student', defaultSelected: false },
+          { key: 'student_name', label: 'Student Name', labelAr: 'اسم الطالب', category: 'student', defaultSelected: true },
+          { key: 'student_id', label: 'Student ID', labelAr: 'رقم الطالب', category: 'student', defaultSelected: false },
         ]
       },
       {
         id: 'course',
         label: 'Course Info',
-        labelAr: 'Ã™â€¦Ã˜Â¹Ã™â€žÃ™Ë†Ã™â€¦Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜Â¯Ã™Ë†Ã˜Â±Ã˜Â©',
-        icon: 'Ã°Å¸â€œÅ¡',
+        labelAr: 'معلومات الدورة',
+        icon: '📚',
         fields: [
-          { key: 'course_name', label: 'Course Name', labelAr: 'Ã˜Â§Ã˜Â³Ã™â€¦ Ã˜Â§Ã™â€žÃ˜Â¯Ã™Ë†Ã˜Â±Ã˜Â©', category: 'course', defaultSelected: true },
-          { key: 'course_id', label: 'Course ID', labelAr: 'Ã˜Â±Ã™â€šÃ™â€¦ Ã˜Â§Ã™â€žÃ˜Â¯Ã™Ë†Ã˜Â±Ã˜Â©', category: 'course', defaultSelected: false },
-          { key: 'instructor_name', label: 'Instructor', labelAr: 'Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¯Ã˜Â±Ã˜Â¨', category: 'course', defaultSelected: true },
-          { key: 'session_location', label: 'Session Location', labelAr: 'Ã™â€¦Ã™Ë†Ã™â€šÃ˜Â¹ Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€žÃ˜Â³Ã˜Â©', category: 'course', defaultSelected: false },
+          { key: 'course_name', label: 'Course Name', labelAr: 'اسم الدورة', category: 'course', defaultSelected: true },
+          { key: 'course_id', label: 'Course ID', labelAr: 'رقم الدورة', category: 'course', defaultSelected: false },
+          { key: 'instructor_name', label: 'Instructor', labelAr: 'المدرب', category: 'course', defaultSelected: true },
+          { key: 'session_location', label: 'Session Location', labelAr: 'موقع الجلسة', category: 'course', defaultSelected: false },
         ]
       },
       {
         id: 'book',
         label: 'Book Coverage',
-        labelAr: 'Ã˜ÂªÃ˜ÂºÃ˜Â·Ã™Å Ã˜Â© Ã˜Â§Ã™â€žÃ™Æ’Ã˜ÂªÃ˜Â§Ã˜Â¨',
-        icon: 'Ã°Å¸â€œâ€“',
+        labelAr: 'تغطية الكتاب',
+        icon: '📖',
         fields: [
-          { key: 'book_topic', label: 'Book Topic', labelAr: 'Ã™â€¦Ã™Ë†Ã˜Â¶Ã™Ë†Ã˜Â¹ Ã˜Â§Ã™â€žÃ™Æ’Ã˜ÂªÃ˜Â§Ã˜Â¨', category: 'book', defaultSelected: false },
-          { key: 'book_pages', label: 'Book Pages', labelAr: 'Ã˜ÂµÃ™ÂÃ˜Â­Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ™Æ’Ã˜ÂªÃ˜Â§Ã˜Â¨', category: 'book', defaultSelected: false },
-          { key: 'book_start_page', label: 'Start Page', labelAr: 'Ã˜ÂµÃ™ÂÃ˜Â­Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â¨Ã˜Â¯Ã˜Â§Ã™Å Ã˜Â©', category: 'book', defaultSelected: false },
-          { key: 'book_end_page', label: 'End Page', labelAr: 'Ã˜ÂµÃ™ÂÃ˜Â­Ã˜Â© Ã˜Â§Ã™â€žÃ™â€ Ã™â€¡Ã˜Â§Ã™Å Ã˜Â©', category: 'book', defaultSelected: false },
+          { key: 'book_topic', label: 'Book Topic', labelAr: 'موضوع الكتاب', category: 'book', defaultSelected: false },
+          { key: 'book_pages', label: 'Book Pages', labelAr: 'صفحات الكتاب', category: 'book', defaultSelected: false },
+          { key: 'book_start_page', label: 'Start Page', labelAr: 'صفحة البداية', category: 'book', defaultSelected: false },
+          { key: 'book_end_page', label: 'End Page', labelAr: 'صفحة النهاية', category: 'book', defaultSelected: false },
         ]
       },
       {
         id: 'attendance',
         label: 'Attendance Details',
-        labelAr: 'Ã˜ÂªÃ™ÂÃ˜Â§Ã˜ÂµÃ™Å Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±',
-        icon: 'Ã¢Å“â€¦',
+        labelAr: 'تفاصيل الحضور',
+        icon: '✅',
         fields: [
-          { key: 'status', label: 'Status', labelAr: 'Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â§Ã™â€žÃ˜Â©', category: 'attendance', defaultSelected: true },
-          { key: 'status_display', label: 'Status (Display)', labelAr: 'Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â§Ã™â€žÃ˜Â© (Ã˜Â¹Ã˜Â±Ã˜Â¶)', category: 'attendance', defaultSelected: false },
-          { key: 'is_present', label: 'Is Present', labelAr: 'Ã˜Â­Ã˜Â§Ã˜Â¶Ã˜Â±', category: 'attendance', defaultSelected: false },
-          { key: 'is_late', label: 'Is Late', labelAr: 'Ã™â€¦Ã˜ÂªÃ˜Â£Ã˜Â®Ã˜Â±', category: 'attendance', defaultSelected: false },
-          { key: 'is_excused', label: 'Is Excused', labelAr: 'Ã™â€¦Ã˜Â¹Ã˜Â°Ã™Ë†Ã˜Â±', category: 'attendance', defaultSelected: false },
-          { key: 'is_absent', label: 'Is Absent', labelAr: 'Ã˜ÂºÃ˜Â§Ã˜Â¦Ã˜Â¨', category: 'attendance', defaultSelected: false },
+          { key: 'status', label: 'Status', labelAr: 'الحالة', category: 'attendance', defaultSelected: true },
+          { key: 'status_display', label: 'Status (Display)', labelAr: 'الحالة (عرض)', category: 'attendance', defaultSelected: false },
+          { key: 'is_present', label: 'Is Present', labelAr: 'حاضر', category: 'attendance', defaultSelected: false },
+          { key: 'is_late', label: 'Is Late', labelAr: 'متأخر', category: 'attendance', defaultSelected: false },
+          { key: 'is_excused', label: 'Is Excused', labelAr: 'معذور', category: 'attendance', defaultSelected: false },
+          { key: 'is_absent', label: 'Is Absent', labelAr: 'غائب', category: 'attendance', defaultSelected: false },
         ]
       },
       {
         id: 'timing',
         label: 'Timing Details',
-        labelAr: 'Ã˜ÂªÃ™ÂÃ˜Â§Ã˜ÂµÃ™Å Ã™â€ž Ã˜Â§Ã™â€žÃ˜ÂªÃ™Ë†Ã™â€šÃ™Å Ã˜Âª',
-        icon: 'Ã¢ÂÂ°',
+        labelAr: 'تفاصيل التوقيت',
+        icon: '⏰',
         fields: [
-          { key: 'late_minutes', label: 'Late Duration (min)', labelAr: 'Ã™â€¦Ã˜Â¯Ã˜Â© Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â£Ã˜Â®Ã˜Â±', category: 'timing', defaultSelected: true },
-          { key: 'late_bracket', label: 'Late Bracket', labelAr: 'Ã™ÂÃ˜Â¦Ã˜Â© Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â£Ã˜Â®Ã˜Â±', category: 'timing', defaultSelected: false },
-          { key: 'early_minutes', label: 'Early (min)', labelAr: 'Ã™â€¦Ã˜Â¨Ã™Æ’Ã˜Â±', category: 'timing', defaultSelected: false },
-          { key: 'check_in_time', label: 'Check-in Time', labelAr: 'Ã™Ë†Ã™â€šÃ˜Âª Ã˜Â§Ã™â€žÃ˜Â¯Ã˜Â®Ã™Ë†Ã™â€ž', category: 'timing', defaultSelected: false },
-          { key: 'gps_timestamp', label: 'GPS Timestamp', labelAr: 'Ã™Ë†Ã™â€šÃ˜Âª GPS', category: 'timing', defaultSelected: false },
+          { key: 'late_minutes', label: 'Late Duration (min)', labelAr: 'مدة التأخر', category: 'timing', defaultSelected: true },
+          { key: 'late_bracket', label: 'Late Bracket', labelAr: 'فئة التأخر', category: 'timing', defaultSelected: false },
+          { key: 'early_minutes', label: 'Early (min)', labelAr: 'مبكر', category: 'timing', defaultSelected: false },
+          { key: 'check_in_time', label: 'Check-in Time', labelAr: 'وقت الدخول', category: 'timing', defaultSelected: false },
+          { key: 'gps_timestamp', label: 'GPS Timestamp', labelAr: 'وقت GPS', category: 'timing', defaultSelected: false },
         ]
       },
       {
         id: 'excuse',
         label: 'Excuse Info',
-        labelAr: 'Ã™â€¦Ã˜Â¹Ã™â€žÃ™Ë†Ã™â€¦Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜Â¹Ã˜Â°Ã˜Â±',
-        icon: 'Ã°Å¸â€œÂ',
+        labelAr: 'معلومات العذر',
+        icon: '📝',
         fields: [
-          { key: 'excuse_reason', label: 'Excuse Reason', labelAr: 'Ã˜Â³Ã˜Â¨Ã˜Â¨ Ã˜Â§Ã™â€žÃ˜Â¹Ã˜Â°Ã˜Â±', category: 'excuse', defaultSelected: true },
-          { key: 'check_in_method', label: 'Check-in Method', labelAr: 'Ã˜Â·Ã˜Â±Ã™Å Ã™â€šÃ˜Â© Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â³Ã˜Â¬Ã™Å Ã™â€ž', category: 'excuse', defaultSelected: false },
+          { key: 'excuse_reason', label: 'Excuse Reason', labelAr: 'سبب العذر', category: 'excuse', defaultSelected: true },
+          { key: 'check_in_method', label: 'Check-in Method', labelAr: 'طريقة التسجيل', category: 'excuse', defaultSelected: false },
         ]
       },
       {
         id: 'location',
         label: 'Location Info',
-        labelAr: 'Ã™â€¦Ã˜Â¹Ã™â€žÃ™Ë†Ã™â€¦Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã™â€šÃ˜Â¹',
-        icon: 'Ã°Å¸â€œÂ',
+        labelAr: 'معلومات الموقع',
+        icon: '📍',
         fields: [
-          { key: 'host_address', label: 'Host Address', labelAr: 'Ã˜Â¹Ã™â€ Ã™Ë†Ã˜Â§Ã™â€  Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¶Ã™Å Ã™Â', category: 'location', defaultSelected: true },
-          { key: 'gps_latitude', label: 'GPS Latitude', labelAr: 'Ã˜Â®Ã˜Â· Ã˜Â§Ã™â€žÃ˜Â¹Ã˜Â±Ã˜Â¶', category: 'location', defaultSelected: false },
-          { key: 'gps_longitude', label: 'GPS Longitude', labelAr: 'Ã˜Â®Ã˜Â· Ã˜Â§Ã™â€žÃ˜Â·Ã™Ë†Ã™â€ž', category: 'location', defaultSelected: false },
-          { key: 'gps_coordinates', label: 'GPS Coordinates', labelAr: 'Ã˜Â¥Ã˜Â­Ã˜Â¯Ã˜Â§Ã˜Â«Ã™Å Ã˜Â§Ã˜Âª GPS', category: 'location', defaultSelected: false },
-          { key: 'gps_accuracy', label: 'GPS Accuracy (m)', labelAr: 'Ã˜Â¯Ã™â€šÃ˜Â© GPS', category: 'location', defaultSelected: false },
-          { key: 'distance_from_host', label: 'Distance from Host (m)', labelAr: 'Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â³Ã˜Â§Ã™ÂÃ˜Â© Ã™â€¦Ã™â€  Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¶Ã™Å Ã™Â', category: 'location', defaultSelected: false },
+          { key: 'host_address', label: 'Host Address', labelAr: 'عنوان المضيف', category: 'location', defaultSelected: true },
+          { key: 'gps_latitude', label: 'GPS Latitude', labelAr: 'خط العرض', category: 'location', defaultSelected: false },
+          { key: 'gps_longitude', label: 'GPS Longitude', labelAr: 'خط الطول', category: 'location', defaultSelected: false },
+          { key: 'gps_coordinates', label: 'GPS Coordinates', labelAr: 'إحداثيات GPS', category: 'location', defaultSelected: false },
+          { key: 'gps_accuracy', label: 'GPS Accuracy (m)', labelAr: 'دقة GPS', category: 'location', defaultSelected: false },
+          { key: 'distance_from_host', label: 'Distance from Host (m)', labelAr: 'المسافة من المضيف', category: 'location', defaultSelected: false },
         ]
       },
       {
         id: 'metadata',
         label: 'Metadata',
-        labelAr: 'Ã˜Â§Ã™â€žÃ˜Â¨Ã™Å Ã˜Â§Ã™â€ Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ™Ë†Ã˜ÂµÃ™ÂÃ™Å Ã˜Â©',
-        icon: 'Ã°Å¸â€â€“',
+        labelAr: 'البيانات الوصفية',
+        icon: '🔖',
         fields: [
-          { key: 'marked_by', label: 'Marked By', labelAr: 'Ã˜Â³Ã˜Â¬Ã™â€ž Ã˜Â¨Ã™Ë†Ã˜Â§Ã˜Â³Ã˜Â·Ã˜Â©', category: 'metadata', defaultSelected: false },
-          { key: 'marked_at', label: 'Marked At', labelAr: 'Ã™Ë†Ã™â€šÃ˜Âª Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â³Ã˜Â¬Ã™Å Ã™â€ž', category: 'metadata', defaultSelected: true },
-          { key: 'session_id', label: 'Session ID', labelAr: 'Ã˜Â±Ã™â€šÃ™â€¦ Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€žÃ˜Â³Ã˜Â©', category: 'metadata', defaultSelected: false },
-          { key: 'teacher_id', label: 'Teacher ID', labelAr: 'Ã˜Â±Ã™â€šÃ™â€¦ Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¯Ã˜Â±Ã˜Â¨', category: 'metadata', defaultSelected: false },
+          { key: 'marked_by', label: 'Marked By', labelAr: 'سجل بواسطة', category: 'metadata', defaultSelected: false },
+          { key: 'marked_at', label: 'Marked At', labelAr: 'وقت التسجيل', category: 'metadata', defaultSelected: true },
+          { key: 'session_id', label: 'Session ID', labelAr: 'رقم الجلسة', category: 'metadata', defaultSelected: false },
+          { key: 'teacher_id', label: 'Teacher ID', labelAr: 'رقم المدرب', category: 'metadata', defaultSelected: false },
         ]
       }
     ];
@@ -3716,88 +3712,88 @@ export const AttendanceRecords = () => {
     if (dataType === 'studentAnalytics') {
       // Student fields
       allFields.push(
-        { key: 'rank', label: 'Rank', labelAr: 'Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â±Ã˜ÂªÃ™Å Ã˜Â¨' },
-        { key: 'student_id', label: 'Student ID', labelAr: 'Ã˜Â±Ã™â€šÃ™â€¦ Ã˜Â§Ã™â€žÃ˜Â·Ã˜Â§Ã™â€žÃ˜Â¨' },
-        { key: 'student_name', label: 'Student Name', labelAr: 'Ã˜Â§Ã˜Â³Ã™â€¦ Ã˜Â§Ã™â€žÃ˜Â·Ã˜Â§Ã™â€žÃ˜Â¨' },
-        { key: 'presentCount', label: 'On Time', labelAr: 'Ã™ÂÃ™Å  Ã˜Â§Ã™â€žÃ™Ë†Ã™â€šÃ˜Âª' },
-        { key: 'lateCount', label: 'Late', labelAr: 'Ã™â€¦Ã˜ÂªÃ˜Â£Ã˜Â®Ã˜Â±' },
-        { key: 'totalPresent', label: 'Total Present', labelAr: 'Ã˜Â­Ã˜Â§Ã˜Â¶Ã˜Â±' },
-        { key: 'absentCount', label: 'Total Absent', labelAr: 'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ˜ÂºÃ™Å Ã˜Â§Ã˜Â¨' },
-        { key: 'unexcusedAbsent', label: 'Unexcused Absent', labelAr: 'Ã˜ÂºÃ˜Â§Ã˜Â¦Ã˜Â¨ Ã˜Â¨Ã˜Â¯Ã™Ë†Ã™â€  Ã˜Â¹Ã˜Â°Ã˜Â±' },
-        { key: 'excusedCount', label: 'Excused', labelAr: 'Ã˜ÂºÃ˜Â§Ã˜Â¦Ã˜Â¨ Ã˜Â¨Ã˜Â¹Ã˜Â°Ã˜Â±' },
-        { key: 'sessionNotHeldCount', label: 'Not Held', labelAr: 'Ã˜Â¬Ã™â€žÃ˜Â³Ã˜Â§Ã˜Âª Ã™â€žÃ™â€¦ Ã˜ÂªÃ˜Â¹Ã™â€šÃ˜Â¯' },
-        { key: 'totalRecords', label: 'Total Records', labelAr: 'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ˜Â³Ã˜Â¬Ã™â€žÃ˜Â§Ã˜Âª' },
-        { key: 'effectiveDays', label: 'Effective Days', labelAr: 'Ã˜Â§Ã™â€žÃ˜Â£Ã™Å Ã˜Â§Ã™â€¦ Ã˜Â§Ã™â€žÃ™ÂÃ˜Â¹Ã™â€žÃ™Å Ã˜Â©' },
-        { key: 'daysCovered', label: 'Days Covered', labelAr: 'Ã˜Â§Ã™â€žÃ˜Â£Ã™Å Ã˜Â§Ã™â€¦ Ã˜Â§Ã™â€žÃ™â€¦Ã˜ÂºÃ˜Â·Ã˜Â§Ã˜Â©' },
-        { key: 'attendanceRate', label: 'Attendance Rate %', labelAr: 'Ã™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â± (%)' },
-        { key: 'punctualityRate', label: 'Punctuality Rate %', labelAr: 'Ã™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â§Ã™â€žÃ˜ÂªÃ˜Â²Ã˜Â§Ã™â€¦ Ã˜Â¨Ã˜Â§Ã™â€žÃ™Ë†Ã™â€šÃ˜Âª (%)' },
-        { key: 'weightedScore', label: 'Weighted Score', labelAr: 'Ã˜Â§Ã™â€žÃ™â€ Ã™â€šÃ˜Â§Ã˜Â· Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â±Ã˜Â¬Ã˜Â­Ã˜Â©' },
-        { key: 'consistencyIndex', label: 'Consistency Index', labelAr: 'Ã™â€¦Ã˜Â¤Ã˜Â´Ã˜Â± Ã˜Â§Ã™â€žÃ˜Â§Ã™â€ Ã˜ÂªÃ˜Â¸Ã˜Â§Ã™â€¦' },
-        { key: 'trendSlope', label: 'Trend Slope', labelAr: 'Ã™â€¦Ã™Å Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â§Ã˜ÂªÃ˜Â¬Ã˜Â§Ã™â€¡' },
-        { key: 'trendClassification', label: 'Trend Classification', labelAr: 'Ã˜ÂªÃ˜ÂµÃ™â€ Ã™Å Ã™Â Ã˜Â§Ã™â€žÃ˜Â§Ã˜ÂªÃ˜Â¬Ã˜Â§Ã™â€¡' },
-        { key: 'trendRSquared', label: 'Trend RÃ‚Â² Value', labelAr: 'Ã™â€šÃ™Å Ã™â€¦Ã˜Â© RÃ‚Â²' },
-        { key: 'weeklyChange', label: 'Weekly Change %', labelAr: 'Ã˜Â§Ã™â€žÃ˜ÂªÃ˜ÂºÃ™Å Ã˜Â± Ã˜Â§Ã™â€žÃ˜Â£Ã˜Â³Ã˜Â¨Ã™Ë†Ã˜Â¹Ã™Å  (%)' },
-        { key: 'avgRate', label: 'Average Rate', labelAr: 'Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž Ã˜Â§Ã™â€žÃ™â€¦Ã˜ÂªÃ™Ë†Ã˜Â³Ã˜Â·' },
-        { key: 'minRate', label: 'Minimum Rate', labelAr: 'Ã˜Â£Ã˜Â¯Ã™â€ Ã™â€° Ã™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž' },
-        { key: 'maxRate', label: 'Maximum Rate', labelAr: 'Ã˜Â£Ã˜Â¹Ã™â€žÃ™â€° Ã™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž' },
+        { key: 'rank', label: 'Rank', labelAr: 'الترتيب' },
+        { key: 'student_id', label: 'Student ID', labelAr: 'رقم الطالب' },
+        { key: 'student_name', label: 'Student Name', labelAr: 'اسم الطالب' },
+        { key: 'presentCount', label: 'On Time', labelAr: 'في الوقت' },
+        { key: 'lateCount', label: 'Late', labelAr: 'متأخر' },
+        { key: 'totalPresent', label: 'Total Present', labelAr: 'حاضر' },
+        { key: 'absentCount', label: 'Total Absent', labelAr: 'إجمالي الغياب' },
+        { key: 'unexcusedAbsent', label: 'Unexcused Absent', labelAr: 'غائب بدون عذر' },
+        { key: 'excusedCount', label: 'Excused', labelAr: 'غائب بعذر' },
+        { key: 'sessionNotHeldCount', label: 'Not Held', labelAr: 'جلسات لم تعقد' },
+        { key: 'totalRecords', label: 'Total Records', labelAr: 'إجمالي السجلات' },
+        { key: 'effectiveDays', label: 'Effective Days', labelAr: 'الأيام الفعلية' },
+        { key: 'daysCovered', label: 'Days Covered', labelAr: 'الأيام المغطاة' },
+        { key: 'attendanceRate', label: 'Attendance Rate %', labelAr: 'معدل الحضور (%)' },
+        { key: 'punctualityRate', label: 'Punctuality Rate %', labelAr: 'معدل الالتزام بالوقت (%)' },
+        { key: 'weightedScore', label: 'Weighted Score', labelAr: 'النقاط المرجحة' },
+        { key: 'consistencyIndex', label: 'Consistency Index', labelAr: 'مؤشر الانتظام' },
+        { key: 'trendSlope', label: 'Trend Slope', labelAr: 'ميل الاتجاه' },
+        { key: 'trendClassification', label: 'Trend Classification', labelAr: 'تصنيف الاتجاه' },
+        { key: 'trendRSquared', label: 'Trend R² Value', labelAr: 'قيمة R²' },
+        { key: 'weeklyChange', label: 'Weekly Change %', labelAr: 'التغير الأسبوعي (%)' },
+        { key: 'avgRate', label: 'Average Rate', labelAr: 'المعدل المتوسط' },
+        { key: 'minRate', label: 'Minimum Rate', labelAr: 'أدنى معدل' },
+        { key: 'maxRate', label: 'Maximum Rate', labelAr: 'أعلى معدل' },
         // Score Breakdown
-        { key: 'qualityAdjustedRate', label: 'Quality-Adjusted Rate %', labelAr: 'Ã™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â¬Ã™Ë†Ã˜Â¯Ã˜Â© Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž' },
-        { key: 'rawWeightedScore', label: 'Raw Score (before coverage)', labelAr: 'Ã˜Â§Ã™â€žÃ˜Â¯Ã˜Â±Ã˜Â¬Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â®Ã˜Â§Ã™â€¦' },
-        { key: 'coverageFactor', label: 'Coverage Factor', labelAr: 'Ã˜Â¹Ã˜Â§Ã™â€¦Ã™â€ž Ã˜Â§Ã™â€žÃ˜ÂªÃ˜ÂºÃ˜Â·Ã™Å Ã˜Â©' },
-        { key: 'scoreFormula', label: 'Score Formula', labelAr: 'Ã™â€¦Ã˜Â¹Ã˜Â§Ã˜Â¯Ã™â€žÃ˜Â© Ã˜Â§Ã™â€žÃ˜Â¯Ã˜Â±Ã˜Â¬Ã˜Â©' },
+        { key: 'qualityAdjustedRate', label: 'Quality-Adjusted Rate %', labelAr: 'معدل الجودة المعدل' },
+        { key: 'rawWeightedScore', label: 'Raw Score (before coverage)', labelAr: 'الدرجة الخام' },
+        { key: 'coverageFactor', label: 'Coverage Factor', labelAr: 'عامل التغطية' },
+        { key: 'scoreFormula', label: 'Score Formula', labelAr: 'معادلة الدرجة' },
         // Late Duration
-        { key: 'totalLateMinutes', label: 'Total Late (min)', labelAr: 'Ã™â€¦Ã˜Â¬Ã™â€¦Ã™Ë†Ã˜Â¹ Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â£Ã˜Â®Ã™Å Ã˜Â± (Ã˜Â¯Ã™â€šÃ™Å Ã™â€šÃ˜Â©)' },
-        { key: 'avgLateMinutes', label: 'Avg Late (min)', labelAr: 'Ã™â€¦Ã˜ÂªÃ™Ë†Ã˜Â³Ã˜Â· Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â£Ã˜Â®Ã™Å Ã˜Â±' },
-        { key: 'maxLateMinutes', label: 'Max Late (min)', labelAr: 'Ã˜Â£Ã™â€šÃ˜ÂµÃ™â€° Ã˜ÂªÃ˜Â£Ã˜Â®Ã™Å Ã˜Â±' },
-        { key: 'lateScoreAvg', label: 'Avg Late Credit (0-1)', labelAr: 'Ã™â€¦Ã˜ÂªÃ™Ë†Ã˜Â³Ã˜Â· Ã˜Â±Ã˜ÂµÃ™Å Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â£Ã˜Â®Ã™Å Ã˜Â±' },
+        { key: 'totalLateMinutes', label: 'Total Late (min)', labelAr: 'مجموع التأخير (دقيقة)' },
+        { key: 'avgLateMinutes', label: 'Avg Late (min)', labelAr: 'متوسط التأخير' },
+        { key: 'maxLateMinutes', label: 'Max Late (min)', labelAr: 'أقصى تأخير' },
+        { key: 'lateScoreAvg', label: 'Avg Late Credit (0-1)', labelAr: 'متوسط رصيد التأخير' },
       );
     } else if (dataType === 'dateAnalytics') {
       // Date fields
       allFields.push(
-        { key: 'date', label: 'Date', labelAr: 'Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â§Ã˜Â±Ã™Å Ã˜Â®' },
-        { key: 'dayOfWeek', label: 'Day of Week', labelAr: 'Ã™Å Ã™Ë†Ã™â€¦ Ã˜Â§Ã™â€žÃ˜Â£Ã˜Â³Ã˜Â¨Ã™Ë†Ã˜Â¹' },
-        { key: 'hostAddress', label: 'Host Address', labelAr: 'Ã˜Â¹Ã™â€ Ã™Ë†Ã˜Â§Ã™â€  Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¶Ã™Å Ã™Â' },
-        { key: 'bookTopic', label: 'Book Topic', labelAr: 'Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã˜Â¶Ã™Ë†Ã˜Â¹' },
-        { key: 'bookPages', label: 'Pages', labelAr: 'Ã˜Â§Ã™â€žÃ˜ÂµÃ™ÂÃ˜Â­Ã˜Â§Ã˜Âª' },
-        { key: 'bookStartPage', label: 'Start Page', labelAr: 'Ã˜ÂµÃ™ÂÃ˜Â­Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â¨Ã˜Â¯Ã˜Â§Ã™Å Ã˜Â©' },
-        { key: 'bookEndPage', label: 'End Page', labelAr: 'Ã˜ÂµÃ™ÂÃ˜Â­Ã˜Â© Ã˜Â§Ã™â€žÃ™â€ Ã™â€¡Ã˜Â§Ã™Å Ã˜Â©' },
-        { key: 'pagesCount', label: 'Pages Count', labelAr: 'Ã˜Â¹Ã˜Â¯Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜ÂµÃ™ÂÃ˜Â­Ã˜Â§Ã˜Âª' },
-        { key: 'presentCount', label: 'On Time', labelAr: 'Ã™ÂÃ™Å  Ã˜Â§Ã™â€žÃ™Ë†Ã™â€šÃ˜Âª' },
-        { key: 'lateCount', label: 'Late', labelAr: 'Ã™â€¦Ã˜ÂªÃ˜Â£Ã˜Â®Ã˜Â±' },
-        { key: 'totalPresent', label: 'Total Present', labelAr: 'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±' },
-        { key: 'excusedAbsentCount', label: 'Excused', labelAr: 'Ã™â€¦Ã˜Â¹Ã˜Â°Ã™Ë†Ã˜Â±' },
-        { key: 'unexcusedAbsentCount', label: 'Absent', labelAr: 'Ã˜ÂºÃ˜Â§Ã˜Â¦Ã˜Â¨' },
-        { key: 'totalAbsent', label: 'Total Absent', labelAr: 'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ˜ÂºÃ™Å Ã˜Â§Ã˜Â¨' },
-        { key: 'totalStudents', label: 'Total Students', labelAr: 'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ˜Â·Ã™â€žÃ˜Â§Ã˜Â¨' },
-        { key: 'attendanceRate', label: 'Attendance Rate %', labelAr: 'Ã™â€ Ã˜Â³Ã˜Â¨Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±' },
-        { key: 'punctualityRate', label: 'Punctuality Rate %', labelAr: 'Ã™â€ Ã˜Â³Ã˜Â¨Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â§Ã™â€žÃ˜ÂªÃ˜Â²Ã˜Â§Ã™â€¦' },
-        { key: 'absentRate', label: 'Absence Rate %', labelAr: 'Ã™â€ Ã˜Â³Ã˜Â¨Ã˜Â© Ã˜Â§Ã™â€žÃ˜ÂºÃ™Å Ã˜Â§Ã˜Â¨' },
-        { key: 'presentNames', label: 'On Time Names', labelAr: 'Ã˜Â£Ã˜Â³Ã™â€¦Ã˜Â§Ã˜Â¡ Ã™ÂÃ™Å  Ã˜Â§Ã™â€žÃ™Ë†Ã™â€šÃ˜Âª' },
-        { key: 'lateNames', label: 'Late Names', labelAr: 'Ã˜Â£Ã˜Â³Ã™â€¦Ã˜Â§Ã˜Â¡ Ã˜Â§Ã™â€žÃ™â€¦Ã˜ÂªÃ˜Â£Ã˜Â®Ã˜Â±Ã™Å Ã™â€ ' },
-        { key: 'excusedNames', label: 'Excused Names', labelAr: 'Ã˜Â£Ã˜Â³Ã™â€¦Ã˜Â§Ã˜Â¡ Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¹Ã˜Â°Ã™Ë†Ã˜Â±Ã™Å Ã™â€ ' },
-        { key: 'absentNames', label: 'Absent Names', labelAr: 'Ã˜Â£Ã˜Â³Ã™â€¦Ã˜Â§Ã˜Â¡ Ã˜Â§Ã™â€žÃ˜ÂºÃ˜Â§Ã˜Â¦Ã˜Â¨Ã™Å Ã™â€ ' },
+        { key: 'date', label: 'Date', labelAr: 'التاريخ' },
+        { key: 'dayOfWeek', label: 'Day of Week', labelAr: 'يوم الأسبوع' },
+        { key: 'hostAddress', label: 'Host Address', labelAr: 'عنوان المضيف' },
+        { key: 'bookTopic', label: 'Book Topic', labelAr: 'الموضوع' },
+        { key: 'bookPages', label: 'Pages', labelAr: 'الصفحات' },
+        { key: 'bookStartPage', label: 'Start Page', labelAr: 'صفحة البداية' },
+        { key: 'bookEndPage', label: 'End Page', labelAr: 'صفحة النهاية' },
+        { key: 'pagesCount', label: 'Pages Count', labelAr: 'عدد الصفحات' },
+        { key: 'presentCount', label: 'On Time', labelAr: 'في الوقت' },
+        { key: 'lateCount', label: 'Late', labelAr: 'متأخر' },
+        { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحضور' },
+        { key: 'excusedAbsentCount', label: 'Excused', labelAr: 'معذور' },
+        { key: 'unexcusedAbsentCount', label: 'Absent', labelAr: 'غائب' },
+        { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب' },
+        { key: 'totalStudents', label: 'Total Students', labelAr: 'إجمالي الطلاب' },
+        { key: 'attendanceRate', label: 'Attendance Rate %', labelAr: 'نسبة الحضور' },
+        { key: 'punctualityRate', label: 'Punctuality Rate %', labelAr: 'نسبة الالتزام' },
+        { key: 'absentRate', label: 'Absence Rate %', labelAr: 'نسبة الغياب' },
+        { key: 'presentNames', label: 'On Time Names', labelAr: 'أسماء في الوقت' },
+        { key: 'lateNames', label: 'Late Names', labelAr: 'أسماء المتأخرين' },
+        { key: 'excusedNames', label: 'Excused Names', labelAr: 'أسماء المعذورين' },
+        { key: 'absentNames', label: 'Absent Names', labelAr: 'أسماء الغائبين' },
         // Late Duration
-        { key: 'totalLateMinutes', label: 'Total Late (min)', labelAr: 'Ã™â€¦Ã˜Â¬Ã™â€¦Ã™Ë†Ã˜Â¹ Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â£Ã˜Â®Ã™Å Ã˜Â± (Ã˜Â¯Ã™â€šÃ™Å Ã™â€šÃ˜Â©)' },
-        { key: 'avgLateMinutes', label: 'Avg Late (min)', labelAr: 'Ã™â€¦Ã˜ÂªÃ™Ë†Ã˜Â³Ã˜Â· Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â£Ã˜Â®Ã™Å Ã˜Â±' },
-        { key: 'topSpecialization', label: 'Most Present Specialization', labelAr: 'Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â®Ã˜ÂµÃ˜Âµ Ã˜Â§Ã™â€žÃ˜Â£Ã™Æ’Ã˜Â«Ã˜Â± Ã˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±Ã˜Â§Ã™â€¹' },
+        { key: 'totalLateMinutes', label: 'Total Late (min)', labelAr: 'مجموع التأخير (دقيقة)' },
+        { key: 'avgLateMinutes', label: 'Avg Late (min)', labelAr: 'متوسط التأخير' },
+        { key: 'topSpecialization', label: 'Most Present Specialization', labelAr: 'التخصص الأكثر حضوراً' },
       );
     } else if (dataType === 'hostAnalytics') {
       // Host fields
       allFields.push(
-        { key: 'rank', label: 'Rank', labelAr: 'Ã˜Â§Ã™â€žÃ˜Â±Ã˜ÂªÃ˜Â¨Ã˜Â©' },
-        { key: 'address', label: 'Host Address', labelAr: 'Ã˜Â¹Ã™â€ Ã™Ë†Ã˜Â§Ã™â€  Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¶Ã™Å Ã™Â' },
-        { key: 'count', label: 'Times Hosted', labelAr: 'Ã˜Â¹Ã˜Â¯Ã˜Â¯ Ã™â€¦Ã˜Â±Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜Â§Ã˜Â³Ã˜ÂªÃ˜Â¶Ã˜Â§Ã™ÂÃ˜Â©' },
-        { key: 'percentage', label: 'Hosting Percentage %', labelAr: 'Ã™â€ Ã˜Â³Ã˜Â¨Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â§Ã˜Â³Ã˜ÂªÃ˜Â¶Ã˜Â§Ã™ÂÃ˜Â©' },
-        { key: 'attendanceRate', label: 'Avg Attendance Rate %', labelAr: 'Ã™â€¦Ã˜ÂªÃ™Ë†Ã˜Â³Ã˜Â· Ã™â€ Ã˜Â³Ã˜Â¨Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±' },
-        { key: 'firstHostDate', label: 'First Host Date', labelAr: 'Ã˜Â£Ã™Ë†Ã™â€ž Ã˜ÂªÃ˜Â§Ã˜Â±Ã™Å Ã˜Â® Ã˜Â§Ã˜Â³Ã˜ÂªÃ˜Â¶Ã˜Â§Ã™ÂÃ˜Â©' },
-        { key: 'lastHostDate', label: 'Last Host Date', labelAr: 'Ã˜Â¢Ã˜Â®Ã˜Â± Ã˜ÂªÃ˜Â§Ã˜Â±Ã™Å Ã˜Â® Ã˜Â§Ã˜Â³Ã˜ÂªÃ˜Â¶Ã˜Â§Ã™ÂÃ˜Â©' },
-        { key: 'totalOnTime', label: 'Total On Time', labelAr: 'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±' },
-        { key: 'totalLate', label: 'Total Late', labelAr: 'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ™â€¦Ã˜ÂªÃ˜Â£Ã˜Â®Ã˜Â±Ã™Å Ã™â€ ' },
-        { key: 'totalPresent', label: 'Total Present', labelAr: 'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â§Ã˜Â¶Ã˜Â±Ã™Å Ã™â€ ' },
-        { key: 'totalAbsent', label: 'Total Absent', labelAr: 'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ˜ÂºÃ™Å Ã˜Â§Ã˜Â¨' },
-        { key: 'totalExcused', label: 'Total Excused', labelAr: 'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¹Ã˜Â°Ã™Ë†Ã˜Â±Ã™Å Ã™â€ ' },
-        { key: 'totalStudents', label: 'Total Students', labelAr: 'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ˜Â·Ã™â€žÃ˜Â§Ã˜Â¨' },
-        { key: 'dates', label: 'All Dates', labelAr: 'Ã˜Â¬Ã™â€¦Ã™Å Ã˜Â¹ Ã˜Â§Ã™â€žÃ˜ÂªÃ™Ë†Ã˜Â§Ã˜Â±Ã™Å Ã˜Â®' },
+        { key: 'rank', label: 'Rank', labelAr: 'الرتبة' },
+        { key: 'address', label: 'Host Address', labelAr: 'عنوان المضيف' },
+        { key: 'count', label: 'Times Hosted', labelAr: 'عدد مرات الاستضافة' },
+        { key: 'percentage', label: 'Hosting Percentage %', labelAr: 'نسبة الاستضافة' },
+        { key: 'attendanceRate', label: 'Avg Attendance Rate %', labelAr: 'متوسط نسبة الحضور' },
+        { key: 'firstHostDate', label: 'First Host Date', labelAr: 'أول تاريخ استضافة' },
+        { key: 'lastHostDate', label: 'Last Host Date', labelAr: 'آخر تاريخ استضافة' },
+        { key: 'totalOnTime', label: 'Total On Time', labelAr: 'إجمالي الحضور' },
+        { key: 'totalLate', label: 'Total Late', labelAr: 'إجمالي المتأخرين' },
+        { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحاضرين' },
+        { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب' },
+        { key: 'totalExcused', label: 'Total Excused', labelAr: 'إجمالي المعذورين' },
+        { key: 'totalStudents', label: 'Total Students', labelAr: 'إجمالي الطلاب' },
+        { key: 'dates', label: 'All Dates', labelAr: 'جميع التواريخ' },
       );
     }
     
@@ -4008,7 +4004,7 @@ export const AttendanceRecords = () => {
           qualityAdjustedRate: Math.round((student.qualityAdjustedRate || 0) * 100) / 100,
           rawWeightedScore: Math.round((student.rawWeightedScore || 0) * 100) / 100,
           coverageFactor: Math.round((student.coverageFactor || 0) * 1000) / 1000,
-          scoreFormula: `(${Math.round((student.rawWeightedScore || 0) * 100) / 100} Ãƒâ€” ${Math.round((student.coverageFactor || 0) * 1000) / 1000}) = ${student.weightedScore}`,
+          scoreFormula: `(${Math.round((student.rawWeightedScore || 0) * 100) / 100} × ${Math.round((student.coverageFactor || 0) * 1000) / 1000}) = ${student.weightedScore}`,
           // Late Duration
           totalLateMinutes: Math.round((student.totalLateMinutes || 0) * 10) / 10,
           avgLateMinutes: Math.round((student.avgLateMinutes || 0) * 10) / 10,
@@ -4029,9 +4025,9 @@ export const AttendanceRecords = () => {
         const totalStudents = totalPresent + dateData.excusedAbsentCount + dateData.unexcusedAbsentCount;
         // Effective (accountable) students = total minus excused
         const totalAccountable = totalPresent + dateData.unexcusedAbsentCount;
-        // Attendance Rate: (Total Present / Accountable) Ãƒâ€” 100 Ã¢â‚¬â€ excused excluded from denominator
+        // Attendance Rate: (Total Present / Accountable) × 100 — excused excluded from denominator
         const attendanceRate = totalAccountable > 0 ? Math.round((totalPresent / totalAccountable) * 100) : 0;
-        // Absence Rate: (Unexcused Absent / Accountable) Ãƒâ€” 100
+        // Absence Rate: (Unexcused Absent / Accountable) × 100
         const absentRate = totalAccountable > 0 ? Math.round((dateData.unexcusedAbsentCount / totalAccountable) * 100) : 0;
         const punctualityRate = totalPresent > 0 
           ? Math.round(dateData.presentCount / totalPresent * 100)
@@ -4191,9 +4187,9 @@ export const AttendanceRecords = () => {
         gps_latitude: r.gps_latitude ? r.gps_latitude.toFixed(6) : '-',
         gps_longitude: r.gps_longitude ? r.gps_longitude.toFixed(6) : '-',
         gps_coordinates: r.gps_latitude && r.gps_longitude 
-          ? `${r.gps_latitude.toFixed(4)}Ã‚Â°, ${r.gps_longitude.toFixed(4)}Ã‚Â°` 
+          ? `${r.gps_latitude.toFixed(4)}°, ${r.gps_longitude.toFixed(4)}°` 
           : '-',
-        gps_accuracy: r.gps_accuracy ? `Ã‚Â±${Math.round(r.gps_accuracy)}m` : '-',
+        gps_accuracy: r.gps_accuracy ? `±${Math.round(r.gps_accuracy)}m` : '-',
         distance_from_host: r.distance_from_host ? `${Math.round(r.distance_from_host)}m` : '-',
         // Metadata
         marked_by: r.marked_by || '-',
@@ -4303,7 +4299,7 @@ export const AttendanceRecords = () => {
                         : 'text-white hover:bg-white/10'
                     }`}
                   >
-                    Ã˜Â¹
+                    ع
                   </button>
                 </div>
               )}
@@ -4444,42 +4440,42 @@ export const AttendanceRecords = () => {
             <div className="mt-3 pt-3 border-t border-indigo-200 dark:border-indigo-700">
               <div className="flex flex-wrap gap-3 text-sm">
                 <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg px-3 py-1.5 shadow-sm">
-                  <span className="text-blue-600 dark:text-blue-400 font-semibold">Ã°Å¸â€œÅ  {t.student}:</span>
+                  <span className="text-blue-600 dark:text-blue-400 font-semibold">📊 {t.student}:</span>
                   <span className="text-green-600 dark:text-green-400">
                     {savedFieldSelections.studentAnalytics.length > 0 ? `${savedFieldSelections.studentAnalytics.length} ${t.fields}` : t.all}
                   </span>
                   {(savedExportSettings.studentAnalytics?.sortLayers || []).length > 0 ? (
-                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.studentAnalytics.sortLayers!.map(l => `${l.field} ${l.direction === 'desc' ? 'Ã¢â€ â€œ' : 'Ã¢â€ â€˜'}`).join(', ')})</span>
+                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.studentAnalytics.sortLayers!.map(l => `${l.field} ${l.direction === 'desc' ? '↓' : '↑'}`).join(', ')})</span>
                   ) : savedExportSettings.studentAnalytics?.sortByField && (
-                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.studentAnalytics.sortByField} {savedExportSettings.studentAnalytics.sortDirection === 'desc' ? 'Ã¢â€ â€œ' : 'Ã¢â€ â€˜'})</span>
+                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.studentAnalytics.sortByField} {savedExportSettings.studentAnalytics.sortDirection === 'desc' ? '↓' : '↑'})</span>
                   )}
-                  {savedExportSettings.studentAnalytics?.enableConditionalColoring !== false && <span className="text-rose-500 text-xs">Ã°Å¸Å’Ë†</span>}
+                  {savedExportSettings.studentAnalytics?.enableConditionalColoring !== false && <span className="text-rose-500 text-xs">🌈</span>}
                   <button onClick={() => { setExportDataType('studentAnalytics'); setShowAdvancedExport(true); }} className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline text-xs ml-1">{t.edit}</button>
                 </div>
                 <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg px-3 py-1.5 shadow-sm">
-                  <span className="text-green-600 dark:text-green-400 font-semibold">Ã°Å¸â€œâ€¦ {t.date}:</span>
+                  <span className="text-green-600 dark:text-green-400 font-semibold">📅 {t.date}:</span>
                   <span className="text-green-600 dark:text-green-400">
                     {savedFieldSelections.dateAnalytics.length > 0 ? `${savedFieldSelections.dateAnalytics.length} ${t.fields}` : t.all}
                   </span>
                   {(savedExportSettings.dateAnalytics?.sortLayers || []).length > 0 ? (
-                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.dateAnalytics.sortLayers!.map(l => `${l.field} ${l.direction === 'desc' ? 'Ã¢â€ â€œ' : 'Ã¢â€ â€˜'}`).join(', ')})</span>
+                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.dateAnalytics.sortLayers!.map(l => `${l.field} ${l.direction === 'desc' ? '↓' : '↑'}`).join(', ')})</span>
                   ) : savedExportSettings.dateAnalytics?.sortByField && (
-                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.dateAnalytics.sortByField} {savedExportSettings.dateAnalytics.sortDirection === 'desc' ? 'Ã¢â€ â€œ' : 'Ã¢â€ â€˜'})</span>
+                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.dateAnalytics.sortByField} {savedExportSettings.dateAnalytics.sortDirection === 'desc' ? '↓' : '↑'})</span>
                   )}
-                  {savedExportSettings.dateAnalytics?.enableConditionalColoring !== false && <span className="text-rose-500 text-xs">Ã°Å¸Å’Ë†</span>}
+                  {savedExportSettings.dateAnalytics?.enableConditionalColoring !== false && <span className="text-rose-500 text-xs">🌈</span>}
                   <button onClick={() => { setExportDataType('dateAnalytics'); setShowAdvancedExport(true); }} className="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 underline text-xs ml-1">{t.edit}</button>
                 </div>
                 <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg px-3 py-1.5 shadow-sm">
-                  <span className="text-orange-600 dark:text-orange-400 font-semibold">Ã°Å¸ÂÂ  {t.location}:</span>
+                  <span className="text-orange-600 dark:text-orange-400 font-semibold">🏠 {t.location}:</span>
                   <span className="text-green-600 dark:text-green-400">
                     {savedFieldSelections.hostAnalytics.length > 0 ? `${savedFieldSelections.hostAnalytics.length} ${t.fields}` : t.all}
                   </span>
                   {(savedExportSettings.hostAnalytics?.sortLayers || []).length > 0 ? (
-                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.hostAnalytics.sortLayers!.map(l => `${l.field} ${l.direction === 'desc' ? 'Ã¢â€ â€œ' : 'Ã¢â€ â€˜'}`).join(', ')})</span>
+                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.hostAnalytics.sortLayers!.map(l => `${l.field} ${l.direction === 'desc' ? '↓' : '↑'}`).join(', ')})</span>
                   ) : savedExportSettings.hostAnalytics?.sortByField && (
-                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.hostAnalytics.sortByField} {savedExportSettings.hostAnalytics.sortDirection === 'desc' ? 'Ã¢â€ â€œ' : 'Ã¢â€ â€˜'})</span>
+                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.hostAnalytics.sortByField} {savedExportSettings.hostAnalytics.sortDirection === 'desc' ? '↓' : '↑'})</span>
                   )}
-                  {savedExportSettings.hostAnalytics?.enableConditionalColoring !== false && <span className="text-rose-500 text-xs">Ã°Å¸Å’Ë†</span>}
+                  {savedExportSettings.hostAnalytics?.enableConditionalColoring !== false && <span className="text-rose-500 text-xs">🌈</span>}
                   <button onClick={() => { setExportDataType('hostAnalytics'); setShowAdvancedExport(true); }} className="text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-300 underline text-xs ml-1">{t.edit}</button>
                 </div>
               </div>
@@ -4487,11 +4483,11 @@ export const AttendanceRecords = () => {
               <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                 <span className="text-gray-600 dark:text-gray-400 font-medium">{t.includeTables}:</span>
                 {([
-                  { key: 'summary' as const, label: t.summaryTable, icon: 'Ã°Å¸â€œÅ ' },
-                  { key: 'student' as const, label: t.studentTable, icon: 'Ã°Å¸Å½â€œ' },
-                  { key: 'date' as const, label: t.dateTable, icon: 'Ã°Å¸â€œâ€¦' },
-                  { key: 'host' as const, label: t.hostTable, icon: 'Ã°Å¸ÂÂ ' },
-                  { key: 'crosstab' as const, label: t.crosstabTable, icon: 'Ã°Å¸â€”â€œÃ¯Â¸Â' },
+                  { key: 'summary' as const, label: t.summaryTable, icon: '📊' },
+                  { key: 'student' as const, label: t.studentTable, icon: '🎓' },
+                  { key: 'date' as const, label: t.dateTable, icon: '📅' },
+                  { key: 'host' as const, label: t.hostTable, icon: '🏠' },
+                  { key: 'crosstab' as const, label: t.crosstabTable, icon: '🗓️' },
                 ]).map(({ key, label, icon }) => (
                   <button
                     key={key}
@@ -4513,7 +4509,7 @@ export const AttendanceRecords = () => {
                 ))}
               </div>
 
-              {/* Matrix Date Picker Ã¢â‚¬â€ Select which dates to include in cross-tab */}
+              {/* Matrix Date Picker — Select which dates to include in cross-tab */}
               {includedTables.crosstab && dateAnalytics.length > 0 && (
                 <div className="mt-2">
                   <button
@@ -4523,7 +4519,7 @@ export const AttendanceRecords = () => {
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
-                    Ã°Å¸â€”â€œÃ¯Â¸Â Matrix Date Selection
+                    🗓️ Matrix Date Selection
                     <span className="text-[10px] text-gray-500 dark:text-gray-400">
                       ({matrixSelectedDates ? `${matrixSelectedDates.size}/${dateAnalytics.length}` : `All ${dateAnalytics.length}`} dates)
                     </span>
@@ -4648,7 +4644,7 @@ export const AttendanceRecords = () => {
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Collapse state is now preserved when you leave and return to this page.</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500 dark:text-gray-400">{studentAnalytics.length} students Ã¢â‚¬Â¢ {dateAnalytics.length} dates</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">{studentAnalytics.length} students • {dateAnalytics.length} dates</span>
                   <svg className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${collapseChartsSection ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
@@ -4673,7 +4669,7 @@ export const AttendanceRecords = () => {
             </div>
           )}
 
-          {/* Student Performance Table Ã¢â‚¬â€ Dynamic columns from field selections */}
+          {/* Student Performance Table — Dynamic columns from field selections */}
           {includedTables.student && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
             <button
@@ -4733,7 +4729,7 @@ export const AttendanceRecords = () => {
                       qualityAdjustedRate: `${Math.round((student.qualityAdjustedRate || 0) * 100) / 100}%`,
                       rawWeightedScore: (student.rawWeightedScore || 0).toFixed(1),
                       coverageFactor: (student.coverageFactor || 0).toFixed(3),
-                      scoreFormula: `(${(student.rawWeightedScore || 0).toFixed(1)} Ãƒâ€” ${(student.coverageFactor || 0).toFixed(3)}) = ${student.weightedScore.toFixed(1)}`,
+                      scoreFormula: `(${(student.rawWeightedScore || 0).toFixed(1)} × ${(student.coverageFactor || 0).toFixed(3)}) = ${student.weightedScore.toFixed(1)}`,
                       totalLateMinutes: Math.round((student.totalLateMinutes || 0) * 10) / 10,
                       avgLateMinutes: Math.round((student.avgLateMinutes || 0) * 10) / 10,
                       maxLateMinutes: Math.round((student.maxLateMinutes || 0) * 10) / 10,
@@ -4772,7 +4768,7 @@ export const AttendanceRecords = () => {
           </div>
           )}
 
-          {/* Date Analytics Table Ã¢â‚¬â€ Dynamic columns from field selections */}
+          {/* Date Analytics Table — Dynamic columns from field selections */}
           {includedTables.date && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
             <button
@@ -4830,10 +4826,10 @@ export const AttendanceRecords = () => {
                     const dateObj = new Date(d.date);
                     let excusedLabel = d.excusedNames.join(', ') || '-';
                     if (d.hostAddress === 'SESSION_NOT_HELD' || (d.hostAddress && d.hostAddress.toUpperCase() === 'SESSION_NOT_HELD')) {
-                      excusedLabel = isArabic ? 'Ã˜Â¬Ã™â€¦Ã™Å Ã˜Â¹ Ã˜Â§Ã™â€žÃ˜Â·Ã™â€žÃ˜Â§Ã˜Â¨' : 'All Students';
+                      excusedLabel = isArabic ? 'جميع الطلاب' : 'All Students';
                     }
                     const hostAddressLabel = d.isSessionNotHeld
-                      ? (isArabic ? 'Ã™â€žÃ™â€¦ Ã˜ÂªÃ˜Â¹Ã™â€šÃ˜Â¯ Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€žÃ˜Â³Ã˜Â©' : 'Session Not Held')
+                      ? (isArabic ? 'لم تعقد الجلسة' : 'Session Not Held')
                       : (d.hostAddress || '-');
                     return {
                       date: format(dateObj, 'MMM dd, yyyy'),
@@ -4893,7 +4889,7 @@ export const AttendanceRecords = () => {
           </div>
           )}
 
-          {/* Host Analytics Table Ã¢â‚¬â€ Dynamic columns from field selections */}
+          {/* Host Analytics Table — Dynamic columns from field selections */}
           {includedTables.host && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
             <button
@@ -4979,7 +4975,7 @@ export const AttendanceRecords = () => {
                   if (sorted.length === 0) {
                     return (
                       <div className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
-                        <span className="text-2xl block mb-2">Ã°Å¸ÂÂ </span>
+                        <span className="text-2xl block mb-2">🏠</span>
                         <p className="text-sm">No host data available. Host addresses are recorded when attendance is marked.</p>
                       </div>
                     );
@@ -5014,9 +5010,9 @@ export const AttendanceRecords = () => {
           </div>
           )}
 
-          {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
-              LOCATION MAP Ã¢â‚¬â€ Host Locations with Map Embed & Distance Matrix
-              Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
+          {/* ═══════════════════════════════════════════════════════════════
+              LOCATION MAP — Host Locations with Map Embed & Distance Matrix
+              ═══════════════════════════════════════════════════════════════ */}
           {includedTables.host && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
             {(() => {
@@ -5136,7 +5132,7 @@ export const AttendanceRecords = () => {
                   </button>
 
                   <div id="location-map-body">
-                    {/* Location Map Embed Ã¢â‚¬â€ includes location selector, map, details, Google Maps & Directions links */}
+                    {/* Location Map Embed — includes location selector, map, details, Google Maps & Directions links */}
                     <Suspense fallback={<div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 px-4 py-8 text-sm text-gray-500 dark:text-gray-400 text-center">Loading map...</div>}>
                       <LocationMap
                         locations={locationPoints}
@@ -5154,10 +5150,10 @@ export const AttendanceRecords = () => {
           </div>
           )}
 
-          {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
-              CROSS-TAB HEATMAP TABLE Ã¢â‚¬â€ Student Ãƒâ€” Date Matrix
+          {/* ═══════════════════════════════════════════════════════════════
+              CROSS-TAB HEATMAP TABLE — Student × Date Matrix
               Color-coded cells showing attendance status
-              Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
+              ═══════════════════════════════════════════════════════════════ */}
           {includedTables.crosstab && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
             <button
@@ -5170,7 +5166,7 @@ export const AttendanceRecords = () => {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-500 dark:text-gray-400">
-                  {studentAnalytics.length} Ãƒâ€” {matrixSelectedDates ? matrixSelectedDates.size : dateAnalytics.length}
+                  {studentAnalytics.length} × {matrixSelectedDates ? matrixSelectedDates.size : dateAnalytics.length}
                   {matrixSelectedDates && <span className="text-violet-500"> (of {dateAnalytics.length})</span>}
                 </span>
                 <svg className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${collapseCrosstabTable ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -5181,7 +5177,7 @@ export const AttendanceRecords = () => {
             {!collapseCrosstabTable && (
               <div className="overflow-x-auto overflow-y-auto max-h-[500px] sm:max-h-[700px]">
                 {(() => {
-                  // Build a lookup: studentId Ã¢â€ â€™ date Ã¢â€ â€™ record
+                  // Build a lookup: studentId → date → record
                   const recordLookup = new Map<string, Map<string, AttendanceRecord>>();
                   const analyticsRecords = filteredRecords.filter(r =>
                     r.status !== 'not enrolled' && r.excuse_reason !== 'session not held'
@@ -5211,12 +5207,12 @@ export const AttendanceRecords = () => {
                     }
                   };
                   const sortIndicator = (field: MatrixSortField) =>
-                    matrixSortField === field ? (matrixSortDir === 'asc' ? ' Ã¢â€“Â²' : ' Ã¢â€“Â¼') : '';
+                    matrixSortField === field ? (matrixSortDir === 'asc' ? ' ▲' : ' ▼') : '';
 
                   if (sortedDates.length === 0 || sortedStudents.length === 0) {
                     return (
                       <div className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
-                        <span className="text-2xl block mb-2">Ã°Å¸â€”â€œÃ¯Â¸Â</span>
+                        <span className="text-2xl block mb-2">🗓️</span>
                         <p className="text-sm">No data to display in the matrix.</p>
                       </div>
                     );
@@ -5227,19 +5223,19 @@ export const AttendanceRecords = () => {
                     if (!record && notHeldDateSet.has(dateStr)) {
                       return { bg: 'bg-purple-100 dark:bg-purple-900/40', text: 'text-purple-700 dark:text-purple-300', icon: 'NH', title: 'Session Not Held' };
                     }
-                    if (!record) return { bg: 'bg-gray-100 dark:bg-gray-700', text: 'text-gray-400 dark:text-gray-500', icon: 'Ã¢â‚¬â€', title: 'No record' };
+                    if (!record) return { bg: 'bg-gray-100 dark:bg-gray-700', text: 'text-gray-400 dark:text-gray-500', icon: '—', title: 'No record' };
                     switch (record.status) {
                       case 'on time':
-                        return { bg: 'bg-emerald-100 dark:bg-emerald-900/50', text: 'text-emerald-700 dark:text-emerald-300', icon: 'Ã¢Å“â€œ', title: 'On Time' };
+                        return { bg: 'bg-emerald-100 dark:bg-emerald-900/50', text: 'text-emerald-700 dark:text-emerald-300', icon: '✓', title: 'On Time' };
                       case 'late': {
                         const mins = record.late_minutes || 0;
-                        if (mins <= 5) return { bg: 'bg-lime-100 dark:bg-lime-900/40', text: 'text-lime-700 dark:text-lime-300', icon: `${mins}Ã¢â‚¬Â²`, title: `Late ${mins} min (Minor)` };
-                        if (mins <= 15) return { bg: 'bg-yellow-100 dark:bg-yellow-900/40', text: 'text-yellow-700 dark:text-yellow-300', icon: `${mins}Ã¢â‚¬Â²`, title: `Late ${mins} min (Moderate)` };
-                        if (mins <= 30) return { bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300', icon: `${mins}Ã¢â‚¬Â²`, title: `Late ${mins} min (Significant)` };
-                        return { bg: 'bg-red-100 dark:bg-red-900/40', text: 'text-red-700 dark:text-red-300', icon: `${mins}Ã¢â‚¬Â²`, title: `Late ${mins} min (Severe)` };
+                        if (mins <= 5) return { bg: 'bg-lime-100 dark:bg-lime-900/40', text: 'text-lime-700 dark:text-lime-300', icon: `${mins}′`, title: `Late ${mins} min (Minor)` };
+                        if (mins <= 15) return { bg: 'bg-yellow-100 dark:bg-yellow-900/40', text: 'text-yellow-700 dark:text-yellow-300', icon: `${mins}′`, title: `Late ${mins} min (Moderate)` };
+                        if (mins <= 30) return { bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300', icon: `${mins}′`, title: `Late ${mins} min (Significant)` };
+                        return { bg: 'bg-red-100 dark:bg-red-900/40', text: 'text-red-700 dark:text-red-300', icon: `${mins}′`, title: `Late ${mins} min (Severe)` };
                       }
                       case 'absent':
-                        return { bg: 'bg-red-200 dark:bg-red-900/60', text: 'text-red-800 dark:text-red-200', icon: 'Ã¢Å“â€”', title: 'Absent' };
+                        return { bg: 'bg-red-200 dark:bg-red-900/60', text: 'text-red-800 dark:text-red-200', icon: '✗', title: 'Absent' };
                       case 'excused':
                         return { bg: 'bg-blue-100 dark:bg-blue-900/40', text: 'text-blue-700 dark:text-blue-300', icon: 'E', title: `Excused${record.excuse_reason ? `: ${record.excuse_reason}` : ''}` };
                       default:
@@ -5253,12 +5249,12 @@ export const AttendanceRecords = () => {
                       <div className="flex flex-wrap items-center gap-2 px-4 py-2 bg-violet-50 dark:bg-violet-900/20 border-b dark:border-gray-700 text-[10px]">
                         <span className="text-[10px] font-semibold text-violet-700 dark:text-violet-300 mr-1">Sort by:</span>
                         {([
-                          ['name', 'Ã°Å¸â€Â¤ Name'],
-                          ['score', 'Ã°Å¸Ââ€  Score'],
-                          ['attendance', 'Ã°Å¸â€œÅ  Attendance'],
-                          ['present', 'Ã¢Å“â€œ Present'],
-                          ['late', 'Ã¢ÂÂ° Late'],
-                          ['absent', 'Ã¢Å“â€” Absent'],
+                          ['name', '🔤 Name'],
+                          ['score', '🏆 Score'],
+                          ['attendance', '📊 Attendance'],
+                          ['present', '✓ Present'],
+                          ['late', '⏰ Late'],
+                          ['absent', '✗ Absent'],
                         ] as [MatrixSortField, string][]).map(([field, label]) => (
                           <button
                             key={field}
@@ -5276,7 +5272,7 @@ export const AttendanceRecords = () => {
                       {/* Legend */}
                       <div className="flex flex-wrap gap-2 px-4 py-2 bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700 text-[10px]">
                         <span className="flex items-center gap-1 text-gray-700 dark:text-gray-300"><span className="w-3 h-3 rounded bg-emerald-100 dark:bg-emerald-900/50 border border-emerald-300 dark:border-emerald-700"></span>On Time</span>
-                        <span className="flex items-center gap-1 text-gray-700 dark:text-gray-300"><span className="w-3 h-3 rounded bg-lime-100 dark:bg-lime-900/40 border border-lime-300 dark:border-lime-700"></span>Late Ã¢â€°Â¤5m</span>
+                        <span className="flex items-center gap-1 text-gray-700 dark:text-gray-300"><span className="w-3 h-3 rounded bg-lime-100 dark:bg-lime-900/40 border border-lime-300 dark:border-lime-700"></span>Late ≤5m</span>
                         <span className="flex items-center gap-1 text-gray-700 dark:text-gray-300"><span className="w-3 h-3 rounded bg-yellow-100 dark:bg-yellow-900/40 border border-yellow-300 dark:border-yellow-700"></span>Late 6-15m</span>
                         <span className="flex items-center gap-1 text-gray-700 dark:text-gray-300"><span className="w-3 h-3 rounded bg-orange-100 dark:bg-orange-900/40 border border-orange-300 dark:border-orange-700"></span>Late 16-30m</span>
                         <span className="flex items-center gap-1 text-gray-700 dark:text-gray-300"><span className="w-3 h-3 rounded bg-red-100 dark:bg-red-900/40 border border-red-300 dark:border-red-700"></span>Late 30m+</span>
@@ -5356,9 +5352,9 @@ export const AttendanceRecords = () => {
         </div>
       )}
 
-      {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
-          WEIGHTED SCORE EXPLAINER Ã¢â‚¬â€ Bilingual, per-student breakdown
-          Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
+      {/* ════════════════════════════════════════════════════════════════════
+          WEIGHTED SCORE EXPLAINER — Bilingual, per-student breakdown
+          ════════════════════════════════════════════════════════════════════ */}
       {showAnalytics && studentAnalytics.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg dark:shadow-gray-900/30 overflow-hidden border border-indigo-100 dark:border-indigo-900/40">
           {/* Header */}
@@ -5368,14 +5364,14 @@ export const AttendanceRecords = () => {
           >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md group-hover:scale-105 transition-transform">
-                <span className="text-white text-lg">Ã°Å¸Â§Â®</span>
+                <span className="text-white text-lg">🧮</span>
               </div>
               <div className="text-left">
                 <h2 className="text-base sm:text-lg font-bold bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">
-                  Score Breakdown / Ã˜ÂªÃ™ÂÃ˜ÂµÃ™Å Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â¯Ã˜Â±Ã˜Â¬Ã˜Â§Ã˜Âª
+                  Score Breakdown / تفصيل الدرجات
                 </h2>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Understand how each student's weighted score is calculated Ã¢â‚¬â€ Ã˜Â§Ã™ÂÃ™â€¡Ã™â€¦ Ã™Æ’Ã™Å Ã™Â Ã™Å Ã˜ÂªÃ™â€¦ Ã˜Â­Ã˜Â³Ã˜Â§Ã˜Â¨ Ã˜Â§Ã™â€žÃ˜Â¯Ã˜Â±Ã˜Â¬Ã˜Â© Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â±Ã˜Â¬Ã˜Â­Ã˜Â© Ã™â€žÃ™Æ’Ã™â€ž Ã˜Â·Ã˜Â§Ã™â€žÃ˜Â¨
+                  Understand how each student's weighted score is calculated — افهم كيف يتم حساب الدرجة المرجحة لكل طالب
                 </p>
               </div>
             </div>
@@ -5387,20 +5383,20 @@ export const AttendanceRecords = () => {
           {!collapseScoreExplainer && (
             <div className="p-5 sm:p-6 space-y-6">
 
-              {/* Ã¢â€â‚¬Ã¢â€â‚¬ Formula Overview Ã¢â€â‚¬Ã¢â€â‚¬ */}
+              {/* ── Formula Overview ── */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {/* English */}
                 {(scoreExplainerLang === 'en' || scoreExplainerLang === 'both') && (
                 <div className="relative overflow-hidden rounded-xl border border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-5">
-                  <div className="absolute top-0 right-0 w-24 h-24 opacity-5 text-8xl">Ã°Å¸â€œÂ</div>
-                  <h3 className="font-bold text-blue-800 dark:text-blue-300 text-sm uppercase tracking-wider mb-3">Ã°Å¸â€¡Â¬Ã°Å¸â€¡Â§ How Your Score Works</h3>
+                  <div className="absolute top-0 right-0 w-24 h-24 opacity-5 text-8xl">📐</div>
+                  <h3 className="font-bold text-blue-800 dark:text-blue-300 text-sm uppercase tracking-wider mb-3">🇬🇧 How Your Score Works</h3>
                   <div className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
                     <div className="bg-white/60 dark:bg-gray-800/60 rounded-lg p-3 font-mono text-xs border border-blue-100 dark:border-blue-800">
                       <div className="text-blue-600 dark:text-blue-400 font-bold mb-1">Raw Score =</div>
                       <div className="pl-4 space-y-0.5">
-                        <div><span className="text-emerald-600 dark:text-emerald-400 font-bold">{loadConfigSync().weight_quality}%</span> Ãƒâ€” Quality Rate <span className="text-gray-400">(on-time = full, late = partial credit)</span></div>
-                        <div><span className="text-blue-600 dark:text-blue-400 font-bold">{loadConfigSync().weight_attendance}%</span> Ãƒâ€” Attendance Rate <span className="text-gray-400">(showed up at all)</span></div>
-                        <div><span className="text-amber-600 dark:text-amber-400 font-bold">{loadConfigSync().weight_punctuality}%</span> Ãƒâ€” Punctuality <span className="text-gray-400">(on-time ÃƒÂ· total present)</span></div>
+                        <div><span className="text-emerald-600 dark:text-emerald-400 font-bold">{loadConfigSync().weight_quality}%</span> × Quality Rate <span className="text-gray-400">(on-time = full, late = partial credit)</span></div>
+                        <div><span className="text-blue-600 dark:text-blue-400 font-bold">{loadConfigSync().weight_attendance}%</span> × Attendance Rate <span className="text-gray-400">(showed up at all)</span></div>
+                        <div><span className="text-amber-600 dark:text-amber-400 font-bold">{loadConfigSync().weight_punctuality}%</span> × Punctuality <span className="text-gray-400">(on-time ÷ total present)</span></div>
                       </div>
                       <div className="mt-2 pt-2 border-t border-blue-100 dark:border-blue-800">
                         {(() => {
@@ -5408,8 +5404,8 @@ export const AttendanceRecords = () => {
                           if (!_cov.coverage_enabled || _cov.coverage_method === 'none') {
                             return <><span className="text-indigo-600 dark:text-indigo-400 font-bold">Final Score</span> = Raw Score <span className="text-gray-400">(coverage disabled)</span></>;
                           }
-                          const methodLabel = _cov.coverage_method === 'sqrt' ? 'Ã¢Ë†Å¡' : _cov.coverage_method === 'log' ? 'log' : '';
-                          return <><span className="text-indigo-600 dark:text-indigo-400 font-bold">Final Score</span> = Raw Score Ãƒâ€” {methodLabel}(Your Days ÃƒÂ· Total Sessions)</>;
+                          const methodLabel = _cov.coverage_method === 'sqrt' ? '√' : _cov.coverage_method === 'log' ? 'log' : '';
+                          return <><span className="text-indigo-600 dark:text-indigo-400 font-bold">Final Score</span> = Raw Score × {methodLabel}(Your Days ÷ Total Sessions)</>;
                         })()}
                       </div>
                     </div>
@@ -5420,24 +5416,24 @@ export const AttendanceRecords = () => {
                 {/* Arabic */}
                 {(scoreExplainerLang === 'ar' || scoreExplainerLang === 'both') && (
                 <div dir="rtl" className="relative overflow-hidden rounded-xl border border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 p-5">
-                  <div className="absolute top-0 left-0 w-24 h-24 opacity-5 text-8xl">Ã°Å¸â€œÂ</div>
-                  <h3 className="font-bold text-emerald-800 dark:text-emerald-300 text-sm uppercase tracking-wider mb-3">Ã°Å¸â€¡Â¸Ã°Å¸â€¡Â¦ Ã™Æ’Ã™Å Ã™Â Ã™Å Ã˜ÂªÃ™â€¦ Ã˜Â­Ã˜Â³Ã˜Â§Ã˜Â¨ Ã˜Â¯Ã˜Â±Ã˜Â¬Ã˜ÂªÃ™Æ’</h3>
+                  <div className="absolute top-0 left-0 w-24 h-24 opacity-5 text-8xl">📐</div>
+                  <h3 className="font-bold text-emerald-800 dark:text-emerald-300 text-sm uppercase tracking-wider mb-3">🇸🇦 كيف يتم حساب درجتك</h3>
                   <div className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
                     <div className="bg-white/60 dark:bg-gray-800/60 rounded-lg p-3 font-mono text-xs border border-emerald-100 dark:border-emerald-800">
-                      <div className="text-emerald-600 dark:text-emerald-400 font-bold mb-1">Ã˜Â§Ã™â€žÃ˜Â¯Ã˜Â±Ã˜Â¬Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â®Ã˜Â§Ã™â€¦ =</div>
+                      <div className="text-emerald-600 dark:text-emerald-400 font-bold mb-1">الدرجة الخام =</div>
                       <div className="pr-4 space-y-0.5">
-                        <div><span className="text-emerald-600 dark:text-emerald-400 font-bold">{(() => { const c = loadConfigSync(); const arabicNum = String(c.weight_quality).replace(/[0-9]/g, d => 'Ã™Â Ã™Â¡Ã™Â¢Ã™Â£Ã™Â¤Ã™Â¥Ã™Â¦Ã™Â§Ã™Â¨Ã™Â©'[parseInt(d)]); return arabicNum; })()}Ã™Âª</span> Ãƒâ€” Ã™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â¬Ã™Ë†Ã˜Â¯Ã˜Â© <span className="text-gray-400">(Ã˜Â­Ã˜Â¶Ã™Ë†Ã˜Â± Ã˜Â¨Ã˜Â§Ã™â€žÃ™Ë†Ã™â€šÃ˜Âª = Ã™Æ’Ã˜Â§Ã™â€¦Ã™â€žÃ˜Å’ Ã™â€¦Ã˜ÂªÃ˜Â£Ã˜Â®Ã˜Â± = Ã˜Â±Ã˜ÂµÃ™Å Ã˜Â¯ Ã˜Â¬Ã˜Â²Ã˜Â¦Ã™Å )</span></div>
-                        <div><span className="text-blue-600 dark:text-blue-400 font-bold">{(() => { const c = loadConfigSync(); const arabicNum = String(c.weight_attendance).replace(/[0-9]/g, d => 'Ã™Â Ã™Â¡Ã™Â¢Ã™Â£Ã™Â¤Ã™Â¥Ã™Â¦Ã™Â§Ã™Â¨Ã™Â©'[parseInt(d)]); return arabicNum; })()}Ã™Âª</span> Ãƒâ€” Ã™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â± <span className="text-gray-400">(Ã˜Â­Ã˜Â¶Ã˜Â±Ã˜Âª Ã˜Â£Ã˜ÂµÃ™â€žÃ˜Â§Ã™â€¹)</span></div>
-                        <div><span className="text-amber-600 dark:text-amber-400 font-bold">{(() => { const c = loadConfigSync(); const arabicNum = String(c.weight_punctuality).replace(/[0-9]/g, d => 'Ã™Â Ã™Â¡Ã™Â¢Ã™Â£Ã™Â¤Ã™Â¥Ã™Â¦Ã™Â§Ã™Â¨Ã™Â©'[parseInt(d)]); return arabicNum; })()}Ã™Âª</span> Ãƒâ€” Ã˜Â§Ã™â€žÃ˜Â§Ã™â€žÃ˜ÂªÃ˜Â²Ã˜Â§Ã™â€¦ Ã˜Â¨Ã˜Â§Ã™â€žÃ™Ë†Ã™â€šÃ˜Âª <span className="text-gray-400">(Ã˜Â¨Ã˜Â§Ã™â€žÃ™Ë†Ã™â€šÃ˜Âª ÃƒÂ· Ã™â€¦Ã˜Â¬Ã™â€¦Ã™Ë†Ã˜Â¹ Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±)</span></div>
+                        <div><span className="text-emerald-600 dark:text-emerald-400 font-bold">{(() => { const c = loadConfigSync(); const arabicNum = String(c.weight_quality).replace(/[0-9]/g, d => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]); return arabicNum; })()}٪</span> × معدل الجودة <span className="text-gray-400">(حضور بالوقت = كامل، متأخر = رصيد جزئي)</span></div>
+                        <div><span className="text-blue-600 dark:text-blue-400 font-bold">{(() => { const c = loadConfigSync(); const arabicNum = String(c.weight_attendance).replace(/[0-9]/g, d => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]); return arabicNum; })()}٪</span> × معدل الحضور <span className="text-gray-400">(حضرت أصلاً)</span></div>
+                        <div><span className="text-amber-600 dark:text-amber-400 font-bold">{(() => { const c = loadConfigSync(); const arabicNum = String(c.weight_punctuality).replace(/[0-9]/g, d => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]); return arabicNum; })()}٪</span> × الالتزام بالوقت <span className="text-gray-400">(بالوقت ÷ مجموع الحضور)</span></div>
                       </div>
                       <div className="mt-2 pt-2 border-t border-emerald-100 dark:border-emerald-800">
                         {(() => {
                           const _cov = loadConfigSync();
                           if (!_cov.coverage_enabled || _cov.coverage_method === 'none') {
-                            return <><span className="text-indigo-600 dark:text-indigo-400 font-bold">Ã˜Â§Ã™â€žÃ˜Â¯Ã˜Â±Ã˜Â¬Ã˜Â© Ã˜Â§Ã™â€žÃ™â€ Ã™â€¡Ã˜Â§Ã˜Â¦Ã™Å Ã˜Â©</span> = Ã˜Â§Ã™â€žÃ˜Â¯Ã˜Â±Ã˜Â¬Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â®Ã˜Â§Ã™â€¦ <span className="text-gray-400">(Ã˜Â§Ã™â€žÃ˜ÂªÃ˜ÂºÃ˜Â·Ã™Å Ã˜Â© Ã™â€¦Ã˜Â¹Ã˜Â·Ã™â€žÃ˜Â©)</span></>;
+                            return <><span className="text-indigo-600 dark:text-indigo-400 font-bold">الدرجة النهائية</span> = الدرجة الخام <span className="text-gray-400">(التغطية معطلة)</span></>;
                           }
-                          const methodLabel = _cov.coverage_method === 'sqrt' ? 'Ã¢Ë†Å¡' : _cov.coverage_method === 'log' ? 'log' : '';
-                          return <><span className="text-indigo-600 dark:text-indigo-400 font-bold">Ã˜Â§Ã™â€žÃ˜Â¯Ã˜Â±Ã˜Â¬Ã˜Â© Ã˜Â§Ã™â€žÃ™â€ Ã™â€¡Ã˜Â§Ã˜Â¦Ã™Å Ã˜Â©</span> = Ã˜Â§Ã™â€žÃ˜Â¯Ã˜Â±Ã˜Â¬Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â®Ã˜Â§Ã™â€¦ Ãƒâ€” {methodLabel}(Ã˜Â£Ã™Å Ã˜Â§Ã™â€¦Ã™Æ’ ÃƒÂ· Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€žÃ˜Â³Ã˜Â§Ã˜Âª)</>;
+                          const methodLabel = _cov.coverage_method === 'sqrt' ? '√' : _cov.coverage_method === 'log' ? 'log' : '';
+                          return <><span className="text-indigo-600 dark:text-indigo-400 font-bold">الدرجة النهائية</span> = الدرجة الخام × {methodLabel}(أيامك ÷ إجمالي الجلسات)</>;
                         })()}
                       </div>
                     </div>
@@ -5455,20 +5451,20 @@ export const AttendanceRecords = () => {
                 <svg className={`w-4 h-4 transition-transform duration-200 ${showScoreDetails ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
-                {showScoreDetails ? 'Hide Detailed Explanations / Ã˜Â¥Ã˜Â®Ã™ÂÃ˜Â§Ã˜Â¡ Ã˜Â§Ã™â€žÃ˜ÂªÃ™ÂÃ˜Â§Ã˜ÂµÃ™Å Ã™â€ž' : 'Ã°Å¸â€œâ€“ Show Detailed Explanations / Ã˜Â¹Ã˜Â±Ã˜Â¶ Ã˜Â´Ã˜Â±Ã˜Â­ Ã™â€¦Ã™ÂÃ˜ÂµÃ™â€ž'}
+                {showScoreDetails ? 'Hide Detailed Explanations / إخفاء التفاصيل' : '📖 Show Detailed Explanations / عرض شرح مفصل'}
               </button>
 
               {showScoreDetails && (
               <>
-              {/* Ã¢â€â‚¬Ã¢â€â‚¬ Deep Dive: Component Explanations Ã¢â€â‚¬Ã¢â€â‚¬ */}
+              {/* ── Deep Dive: Component Explanations ── */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
                 {/* === QUALITY RATE (50%) === */}
                 <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50/50 to-green-50/50 dark:from-emerald-900/10 dark:to-green-900/10 p-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <span className="text-lg">Ã°Å¸â€™Å½</span>
+                    <span className="text-lg">💎</span>
                     <h4 className="font-bold text-emerald-800 dark:text-emerald-300 text-sm">
-                      {scoreExplainerLang === 'ar' ? `Ã™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â¬Ã™Ë†Ã˜Â¯Ã˜Â© (${loadConfigSync().weight_quality}Ã™Âª)` : scoreExplainerLang === 'both' ? `Quality Rate / Ã™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â¬Ã™Ë†Ã˜Â¯Ã˜Â© (${loadConfigSync().weight_quality}%)` : `Quality Rate (${loadConfigSync().weight_quality}%)`}
+                      {scoreExplainerLang === 'ar' ? `معدل الجودة (${loadConfigSync().weight_quality}٪)` : scoreExplainerLang === 'both' ? `Quality Rate / معدل الجودة (${loadConfigSync().weight_quality}%)` : `Quality Rate (${loadConfigSync().weight_quality}%)`}
                     </h4>
                   </div>
                   <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
@@ -5476,8 +5472,8 @@ export const AttendanceRecords = () => {
                     <div className="space-y-2">
                       <p>Not all "present" days are equal. <strong className="text-gray-800 dark:text-gray-200">On-time = 100% credit, but late arrivals get partial credit</strong> based on how late they were.</p>
                       <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-2.5 border border-emerald-100 dark:border-emerald-800 font-mono text-[11px]">
-                        <div className="text-emerald-600 dark:text-emerald-400 font-bold mb-1">Late Credit = e<sup>Ã¢Ë†â€™(minutes / {loadConfigSync().late_decay_constant})</sup></div>
-                        <div className="text-gray-500 dark:text-gray-400">This is a smooth exponential decay curve Ã¢â‚¬â€ no sudden drops.</div>
+                        <div className="text-emerald-600 dark:text-emerald-400 font-bold mb-1">Late Credit = e<sup>−(minutes / {loadConfigSync().late_decay_constant})</sup></div>
+                        <div className="text-gray-500 dark:text-gray-400">This is a smooth exponential decay curve — no sudden drops.</div>
                       </div>
                       <div className="grid grid-cols-2 gap-1">
                         {(() => {
@@ -5497,63 +5493,63 @@ export const AttendanceRecords = () => {
                           </div>
                         ))}
                       </div>
-                      <p className="text-[10px] text-gray-400 dark:text-gray-500 italic">Formula: Quality = (OnTimeDays + ÃŽÂ£ late credits) / EffectiveDays Ãƒâ€” 100. If late_minutes is unknown, {Math.round(loadConfigSync().late_null_estimate * 100)}% credit is used. Minimum credit is {Math.round(loadConfigSync().late_minimum_credit * 100)}% Ã¢â‚¬â€ you always get something for showing up.</p>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500 italic">Formula: Quality = (OnTimeDays + Σ late credits) / EffectiveDays × 100. If late_minutes is unknown, {Math.round(loadConfigSync().late_null_estimate * 100)}% credit is used. Minimum credit is {Math.round(loadConfigSync().late_minimum_credit * 100)}% — you always get something for showing up.</p>
                     </div>
                     )}
                     {(scoreExplainerLang === 'ar' || scoreExplainerLang === 'both') && (
                     <div dir="rtl" className="space-y-2">
-                      <p>Ã™â€žÃ™Å Ã˜Â³Ã˜Âª Ã™Æ’Ã™â€ž Ã˜Â£Ã™Å Ã˜Â§Ã™â€¦ Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â± Ã™â€¦Ã˜ÂªÃ˜Â³Ã˜Â§Ã™Ë†Ã™Å Ã˜Â©. <strong className="text-gray-800 dark:text-gray-200">Ã˜Â¨Ã˜Â§Ã™â€žÃ™Ë†Ã™â€šÃ˜Âª = Ã˜Â±Ã˜ÂµÃ™Å Ã˜Â¯ Ã™Æ’Ã˜Â§Ã™â€¦Ã™â€ž Ã™Â¡Ã™Â Ã™Â Ã™ÂªÃ˜Å’ Ã™â€žÃ™Æ’Ã™â€  Ã˜Â§Ã™â€žÃ™â€¦Ã˜ÂªÃ˜Â£Ã˜Â®Ã˜Â± Ã™Å Ã˜Â­Ã˜ÂµÃ™â€ž Ã˜Â¹Ã™â€žÃ™â€° Ã˜Â±Ã˜ÂµÃ™Å Ã˜Â¯ Ã˜Â¬Ã˜Â²Ã˜Â¦Ã™Å </strong> Ã˜Â­Ã˜Â³Ã˜Â¨ Ã™â€¦Ã˜Â¯Ã˜Â© Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â£Ã˜Â®Ã˜Â±.</p>
+                      <p>ليست كل أيام الحضور متساوية. <strong className="text-gray-800 dark:text-gray-200">بالوقت = رصيد كامل ١٠٠٪، لكن المتأخر يحصل على رصيد جزئي</strong> حسب مدة التأخر.</p>
                       <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-2.5 border border-emerald-100 dark:border-emerald-800 font-mono text-[11px]">
-                        <div className="text-emerald-600 dark:text-emerald-400 font-bold mb-1">Ã˜Â±Ã˜ÂµÃ™Å Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â£Ã˜Â®Ã˜Â± = e<sup>Ã¢Ë†â€™(Ã˜Â§Ã™â€žÃ˜Â¯Ã™â€šÃ˜Â§Ã˜Â¦Ã™â€š / {loadConfigSync().late_decay_constant})</sup></div>
-                        <div className="text-gray-500 dark:text-gray-400">Ã™â€¡Ã˜Â°Ã˜Â§ Ã™â€¦Ã™â€ Ã˜Â­Ã™â€ Ã™â€° Ã˜ÂªÃ™â€ Ã˜Â§Ã™â€šÃ˜Âµ Ã˜Â§Ã™â€ Ã˜Â³Ã™Å Ã˜Â§Ã˜Â¨Ã™Å  Ã¢â‚¬â€ Ã˜Â¨Ã™â€žÃ˜Â§ Ã™â€šÃ™ÂÃ˜Â²Ã˜Â§Ã˜Âª Ã™â€¦Ã™ÂÃ˜Â§Ã˜Â¬Ã˜Â¦Ã˜Â©.</div>
+                        <div className="text-emerald-600 dark:text-emerald-400 font-bold mb-1">رصيد التأخر = e<sup>−(الدقائق / {loadConfigSync().late_decay_constant})</sup></div>
+                        <div className="text-gray-500 dark:text-gray-400">هذا منحنى تناقص انسيابي — بلا قفزات مفاجئة.</div>
                       </div>
                       {(() => {
                         const _dc2 = loadConfigSync();
                         const pcts = [5, 15, 30, 60].map(m => Math.round(Math.max(_dc2.late_minimum_credit, Math.exp(-m / _dc2.late_decay_constant)) * 100));
-                        return <p className="text-[10px] text-gray-400 dark:text-gray-500 italic">Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â³Ã˜Â§Ã˜Â¨: Ã˜Â§Ã™â€žÃ˜Â¬Ã™Ë†Ã˜Â¯Ã˜Â© = (Ã˜Â£Ã™Å Ã˜Â§Ã™â€¦ Ã˜Â¨Ã˜Â§Ã™â€žÃ™Ë†Ã™â€šÃ˜Âª + Ã™â€¦Ã˜Â¬Ã™â€¦Ã™Ë†Ã˜Â¹ Ã˜Â£Ã˜Â±Ã˜ÂµÃ˜Â¯Ã˜Â© Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â£Ã˜Â®Ã˜Â±) / Ã˜Â§Ã™â€žÃ˜Â£Ã™Å Ã˜Â§Ã™â€¦ Ã˜Â§Ã™â€žÃ™ÂÃ˜Â¹Ã™â€žÃ™Å Ã˜Â© Ãƒâ€” Ã™Â¡Ã™Â Ã™Â . Ã˜ÂªÃ˜Â£Ã˜Â®Ã˜Â± Ã™Â¥ Ã˜Â¯Ã™â€šÃ˜Â§Ã˜Â¦Ã™â€š = {pcts[0]}Ã™ÂªÃ˜Å’ Ã™Â¡Ã™Â¥ Ã˜Â¯Ã™â€šÃ™Å Ã™â€šÃ˜Â© = {pcts[1]}Ã™ÂªÃ˜Å’ Ã™Â£Ã™Â  Ã˜Â¯Ã™â€šÃ™Å Ã™â€šÃ˜Â© = {pcts[2]}Ã™ÂªÃ˜Å’ Ã™Â¦Ã™Â  Ã˜Â¯Ã™â€šÃ™Å Ã™â€šÃ˜Â© = {pcts[3]}Ã™Âª. Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜Â£Ã˜Â¯Ã™â€ Ã™â€° {Math.round(_dc2.late_minimum_credit * 100)}Ã™Âª Ã˜Â¯Ã˜Â§Ã˜Â¦Ã™â€¦Ã˜Â§Ã™â€¹.</p>;
+                        return <p className="text-[10px] text-gray-400 dark:text-gray-500 italic">الحساب: الجودة = (أيام بالوقت + مجموع أرصدة التأخر) / الأيام الفعلية × ١٠٠. تأخر ٥ دقائق = {pcts[0]}٪، ١٥ دقيقة = {pcts[1]}٪، ٣٠ دقيقة = {pcts[2]}٪، ٦٠ دقيقة = {pcts[3]}٪. الحد الأدنى {Math.round(_dc2.late_minimum_credit * 100)}٪ دائماً.</p>;
                       })()}
                     </div>
                     )}
                   </div>
                 </div>
 
-                {/* === CONSISTENCY INDEX (Informational Ã¢â‚¬â€ not part of score) === */}
+                {/* === CONSISTENCY INDEX (Informational — not part of score) === */}
                 <div className="rounded-xl border border-purple-200 dark:border-purple-800 bg-gradient-to-br from-purple-50/50 to-indigo-50/50 dark:from-purple-900/10 dark:to-indigo-900/10 p-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <span className="text-lg">Ã°Å¸â€œÅ </span>
+                    <span className="text-lg">📊</span>
                     <h4 className="font-bold text-purple-800 dark:text-purple-300 text-sm">
-                      {scoreExplainerLang === 'ar' ? 'Ã™â€¦Ã˜Â¤Ã˜Â´Ã˜Â± Ã˜Â§Ã™â€žÃ˜Â§Ã™â€ Ã˜ÂªÃ˜Â¸Ã˜Â§Ã™â€¦ (Ã™â€¦Ã˜Â¹Ã™â€žÃ™Ë†Ã™â€¦Ã˜Â§Ã˜ÂªÃ™Å  Ã™ÂÃ™â€šÃ˜Â·)' : scoreExplainerLang === 'both' ? 'Consistency Index (Info Only) / Ã™â€¦Ã˜Â¤Ã˜Â´Ã˜Â± Ã˜Â§Ã™â€žÃ˜Â§Ã™â€ Ã˜ÂªÃ˜Â¸Ã˜Â§Ã™â€¦' : 'Consistency Index (Info Only)'}
+                      {scoreExplainerLang === 'ar' ? 'مؤشر الانتظام (معلوماتي فقط)' : scoreExplainerLang === 'both' ? 'Consistency Index (Info Only) / مؤشر الانتظام' : 'Consistency Index (Info Only)'}
                     </h4>
                   </div>
                   <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
                     {(scoreExplainerLang === 'en' || scoreExplainerLang === 'both') && (
                     <div className="space-y-2">
-                      <p><strong className="text-gray-800 dark:text-gray-200">This is NOT part of the weighted score.</strong> It's an informational metric that measures how your absences are distributed Ã¢â‚¬â€ scattered single absences are better than big blocks of missing days.</p>
+                      <p><strong className="text-gray-800 dark:text-gray-200">This is NOT part of the weighted score.</strong> It's an informational metric that measures how your absences are distributed — scattered single absences are better than big blocks of missing days.</p>
                       <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-2.5 border border-purple-100 dark:border-purple-800 text-[11px] space-y-1.5">
                         <div className="font-bold text-purple-600 dark:text-purple-400">Two Components (averaged):</div>
                         <div className="pl-2 space-y-1">
-                          <div><span className="text-purple-500 font-bold">1. Scatter Ratio</span> Ã¢â‚¬â€ Are absences fragmented into many small gaps, or clumped together?</div>
-                          <div className="text-[10px] text-gray-500 dark:text-gray-400 pl-3">Best: each absence is isolated (ratio = 1). Worst: one big block (ratio Ã¢â€°Ë† 0).</div>
-                          <div><span className="text-purple-500 font-bold">2. Streak Penalty</span> Ã¢â‚¬â€ How long is your longest consecutive absence block?</div>
+                          <div><span className="text-purple-500 font-bold">1. Scatter Ratio</span> — Are absences fragmented into many small gaps, or clumped together?</div>
+                          <div className="text-[10px] text-gray-500 dark:text-gray-400 pl-3">Best: each absence is isolated (ratio = 1). Worst: one big block (ratio ≈ 0).</div>
+                          <div><span className="text-purple-500 font-bold">2. Streak Penalty</span> — How long is your longest consecutive absence block?</div>
                           <div className="text-[10px] text-gray-500 dark:text-gray-400 pl-3">Missing 3 days in a row hurts more than missing 3 separate days.</div>
                         </div>
                         <div className="border-t border-purple-100 dark:border-purple-800 pt-1.5 mt-1">
-                          <div><span className="text-purple-500 font-bold">Dampening:</span> With only 1-2 absences, clustering matters less Ã¢â€ â€™ score trends toward 100%.</div>
+                          <div><span className="text-purple-500 font-bold">Dampening:</span> With only 1-2 absences, clustering matters less → score trends toward 100%.</div>
                           <div className="text-[10px] text-gray-500 dark:text-gray-400">dampening = min(absences / 5, 1). Fewer absences = less penalty.</div>
                         </div>
                       </div>
                       <div className="space-y-1">
                         <div className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Examples (8-day patterns):</div>
                         {[
-                          { pattern: 'Ã¢Å“â€¦Ã¢ÂÅ’Ã¢Å“â€¦Ã¢ÂÅ’Ã¢Å“â€¦Ã¢ÂÅ’Ã¢Å“â€¦Ã¢ÂÅ’', score: 'Ã¢â€°Ë† 100%', desc: 'Absences perfectly scattered', color: 'text-emerald-600 dark:text-emerald-400' },
-                          { pattern: 'Ã¢Å“â€¦Ã¢Å“â€¦Ã¢ÂÅ’Ã¢Å“â€¦Ã¢Å“â€¦Ã¢ÂÅ’Ã¢Å“â€¦Ã¢Å“â€¦', score: 'Ã¢â€°Ë† 100%', desc: 'Single absences spread out', color: 'text-emerald-600 dark:text-emerald-400' },
-                          { pattern: 'Ã¢Å“â€¦Ã¢Å“â€¦Ã¢Å“â€¦Ã¢ÂÅ’Ã¢ÂÅ’Ã¢Å“â€¦Ã¢Å“â€¦Ã¢Å“â€¦', score: 'Ã¢â€°Ë† 72%', desc: '2-day block in the middle', color: 'text-amber-600 dark:text-amber-400' },
-                          { pattern: 'Ã¢Å“â€¦Ã¢Å“â€¦Ã¢Å“â€¦Ã¢Å“â€¦Ã¢ÂÅ’Ã¢ÂÅ’Ã¢ÂÅ’Ã¢ÂÅ’', score: 'Ã¢â€°Ë† 20%', desc: 'All absences clustered at end', color: 'text-red-600 dark:text-red-400' },
+                          { pattern: '✅❌✅❌✅❌✅❌', score: '≈ 100%', desc: 'Absences perfectly scattered', color: 'text-emerald-600 dark:text-emerald-400' },
+                          { pattern: '✅✅❌✅✅❌✅✅', score: '≈ 100%', desc: 'Single absences spread out', color: 'text-emerald-600 dark:text-emerald-400' },
+                          { pattern: '✅✅✅❌❌✅✅✅', score: '≈ 72%', desc: '2-day block in the middle', color: 'text-amber-600 dark:text-amber-400' },
+                          { pattern: '✅✅✅✅❌❌❌❌', score: '≈ 20%', desc: 'All absences clustered at end', color: 'text-red-600 dark:text-red-400' },
                         ].map((ex, i) => (
                           <div key={i} className="flex items-center gap-2 bg-white/40 dark:bg-gray-800/40 rounded px-2 py-1">
                             <span className="font-mono text-[10px] tracking-widest">{ex.pattern}</span>
                             <span className={`font-bold text-[11px] ${ex.color}`}>{ex.score}</span>
-                            <span className="text-[10px] text-gray-400 dark:text-gray-500 hidden sm:inline">Ã¢â‚¬â€ {ex.desc}</span>
+                            <span className="text-[10px] text-gray-400 dark:text-gray-500 hidden sm:inline">— {ex.desc}</span>
                           </div>
                         ))}
                       </div>
@@ -5561,20 +5557,20 @@ export const AttendanceRecords = () => {
                     )}
                     {(scoreExplainerLang === 'ar' || scoreExplainerLang === 'both') && (
                     <div dir="rtl" className="space-y-2">
-                      <p><strong className="text-gray-800 dark:text-gray-200">Ã™â€¡Ã˜Â°Ã˜Â§ Ã™â€žÃ™Å Ã˜Â³ Ã˜Â¬Ã˜Â²Ã˜Â¡Ã˜Â§Ã™â€¹ Ã™â€¦Ã™â€  Ã˜Â§Ã™â€žÃ˜Â¯Ã˜Â±Ã˜Â¬Ã˜Â© Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â±Ã˜Â¬Ã˜Â­Ã˜Â©.</strong> Ã™â€¡Ã™Ë† Ã™â€¦Ã™â€šÃ™Å Ã˜Â§Ã˜Â³ Ã™â€¦Ã˜Â¹Ã™â€žÃ™Ë†Ã™â€¦Ã˜Â§Ã˜ÂªÃ™Å  Ã™Å Ã™â€šÃ™Å Ã˜Â³ Ã™Æ’Ã™Å Ã™Â Ã˜ÂªÃ™Ë†Ã˜Â²Ã™â€˜Ã˜Â¹ Ã˜ÂºÃ™Å Ã˜Â§Ã˜Â¨Ã™Æ’ Ã¢â‚¬â€ Ã˜ÂºÃ™Å Ã˜Â§Ã˜Â¨ Ã™Å Ã™Ë†Ã™â€¦ Ã™â€¡Ã™â€ Ã˜Â§ Ã™Ë†Ã™Å Ã™Ë†Ã™â€¦ Ã™â€¡Ã™â€ Ã˜Â§Ã™Æ’ Ã˜Â£Ã™ÂÃ˜Â¶Ã™â€ž Ã™â€¦Ã™â€  Ã˜ÂºÃ™Å Ã˜Â§Ã˜Â¨ Ã˜Â£Ã™Å Ã˜Â§Ã™â€¦ Ã™â€¦Ã˜ÂªÃ˜ÂªÃ˜Â§Ã™â€žÃ™Å Ã˜Â©.</p>
+                      <p><strong className="text-gray-800 dark:text-gray-200">هذا ليس جزءاً من الدرجة المرجحة.</strong> هو مقياس معلوماتي يقيس كيف توزّع غيابك — غياب يوم هنا ويوم هناك أفضل من غياب أيام متتالية.</p>
                       <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-2.5 border border-purple-100 dark:border-purple-800 text-[11px] space-y-1.5">
-                        <div className="font-bold text-purple-600 dark:text-purple-400">Ã™â€¦Ã™Æ’Ã™Ë†Ã™â€˜Ã™â€ Ã˜Â§Ã™â€  (Ã™Å Ã˜ÂªÃ™â€¦ Ã˜Â­Ã˜Â³Ã˜Â§Ã˜Â¨ Ã™â€¦Ã˜ÂªÃ™Ë†Ã˜Â³Ã˜Â·Ã™â€¡Ã™â€¦Ã˜Â§):</div>
+                        <div className="font-bold text-purple-600 dark:text-purple-400">مكوّنان (يتم حساب متوسطهما):</div>
                         <div className="pr-2 space-y-1">
-                          <div><span className="text-purple-500 font-bold">Ã™Â¡. Ã™â€ Ã˜Â³Ã˜Â¨Ã˜Â© Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â´Ã˜ÂªÃ˜Âª</span> Ã¢â‚¬â€ Ã™â€¡Ã™â€ž Ã˜Â§Ã™â€žÃ˜ÂºÃ™Å Ã˜Â§Ã˜Â¨ Ã™â€¦Ã˜Â¨Ã˜Â¹Ã˜Â«Ã˜Â± Ã™Æ’Ã˜Â£Ã™Å Ã˜Â§Ã™â€¦ Ã™ÂÃ˜Â±Ã˜Â¯Ã™Å Ã˜Â© Ã˜Â£Ã™â€¦ Ã™â€¦Ã˜ÂªÃ™Æ’Ã˜ÂªÃ™â€žÃ˜Å¸</div>
-                          <div><span className="text-purple-500 font-bold">Ã™Â¢. Ã˜Â¹Ã™â€šÃ™Ë†Ã˜Â¨Ã˜Â© Ã˜Â§Ã™â€žÃ˜ÂªÃ˜ÂªÃ˜Â§Ã˜Â¨Ã˜Â¹</span> Ã¢â‚¬â€ Ã™â€¦Ã˜Â§ Ã˜Â£Ã˜Â·Ã™Ë†Ã™â€ž Ã˜Â³Ã™â€žÃ˜Â³Ã™â€žÃ˜Â© Ã˜ÂºÃ™Å Ã˜Â§Ã˜Â¨ Ã™â€¦Ã˜ÂªÃ˜ÂªÃ˜Â§Ã™â€žÃ™Å Ã˜Â© Ã˜Â¹Ã™â€ Ã˜Â¯Ã™Æ’Ã˜Å¸</div>
+                          <div><span className="text-purple-500 font-bold">١. نسبة التشتت</span> — هل الغياب مبعثر كأيام فردية أم متكتل؟</div>
+                          <div><span className="text-purple-500 font-bold">٢. عقوبة التتابع</span> — ما أطول سلسلة غياب متتالية عندك؟</div>
                         </div>
                         <div className="border-t border-purple-100 dark:border-purple-800 pt-1.5 mt-1">
-                          <div><span className="text-purple-500 font-bold">Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â®Ã™ÂÃ™Å Ã™Â:</span> Ã˜Â¥Ã˜Â°Ã˜Â§ Ã˜ÂºÃ˜Â¨Ã˜Âª Ã™Å Ã™Ë†Ã™â€¦ Ã˜Â£Ã™Ë† Ã™Å Ã™Ë†Ã™â€¦Ã™Å Ã™â€  Ã™ÂÃ™â€šÃ˜Â·Ã˜Å’ Ã˜Â§Ã™â€žÃ˜ÂªÃ™Æ’Ã˜ÂªÃ™â€ž Ã™â€žÃ˜Â§ Ã™Å Ã™â€¡Ã™â€¦ Ã™Æ’Ã˜Â«Ã™Å Ã˜Â±Ã˜Â§Ã™â€¹ Ã¢â€ â€™ Ã˜Â§Ã™â€žÃ˜Â¯Ã˜Â±Ã˜Â¬Ã˜Â© Ã˜ÂªÃ™â€šÃ˜ÂªÃ˜Â±Ã˜Â¨ Ã™â€¦Ã™â€  Ã™Â¡Ã™Â Ã™Â Ã™Âª.</div>
+                          <div><span className="text-purple-500 font-bold">التخفيف:</span> إذا غبت يوم أو يومين فقط، التكتل لا يهم كثيراً → الدرجة تقترب من ١٠٠٪.</div>
                         </div>
                       </div>
                       <div className="space-y-1 text-[10px]">
-                        <div>Ã¢Å“â€¦Ã¢ÂÅ’Ã¢Å“â€¦Ã¢ÂÅ’Ã¢Å“â€¦Ã¢ÂÅ’Ã¢Å“â€¦Ã¢ÂÅ’ Ã¢â€ â€™ <span className="text-emerald-600 dark:text-emerald-400 font-bold">Ã™Â¡Ã™Â Ã™Â Ã™Âª</span> (Ã˜ÂºÃ™Å Ã˜Â§Ã˜Â¨ Ã™â€¦Ã˜Â¨Ã˜Â¹Ã˜Â«Ã˜Â±)</div>
-                        <div>Ã¢Å“â€¦Ã¢Å“â€¦Ã¢Å“â€¦Ã¢Å“â€¦Ã¢ÂÅ’Ã¢ÂÅ’Ã¢ÂÅ’Ã¢ÂÅ’ Ã¢â€ â€™ <span className="text-red-600 dark:text-red-400 font-bold">Ã™Â¢Ã™Â Ã™Âª</span> (Ã˜ÂºÃ™Å Ã˜Â§Ã˜Â¨ Ã™â€¦Ã˜ÂªÃ™Æ’Ã˜ÂªÃ™â€ž)</div>
+                        <div>✅❌✅❌✅❌✅❌ → <span className="text-emerald-600 dark:text-emerald-400 font-bold">١٠٠٪</span> (غياب مبعثر)</div>
+                        <div>✅✅✅✅❌❌❌❌ → <span className="text-red-600 dark:text-red-400 font-bold">٢٠٪</span> (غياب متكتل)</div>
                       </div>
                     </div>
                     )}
@@ -5584,9 +5580,9 @@ export const AttendanceRecords = () => {
                 {/* === ATTENDANCE RATE (25%) + PUNCTUALITY (10%) === */}
                 <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50/50 to-sky-50/50 dark:from-blue-900/10 dark:to-sky-900/10 p-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <span className="text-lg">Ã°Å¸â€œâ€¦</span>
+                    <span className="text-lg">📅</span>
                     <h4 className="font-bold text-blue-800 dark:text-blue-300 text-sm">
-                      {scoreExplainerLang === 'ar' ? `Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â± (${loadConfigSync().weight_attendance}Ã™Âª) + Ã˜Â§Ã™â€žÃ˜Â§Ã™â€žÃ˜ÂªÃ˜Â²Ã˜Â§Ã™â€¦ Ã˜Â¨Ã˜Â§Ã™â€žÃ™Ë†Ã™â€šÃ˜Âª (${loadConfigSync().weight_punctuality}Ã™Âª)` : scoreExplainerLang === 'both' ? `Attendance (${loadConfigSync().weight_attendance}%) + Punctuality (${loadConfigSync().weight_punctuality}%) / Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â± + Ã˜Â§Ã™â€žÃ˜Â§Ã™â€žÃ˜ÂªÃ˜Â²Ã˜Â§Ã™â€¦` : `Attendance (${loadConfigSync().weight_attendance}%) + Punctuality (${loadConfigSync().weight_punctuality}%)`}
+                      {scoreExplainerLang === 'ar' ? `الحضور (${loadConfigSync().weight_attendance}٪) + الالتزام بالوقت (${loadConfigSync().weight_punctuality}٪)` : scoreExplainerLang === 'both' ? `Attendance (${loadConfigSync().weight_attendance}%) + Punctuality (${loadConfigSync().weight_punctuality}%) / الحضور + الالتزام` : `Attendance (${loadConfigSync().weight_attendance}%) + Punctuality (${loadConfigSync().weight_punctuality}%)`}
                     </h4>
                   </div>
                   <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
@@ -5594,11 +5590,11 @@ export const AttendanceRecords = () => {
                     <div className="space-y-2">
                       <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-2.5 border border-blue-100 dark:border-blue-800 text-[11px] space-y-2">
                         <div>
-                          <span className="font-bold text-blue-600 dark:text-blue-400">Attendance Rate</span> = (On Time + Late) / Effective Days Ãƒâ€” 100
+                          <span className="font-bold text-blue-600 dark:text-blue-400">Attendance Rate</span> = (On Time + Late) / Effective Days × 100
                           <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">Simple binary: Were you there? Yes or no. Late counts as present. Excused days are excluded from the denominator.</div>
                         </div>
                         <div className="border-t border-blue-100 dark:border-blue-800 pt-2">
-                          <span className="font-bold text-amber-600 dark:text-amber-400">Punctuality</span> = On Time Days / (On Time + Late) Ãƒâ€” 100
+                          <span className="font-bold text-amber-600 dark:text-amber-400">Punctuality</span> = On Time Days / (On Time + Late) × 100
                           <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">Of the days you showed up, what % were you on time? Someone always late gets low punctuality even with 100% attendance.</div>
                         </div>
                       </div>
@@ -5609,15 +5605,15 @@ export const AttendanceRecords = () => {
                     <div dir="rtl" className="space-y-2">
                       <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-2.5 border border-blue-100 dark:border-blue-800 text-[11px] space-y-2">
                         <div>
-                          <span className="font-bold text-blue-600 dark:text-blue-400">Ã™â€¦Ã˜Â¹Ã˜Â¯Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±</span> = (Ã˜Â¨Ã˜Â§Ã™â€žÃ™Ë†Ã™â€šÃ˜Âª + Ã™â€¦Ã˜ÂªÃ˜Â£Ã˜Â®Ã˜Â±) / Ã˜Â§Ã™â€žÃ˜Â£Ã™Å Ã˜Â§Ã™â€¦ Ã˜Â§Ã™â€žÃ™ÂÃ˜Â¹Ã™â€žÃ™Å Ã˜Â© Ãƒâ€” Ã™Â¡Ã™Â Ã™Â 
-                          <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">Ã˜Â¨Ã˜Â¨Ã˜Â³Ã˜Â§Ã˜Â·Ã˜Â©: Ã™â€¡Ã™â€ž Ã˜Â­Ã˜Â¶Ã˜Â±Ã˜ÂªÃ˜Å¸ Ã™â€ Ã˜Â¹Ã™â€¦ Ã˜Â£Ã™Ë† Ã™â€žÃ˜Â§. Ã˜Â§Ã™â€žÃ™â€¦Ã˜ÂªÃ˜Â£Ã˜Â®Ã˜Â± Ã™Å Ã™ÂÃ˜Â­Ã˜Â³Ã˜Â¨ Ã˜Â­Ã˜Â§Ã˜Â¶Ã˜Â±Ã˜Â§Ã™â€¹. Ã˜Â§Ã™â€žÃ˜Â£Ã™Å Ã˜Â§Ã™â€¦ Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¹Ã˜Â°Ã™Ë†Ã˜Â±Ã˜Â© Ã˜ÂªÃ™ÂÃ˜Â³Ã˜ÂªÃ˜Â¨Ã˜Â¹Ã˜Â¯.</div>
+                          <span className="font-bold text-blue-600 dark:text-blue-400">معدل الحضور</span> = (بالوقت + متأخر) / الأيام الفعلية × ١٠٠
+                          <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">ببساطة: هل حضرت؟ نعم أو لا. المتأخر يُحسب حاضراً. الأيام المعذورة تُستبعد.</div>
                         </div>
                         <div className="border-t border-blue-100 dark:border-blue-800 pt-2">
-                          <span className="font-bold text-amber-600 dark:text-amber-400">Ã˜Â§Ã™â€žÃ˜Â§Ã™â€žÃ˜ÂªÃ˜Â²Ã˜Â§Ã™â€¦ Ã˜Â¨Ã˜Â§Ã™â€žÃ™Ë†Ã™â€šÃ˜Âª</span> = Ã˜Â£Ã™Å Ã˜Â§Ã™â€¦ Ã˜Â¨Ã˜Â§Ã™â€žÃ™Ë†Ã™â€šÃ˜Âª / (Ã˜Â¨Ã˜Â§Ã™â€žÃ™Ë†Ã™â€šÃ˜Âª + Ã™â€¦Ã˜ÂªÃ˜Â£Ã˜Â®Ã˜Â±) Ãƒâ€” Ã™Â¡Ã™Â Ã™Â 
-                          <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">Ã™â€¦Ã™â€  Ã˜Â§Ã™â€žÃ˜Â£Ã™Å Ã˜Â§Ã™â€¦ Ã˜Â§Ã™â€žÃ˜ÂªÃ™Å  Ã˜Â­Ã˜Â¶Ã˜Â±Ã˜ÂªÃ™â€¡Ã˜Â§Ã˜Å’ Ã™Æ’Ã™â€¦ Ã™â€ Ã˜Â³Ã˜Â¨Ã˜Â© Ã˜Â§Ã™â€žÃ™â€žÃ™Å  Ã™Æ’Ã™â€ Ã˜Âª Ã˜Â¨Ã˜Â§Ã™â€žÃ™Ë†Ã™â€šÃ˜Âª Ã™ÂÃ™Å Ã™â€¡Ã˜Â§Ã˜Å¸</div>
+                          <span className="font-bold text-amber-600 dark:text-amber-400">الالتزام بالوقت</span> = أيام بالوقت / (بالوقت + متأخر) × ١٠٠
+                          <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">من الأيام التي حضرتها، كم نسبة اللي كنت بالوقت فيها؟</div>
                         </div>
                       </div>
-                      <p className="text-[10px] text-gray-400 dark:text-gray-500 italic">Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â± Ã™Å Ã™Æ’Ã˜Â§Ã™ÂÃ˜Â¦ Ã™â€¦Ã™â€  Ã™Å Ã˜Â£Ã˜ÂªÃ™Å Ã˜Å’ Ã™Ë†Ã˜Â§Ã™â€žÃ˜Â§Ã™â€žÃ˜ÂªÃ˜Â²Ã˜Â§Ã™â€¦ Ã™Å Ã™Æ’Ã˜Â§Ã™ÂÃ˜Â¦ Ã™â€¦Ã™â€  Ã™Å Ã˜Â£Ã˜ÂªÃ™Å  Ã˜Â¨Ã˜Â§Ã™â€žÃ™Ë†Ã™â€šÃ˜Âª.</p>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500 italic">الحضور يكافئ من يأتي، والالتزام يكافئ من يأتي بالوقت.</p>
                     </div>
                     )}
                   </div>
@@ -5626,9 +5622,9 @@ export const AttendanceRecords = () => {
                 {/* === COVERAGE FACTOR === */}
                 <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-gradient-to-br from-indigo-50/50 to-violet-50/50 dark:from-indigo-900/10 dark:to-violet-900/10 p-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <span className="text-lg">Ã°Å¸â€œÂ</span>
+                    <span className="text-lg">📏</span>
                     <h4 className="font-bold text-indigo-800 dark:text-indigo-300 text-sm">
-                      {scoreExplainerLang === 'ar' ? 'Ã™â€¦Ã˜Â¹Ã˜Â§Ã™â€¦Ã™â€ž Ã˜Â§Ã™â€žÃ˜ÂªÃ˜ÂºÃ˜Â·Ã™Å Ã˜Â© (Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¶Ã˜Â§Ã˜Â¹Ã™Â Ã˜Â§Ã™â€žÃ™â€ Ã™â€¡Ã˜Â§Ã˜Â¦Ã™Å )' : scoreExplainerLang === 'both' ? 'Coverage Factor / Ã™â€¦Ã˜Â¹Ã˜Â§Ã™â€¦Ã™â€ž Ã˜Â§Ã™â€žÃ˜ÂªÃ˜ÂºÃ˜Â·Ã™Å Ã˜Â©' : 'Coverage Factor (Final Multiplier)'}
+                      {scoreExplainerLang === 'ar' ? 'معامل التغطية (المضاعف النهائي)' : scoreExplainerLang === 'both' ? 'Coverage Factor / معامل التغطية' : 'Coverage Factor (Final Multiplier)'}
                     </h4>
                   </div>
                   <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
@@ -5640,7 +5636,7 @@ export const AttendanceRecords = () => {
                           return <p className="text-yellow-600 dark:text-yellow-400 font-bold">Coverage Factor is currently DISABLED in your scoring config. All students get coverage = 1.0.</p>;
                         }
                         const methodName = _cc.coverage_method === 'sqrt' ? 'Square root' : _cc.coverage_method === 'log' ? 'Logarithmic' : 'Linear';
-                        const formulaSymbol = _cc.coverage_method === 'sqrt' ? 'Ã¢Ë†Å¡' : _cc.coverage_method === 'log' ? 'log(1 + rÃ‚Â·(e-1))' : '';
+                        const formulaSymbol = _cc.coverage_method === 'sqrt' ? '√' : _cc.coverage_method === 'log' ? 'log(1 + r·(e-1))' : '';
                         const totalSessions = 27;
                         const computeFactor = (days: number) => {
                           const ratio = days / totalSessions;
@@ -5686,16 +5682,16 @@ export const AttendanceRecords = () => {
                       {(() => {
                         const _cc2 = loadConfigSync();
                         if (!_cc2.coverage_enabled || _cc2.coverage_method === 'none') {
-                          return <p className="text-yellow-600 dark:text-yellow-400 font-bold">Ã™â€¦Ã˜Â¹Ã˜Â§Ã™â€¦Ã™â€ž Ã˜Â§Ã™â€žÃ˜ÂªÃ˜ÂºÃ˜Â·Ã™Å Ã˜Â© Ã™â€¦Ã˜Â¹Ã˜Â·Ã™â€ž Ã˜Â­Ã˜Â§Ã™â€žÃ™Å Ã˜Â§Ã™â€¹. Ã˜Â¬Ã™â€¦Ã™Å Ã˜Â¹ Ã˜Â§Ã™â€žÃ˜Â·Ã™â€žÃ˜Â§Ã˜Â¨ Ã™Å Ã˜Â­Ã˜ÂµÃ™â€žÃ™Ë†Ã™â€  Ã˜Â¹Ã™â€žÃ™â€° Ã˜ÂªÃ˜ÂºÃ˜Â·Ã™Å Ã˜Â© = Ã™Â¡.Ã™Â </p>;
+                          return <p className="text-yellow-600 dark:text-yellow-400 font-bold">معامل التغطية معطل حالياً. جميع الطلاب يحصلون على تغطية = ١.٠</p>;
                         }
-                        const methodName = _cc2.coverage_method === 'sqrt' ? 'Ã˜Â¬Ã˜Â°Ã˜Â± Ã˜ÂªÃ˜Â±Ã˜Â¨Ã™Å Ã˜Â¹Ã™Å ' : _cc2.coverage_method === 'log' ? 'Ã™â€žÃ™Ë†Ã˜ÂºÃ˜Â§Ã˜Â±Ã™Å Ã˜ÂªÃ™â€¦Ã™Å ' : 'Ã˜Â®Ã˜Â·Ã™Å ';
-                        const formulaSymbol = _cc2.coverage_method === 'sqrt' ? 'Ã¢Ë†Å¡' : _cc2.coverage_method === 'log' ? 'log' : '';
+                        const methodName = _cc2.coverage_method === 'sqrt' ? 'جذر تربيعي' : _cc2.coverage_method === 'log' ? 'لوغاريتمي' : 'خطي';
+                        const formulaSymbol = _cc2.coverage_method === 'sqrt' ? '√' : _cc2.coverage_method === 'log' ? 'log' : '';
                         return (
                           <>
-                            <p><strong className="text-gray-800 dark:text-gray-200">Ã™Å Ã™â€¦Ã™â€ Ã˜Â¹ Ã˜ÂªÃ˜Â¶Ã˜Â®Ã™â€¦ Ã˜Â§Ã™â€žÃ˜Â¯Ã˜Â±Ã˜Â¬Ã˜Â§Ã˜Âª Ã™â€žÃ™â€¦Ã™â€  Ã˜Â­Ã˜Â¶Ã˜Â± Ã˜Â£Ã™Å Ã˜Â§Ã™â€¦ Ã™â€šÃ™â€žÃ™Å Ã™â€žÃ˜Â©.</strong></p>
+                            <p><strong className="text-gray-800 dark:text-gray-200">يمنع تضخم الدرجات لمن حضر أيام قليلة.</strong></p>
                             <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg p-2.5 border border-indigo-100 dark:border-indigo-800 font-mono text-[11px]">
-                              <div className="text-indigo-600 dark:text-indigo-400 font-bold">Ã˜Â§Ã™â€žÃ˜ÂªÃ˜ÂºÃ˜Â·Ã™Å Ã˜Â© = {formulaSymbol}(Ã˜Â£Ã™Å Ã˜Â§Ã™â€¦Ã™Æ’ Ã˜Â§Ã™â€žÃ™ÂÃ˜Â¹Ã™â€žÃ™Å Ã˜Â© / Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€žÃ˜Â³Ã˜Â§Ã˜Âª)</div>
-                              <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">Ã˜Â·Ã˜Â±Ã™Å Ã™â€šÃ˜Â©: {methodName}. Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜Â£Ã˜Â¯Ã™â€ Ã™â€°: {_cc2.coverage_minimum}. Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜Â£Ã™â€šÃ˜ÂµÃ™â€° Ã™Â¡.Ã™Â </div>
+                              <div className="text-indigo-600 dark:text-indigo-400 font-bold">التغطية = {formulaSymbol}(أيامك الفعلية / إجمالي الجلسات)</div>
+                              <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">طريقة: {methodName}. الحد الأدنى: {_cc2.coverage_minimum}. الحد الأقصى ١.٠</div>
                             </div>
                           </>
                         );
@@ -5709,15 +5705,15 @@ export const AttendanceRecords = () => {
 
               {/* Late Credit Quick Reference - dynamically computed */}
               <div className="flex gap-2 flex-wrap justify-center">
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs">Ã¢Å“Â¨ On time = 100% credit</span>
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs">✨ On time = 100% credit</span>
                 {(() => {
                   const _qr = loadConfigSync();
                   const calc = (m: number) => Math.round(Math.max(_qr.late_minimum_credit, Math.exp(-m / _qr.late_decay_constant)) * 100);
                   return (
                     <>
-                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs">Ã¢ÂÂ° 15 min late Ã¢â€°Ë† {calc(15)}%</span>
-                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-xs">Ã°Å¸â€¢Â 30 min late Ã¢â€°Ë† {calc(30)}%</span>
-                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs">Ã°Å¸â€œâ€° 60 min late Ã¢â€°Ë† {calc(60)}%</span>
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs">⏰ 15 min late ≈ {calc(15)}%</span>
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-xs">🕐 30 min late ≈ {calc(30)}%</span>
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs">📉 60 min late ≈ {calc(60)}%</span>
                     </>
                   );
                 })()}
@@ -5725,10 +5721,10 @@ export const AttendanceRecords = () => {
               </>
               )}
 
-              {/* Ã¢â€â‚¬Ã¢â€â‚¬ Controls Ã¢â€â‚¬Ã¢â€â‚¬ */}
+              {/* ── Controls ── */}
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2">
-                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Language / Ã˜Â§Ã™â€žÃ™â€žÃ˜ÂºÃ˜Â©:</label>
+                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Language / اللغة:</label>
                   <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600">
                     {(['both', 'en', 'ar'] as const).map((lang) => (
                       <button
@@ -5740,32 +5736,32 @@ export const AttendanceRecords = () => {
                             : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
                         }`}
                       >
-                        {lang === 'both' ? 'Ã°Å¸Å’Â Both' : lang === 'en' ? 'Ã°Å¸â€¡Â¬Ã°Å¸â€¡Â§ EN' : 'Ã°Å¸â€¡Â¸Ã°Å¸â€¡Â¦ AR'}
+                        {lang === 'both' ? '🌍 Both' : lang === 'en' ? '🇬🇧 EN' : '🇸🇦 AR'}
                       </button>
                     ))}
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Student / Ã˜Â§Ã™â€žÃ˜Â·Ã˜Â§Ã™â€žÃ˜Â¨:</label>
+                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Student / الطالب:</label>
                   <select
                     value={scoreExplainerStudent}
                     onChange={(e) => setScoreExplainerStudent(e.target.value)}
                     className="flex-1 text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-700"
                   >
-                    <option value="">All Students Ã¢â‚¬â€ Ã˜Â¬Ã™â€¦Ã™Å Ã˜Â¹ Ã˜Â§Ã™â€žÃ˜Â·Ã™â€žÃ˜Â§Ã˜Â¨</option>
+                    <option value="">All Students — جميع الطلاب</option>
                     {studentAnalytics
                       .sort((a, b) => b.weightedScore - a.weightedScore)
                       .map((s) => (
                         <option key={s.student_id} value={s.student_id}>
-                          {s.student_name} Ã¢â‚¬â€ {s.weightedScore.toFixed(1)}
+                          {s.student_name} — {s.weightedScore.toFixed(1)}
                         </option>
                       ))}
                   </select>
                 </div>
               </div>
 
-              {/* Ã¢â€â‚¬Ã¢â€â‚¬ Per-Student Score Cards Ã¢â€â‚¬Ã¢â€â‚¬ */}
+              {/* ── Per-Student Score Cards ── */}
               <div className="space-y-3">
                 {studentAnalytics
                   .filter((s) => !scoreExplainerStudent || s.student_id === scoreExplainerStudent)
@@ -5788,17 +5784,17 @@ export const AttendanceRecords = () => {
                     const finalScore = student.weightedScore;
 
                     // Score grade
-                    const grade = finalScore >= 90 ? { label: 'Excellent / Ã™â€¦Ã™â€¦Ã˜ÂªÃ˜Â§Ã˜Â²', emoji: 'Ã°Å¸Ââ€ ', color: 'emerald' }
-                      : finalScore >= 75 ? { label: 'Very Good / Ã˜Â¬Ã™Å Ã˜Â¯ Ã˜Â¬Ã˜Â¯Ã˜Â§Ã™â€¹', emoji: 'Ã°Å¸Å’Å¸', color: 'blue' }
-                      : finalScore >= 60 ? { label: 'Good / Ã˜Â¬Ã™Å Ã˜Â¯', emoji: 'Ã°Å¸â€˜Â', color: 'amber' }
-                      : finalScore >= 40 ? { label: 'Needs Improvement / Ã™Å Ã˜Â­Ã˜ÂªÃ˜Â§Ã˜Â¬ Ã˜ÂªÃ˜Â­Ã˜Â³Ã™Å Ã™â€ ', emoji: 'Ã¢Å¡Â Ã¯Â¸Â', color: 'orange' }
-                      : { label: 'Critical / Ã˜Â­Ã˜Â±Ã˜Â¬', emoji: 'Ã°Å¸Å¡Â¨', color: 'red' };
+                    const grade = finalScore >= 90 ? { label: 'Excellent / ممتاز', emoji: '🏆', color: 'emerald' }
+                      : finalScore >= 75 ? { label: 'Very Good / جيد جداً', emoji: '🌟', color: 'blue' }
+                      : finalScore >= 60 ? { label: 'Good / جيد', emoji: '👍', color: 'amber' }
+                      : finalScore >= 40 ? { label: 'Needs Improvement / يحتاج تحسين', emoji: '⚠️', color: 'orange' }
+                      : { label: 'Critical / حرج', emoji: '🚨', color: 'red' };
 
                     // Find weakest area
                     const components = [
-                      { name: 'Quality', nameAr: 'Ã˜Â§Ã™â€žÃ˜Â¬Ã™Ë†Ã˜Â¯Ã˜Â©', value: qualityPct, weight: _sc.weight_quality },
-                      { name: 'Attendance', nameAr: 'Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±', value: attendancePct, weight: _sc.weight_attendance },
-                      { name: 'Punctuality', nameAr: 'Ã˜Â§Ã™â€žÃ˜Â§Ã™â€žÃ˜ÂªÃ˜Â²Ã˜Â§Ã™â€¦', value: punctRate, weight: _sc.weight_punctuality },
+                      { name: 'Quality', nameAr: 'الجودة', value: qualityPct, weight: _sc.weight_quality },
+                      { name: 'Attendance', nameAr: 'الحضور', value: attendancePct, weight: _sc.weight_attendance },
+                      { name: 'Punctuality', nameAr: 'الالتزام', value: punctRate, weight: _sc.weight_punctuality },
                     ];
                     const weakest = [...components].sort((a, b) => a.value - b.value)[0];
                     const strongest = [...components].sort((a, b) => b.value - a.value)[0];
@@ -5839,10 +5835,10 @@ export const AttendanceRecords = () => {
                           {/* Component bars */}
                           <div className="space-y-2">
                             {[
-                              { label: 'Quality / Ã˜Â§Ã™â€žÃ˜Â¬Ã™Ë†Ã˜Â¯Ã˜Â©', labelShort: `${_sc.weight_quality}%`, value: qualityPct, contrib: qualityContrib, color: 'emerald', icon: 'Ã°Å¸â€™Å½' },
-                              { label: 'Attendance / Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±', labelShort: `${_sc.weight_attendance}%`, value: attendancePct, contrib: attendanceContrib, color: 'blue', icon: 'Ã°Å¸â€œâ€¦' },
-                              { label: 'Punctuality / Ã˜Â§Ã™â€žÃ˜Â§Ã™â€žÃ˜ÂªÃ˜Â²Ã˜Â§Ã™â€¦', labelShort: `${_sc.weight_punctuality}%`, value: punctRate, contrib: punctualityContrib, color: 'amber', icon: 'Ã¢ÂÂ°' },
-                              { label: 'Consistency / Ã˜Â§Ã™â€žÃ˜Â§Ã™â€ Ã˜ÂªÃ˜Â¸Ã˜Â§Ã™â€¦', labelShort: 'info', value: consistencyPct, contrib: 0, color: 'purple', icon: 'Ã°Å¸â€œÅ ' },
+                              { label: 'Quality / الجودة', labelShort: `${_sc.weight_quality}%`, value: qualityPct, contrib: qualityContrib, color: 'emerald', icon: '💎' },
+                              { label: 'Attendance / الحضور', labelShort: `${_sc.weight_attendance}%`, value: attendancePct, contrib: attendanceContrib, color: 'blue', icon: '📅' },
+                              { label: 'Punctuality / الالتزام', labelShort: `${_sc.weight_punctuality}%`, value: punctRate, contrib: punctualityContrib, color: 'amber', icon: '⏰' },
+                              { label: 'Consistency / الانتظام', labelShort: 'info', value: consistencyPct, contrib: 0, color: 'purple', icon: '📊' },
                             ].map((comp) => (
                               <div key={comp.label} className="group/bar">
                                 <div className="flex items-center justify-between text-xs mb-0.5">
@@ -5856,7 +5852,7 @@ export const AttendanceRecords = () => {
                                     {comp.labelShort === 'info' ? (
                                       <span className="text-purple-400 dark:text-purple-500 text-[10px] font-mono italic">info only</span>
                                     ) : (
-                                      <span className="text-gray-400 dark:text-gray-500 text-[10px] font-mono">Ã¢â€ â€™ +{comp.contrib.toFixed(1)}</span>
+                                      <span className="text-gray-400 dark:text-gray-500 text-[10px] font-mono">→ +{comp.contrib.toFixed(1)}</span>
                                     )}
                                   </div>
                                 </div>
@@ -5875,22 +5871,22 @@ export const AttendanceRecords = () => {
                             ))}
                           </div>
 
-                          {/* Raw Ã¢â€ â€™ Coverage Ã¢â€ â€™ Final pipeline */}
+                          {/* Raw → Coverage → Final pipeline */}
                           <div className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-xs font-mono flex-wrap">
                             <div className="flex flex-col items-center">
-                              <span className="text-[10px] text-gray-400 dark:text-gray-500">Raw / Ã˜Â§Ã™â€žÃ˜Â®Ã˜Â§Ã™â€¦</span>
+                              <span className="text-[10px] text-gray-400 dark:text-gray-500">Raw / الخام</span>
                               <span className="font-bold text-indigo-600 dark:text-indigo-400">{rawScore.toFixed(1)}</span>
                             </div>
-                            <span className="text-gray-400 dark:text-gray-500">Ãƒâ€”</span>
+                            <span className="text-gray-400 dark:text-gray-500">×</span>
                             <div className="flex flex-col items-center">
-                              <span className="text-[10px] text-gray-400 dark:text-gray-500">Coverage / Ã˜Â§Ã™â€žÃ˜ÂªÃ˜ÂºÃ˜Â·Ã™Å Ã˜Â©</span>
+                              <span className="text-[10px] text-gray-400 dark:text-gray-500">Coverage / التغطية</span>
                               <span className={`font-bold ${coverageF >= 0.8 ? 'text-green-600 dark:text-green-400' : coverageF >= 0.5 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>
                                 {coverageF.toFixed(3)}
                               </span>
                             </div>
                             <span className="text-gray-400 dark:text-gray-500">=</span>
                             <div className="flex flex-col items-center">
-                              <span className="text-[10px] text-gray-400 dark:text-gray-500">Final / Ã˜Â§Ã™â€žÃ™â€ Ã™â€¡Ã˜Â§Ã˜Â¦Ã™Å </span>
+                              <span className="text-[10px] text-gray-400 dark:text-gray-500">Final / النهائي</span>
                               <span className="font-black text-base text-purple-600 dark:text-purple-400">{finalScore.toFixed(1)}</span>
                             </div>
                             <div className="ml-2 text-[10px] text-gray-400 dark:text-gray-500 border-l border-gray-200 dark:border-gray-600 pl-2">
@@ -5902,7 +5898,7 @@ export const AttendanceRecords = () => {
                           <div className="flex flex-col sm:flex-row gap-2">
                             {(scoreExplainerLang === 'en' || scoreExplainerLang === 'both') && (
                             <div className="flex-1 text-xs px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 text-blue-700 dark:text-blue-300">
-                              <span className="font-bold">Ã°Å¸â€™Â¡ Tip:</span>{' '}
+                              <span className="font-bold">💡 Tip:</span>{' '}
                               {coverageF < 0.5
                                 ? `Low coverage factor (${coverageF.toFixed(2)}) is significantly reducing your score. Attend more sessions to improve.`
                                 : weakest.value < 50
@@ -5915,14 +5911,14 @@ export const AttendanceRecords = () => {
                             )}
                             {(scoreExplainerLang === 'ar' || scoreExplainerLang === 'both') && (
                             <div dir="rtl" className="flex-1 text-xs px-3 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
-                              <span className="font-bold">Ã°Å¸â€™Â¡ Ã™â€ Ã˜ÂµÃ™Å Ã˜Â­Ã˜Â©:</span>{' '}
+                              <span className="font-bold">💡 نصيحة:</span>{' '}
                               {coverageF < 0.5
-                                ? `Ã™â€¦Ã˜Â¹Ã˜Â§Ã™â€¦Ã™â€ž Ã˜Â§Ã™â€žÃ˜ÂªÃ˜ÂºÃ˜Â·Ã™Å Ã˜Â© Ã™â€¦Ã™â€ Ã˜Â®Ã™ÂÃ˜Â¶ (${coverageF.toFixed(2)}) Ã™Ë†Ã™â€¡Ã˜Â°Ã˜Â§ Ã™Å Ã™â€šÃ™â€žÃ™â€ž Ã˜Â¯Ã˜Â±Ã˜Â¬Ã˜ÂªÃ™Æ’ Ã˜Â¨Ã˜Â´Ã™Æ’Ã™â€ž Ã™Æ’Ã˜Â¨Ã™Å Ã˜Â±. Ã˜Â§Ã˜Â­Ã˜Â¶Ã˜Â± Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â²Ã™Å Ã˜Â¯ Ã™â€¦Ã™â€  Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€žÃ˜Â³Ã˜Â§Ã˜Âª Ã™â€žÃ™â€žÃ˜ÂªÃ˜Â­Ã˜Â³Ã™Å Ã™â€ .`
+                                ? `معامل التغطية منخفض (${coverageF.toFixed(2)}) وهذا يقلل درجتك بشكل كبير. احضر المزيد من الجلسات للتحسين.`
                                 : weakest.value < 50
-                                  ? `Ã˜Â£Ã˜Â¶Ã˜Â¹Ã™Â Ã™â€ Ã™â€šÃ˜Â·Ã˜Â© Ã™â€žÃ˜Â¯Ã™Å Ã™Æ’ Ã™â€¡Ã™Å  ${weakest.nameAr} (${weakest.value.toFixed(0)}Ã™Âª). Ã˜Â±Ã™Æ’Ã™â€˜Ã˜Â² Ã˜Â¹Ã™â€žÃ™â€° Ã˜ÂªÃ˜Â­Ã˜Â³Ã™Å Ã™â€ Ã™â€¡Ã˜Â§ Ã™â€žÃ˜Â±Ã™ÂÃ˜Â¹ Ã˜Â¯Ã˜Â±Ã˜Â¬Ã˜ÂªÃ™Æ’.`
+                                  ? `أضعف نقطة لديك هي ${weakest.nameAr} (${weakest.value.toFixed(0)}٪). ركّز على تحسينها لرفع درجتك.`
                                   : strongest.value >= 90
-                                    ? `${strongest.nameAr} Ã™â€¦Ã™â€¦Ã˜ÂªÃ˜Â§Ã˜Â² Ã˜Â¨Ã™â€ Ã˜Â³Ã˜Â¨Ã˜Â© ${strongest.value.toFixed(0)}Ã™Âª! ${weakest.nameAr} (${weakest.value.toFixed(0)}Ã™Âª) Ã™ÂÃ™Å Ã™â€¡ Ã˜Â£Ã™Æ’Ã˜Â¨Ã˜Â± Ã™â€¦Ã˜Â¬Ã˜Â§Ã™â€ž Ã™â€žÃ™â€žÃ˜ÂªÃ˜Â­Ã˜Â³Ã™Å Ã™â€ .`
-                                    : `Ã˜Â£Ã˜Â¯Ã˜Â§Ã˜Â¡ Ã™â€¦Ã˜ÂªÃ™Ë†Ã˜Â§Ã˜Â²Ã™â€ . Ã˜Â­Ã˜Â§Ã™ÂÃ˜Â¸ Ã˜Â¹Ã™â€žÃ™â€° Ã˜Â­Ã˜Â¶Ã™Ë†Ã˜Â±Ã™Æ’ Ã™Ë†Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â²Ã˜Â§Ã™â€¦Ã™Æ’ Ã˜Â¨Ã˜Â§Ã™â€žÃ™Ë†Ã™â€šÃ˜Âª.`
+                                    ? `${strongest.nameAr} ممتاز بنسبة ${strongest.value.toFixed(0)}٪! ${weakest.nameAr} (${weakest.value.toFixed(0)}٪) فيه أكبر مجال للتحسين.`
+                                    : `أداء متوازن. حافظ على حضورك والتزامك بالوقت.`
                               }
                             </div>
                             )}
@@ -5936,7 +5932,7 @@ export const AttendanceRecords = () => {
               {/* Show count when viewing all */}
               {!scoreExplainerStudent && studentAnalytics.length > 50 && (
                 <p className="text-center text-xs text-gray-400 dark:text-gray-500">
-                  Showing top 50 of {studentAnalytics.length} students Ã¢â‚¬â€ Ã˜Â¹Ã˜Â±Ã˜Â¶ Ã˜Â£Ã™ÂÃ˜Â¶Ã™â€ž Ã™Â¥Ã™Â  Ã™â€¦Ã™â€  {studentAnalytics.length} Ã˜Â·Ã˜Â§Ã™â€žÃ˜Â¨
+                  Showing top 50 of {studentAnalytics.length} students — عرض أفضل ٥٠ من {studentAnalytics.length} طالب
                 </p>
               )}
             </div>
@@ -6301,10 +6297,10 @@ export const AttendanceRecords = () => {
                     ? 'bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-600'
                     : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'
                 }`}
-                title={arabicMode ? 'Switch to English' : 'Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â¨Ã˜Â¯Ã™Å Ã™â€ž Ã˜Â¥Ã™â€žÃ™â€° Ã˜Â§Ã™â€žÃ˜Â¹Ã˜Â±Ã˜Â¨Ã™Å Ã˜Â©'}
+                title={arabicMode ? 'Switch to English' : 'التبديل إلى العربية'}
               >
-                <span className="text-base">{arabicMode ? 'Ã°Å¸â€¡ÂºÃ°Å¸â€¡Â¸' : 'Ã°Å¸â€¡Â¸Ã°Å¸â€¡Â¦'}</span>
-                <span>{arabicMode ? 'EN' : 'Ã˜Â¹Ã˜Â±Ã˜Â¨Ã™Å '}</span>
+                <span className="text-base">{arabicMode ? '🇺🇸' : '🇸🇦'}</span>
+                <span>{arabicMode ? 'EN' : 'عربي'}</span>
               </button>
               <button
                 onClick={() => {
@@ -6314,7 +6310,7 @@ export const AttendanceRecords = () => {
                 className="relative flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg text-sm font-medium"
                 title="Export Attendance Records"
               >
-                <span>Ã°Å¸â€œÂ¤</span>
+                <span>📤</span>
                 <span>{t.advancedExport}</span>
                 {savedFieldSelections.records.length > 0 && (
                   <span className="absolute -top-2 -right-2 bg-orange-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow">

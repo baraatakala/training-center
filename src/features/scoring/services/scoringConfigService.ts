@@ -32,7 +32,7 @@ export interface ScoringConfig {
   weight_punctuality: number;  // Punctuality bonus weight (default 10%)
   
   // Late decay parameters  
-  late_decay_constant: number;     // Ï„ in e^(-t/Ï„), default 43.3 (~50% at 30 min)
+  late_decay_constant: number;     // τ in e^(-t/τ), default 43.3 (~50% at 30 min)
   late_minimum_credit: number;     // Minimum credit for showing up late (default 0.05 = 5%)
   late_null_estimate: number;      // Credit when late_minutes is null (default 0.60)
   
@@ -85,7 +85,7 @@ export const DEFAULT_SCORING_CONFIG: Omit<ScoringConfig, 'id' | 'teacher_id' | '
 };
 
 // =====================================================
-// VALUE NORMALIZATION â€” Supabase PostgREST returns NUMERIC(5,2)
+// VALUE NORMALIZATION — Supabase PostgREST returns NUMERIC(5,2)
 // columns as STRINGS like "55.00". This breaks typeof checks and
 // arithmetic unless we coerce them back to real JS numbers.
 // =====================================================
@@ -251,7 +251,7 @@ export function generateCoverageCurve(
 
 /**
  * Get the GLOBAL scoring config (admin's config).
- * Scoring config is global â€” only admin can write, everyone reads the same config.
+ * Scoring config is global — only admin can write, everyone reads the same config.
  * Tries Supabase first (source of truth), then localStorage cache, then defaults.
  */
 export async function getScoringConfig(): Promise<{ data: ScoringConfig | null; error: Error | null }> {
@@ -260,7 +260,7 @@ export async function getScoringConfig(): Promise<{ data: ScoringConfig | null; 
     if (!user) return { data: null, error: new Error('Not authenticated') };
     
     // Try Supabase first (source of truth)
-    // NOTE: No teacher_id filter â€” scoring config is global.
+    // NOTE: No teacher_id filter — scoring config is global.
     // After the RLS migration only admin's row exists.
     try {
       const { data, error } = await supabase
@@ -279,7 +279,7 @@ export async function getScoringConfig(): Promise<{ data: ScoringConfig | null; 
         }
         // Normalize numeric fields (PostgREST returns NUMERIC as strings)
         const normalized = normalizeScoringConfig(row as Record<string, unknown>);
-        // Cache the NORMALIZED version for sync access (global â€” not user-specific)
+        // Cache the NORMALIZED version for sync access (global — not user-specific)
         const normalizedJson = JSON.stringify(normalized);
         localStorage.setItem('scoring_config_current', normalizedJson);
         return { data: { ...row, ...normalized }, error: null };
@@ -290,7 +290,7 @@ export async function getScoringConfig(): Promise<{ data: ScoringConfig | null; 
         // 42P01 = table doesn't exist, PGRST116 = no rows (old postgrest)
         // For these, fall through to localStorage/defaults
         if (error.code !== '42P01' && error.code !== 'PGRST116') {
-          // Unexpected error â€” still try localStorage below
+          // Unexpected error — still try localStorage below
           console.error('Unexpected scoring config error:', error);
         }
       }
@@ -300,7 +300,7 @@ export async function getScoringConfig(): Promise<{ data: ScoringConfig | null; 
       // Fall through to localStorage
     }
     
-    // Try localStorage as fallback â€” use global key
+    // Try localStorage as fallback — use global key
     const cached = localStorage.getItem('scoring_config_current');
     if (cached) {
       try {
@@ -312,7 +312,7 @@ export async function getScoringConfig(): Promise<{ data: ScoringConfig | null; 
       }
     }
     
-    // No config anywhere â€” return null (caller uses DEFAULT_SCORING_CONFIG)
+    // No config anywhere — return null (caller uses DEFAULT_SCORING_CONFIG)
     return { data: null, error: null };
   } catch (err) {
     console.warn('Scoring config load error:', err);
@@ -322,7 +322,7 @@ export async function getScoringConfig(): Promise<{ data: ScoringConfig | null; 
 
 /**
  * Save scoring config to Supabase + localStorage.
- * Admin and teachers can write (enforced by RLS). Config is GLOBAL â€” one row.
+ * Admin and teachers can write (enforced by RLS). Config is GLOBAL — one row.
  * The save logic finds the existing row and UPDATEs it rather than inserting
  * a new row per user, keeping the config truly global.
  */
@@ -335,7 +335,7 @@ export async function saveScoringConfig(config: Partial<ScoringConfig>): Promise
     const merged = { ...DEFAULT_SCORING_CONFIG, ...config };
     
     // IMPORTANT: Whitelist only the columns that exist in the scoring_config table.
-    // Do NOT include teacher_id in dataFields â€” we never change ownership of the global row.
+    // Do NOT include teacher_id in dataFields — we never change ownership of the global row.
     const dataFields = {
       config_name: merged.config_name,
       is_default: true as const,
@@ -362,7 +362,7 @@ export async function saveScoringConfig(config: Partial<ScoringConfig>): Promise
     // Dispatch custom event so any open AttendanceRecords page can react immediately
     window.dispatchEvent(new Event('scoring-config-changed'));
     
-    // Try Supabase â€” update existing global row or insert if none exists
+    // Try Supabase — update existing global row or insert if none exists
     let dbError: Error | null = null;
     try {
       // Step 1: Find the existing global config row (any teacher_id, is_default=true)
@@ -393,7 +393,7 @@ export async function saveScoringConfig(config: Partial<ScoringConfig>): Promise
           return { data: { ...updateData, ...normalized } as ScoringConfig, error: null };
         }
       } else {
-        // Step 2b: No row exists yet â€” INSERT a new one with current user as owner
+        // Step 2b: No row exists yet — INSERT a new one with current user as owner
         const insertPayload = { ...dataFields, teacher_id: user.id };
         const { data: insertData, error: insertError } = await supabase
           .from('scoring_config')
@@ -433,7 +433,7 @@ export async function saveScoringConfig(config: Partial<ScoringConfig>): Promise
 
 /**
  * Load config from localStorage (synchronous, for use in calculations).
- * Scoring config is GLOBAL â€” reads from the canonical "scoring_config_current" key.
+ * Scoring config is GLOBAL — reads from the canonical "scoring_config_current" key.
  */
 export function loadConfigSync(): Omit<ScoringConfig, 'id' | 'teacher_id' | 'created_at' | 'updated_at'> {
   try {
@@ -444,10 +444,9 @@ export function loadConfigSync(): Omit<ScoringConfig, 'id' | 'teacher_id' | 'cre
         const val = JSON.parse(currentRaw);
         if (val && (typeof val.weight_quality === 'number' || typeof val.weight_quality === 'string')) {
           const normalized = normalizeScoringConfig(val);
-          console.log('[ScoringConfig] loadConfigSync â†’ scoring_config_current:', normalized.weight_quality, '/', normalized.weight_attendance, '/', normalized.weight_punctuality);
           return normalized;
         }
-      } catch { /* corrupt â€” continue */ }
+      } catch { /* corrupt — continue */ }
     }
 
     // Fallback: Any scoring_config_* key (legacy migration path)
@@ -460,7 +459,6 @@ export function loadConfigSync(): Omit<ScoringConfig, 'id' | 'teacher_id' | 'cre
             const normalized = normalizeScoringConfig(val);
             // Promote to canonical key
             localStorage.setItem('scoring_config_current', JSON.stringify(normalized));
-            console.log('[ScoringConfig] loadConfigSync â†’ fallback key', key, ':', normalized.weight_quality, '/', normalized.weight_attendance, '/', normalized.weight_punctuality);
             return normalized;
           }
         } catch { /* skip corrupt entries */ }
@@ -472,7 +470,7 @@ export function loadConfigSync(): Omit<ScoringConfig, 'id' | 'teacher_id' | 'cre
 }
 
 /**
- * Reset config to defaults (admin/teacher â€” RLS enforced).
+ * Reset config to defaults (admin/teacher — RLS enforced).
  * Deletes the global config row so next load returns defaults.
  */
 export async function resetScoringConfig(): Promise<{ error: Error | null }> {

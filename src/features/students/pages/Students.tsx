@@ -157,7 +157,7 @@ export function Students() {
       if (result.errors.length > 0) {
         toast.warning(`Import done with ${result.errors.length} error(s): ${result.errors.slice(0, 3).join('; ')}`);
       } else if (result.created === 0 && result.updated > 0) {
-        toast.info(`${result.updated} existing student(s) updated. No new students created Ã¢â‚¬â€ the imported data matched existing records.`);
+        toast.info(`${result.updated} existing student(s) updated. No new students created — the imported data matched existing records.`);
       } else {
         toast.success(`${result.created} created, ${result.updated} updated.`);
       }
@@ -495,7 +495,7 @@ export function Students() {
                                 title={student.photo_url ? 'Update photo' : 'Add photo for face check-in'}
                                 aria-label={`${student.photo_url ? 'Update' : 'Add'} photo for ${student.name}`}
                               >
-                                Ã°Å¸â€œÂ¸
+                                📸
                               </button>
                               <Button 
                                 size="sm" 

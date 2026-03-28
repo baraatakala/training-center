@@ -178,7 +178,7 @@ function parseOptionalNumber(value: string | undefined) {
 
 function parseRequiredDate(value: string | undefined, field: string, rowIndex: number) {
   const normalized = normalizeText(value);
-  // Handle Excel date serial numbers (e.g., 46022 Ã¢â€ â€™ 2026-01-18)
+  // Handle Excel date serial numbers (e.g., 46022 → 2026-01-18)
   if (/^\d{4,5}$/.test(normalized)) {
     const serial = Number(normalized);
     if (serial > 25000 && serial < 100000) {

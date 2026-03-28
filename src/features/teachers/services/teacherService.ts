@@ -140,7 +140,7 @@ export const teacherService = {
 
     if (!courses || courses.length === 0) return counts;
 
-    // Build teacher â†’ course_ids map
+    // Build teacher → course_ids map
     const teacherCourses = new Map<string, string[]>();
     const allCourseIds: string[] = [];
     for (const c of courses) {
@@ -159,7 +159,7 @@ export const teacherService = {
 
     if (!sessions || sessions.length === 0) return counts;
 
-    // Build course â†’ session_ids map
+    // Build course → session_ids map
     const courseSessions = new Map<string, string[]>();
     const allSessionIds: string[] = [];
     for (const s of sessions) {
@@ -178,7 +178,7 @@ export const teacherService = {
 
     if (!enrollments || enrollments.length === 0) return counts;
 
-    // Build session â†’ student_ids map
+    // Build session → student_ids map
     const sessionStudents = new Map<string, Set<string>>();
     for (const e of enrollments) {
       if (!sessionStudents.has(e.session_id)) {

@@ -1,4 +1,4 @@
-﻿import { useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/Card';
 import { Button } from '@/shared/components/ui/Button';
@@ -82,7 +82,7 @@ export function HealthCheckPanel() {
         detail: feedbackWithoutQuestions.length > 0
           ? `${feedbackWithoutQuestions.length} live session date(s) can reach feedback but still have no saved question set for that exact date.`
           : 'Every live feedback-enabled session date already has a saved question set ready for students.',
-        icon: feedbackWithoutQuestions.length > 0 ? 'Ã¢Å¡Â Ã¯Â¸Â' : 'Ã¢Å“â€¦',
+        icon: feedbackWithoutQuestions.length > 0 ? '⚠️' : '✅',
         actionLabel: feedbackWithoutQuestions.length > 0 ? 'Open Attendance Setup' : undefined,
         actionPath: feedbackWithoutQuestionsSample ? `/attendance/${feedbackWithoutQuestionsSample.session_id}?date=${feedbackWithoutQuestionsSample.attendance_date}` : undefined,
       });
@@ -100,7 +100,7 @@ export function HealthCheckPanel() {
       let hostMissingCount = 0;
       let hostMissingSample: { session_id: string; attendance_date: string } | null = null;
       for (const key of attendanceDates) {
-        // Skip session-not-held dates Ã¢â‚¬â€ they have deliberate sentinel data, not missing host setup
+        // Skip session-not-held dates — they have deliberate sentinel data, not missing host setup
         if (sessionNotHeldDates.has(key)) continue;
         const host = hostMap.get(key);
         if (!host || !host.host_address || !String(host.host_address).trim()) {
@@ -118,7 +118,7 @@ export function HealthCheckPanel() {
         detail: hostMissingCount > 0
           ? `${hostMissingCount} session date(s) already have attendance rows but no canonical host location in session_date_host.`
           : 'Every scanned attendance date has a canonical host location.',
-        icon: hostMissingCount > 0 ? 'Ã°Å¸Å¡Â¨' : 'Ã¢Å“â€¦',
+        icon: hostMissingCount > 0 ? '🚨' : '✅',
         actionLabel: hostMissingCount > 0 ? 'Open Exact Date' : undefined,
         actionPath: hostMissingSample ? `/attendance/${hostMissingSample.session_id}?date=${hostMissingSample.attendance_date}` : undefined,
       });
@@ -134,7 +134,7 @@ export function HealthCheckPanel() {
         detail: brokenPhotoQrCount > 0
           ? `${brokenPhotoQrCount} QR session(s) point to face check-in without a valid linked photo token.`
           : 'All face-mode QR sessions point to a valid photo check-in token.',
-        icon: brokenPhotoQrCount > 0 ? 'Ã°Å¸Å¡Â¨' : 'Ã¢Å“â€¦',
+        icon: brokenPhotoQrCount > 0 ? '🚨' : '✅',
         actionLabel: brokenPhotoQrSample ? 'Open Broken Date' : undefined,
         actionPath: brokenPhotoQrSample ? `/attendance/${brokenPhotoQrSample.session_id}?date=${brokenPhotoQrSample.attendance_date}` : undefined,
       });
@@ -157,7 +157,7 @@ export function HealthCheckPanel() {
         detail: feedbackMethodMismatchCount > 0
           ? `${feedbackMethodMismatchCount} feedback record(s) disagree with attendance.check_in_method for the same student/date.`
           : 'Feedback method tracking matches attendance check-in records.',
-        icon: feedbackMethodMismatchCount > 0 ? 'Ã¢Å¡Â Ã¯Â¸Â' : 'Ã¢Å“â€¦',
+        icon: feedbackMethodMismatchCount > 0 ? '⚠️' : '✅',
         actionLabel: feedbackMethodMismatchSample ? 'Open Exact Feedback Slice' : undefined,
         actionPath: feedbackMethodMismatchSample ? `/feedback-analytics?session=${feedbackMethodMismatchSample.session_id}&date=${feedbackMethodMismatchSample.attendance_date}` : undefined,
       });
@@ -181,7 +181,7 @@ export function HealthCheckPanel() {
         detail: hostAddressDriftCount > 0
           ? `${hostAddressDriftCount} attendance row(s) still store a host address different from the canonical session_date_host row.`
           : 'Attendance host addresses match the canonical session_date_host rows.',
-        icon: hostAddressDriftCount > 0 ? 'Ã¢Å¡Â Ã¯Â¸Â' : 'Ã¢Å“â€¦',
+        icon: hostAddressDriftCount > 0 ? '⚠️' : '✅',
         actionLabel: hostAddressDriftSample ? 'Open Drifted Date' : undefined,
         actionPath: hostAddressDriftSample ? `/attendance/${hostAddressDriftSample.session_id}?date=${hostAddressDriftSample.attendance_date}` : undefined,
       });
@@ -200,7 +200,7 @@ export function HealthCheckPanel() {
         detail: hostDupes.size > 0
           ? `${hostDupes.size} session date(s) have multiple host rows and can confuse attendance, GPS, and check-in logic.`
           : 'No duplicate session_date_host rows were found in the scanned data.',
-        icon: hostDupes.size > 0 ? 'Ã°Å¸Å¡Â¨' : 'Ã¢Å“â€¦',
+        icon: hostDupes.size > 0 ? '🚨' : '✅',
         actionLabel: hostDupes.size > 0 ? 'Open Sample Duplicate' : undefined,
         actionPath: hostDupes.size > 0 ? (() => {
           const firstDuplicate = Array.from(hostDupes)[0];
@@ -219,7 +219,7 @@ export function HealthCheckPanel() {
           detail: (count || 0) > 0
             ? `${count} excuse request(s) are still waiting and may block final attendance cleanup.`
             : 'No pending excuse requests.',
-          icon: (count || 0) > 0 ? 'Ã¢Å¡Â Ã¯Â¸Â' : 'Ã¢Å“â€¦',
+          icon: (count || 0) > 0 ? '⚠️' : '✅',
           actionLabel: (count || 0) > 0 ? 'Review Excuses' : undefined,
           actionPath: (count || 0) > 0 ? '/excuse-requests' : undefined,
         });
@@ -229,18 +229,18 @@ export function HealthCheckPanel() {
           status: 'warn',
           count: 0,
           detail: 'Could not load excuse request counts for this scan.',
-          icon: 'Ã¢Å¡Â Ã¯Â¸Â',
+          icon: '⚠️',
           actionLabel: 'Open Excuses',
           actionPath: '/excuse-requests',
         });
       }
 
-      // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ ADVANCED DIAGNOSTIC CHECKS Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+      // ─── ADVANCED DIAGNOSTIC CHECKS ─────────────────────────
       // Fetch additional data for deep checks
       const { allSessions, allEnrollments, allFeedback, allScoring } = await dashboardService.getAdvancedHealthCheckData();
       const today = new Date().toISOString().split('T')[0];
 
-      // Ã¢â€â‚¬Ã¢â€â‚¬ Check 8: Duplicate feedback submissions Ã¢â€â‚¬Ã¢â€â‚¬
+      // ── Check 8: Duplicate feedback submissions ──
       const feedbackKeys = new Map<string, number>();
       for (const fb of allFeedback) {
         const key = `${fb.student_id}|${fb.session_id}|${fb.attendance_date}`;
@@ -254,12 +254,12 @@ export function HealthCheckPanel() {
         detail: duplicateFeedbackCount > 0
           ? `${duplicateFeedbackCount} student-session-date combo(s) have more than one feedback row. This means duplicate prevention failed somewhere.`
           : 'Every student has at most one feedback per session date.',
-        icon: duplicateFeedbackCount > 0 ? 'Ã°Å¸Å¡Â¨' : 'Ã¢Å“â€¦',
+        icon: duplicateFeedbackCount > 0 ? '🚨' : '✅',
         actionLabel: duplicateFeedbackCount > 0 ? 'Open Feedback Analytics' : undefined,
         actionPath: duplicateFeedbackCount > 0 ? '/feedback-analytics' : undefined,
       });
 
-      // Ã¢â€â‚¬Ã¢â€â‚¬ Check 9: Feedback on disabled sessions Ã¢â€â‚¬Ã¢â€â‚¬
+      // ── Check 9: Feedback on disabled sessions ──
       const disabledSessionIds = new Set(allSessions.filter(s => !s.feedback_enabled).map(s => s.session_id));
       const feedbackOnDisabled = allFeedback.filter(fb => disabledSessionIds.has(fb.session_id));
       const uniqueDisabledSessions = new Set(feedbackOnDisabled.map(fb => fb.session_id));
@@ -270,12 +270,12 @@ export function HealthCheckPanel() {
         detail: uniqueDisabledSessions.size > 0
           ? `${feedbackOnDisabled.length} feedback row(s) across ${uniqueDisabledSessions.size} session(s) have feedback_enabled=false. Old data is still visible in analytics.`
           : 'All feedback rows belong to sessions with feedback enabled.',
-        icon: uniqueDisabledSessions.size > 0 ? 'Ã¢Å¡Â Ã¯Â¸Â' : 'Ã¢Å“â€¦',
+        icon: uniqueDisabledSessions.size > 0 ? '⚠️' : '✅',
         actionLabel: uniqueDisabledSessions.size > 0 ? 'Review in Analytics' : undefined,
         actionPath: uniqueDisabledSessions.size > 0 ? `/feedback-analytics?session=${Array.from(uniqueDisabledSessions)[0]}` : undefined,
       });
 
-      // Ã¢â€â‚¬Ã¢â€â‚¬ Check 10: Attendance without active enrollment Ã¢â€â‚¬Ã¢â€â‚¬
+      // ── Check 10: Attendance without active enrollment ──
       const enrollmentKeys = new Set(
         allEnrollments.filter(e => e.status === 'active').map(e => `${e.student_id}|${e.session_id}`)
       );
@@ -289,12 +289,12 @@ export function HealthCheckPanel() {
         detail: attendanceNoEnrollment.length > 0
           ? `${attendanceNoEnrollment.length} attendance row(s) belong to students not actively enrolled. These orphan rows break scoring and analytics.`
           : 'All attendance rows match an active enrollment.',
-        icon: attendanceNoEnrollment.length > 0 ? 'Ã°Å¸Å¡Â¨' : 'Ã¢Å“â€¦',
+        icon: attendanceNoEnrollment.length > 0 ? '🚨' : '✅',
         actionLabel: attendanceNoEnrollment.length > 0 ? 'Check Enrollments' : undefined,
         actionPath: attendanceNoEnrollment.length > 0 ? '/enrollments' : undefined,
       });
 
-      // Ã¢â€â‚¬Ã¢â€â‚¬ Check 11: Active sessions with zero enrollments Ã¢â€â‚¬Ã¢â€â‚¬
+      // ── Check 11: Active sessions with zero enrollments ──
       const sessionsWithEnrollments = new Set(allEnrollments.filter(e => e.status === 'active').map(e => e.session_id));
       const activeSessions = allSessions.filter(s => s.end_date >= today);
       const emptyActiveSessions = activeSessions.filter(s => !sessionsWithEnrollments.has(s.session_id));
@@ -305,12 +305,12 @@ export function HealthCheckPanel() {
         detail: emptyActiveSessions.length > 0
           ? `${emptyActiveSessions.length} session(s) haven't ended yet but have zero active enrollments.`
           : 'All active sessions have at least one enrolled student.',
-        icon: emptyActiveSessions.length > 0 ? 'Ã¢Å¡Â Ã¯Â¸Â' : 'Ã¢Å“â€¦',
+        icon: emptyActiveSessions.length > 0 ? '⚠️' : '✅',
         actionLabel: emptyActiveSessions.length > 0 ? 'Manage Sessions' : undefined,
         actionPath: emptyActiveSessions.length > 0 ? '/sessions' : undefined,
       });
 
-      // Ã¢â€â‚¬Ã¢â€â‚¬ Check 12: Expired QR sessions still marked valid Ã¢â€ â€™ auto-fix Ã¢â€â‚¬Ã¢â€â‚¬
+      // ── Check 12: Expired QR sessions still marked valid → auto-fix ──
       const expiredButValidQr = qrRows.filter(row => row.is_valid && new Date(row.expires_at).getTime() <= now);
       if (expiredButValidQr.length > 0) {
         const expiredQrIds = expiredButValidQr.map(row => `${row.session_id}|${row.attendance_date}`);
@@ -319,8 +319,8 @@ export function HealthCheckPanel() {
           label: 'Expired QR tokens still marked valid',
           status: 'ok',
           count: 0,
-          detail: `Auto-fixed ${expiredQrIds.length} expired QR token(s) Ã¢â‚¬â€ set is_valid=false.`,
-          icon: 'Ã¢Å“â€¦',
+          detail: `Auto-fixed ${expiredQrIds.length} expired QR token(s) — set is_valid=false.`,
+          icon: '✅',
         });
       } else {
         checks.push({
@@ -328,11 +328,11 @@ export function HealthCheckPanel() {
           status: 'ok',
           count: 0,
           detail: 'All expired QR sessions are properly invalidated.',
-          icon: 'Ã¢Å“â€¦',
+          icon: '✅',
         });
       }
 
-      // Ã¢â€â‚¬Ã¢â€â‚¬ Check 13: Expired photo check-in sessions still valid Ã¢â€ â€™ auto-fix Ã¢â€â‚¬Ã¢â€â‚¬
+      // ── Check 13: Expired photo check-in sessions still valid → auto-fix ──
       const expiredButValidPhoto = photoRows.filter(row => row.is_valid && new Date(row.expires_at).getTime() <= now);
       if (expiredButValidPhoto.length > 0) {
         await dashboardService.invalidateExpiredPhotoTokens(expiredButValidPhoto.map((row) => row.token));
@@ -340,8 +340,8 @@ export function HealthCheckPanel() {
           label: 'Expired photo tokens still marked valid',
           status: 'ok',
           count: 0,
-          detail: `Auto-fixed ${expiredButValidPhoto.length} expired photo token(s) Ã¢â‚¬â€ set is_valid=false.`,
-          icon: 'Ã¢Å“â€¦',
+          detail: `Auto-fixed ${expiredButValidPhoto.length} expired photo token(s) — set is_valid=false.`,
+          icon: '✅',
         });
       } else {
         checks.push({
@@ -349,11 +349,11 @@ export function HealthCheckPanel() {
           status: 'ok',
           count: 0,
           detail: 'All expired photo sessions are properly invalidated.',
-          icon: 'Ã¢Å“â€¦',
+          icon: '✅',
         });
       }
 
-      // Ã¢â€â‚¬Ã¢â€â‚¬ Check 14: Sessions ended long ago still show up Ã¢â€â‚¬Ã¢â€â‚¬
+      // ── Check 14: Sessions ended long ago still show up ──
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       const staleEndedSessions = allSessions.filter(s => s.end_date < thirtyDaysAgo);
       const staleWithActivity = staleEndedSessions.filter(s => {
@@ -366,17 +366,17 @@ export function HealthCheckPanel() {
         detail: staleWithActivity.length > 0
           ? `${staleWithActivity.length} session(s) ended 30+ days ago but still have attendance or feedback data linked. Consider archiving.`
           : 'No stale sessions detected with lingering data.',
-        icon: staleWithActivity.length > 0 ? 'Ã¢Å¡Â Ã¯Â¸Â' : 'Ã¢Å“â€¦',
+        icon: staleWithActivity.length > 0 ? '⚠️' : '✅',
         actionLabel: staleWithActivity.length > 0 ? 'View Sessions' : undefined,
         actionPath: staleWithActivity.length > 0 ? '/sessions' : undefined,
       });
 
-      // Ã¢â€â‚¬Ã¢â€â‚¬ Check 15: Feedback without matching attendance Ã¢â€â‚¬Ã¢â€â‚¬
+      // ── Check 15: Feedback without matching attendance ──
       const attendanceKeys = new Set(
         attendance.filter(a => a.status === 'on time' || a.status === 'late')
           .map(a => `${a.student_id}|${a.session_id}|${a.attendance_date}`)
       );
-      // Also build set of session+date combos that are "session not held" Ã¢â‚¬â€ feedback here is expected orphan
+      // Also build set of session+date combos that are "session not held" — feedback here is expected orphan
       const notHeldDateKeys = new Set(
         attendance.filter(a => a.host_address === 'SESSION_NOT_HELD' || a.excuse_reason === 'session not held')
           .map(a => `${a.session_id}|${a.attendance_date}`)
@@ -393,12 +393,12 @@ export function HealthCheckPanel() {
         detail: feedbackNoAttendance.length > 0
           ? `${feedbackNoAttendance.length} feedback row(s) exist but the student has no on-time/late attendance for that date. RLS should have blocked these.`
           : 'All feedback rows have a matching valid attendance record.',
-        icon: feedbackNoAttendance.length > 0 ? 'Ã°Å¸Å¡Â¨' : 'Ã¢Å“â€¦',
+        icon: feedbackNoAttendance.length > 0 ? '🚨' : '✅',
         actionLabel: feedbackNoAttendance.length > 0 ? 'Analytics' : undefined,
         actionPath: feedbackNoAttendance.length > 0 ? '/feedback-analytics' : undefined,
       });
 
-      // Ã¢â€â‚¬Ã¢â€â‚¬ Check 16: Teachers without scoring configuration Ã¢â€â‚¬Ã¢â€â‚¬
+      // ── Check 16: Teachers without scoring configuration ──
       // scoring_config.teacher_id references auth.users(id), not teacher(teacher_id).
       // We can't directly map teacher records to auth UIDs from the client,
       // so compare counts: unique active-session teachers vs unique scoring configs.
@@ -412,12 +412,12 @@ export function HealthCheckPanel() {
         detail: scoringGap > 0
           ? `${scoringGap} active-session teacher(s) may lack a scoring configuration. Student scores will default to base values.`
           : 'Scoring configurations cover all active-session teachers.',
-        icon: scoringGap > 0 ? 'Ã¢Å¡Â Ã¯Â¸Â' : 'Ã¢Å“â€¦',
+        icon: scoringGap > 0 ? '⚠️' : '✅',
         actionLabel: scoringGap > 0 ? 'Scoring Setup' : undefined,
         actionPath: scoringGap > 0 ? '/scoring-configuration' : undefined,
       });
 
-      // Ã¢â€â‚¬Ã¢â€â‚¬ Check 17: Enrollment-Session FK integrity Ã¢â€â‚¬Ã¢â€â‚¬
+      // ── Check 17: Enrollment-Session FK integrity ──
       const sessionIdSet = new Set(allSessions.map(s => s.session_id));
       const orphanedEnrollments = allEnrollments.filter(e => !sessionIdSet.has(e.session_id));
       checks.push({
@@ -427,15 +427,15 @@ export function HealthCheckPanel() {
         detail: orphanedEnrollments.length > 0
           ? `${orphanedEnrollments.length} enrollment(s) reference a session_id that doesn't exist. These are invisible data fragments.`
           : 'All enrollments reference valid sessions.',
-        icon: orphanedEnrollments.length > 0 ? 'Ã°Å¸Å¡Â¨' : 'Ã¢Å“â€¦',
+        icon: orphanedEnrollments.length > 0 ? '🚨' : '✅',
         actionLabel: orphanedEnrollments.length > 0 ? 'Manage Enrollments' : undefined,
         actionPath: orphanedEnrollments.length > 0 ? '/enrollments' : undefined,
       });
 
-      // Ã¢â€â‚¬Ã¢â€â‚¬ Check 18: Feedback anonymous mode mismatch Ã¢â€â‚¬Ã¢â€â‚¬
+      // ── Check 18: Feedback anonymous mode mismatch ──
       const anonymousBlockedSessions = allSessions.filter(s => s.feedback_enabled && !s.feedback_anonymous_allowed);
       const anonBlockedIds = new Set(anonymousBlockedSessions.map(s => s.session_id));
-      // This is informational Ã¢â‚¬â€ just flag if there are sessions that block anonymous but have anonymous feedback
+      // This is informational — just flag if there are sessions that block anonymous but have anonymous feedback
       const anonFeedbackOnBlocked = allFeedback.filter(fb => anonBlockedIds.has(fb.session_id) && !fb.student_id);
       checks.push({
         label: 'Anonymous feedback on non-anonymous sessions',
@@ -444,7 +444,7 @@ export function HealthCheckPanel() {
         detail: anonFeedbackOnBlocked.length > 0
           ? `${anonFeedbackOnBlocked.length} anonymous feedback row(s) exist on sessions that now block anonymous mode. These were submitted before the setting changed.`
           : 'No anonymous feedback on sessions that block anonymous submissions.',
-        icon: anonFeedbackOnBlocked.length > 0 ? 'Ã¢Å¡Â Ã¯Â¸Â' : 'Ã¢Å“â€¦',
+        icon: anonFeedbackOnBlocked.length > 0 ? '⚠️' : '✅',
       });
 
       setHealthChecks(checks);
@@ -462,11 +462,11 @@ export function HealthCheckPanel() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
-              <span className="text-lg">Ã°Å¸Â©Âº</span>
+              <span className="text-lg">🩺</span>
               Session Readiness Radar
             </CardTitle>
             <Button size="sm" variant="outline" onClick={loadHealthChecks} disabled={healthLoading}>
-              {healthLoading ? 'Scanning...' : healthLoaded ? 'Ã°Å¸â€â€ž Re-scan' : 'Ã¢â€“Â¶Ã¯Â¸Â Run Checks'}
+              {healthLoading ? 'Scanning...' : healthLoaded ? '🔄 Re-scan' : '▶️ Run Checks'}
             </Button>
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Deep diagnostic scan: data integrity, feedback pipeline, check-in tokens, enrollment health, scoring config, and workflow blockers.</p>
@@ -474,13 +474,13 @@ export function HealthCheckPanel() {
         <CardContent>
           {!healthLoaded && !healthLoading && (
             <div className="text-center py-6 text-gray-400">
-              <span className="text-3xl block mb-2">Ã°Å¸â€Â</span>
+              <span className="text-3xl block mb-2">🔍</span>
               <p className="text-sm">Click <strong>Run Checks</strong> to run a deep diagnostic scan across attendance, feedback, enrollments, scoring, and tokens.</p>
             </div>
           )}
           {healthLoading && (
             <div className="text-center py-6 text-gray-400 animate-pulse">
-              <span className="text-3xl block mb-2">Ã¢ÂÂ³</span>
+              <span className="text-3xl block mb-2">⏳</span>
               <p className="text-sm">Running deep diagnostic scan...</p>
             </div>
           )}
@@ -506,13 +506,13 @@ export function HealthCheckPanel() {
                     <span className={`text-2xl font-bold ${scoreColor}`}>{healthScore}%</span>
                     <div>
                       <p className="text-sm font-semibold text-gray-900 dark:text-white">System Health</p>
-                      <p className="text-[11px] text-gray-500 dark:text-gray-400">{totalChecks} checks Ã‚Â· {okCount} passed Ã‚Â· {warnCount} warnings Ã‚Â· {errorCount} blockers</p>
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400">{totalChecks} checks · {okCount} passed · {warnCount} warnings · {errorCount} blockers</p>
                     </div>
                   </div>
                   <div className="flex gap-2 text-xs font-medium">
-                    <span className="text-emerald-600 dark:text-emerald-400">Ã¢Å“â€¦ {okCount}</span>
-                    <span className="text-amber-600 dark:text-amber-400">Ã¢Å¡Â Ã¯Â¸Â {warnCount}</span>
-                    <span className="text-red-600 dark:text-red-400">Ã°Å¸Å¡Â¨ {errorCount}</span>
+                    <span className="text-emerald-600 dark:text-emerald-400">✅ {okCount}</span>
+                    <span className="text-amber-600 dark:text-amber-400">⚠️ {warnCount}</span>
+                    <span className="text-red-600 dark:text-red-400">🚨 {errorCount}</span>
                   </div>
                 </div>
               </div>
@@ -546,7 +546,7 @@ export function HealthCheckPanel() {
                         onClick={() => navigate(check.actionPath!)}
                         className="mt-2 text-[11px] font-medium text-purple-600 dark:text-purple-400 hover:underline"
                       >
-                        {check.actionLabel} Ã¢â€ â€™
+                        {check.actionLabel} →
                       </button>
                     )}
                   </div>

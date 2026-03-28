@@ -212,7 +212,7 @@ export function StudentCheckIn() {
       if (teacher?.address && teacher.address.trim() !== '') {
         hostList.push({
           student_id: teacher.teacher_id,
-          student_name: `Ã°Å¸Å½â€œ ${teacher.name} (Teacher)`,
+          student_name: `🎓 ${teacher.name} (Teacher)`,
           address: teacher.address,
           host_date: null,
           is_teacher: true
@@ -241,7 +241,7 @@ export function StudentCheckIn() {
 
       // VALIDATION: Host address MUST be set by teacher
       if (!hostData?.host_address || hostData.host_address === 'SESSION_NOT_HELD') {
-        setError('Ã¢ÂÅ’ Host address not set. Please ask your teacher to select a host address before check-in.');
+        setError('❌ Host address not set. Please ask your teacher to select a host address before check-in.');
         setLoading(false);
         return;
       }
@@ -356,13 +356,13 @@ export function StudentCheckIn() {
         if (proximityRequired) {
           // GPS is REQUIRED but failed - block check-in
           if (errorMessage === 'GPS_PERMISSION_DENIED') {
-            setError('Ã¢ÂÅ’ Location permission denied!\n\nGPS is required for check-in at this session.\n\nPlease enable location access in your browser settings and try again.');
+            setError('❌ Location permission denied!\n\nGPS is required for check-in at this session.\n\nPlease enable location access in your browser settings and try again.');
           } else if (errorMessage === 'GPS_TIMEOUT') {
-            setError('Ã¢ÂÅ’ Could not get your location (timeout).\n\nGPS is required for check-in. Please ensure you have a clear view of the sky and try again.');
+            setError('❌ Could not get your location (timeout).\n\nGPS is required for check-in. Please ensure you have a clear view of the sky and try again.');
           } else if (errorMessage === 'GPS_NOT_SUPPORTED') {
-            setError('Ã¢ÂÅ’ Your browser does not support GPS.\n\nPlease use a modern browser with location services enabled.');
+            setError('❌ Your browser does not support GPS.\n\nPlease use a modern browser with location services enabled.');
           } else {
-            setError('Ã¢ÂÅ’ Could not get your location.\n\nGPS is required for check-in at this session. Please try again.');
+            setError('❌ Could not get your location.\n\nGPS is required for check-in at this session. Please try again.');
           }
           setSubmitting(false);
           return;
@@ -388,7 +388,7 @@ export function StudentCheckIn() {
 
         if (!proximityResult.isWithinRadius) {
           setError(
-            `Ã¢Å¡Â Ã¯Â¸Â You are too far from the session location!\n\n` +
+            `⚠️ You are too far from the session location!\n\n` +
             `Your distance: ${formatDistance(proximityResult.distance)}\n` +
             `Maximum allowed: ${formatDistance(checkInData.session!.proximity_radius!)}\n\n` +
             `Please move closer to ${hostData?.host_address || 'the host'} to check in.`
@@ -398,7 +398,7 @@ export function StudentCheckIn() {
         }
 
       } else if (checkInData.session?.proximity_radius && !hostLat) {
-        console.warn('Ã°Å¸â€œÂ Proximity radius configured but no host coordinates set - validation skipped');
+        console.warn('📍 Proximity radius configured but no host coordinates set - validation skipped');
       }
 
       // Get enrollment
@@ -440,7 +440,7 @@ export function StudentCheckIn() {
         };
         
         // Split by common separators and parse each time
-        const timeParts = checkInData.session.time.split(/[-Ã¢â‚¬â€œÃ¢â‚¬â€]/);
+        const timeParts = checkInData.session.time.split(/[-–—]/);
         const startTime = timeParts[0] ? parseTime(timeParts[0].trim()) : null;
         const endTime = timeParts[1] ? parseTime(timeParts[1].trim()) : null;
         
@@ -596,7 +596,7 @@ export function StudentCheckIn() {
         <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle className="text-red-600 dark:text-red-400 flex items-center gap-2">
-              <span className="text-3xl">Ã¢Å¡Â Ã¯Â¸Â</span>
+              <span className="text-3xl">⚠️</span>
               <span>Check-In Error</span>
             </CardTitle>
           </CardHeader>
@@ -617,7 +617,7 @@ export function StudentCheckIn() {
         <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle className={`flex items-center gap-2 ${wasLate ? 'text-orange-600 dark:text-orange-400' : 'text-green-600 dark:text-green-400'}`}>
-              <span className="text-5xl">{wasLate ? 'Ã¢ÂÂ°' : 'Ã¢Å“â€¦'}</span>
+              <span className="text-5xl">{wasLate ? '⏰' : '✅'}</span>
               <span>Check-In Successful!</span>
             </CardTitle>
           </CardHeader>
@@ -629,7 +629,7 @@ export function StudentCheckIn() {
               {(wasLate || checkedInAfterSession) && (
                 <div className={`${checkedInAfterSession ? 'bg-red-100 dark:bg-red-900/40 border-red-300 dark:border-red-700' : 'bg-yellow-100 dark:bg-yellow-900/40 border-yellow-300 dark:border-yellow-700'} border rounded-lg p-3 mb-3`}>
                   <p className={`text-sm font-semibold ${checkedInAfterSession ? 'text-red-800 dark:text-red-300' : 'text-yellow-800 dark:text-yellow-300'} flex items-center justify-center gap-2`}>
-                    <span>{checkedInAfterSession ? 'Ã°Å¸Å¡Â«' : 'Ã¢Å¡Â Ã¯Â¸Â'}</span>
+                    <span>{checkedInAfterSession ? '🚫' : '⚠️'}</span>
                     <span>
                       {checkedInAfterSession 
                         ? 'You checked in AFTER the session ended' 
@@ -677,7 +677,7 @@ export function StudentCheckIn() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <span className="text-3xl">Ã°Å¸â€œÂ</span>
+            <span className="text-3xl">📝</span>
             <span>Check-In</span>
           </CardTitle>
         </CardHeader>
@@ -685,7 +685,7 @@ export function StudentCheckIn() {
           {/* Session Info */}
           <div className="bg-blue-50 dark:bg-blue-900/40 rounded-lg p-4 space-y-2">
             <div className="flex items-center gap-2">
-              <span className="text-2xl">Ã°Å¸â€œÅ¡</span>
+              <span className="text-2xl">📚</span>
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Course</p>
                 <p className="font-semibold text-gray-900 dark:text-white">
@@ -694,7 +694,7 @@ export function StudentCheckIn() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-2xl">Ã°Å¸â€œâ€¦</span>
+              <span className="text-2xl">📅</span>
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Date</p>
                 <p className="font-semibold text-gray-900 dark:text-white">
@@ -704,7 +704,7 @@ export function StudentCheckIn() {
             </div>
             {checkInData?.session?.time && (
               <div className="flex items-center gap-2">
-                <span className="text-2xl">Ã¢ÂÂ°</span>
+                <span className="text-2xl">⏰</span>
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Time</p>
                   <p className="font-semibold text-gray-900 dark:text-white">
@@ -715,7 +715,7 @@ export function StudentCheckIn() {
             )}
             {checkInData?.session?.location && (
               <div className="flex items-center gap-2">
-                <span className="text-2xl">Ã°Å¸â€œÂ</span>
+                <span className="text-2xl">📍</span>
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Location</p>
                   <p className="font-semibold text-gray-900 dark:text-white">
@@ -729,7 +729,7 @@ export function StudentCheckIn() {
           {/* Student Info */}
           <div className="bg-green-50 dark:bg-green-900/40 rounded-lg p-4">
             <div className="flex items-center gap-2">
-              <span className="text-2xl">Ã°Å¸â€˜Â¤</span>
+              <span className="text-2xl">👤</span>
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Student</p>
                 <p className="font-semibold text-gray-900 dark:text-white">{studentInfo?.name}</p>
@@ -742,10 +742,10 @@ export function StudentCheckIn() {
           {hostAddresses.length > 0 && selectedAddress && (
             <div>
               <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                Ã°Å¸ÂÂ  Session Location
+                🏠 Session Location
               </label>
               <div className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
-                Ã°Å¸â€œÂ {selectedAddress.split('|||')[1] || selectedAddress}
+                📍 {selectedAddress.split('|||')[1] || selectedAddress}
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Location set by teacher. Your GPS will be checked against this address.
@@ -756,14 +756,14 @@ export function StudentCheckIn() {
           {/* GPS Info */}
           <div className="text-xs text-gray-500 dark:text-gray-400 bg-blue-50 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-700 rounded p-3">
             <p className="flex items-center gap-1 font-medium text-blue-700 dark:text-blue-300">
-              <span>Ã°Å¸â€œÂ</span>
+              <span>📍</span>
               <span>GPS Location Required</span>
             </p>
             <p className="mt-1 text-gray-600 dark:text-gray-400">
               Your browser will ask for location permission. Please allow it to verify your attendance location.
             </p>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Ã°Å¸â€™Â¡ If GPS fails, check-in will continue but location won't be recorded.
+              💡 If GPS fails, check-in will continue but location won't be recorded.
             </p>
           </div>
 
@@ -781,7 +781,7 @@ export function StudentCheckIn() {
               </span>
             ) : (
               <span className="flex items-center justify-center gap-2">
-                <span>Ã¢Å“â€œ</span>
+                <span>✓</span>
                 <span>I'm Present</span>
               </span>
             )}
