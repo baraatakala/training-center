@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { supabase } from '@/shared/lib/supabase';
 import { Select } from '@/shared/components/ui/Select';
 import { Button } from '@/shared/components/ui/Button';
 import { toast } from '@/shared/components/ui/toastUtils';
@@ -167,10 +166,7 @@ export function FeedbackAnalytics() {
   // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Load sessions Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   useEffect(() => {
     async function loadSessions() {
-      const { data, error } = await supabase
-        .from('session')
-        .select('session_id, start_date, end_date, feedback_enabled, feedback_anonymous_allowed, course:course_id(course_name), teacher:teacher_id(name)')
-        .order('start_date', { ascending: false });
+      const { data, error } = await feedbackService.getSessionsForAnalytics();
 
       if (error) {
         const message = error.message || 'Unable to load feedback sessions.';

@@ -2,8 +2,8 @@ import { useState, useEffect, type FormEvent } from 'react';
 import { Input } from '@/shared/components/ui/Input';
 import { Select } from '@/shared/components/ui/Select';
 import { Button } from '@/shared/components/ui/Button';
-import { supabase } from '@/shared/lib/supabase';
-import { Tables, type CreateCourse } from '@/shared/types/database.types';
+import { courseService } from '@/features/courses/services/courseService';
+import { type CreateCourse } from '@/shared/types/database.types';
 
 interface Teacher {
   teacher_id: string;
@@ -39,10 +39,7 @@ export function CourseForm({ course, onSubmit, onCancel }: CourseFormProps) {
   const [error, setError] = useState('');
 
   const loadTeachers = async () => {
-    const { data, error: fetchError } = await supabase
-      .from(Tables.TEACHER)
-      .select('teacher_id, name')
-      .order('name');
+    const { data, error: fetchError } = await courseService.getTeachersLookup();
     if (fetchError) {
       setError('Failed to load teachers. Please try again.');
     } else if (data) {

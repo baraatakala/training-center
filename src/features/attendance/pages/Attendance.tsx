@@ -5,7 +5,7 @@ import { Button } from '@/shared/components/ui/Button';
 import { Badge } from '@/shared/components/ui/Badge';
 import { Select } from '@/shared/components/ui/Select';
 import { Skeleton, TableSkeleton } from '@/shared/components/ui/Skeleton';
-import { supabase } from '@/shared/lib/supabase';
+import { attendancePageService as supabase } from '@/features/attendance/services/attendancePageService';
 import { Tables, type Session } from '@/shared/types/database.types';
 import { format } from 'date-fns';
 import { getAttendanceDateOptions, type DayChange } from '@/shared/utils/attendanceGenerator';

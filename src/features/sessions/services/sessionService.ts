@@ -649,4 +649,38 @@ export const sessionService = {
 
     return dates.sort();
   },
+
+  // Lookups for SessionForm
+  async getFormLookups() {
+    const [teachers, courses, locations] = await Promise.all([
+      supabase.from(Tables.TEACHER).select('teacher_id, name').order('name'),
+      supabase.from(Tables.COURSE).select('course_id, course_name').order('course_name'),
+      supabase.from(Tables.SESSION).select('location').not('location', 'is', null).order('created_at', { ascending: false }).limit(50),
+    ]);
+    return { teachers, courses, locations };
+  },
+
+  // Full session query with joins (for Sessions page)
+  async getAllWithJoins() {
+    return await supabase
+      .from(Tables.SESSION)
+      .select('*, course:course_id(course_name, description), teacher:teacher_id(name)')
+      .order('start_date', { ascending: false });
+  },
+
+  // Update enrollment host date (for BulkScheduleTable)
+  async updateEnrollmentHostDate(enrollmentId: string, hostDate: string | null) {
+    return await supabase
+      .from(Tables.ENROLLMENT)
+      .update({ host_date: hostDate })
+      .eq('enrollment_id', enrollmentId);
+  },
+
+  async getActiveEnrollmentCounts(sessionIds: string[]) {
+    return await supabase
+      .from(Tables.ENROLLMENT)
+      .select('session_id')
+      .in('session_id', sessionIds)
+      .eq('status', 'active');
+  },
 };

@@ -295,4 +295,20 @@ export const attendanceService = {
       error: null,
     };
   },
+
+  // Bulk upsert attendance records
+  async bulkUpsert(records: Record<string, unknown>[]) {
+    return await supabase
+      .from(Tables.ATTENDANCE)
+      .upsert(records, { onConflict: 'enrollment_id,attendance_date', ignoreDuplicates: false });
+  },
+
+  // Delete feedback for a session+date (used when unmarking session-not-held)
+  async deleteFeedbackForDate(sessionId: string, date: string) {
+    return await supabase
+      .from('session_feedback')
+      .delete()
+      .eq('session_id', sessionId)
+      .eq('attendance_date', date);
+  },
 };

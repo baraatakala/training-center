@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { supabase } from '@/shared/lib/supabase';
+import { authService } from '@/shared/services/authService';
 import { Button } from '@/shared/components/ui/Button';
 import { toast } from '@/shared/components/ui/toastUtils';
 import type { ImportRow, ImportResult, BulkImportProps } from '@/features/data-import/constants/importConstants';
@@ -8,6 +8,7 @@ import { parseCSV, parseExcel, downloadTemplate } from '@/features/data-import/u
 import { ImportInstructions } from '@/features/data-import/components/ImportInstructions';
 import { ImportPreview } from '@/features/data-import/components/ImportPreview';
 import { ImportResults } from '@/features/data-import/components/ImportResults';
+import { bulkImportDataService as supabase } from '@/features/data-import/services/bulkImportDataService';
 
 export function BulkImport({ onImportComplete }: BulkImportProps) {
   const [importing, setImporting] = useState(false);
@@ -300,7 +301,7 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
         }
 
         // 7. Get authenticated user for marked_by
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = await authService.getCurrentUser();
         const userEmail = user?.email || 'system';
 
         // 8. Validate excuse_reason for excused status

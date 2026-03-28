@@ -755,6 +755,14 @@ export const feedbackService = {
     };
   },
 
+  /** Load all sessions with course/teacher info for analytics dropdown */
+  async getSessionsForAnalytics() {
+    return await supabase
+      .from('session')
+      .select('session_id, start_date, end_date, feedback_enabled, feedback_anonymous_allowed, course:course_id(course_name), teacher:teacher_id(name)')
+      .order('start_date', { ascending: false });
+  },
+
   /** Get per-date stats for a single date */
   async getStatsByDate(sessionId: string, date: string): Promise<{ data: FeedbackStats | null; error: unknown }> {
     const { data: feedbacks, error } = await supabase

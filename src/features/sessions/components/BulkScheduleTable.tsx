@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useState, useCallback } from 'react';
-import { supabase } from '@/shared/lib/supabase';
+import { bulkScheduleDataService as supabase } from '@/features/sessions/services/bulkScheduleDataService';
 import { Tables } from '@/shared/types/database.types';
 import { logDelete } from '@/shared/services/auditService';
 import { toast } from '@/shared/components/ui/toastUtils';

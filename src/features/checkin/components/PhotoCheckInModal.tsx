@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '@/shared/lib/supabase';
+import { authService } from '@/shared/services/authService';
+import { checkinService } from '@/features/checkin/services/checkinService';
 import { toast } from '@/shared/components/ui/toastUtils';
 
 type PhotoCheckInModalProps = {
@@ -32,7 +33,7 @@ export function PhotoCheckInModal({
       setLoading(true);
 
       // Get current user email for audit
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await authService.getCurrentUser();
       const userEmail = user?.email || 'system';
 
       // Generate cryptographically secure token using crypto API
@@ -43,9 +44,7 @@ export function PhotoCheckInModal({
       const expires = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours from now
 
       // Insert into photo_checkin_sessions table
-      const { error: insertError } = await supabase
-        .from('photo_checkin_sessions')
-        .insert({
+      const { error: insertError } = await checkinService.createPhotoSession({
           session_id: sessionId,
           attendance_date: date,
           token: token,
@@ -78,20 +77,11 @@ export function PhotoCheckInModal({
   /* -------------------- STATS -------------------- */
   const loadCheckInStats = useCallback(async () => {
     try {
-      const { count: total } = await supabase
-        .from('enrollment')
-        .select('*', { count: 'exact', head: true })
-        .eq('session_id', sessionId)
-        .eq('status', 'active');
+      const { count: total } = await checkinService.getActiveEnrollmentCount(sessionId);
 
       setTotalStudents(total ?? 0);
 
-      const { count: checkedIn } = await supabase
-        .from('attendance')
-        .select('*', { count: 'exact', head: true })
-        .eq('session_id', sessionId)
-        .eq('attendance_date', date)
-        .neq('status', 'absent');
+      const { count: checkedIn } = await checkinService.getCheckInCount(sessionId, date);
 
       setCheckInCount(checkedIn ?? 0);
     } catch (error) {
@@ -101,8 +91,8 @@ export function PhotoCheckInModal({
 
   /* -------------------- REALTIME -------------------- */
   const setupRealtimeSubscription = useCallback(() => {
-    const channel = supabase
-      .channel(`attendance-photo-${sessionId}-${date}`)
+    const channel = checkinService
+      .createChannel(`attendance-photo-${sessionId}-${date}`)
       .on(
         'postgres_changes',
         {
@@ -118,7 +108,7 @@ export function PhotoCheckInModal({
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      checkinService.removeChannel(channel);
     };
   }, [sessionId, date, loadCheckInStats]);
 
@@ -126,10 +116,7 @@ export function PhotoCheckInModal({
   const invalidatePhotoSession = useCallback(async () => {
     if (photoToken) {
       try {
-        await supabase
-          .from('photo_checkin_sessions')
-          .update({ is_valid: false })
-          .eq('token', photoToken);
+        await checkinService.invalidatePhotoSession(photoToken);
         console.log('âœ… Photo session invalidated');
       } catch (error) {
         console.error('Failed to invalidate photo session:', error);

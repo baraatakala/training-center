@@ -8,7 +8,7 @@ import { Input } from '@/shared/components/ui/Input';
 import { Select } from '@/shared/components/ui/Select';
 import { Modal } from '@/shared/components/ui/Modal';
 import { Skeleton } from '@/shared/components/ui/Skeleton';
-import { supabase } from '@/shared/lib/supabase';
+import { authService } from '@/shared/services/authService';
 import { messageService } from '@/features/communication/services/communicationService';
 import { toast } from '@/shared/components/ui/toastUtils';
 import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
@@ -117,29 +117,15 @@ export function Messages() {
   // Load starred count separately
   const loadStarredCount = useCallback(async () => {
     if (!userType || !currentUserId) return;
-      const { data } = await supabase
-        .from('message_starred')
-        .select('id')
-        .eq('user_type', userType)
-        .eq('user_id', currentUserId);
-      setStarredCount(data?.length || 0);
+      const { data } = await messageService.getStarredCount(userType, currentUserId);
+      setStarredCount(data);
   }, [userType, currentUserId]);
 
   // Load inbox stats independently via lightweight count query (no sender resolution)
   const loadInboxStats = useCallback(async () => {
     if (!userType || !currentUserId) return;
-    const { data } = await supabase
-      .from('message')
-      .select('message_id, is_read')
-      .eq('recipient_type', userType)
-      .eq('recipient_id', currentUserId);
-    if (data) {
-      setInboxStats({
-        total: data.length,
-        unread: data.filter(m => !m.is_read).length,
-        read: data.filter(m => m.is_read).length,
-      });
-    }
+    const { data } = await messageService.getInboxStats(userType, currentUserId);
+    setInboxStats(data);
   }, [userType, currentUserId]);
 
   const loadMessages = useCallback(async () => {
@@ -191,68 +177,38 @@ export function Messages() {
   }, [userType, currentUserId, activeTab]);
 
   const loadRecipients = useCallback(async () => {
-    const { data: teacherList } = await supabase
-      .from('teacher')
-      .select('teacher_id, name, email')
-      .order('name');
-    setTeachers(teacherList || []);
-
-    const { data: studentList } = await supabase
-      .from('student')
-      .select('student_id, name, email')
-      .order('name');
-    setStudents(studentList || []);
+    const { teachers: teacherList, students: studentList } = await messageService.getRecipients();
+    setTeachers(teacherList);
+    setStudents(studentList);
   }, []);
 
   const checkUserAndLoadData = useCallback(async () => {
     try {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await authService.getCurrentUser();
       
       if (!user?.email) {
         setError('Not authenticated');
         setLoading(false);
         return;
       }
+
+      // Resolve role
+      const role = await authService.resolveRole(user.email);
 
-      // Check if teacher
-      const { data: teacher } = await supabase
-        .from('teacher')
-        .select('teacher_id')
-        .ilike('email', user.email)
-        .maybeSingle();
-
-      if (teacher) {
+      if (role.teacher) {
         setUserType('teacher');
-        setCurrentUserId(teacher.teacher_id);
+        setCurrentUserId(role.teacher.teacher_id);
+      } else if (role.admin) {
+        setUserType('admin');
+        setCurrentUserId(role.admin.admin_id);
+      } else if (role.student) {
+        setUserType('student');
+        setCurrentUserId(role.student.student_id);
       } else {
-        // Check if admin via admin table
-        const { data: adminRecord } = await supabase
-          .from('admin')
-          .select('admin_id')
-          .ilike('email', user.email)
-          .maybeSingle();
-        if (adminRecord) {
-          // Admin uses admin_id directly Ã¢â‚¬â€ no fake teacher record needed
-          setUserType('admin');
-          setCurrentUserId(adminRecord.admin_id);
-        } else {
-          // Check if student
-          const { data: student } = await supabase
-            .from('student')
-            .select('student_id')
-            .ilike('email', user.email)
-            .maybeSingle();
-
-          if (student) {
-            setUserType('student');
-            setCurrentUserId(student.student_id);
-          } else {
-            setError('User not found in system');
-            setLoading(false);
-            return;
-          }
-        }
+        setError('User not found in system');
+        setLoading(false);
+        return;
       }
 
       // Load recipients lists

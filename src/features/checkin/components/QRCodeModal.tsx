@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import QRCode from 'qrcode';
-import { supabase } from '@/shared/lib/supabase';
+import { authService } from '@/shared/services/authService';
+import { checkinService } from '@/features/checkin/services/checkinService';
 
 type QRCodeModalProps = {
   sessionId: string;
@@ -46,9 +47,8 @@ export function QRCodeModal({
     const tokenBytes = crypto.getRandomValues(new Uint8Array(16));
     const token = Array.from(tokenBytes).map(b => b.toString(16).padStart(2, '0')).join('');
 
-    const { error: insertError } = await supabase
-      .from('photo_checkin_sessions')
-      .insert({
+    const { error: insertError } = await checkinService
+      .createPhotoSession({
         session_id: sessionId,
         attendance_date: date,
         token,
@@ -71,7 +71,7 @@ export function QRCodeModal({
     const activeToken = tokenToInvalidate ?? faceToken;
     if (activeToken) {
       try {
-        await supabase.from('photo_checkin_sessions').update({ is_valid: false }).eq('token', activeToken);
+        await checkinService.invalidatePhotoSession(activeToken);
       } catch (err) {
         console.error('Failed to invalidate face session:', err);
       }
@@ -86,7 +86,7 @@ export function QRCodeModal({
       setFaceLoading(mode === 'photo');
 
       // Step 1: Refresh session to ensure valid token (prevents 403 errors)
-      const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
+      const { data: { session }, error: refreshError } = await authService.refreshSession();
       
       if (refreshError || !session) {
         console.error('Session refresh failed:', refreshError);
@@ -119,8 +119,8 @@ export function QRCodeModal({
       }
 
       // Step 2: Generate secure QR session token via Supabase function
-      const { data: qrSession, error: qrError } = await supabase
-        .rpc('generate_qr_session', {
+      const { data: qrSession, error: qrError } = await checkinService
+        .generateQrSession({
           p_session_id: sessionId,
           p_attendance_date: date,
           p_created_by: userEmail,
@@ -180,20 +180,13 @@ export function QRCodeModal({
   /* -------------------- STATS -------------------- */
   const loadCheckInStats = useCallback(async () => {
     try {
-      const { count: total } = await supabase
-        .from('enrollment')
-        .select('*', { count: 'exact', head: true })
-        .eq('session_id', sessionId)
-        .eq('status', 'active');
+      const { count: total } = await checkinService
+        .getActiveEnrollmentCount(sessionId);
 
       setTotalStudents(total ?? 0);
 
-      const { count: checkedIn } = await supabase
-        .from('attendance')
-        .select('*', { count: 'exact', head: true })
-        .eq('session_id', sessionId)
-        .eq('attendance_date', date)
-        .neq('status', 'absent');
+      const { count: checkedIn } = await checkinService
+        .getCheckInCount(sessionId, date);
 
       setCheckInCount(checkedIn ?? 0);
     } catch (error) {
@@ -203,8 +196,8 @@ export function QRCodeModal({
 
   /* -------------------- REALTIME -------------------- */
   const setupRealtimeSubscription = useCallback(() => {
-    const channel = supabase
-      .channel(`attendance-${sessionId}-${date}`)
+    const channel = checkinService
+      .createChannel(`attendance-${sessionId}-${date}`)
       .on(
         'postgres_changes',
         {
@@ -220,7 +213,7 @@ export function QRCodeModal({
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      checkinService.removeChannel(channel);
     };
   }, [sessionId, date, loadCheckInStats]);
 
@@ -228,7 +221,7 @@ export function QRCodeModal({
   const invalidateQRSession = useCallback(async () => {
     if (qrToken) {
       try {
-        await supabase.rpc('invalidate_qr_session', { p_token: qrToken });
+        await checkinService.invalidateQrSession(qrToken);
       } catch (error) {
         console.error('Failed to invalidate QR session:', error);
       }

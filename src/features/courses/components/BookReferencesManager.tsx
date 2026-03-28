@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { supabase } from '@/shared/lib/supabase';
-import { Tables, type CourseBookReference } from '@/shared/types/database.types';
+import type { CourseBookReference } from '@/shared/types/database.types';
 import { toast } from '@/shared/components/ui/toastUtils';
 import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
+import { courseService } from '@/features/courses/services/courseService';
 
 interface BookReferencesManagerProps {
   courseId: string;
@@ -40,12 +40,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
   const [searchQuery, setSearchQuery] = useState('');
 
   const loadReferences = async () => {
-    const { data, error } = await supabase
-      .from(Tables.COURSE_BOOK_REFERENCE)
-      .select('*')
-      .eq('course_id', courseId)
-      .order('display_order', { ascending: true })
-      .order('start_page', { ascending: true });
+    const { data, error } = await courseService.getBookReferences(courseId);
 
     if (!error && data) {
       setReferences(data);
@@ -125,10 +120,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
     if (subs.length === 0) return;
     const minStart = Math.min(...subs.map(s => s.start_page));
     const maxEnd = Math.max(...subs.map(s => s.end_page));
-    await supabase
-      .from(Tables.COURSE_BOOK_REFERENCE)
-      .update({ start_page: minStart, end_page: maxEnd })
-      .eq('reference_id', chapterId);
+    await courseService.updateBookReference(chapterId, { start_page: minStart, end_page: maxEnd });
   }, []);
 
   const handleAddChapter = async () => {
@@ -141,16 +133,14 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
       return;
     }
 
-    const { error } = await supabase
-      .from(Tables.COURSE_BOOK_REFERENCE)
-      .insert([{
-        course_id: courseId,
-        topic: newTopic.trim(),
-        start_page: newStartPage,
-        end_page: newEndPage,
-        display_order: chapters.length,
-        parent_id: null,
-      }]);
+    const { error } = await courseService.createBookReference({
+      course_id: courseId,
+      topic: newTopic.trim(),
+      start_page: newStartPage,
+      end_page: newEndPage,
+      display_order: chapters.length,
+      parent_id: null,
+    });
 
     if (!error) {
       setNewTopic('');
@@ -172,16 +162,14 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
     }
 
     const existingSubs = tree.get(parentId) || [];
-    const { error } = await supabase
-      .from(Tables.COURSE_BOOK_REFERENCE)
-      .insert([{
-        course_id: courseId,
-        topic: subTopic.trim(),
-        start_page: subStartPage,
-        end_page: subEndPage,
-        display_order: existingSubs.length,
-        parent_id: parentId,
-      }]);
+    const { error } = await courseService.createBookReference({
+      course_id: courseId,
+      topic: subTopic.trim(),
+      start_page: subStartPage,
+      end_page: subEndPage,
+      display_order: existingSubs.length,
+      parent_id: parentId,
+    });
 
     if (!error) {
       // Auto-sync parent chapter range
@@ -205,10 +193,7 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
     const ref = references.find(r => r.reference_id === referenceId);
     const parentId = ref?.parent_id;
 
-    const { error } = await supabase
-      .from(Tables.COURSE_BOOK_REFERENCE)
-      .delete()
-      .eq('reference_id', referenceId);
+    const { error } = await courseService.deleteBookReference(referenceId);
 
     if (!error) {
       // Re-sync parent chapter if we deleted a subtopic
@@ -230,14 +215,11 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
       return;
     }
 
-    const { error } = await supabase
-      .from(Tables.COURSE_BOOK_REFERENCE)
-      .update({
-        topic: reference.topic,
-        start_page: reference.start_page,
-        end_page: reference.end_page,
-      })
-      .eq('reference_id', reference.reference_id);
+    const { error } = await courseService.updateBookReference(reference.reference_id, {
+      topic: reference.topic,
+      start_page: reference.start_page,
+      end_page: reference.end_page,
+    });
 
     if (!error) {
       // If editing a subtopic, re-sync parent chapter range

@@ -4,9 +4,8 @@ import { Input } from '@/shared/components/ui/Input';
 import { Button } from '@/shared/components/ui/Button';
 import { Badge } from '@/shared/components/ui/Badge';
 import { formatDate } from '@/shared/utils/formatDate';
-import { supabase } from '@/shared/lib/supabase';
 import { enrollmentService } from '@/features/enrollments/services/enrollmentService';
-import { Tables, type CreateEnrollment } from '@/shared/types/database.types';
+import { type CreateEnrollment } from '@/shared/types/database.types';
 
 interface Student {
   student_id: string;
@@ -63,15 +62,7 @@ export function EnrollmentForm({ onSubmit, onCancel, initialData = null }: Enrol
 
   const loadData = async () => {
     try {
-      const [studentsRes, sessionsRes] = await Promise.all([
-        supabase.from(Tables.STUDENT).select('student_id, name, email, address').order('name'),
-        supabase.from(Tables.SESSION).select(`
-          session_id,
-          start_date,
-          teacher_id,
-          course:course_id(course_name)
-        `).order('start_date', { ascending: false }),
-      ]);
+      const { students: studentsRes, sessions: sessionsRes } = await enrollmentService.getFormLookups();
 
       if (studentsRes.error) throw new Error('Failed to load students');
       if (sessionsRes.error) throw new Error('Failed to load sessions');

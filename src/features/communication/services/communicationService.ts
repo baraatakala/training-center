@@ -760,6 +760,71 @@ export const messageService = {
       console.error('Error getting reactions:', error);
       return { data: [], error: error as Error };
     }
+  },
+
+  /**
+   * Get starred message count for a user
+   */
+  async getStarredCount(userType: 'teacher' | 'student' | 'admin', userId: string): Promise<{ data: number; error: Error | null }> {
+    try {
+      const { data, error } = await supabase
+        .from('message_starred')
+        .select('id')
+        .eq('user_type', userType)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+      return { data: data?.length || 0, error: null };
+    } catch (error) {
+      console.error('Error getting starred count:', error);
+      return { data: 0, error: error as Error };
+    }
+  },
+
+  /**
+   * Get inbox stats (total, unread, read counts)
+   */
+  async getInboxStats(userType: 'teacher' | 'student' | 'admin', userId: string): Promise<{ data: { total: number; unread: number; read: number }; error: Error | null }> {
+    try {
+      const { data, error } = await supabase
+        .from('message')
+        .select('message_id, is_read')
+        .eq('recipient_type', userType)
+        .eq('recipient_id', userId);
+
+      if (error) throw error;
+      const total = data?.length || 0;
+      const unread = data?.filter(m => !m.is_read).length || 0;
+      return { data: { total, unread, read: total - unread }, error: null };
+    } catch (error) {
+      console.error('Error getting inbox stats:', error);
+      return { data: { total: 0, unread: 0, read: 0 }, error: error as Error };
+    }
+  },
+
+  /**
+   * Get recipients lists (teachers and students)
+   */
+  async getRecipients(): Promise<{
+    teachers: { teacher_id: string; name: string; email: string }[];
+    students: { student_id: string; name: string; email: string }[];
+    error: Error | null;
+  }> {
+    try {
+      const [teacherResult, studentResult] = await Promise.all([
+        supabase.from('teacher').select('teacher_id, name, email').order('name'),
+        supabase.from('student').select('student_id, name, email').order('name'),
+      ]);
+
+      return {
+        teachers: teacherResult.data || [],
+        students: studentResult.data || [],
+        error: teacherResult.error || studentResult.error || null,
+      };
+    } catch (error) {
+      console.error('Error getting recipients:', error);
+      return { teachers: [], students: [], error: error as Error };
+    }
   }
 };
 

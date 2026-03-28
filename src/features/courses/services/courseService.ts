@@ -93,4 +93,35 @@ export const courseService = {
       .eq('course_id', courseId)
       .order('start_date', { ascending: false });
   },
+
+  // Book references
+  async getBookReferences(courseId: string) {
+    return await supabase
+      .from(Tables.COURSE_BOOK_REFERENCE)
+      .select('*')
+      .eq('course_id', courseId)
+      .order('display_order', { ascending: true })
+      .order('start_page', { ascending: true });
+  },
+
+  async createBookReference(data: Record<string, unknown>) {
+    return await supabase.from(Tables.COURSE_BOOK_REFERENCE).insert([data]);
+  },
+
+  async updateBookReference(referenceId: string, data: Record<string, unknown>) {
+    return await supabase.from(Tables.COURSE_BOOK_REFERENCE).update(data).eq('reference_id', referenceId);
+  },
+
+  async deleteBookReference(referenceId: string) {
+    return await supabase.from(Tables.COURSE_BOOK_REFERENCE).delete().eq('reference_id', referenceId);
+  },
+
+  async deleteBookReferencesByParent(parentId: string) {
+    return await supabase.from(Tables.COURSE_BOOK_REFERENCE).delete().eq('parent_id', parentId);
+  },
+
+  // Lookup: teachers for dropdowns
+  async getTeachersLookup() {
+    return await supabase.from(Tables.TEACHER).select('teacher_id, name').order('name');
+  },
 };

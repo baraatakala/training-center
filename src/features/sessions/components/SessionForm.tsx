@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo, type FormEvent } from 'react';
 import { Input } from '@/shared/components/ui/Input';
 import { Select } from '@/shared/components/ui/Select';
 import { Button } from '@/shared/components/ui/Button';
-import { supabase } from '@/shared/lib/supabase';
-import { Tables, type CreateSession } from '@/shared/types/database.types';
+import { sessionService } from '@/features/sessions/services/sessionService';
+import { type CreateSession } from '@/shared/types/database.types';
 
 interface Teacher {
   teacher_id: string;
@@ -63,50 +63,31 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
     'Sunday'
   ];
 
-  const loadTeachers = async () => {
-    const { data, error: fetchError } = await supabase
-      .from(Tables.TEACHER)
-      .select('teacher_id, name')
-      .order('name');
-    if (fetchError) {
-      setError('Failed to load teachers.');
-    } else if (data) {
-      setTeachers(data);
-    }
-  };
+  const loadFormData = async () => {
+    const { teachers: teachersRes, courses: coursesRes, locations: locationsRes } = await sessionService.getFormLookups();
 
-  const loadCourses = async () => {
-    const { data, error: fetchError } = await supabase
-      .from(Tables.COURSE)
-      .select('course_id, course_name')
-      .order('course_name');
-    if (fetchError) {
+    if (teachersRes.error) {
+      setError('Failed to load teachers.');
+    } else if (teachersRes.data) {
+      setTeachers(teachersRes.data);
+    }
+
+    if (coursesRes.error) {
       setError('Failed to load courses.');
-    } else if (data) {
-      setCourses(data);
+    } else if (coursesRes.data) {
+      setCourses(coursesRes.data);
+    }
+
+    if (locationsRes.error) {
+      console.error('Failed to load recent locations:', locationsRes.error.message);
+    } else if (locationsRes.data) {
+      const unique = [...new Set(locationsRes.data.map(d => d.location).filter(Boolean) as string[])];
+      setRecentLocations(unique.slice(0, 10));
     }
   };
 
   useEffect(() => {
-    loadTeachers();
-    loadCourses();
-    // Load recent locations for suggestions
-    supabase
-      .from(Tables.SESSION)
-      .select('location')
-      .not('location', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(50)
-      .then(({ data, error: locErr }) => {
-        if (locErr) {
-          console.error('Failed to load recent locations:', locErr.message);
-          return;
-        }
-        if (data) {
-          const unique = [...new Set(data.map(d => d.location).filter(Boolean) as string[])];
-          setRecentLocations(unique.slice(0, 10));
-        }
-      });
+    loadFormData();
   }, []);
 
   /** Auto-detect virtual provider from pasted URL */

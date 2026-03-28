@@ -14,14 +14,13 @@ import { SessionCard } from '@/features/sessions/components/SessionCard';
 import { SessionTableRow } from '@/features/sessions/components/SessionTableRow';
 import { CloneSessionModal } from '@/features/sessions/components/CloneSessionModal';
 import { DayChangeStrategyDialog } from '@/features/sessions/components/DayChangeStrategyDialog';
-import { supabase } from '@/shared/lib/supabase';
 import { sessionService } from '@/features/sessions/services/sessionService';
 import { toast } from '@/shared/components/ui/toastUtils';
 import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
 import { useIsTeacher } from '@/shared/hooks/useIsTeacher';
 import { useDebounce } from '@/shared/hooks/useDebounce';
 import { useRefreshOnFocus } from '@/shared/hooks/useRefreshOnFocus';
-import { Tables, type CreateSession } from '@/shared/types/database.types';
+import type { CreateSession } from '@/shared/types/database.types';
 import type { SessionWithDetails } from '@/features/sessions/constants/sessionConstants';
 import { formatLearningMethod, parseLocalDate, formatLocalDate, buildConflictMessage } from '@/features/sessions/utils/sessionHelpers';
 import { downloadSessionsCsv } from '@/features/sessions/utils/exportSessionsCsv';
@@ -77,14 +76,7 @@ export function Sessions() {
 
   const loadSessions = useCallback(async () => {
     setError(null);
-    const { data, error: fetchError } = await supabase
-      .from(Tables.SESSION)
-      .select(`
-        *,
-        course:course_id(course_name, category),
-        teacher:teacher_id(name)
-      `)
-      .order('start_date', { ascending: false });
+    const { data, error: fetchError } = await sessionService.getAllWithJoins();
 
     if (fetchError) {
       setError('Failed to load sessions. Please try again.');
@@ -99,11 +91,7 @@ export function Sessions() {
       
       // Load enrollment counts for each session
       const sessionIds = data.map((s: SessionWithDetails) => s.session_id);
-      const { data: enrollments } = await supabase
-        .from(Tables.ENROLLMENT)
-        .select('session_id')
-        .in('session_id', sessionIds)
-        .eq('status', 'active');
+      const { data: enrollments } = await sessionService.getActiveEnrollmentCounts(sessionIds);
       
       if (enrollments) {
         const counts: Record<string, number> = {};

@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { supabase } from '@/shared/lib/supabase';
+import { studentService } from '@/features/students/services/studentService';
 import { Button } from '@/shared/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/Card';
 import * as faceapi from 'face-api.js';
@@ -402,21 +402,14 @@ export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: Pho
       const fileName = `${studentId}/${timestamp}.jpg`;
 
       // Upload to Supabase Storage
-      const { error: uploadError } = await supabase.storage
-        .from('student-photos')
-        .upload(fileName, file, {
-          contentType: 'image/jpeg',
-          upsert: true
-        });
+      const { error: uploadError } = await studentService.uploadPhoto(fileName, file as File);
 
       if (uploadError) {
         throw uploadError;
       }
 
       // Get signed URL for private bucket (valid for 1 year)
-      const { data: signedUrlData, error: signedUrlError } = await supabase.storage
-        .from('student-photos')
-        .createSignedUrl(fileName, 60 * 60 * 24 * 365); // 1 year
+      const { data: signedUrlData, error: signedUrlError } = await studentService.getPhotoSignedUrl(fileName, 60 * 60 * 24 * 365);
 
       if (signedUrlError || !signedUrlData?.signedUrl) {
         throw signedUrlError || new Error('Failed to get signed URL');
@@ -424,10 +417,7 @@ export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: Pho
 
       // Store the file path in database (not the signed URL, as it expires)
       // We'll generate fresh signed URLs when displaying
-      const { error: updateError } = await supabase
-        .from('student')
-        .update({ photo_url: fileName }) // Store path, not URL
-        .eq('student_id', studentId);
+      const { error: updateError } = await studentService.update(studentId, { photo_url: fileName });
 
       if (updateError) {
         throw updateError;
@@ -459,15 +449,10 @@ export function PhotoUpload({ studentId, currentPhotoUrl, onPhotoUploaded }: Pho
         filePath = urlParts[1] || currentPhotoUrl;
       }
       
-      await supabase.storage
-        .from('student-photos')
-        .remove([filePath]);
+      await studentService.deletePhoto(filePath);
 
       // Clear photo_url in database
-      const { error: updateError } = await supabase
-        .from('student')
-        .update({ photo_url: null })
-        .eq('student_id', studentId);
+      const { error: updateError } = await studentService.update(studentId, { photo_url: null });
 
       if (updateError) {
         throw updateError;

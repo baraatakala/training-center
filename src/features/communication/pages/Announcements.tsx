@@ -8,7 +8,7 @@ import { Input } from '@/shared/components/ui/Input';
 import { Select } from '@/shared/components/ui/Select';
 import { Modal } from '@/shared/components/ui/Modal';
 import { Skeleton } from '@/shared/components/ui/Skeleton';
-import { supabase } from '@/shared/lib/supabase';
+import { authService } from '@/shared/services/authService';
 import { announcementService, announcementReactionService, announcementCommentService } from '@/features/communication/services/communicationService';
 import type { Announcement, AnnouncementPriority, CreateAnnouncementData, AnnouncementComment } from '@/features/communication/services/communicationService';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -118,10 +118,7 @@ export function Announcements() {
   }, [loadReactionsForAllAnnouncements]);
 
   const loadCourses = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('course')
-      .select('course_id, course_name')
-      .order('course_name');
+    const { data, error } = await authService.getCoursesLookup();
     if (error) console.error('Failed to load courses:', error.message);
     setCourses(data || []);
   }, []);
@@ -129,7 +126,7 @@ export function Announcements() {
   const checkUserAndLoadData = useCallback(async () => {
     try {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await authService.getCurrentUser();
       
       if (!user?.email) {
         setError('Not authenticated');
@@ -137,49 +134,28 @@ export function Announcements() {
         return;
       }
 
-      // Check if teacher
-      const { data: teacher } = await supabase
-        .from('teacher')
-        .select('teacher_id')
-        .ilike('email', user.email)
-        .maybeSingle();
+      // Resolve role
+      const role = await authService.resolveRole(user.email);
 
-      if (teacher) {
+      if (role.teacher) {
         setIsTeacher(true);
         setIsAdminUser(false);
-        setCurrentUserId(teacher.teacher_id);
-        await loadAnnouncementsForTeacher(teacher.teacher_id);
+        setCurrentUserId(role.teacher.teacher_id);
+        await loadAnnouncementsForTeacher(role.teacher.teacher_id);
         await loadCourses();
+      } else if (role.admin) {
+        // Admin uses admin_id directly - no fake teacher record needed
+        setIsTeacher(true);
+        setIsAdminUser(true);
+        setCurrentUserId(role.admin.admin_id);
+        await loadAnnouncementsForTeacher(role.admin.admin_id);
+        await loadCourses();
+      } else if (role.student) {
+        setIsTeacher(false);
+        setCurrentUserId(role.student.student_id);
+        await loadAnnouncementsForStudent(role.student.student_id);
       } else {
-        // Check if admin via admin table
-        const { data: adminRecord } = await supabase
-          .from('admin')
-          .select('admin_id')
-          .ilike('email', user.email)
-          .maybeSingle();
-        if (adminRecord) {
-          // Admin uses admin_id directly Ã¢â‚¬â€ no fake teacher record needed
-          setIsTeacher(true);
-          setIsAdminUser(true);
-          setCurrentUserId(adminRecord.admin_id);
-          await loadAnnouncementsForTeacher(adminRecord.admin_id);
-          await loadCourses();
-        } else {
-          // Check if student
-          const { data: student } = await supabase
-            .from('student')
-            .select('student_id')
-            .ilike('email', user.email)
-            .maybeSingle();
-
-          if (student) {
-            setIsTeacher(false);
-            setCurrentUserId(student.student_id);
-            await loadAnnouncementsForStudent(student.student_id);
-          } else {
-            setError('User not found in system');
-          }
-        }
+        setError('User not found in system');
       }
     } catch (err) {
       console.error('Error:', err);

@@ -146,4 +146,22 @@ export const studentService = {
       .eq('student_id', studentId)
       .order('enrollment_date', { ascending: false });
   },
+
+  // Photo storage
+  async uploadPhoto(filePath: string, file: File) {
+    return await supabase.storage.from('student_photos').upload(filePath, file, { upsert: true });
+  },
+
+  async getPhotoSignedUrl(filePath: string, expiresIn = 3600) {
+    return await supabase.storage.from('student_photos').createSignedUrl(filePath, expiresIn);
+  },
+
+  async deletePhoto(filePath: string) {
+    return await supabase.storage.from('student_photos').remove([filePath]);
+  },
+
+  // Lookup by email
+  async getByEmail(email: string) {
+    return await supabase.from(Tables.STUDENT).select('student_id').ilike('email', email).single();
+  },
 };

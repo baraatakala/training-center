@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback, lazy, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '@/shared/lib/supabase';
-import { Tables } from '@/shared/types/database.types';
+import { authService } from '@/shared/services/authService';
+import { checkinService } from '@/features/checkin/services/checkinService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/Card';
 import { Button } from '@/shared/components/ui/Button';
 import { getSignedPhotoUrl } from '@/shared/utils/photoUtils';
@@ -121,7 +121,7 @@ export function PhotoCheckIn() {
 
       // STEP 1: Check authentication FIRST (required for RLS to work)
       // Use getSession for more reliable session state after redirect
-      const { data: { session: authSession }, error: authError } = await supabase.auth.getSession();
+      const { data: { session: authSession }, error: authError } = await authService.getSession();
       
       if (authError || !authSession?.user) {
         // Redirect to login with return URL - user must log in first
@@ -133,11 +133,7 @@ export function PhotoCheckIn() {
       const user = authSession.user;
 
       // STEP 2: Validate photo check-in token (requires authentication)
-      const { data: photoSession, error: tokenError } = await supabase
-        .from('photo_checkin_sessions')
-        .select('session_id, attendance_date, expires_at, is_valid')
-        .eq('token', token)
-        .single();
+      const { data: photoSession, error: tokenError } = await checkinService.validatePhotoToken(token);
 
       if (tokenError || !photoSession) {
         console.error('Token validation error:', tokenError);
@@ -164,11 +160,7 @@ export function PhotoCheckIn() {
       const date = photoSession.attendance_date;
 
       // STEP 3: Get student info with photo_url (user already authenticated in STEP 1)
-      const { data: student, error: studentError } = await supabase
-        .from('student')
-        .select('student_id, name, email, photo_url')
-        .ilike('email', user.email || '')
-        .single();
+      const { data: student, error: studentError } = await checkinService.getStudentByEmail(user.email || '');
 
       if (studentError || !student) {
         setError('Student account not found. Please contact administration.');
@@ -195,21 +187,7 @@ export function PhotoCheckIn() {
       setSignedPhotoUrl(photoSignedUrl);
 
       // Load session details
-      const { data: session, error: sessionError } = await supabase
-        .from('session')
-        .select(`
-          session_id,
-          time,
-          location,
-          course_id,
-          grace_period_minutes,
-          proximity_radius,
-          course:course_id (
-            course_name
-          )
-        `)
-        .eq('session_id', sessionId)
-        .single();
+      const { data: session, error: sessionError } = await checkinService.getSessionDetails(sessionId);
 
       if (sessionError || !session) {
         setError('Invalid session');
@@ -218,13 +196,7 @@ export function PhotoCheckIn() {
       }
 
       // Verify student is enrolled
-      const { data: enrollment, error: enrollmentError } = await supabase
-        .from('enrollment')
-        .select('enrollment_id, can_host')
-        .eq('session_id', sessionId)
-        .eq('student_id', student.student_id)
-        .eq('status', 'active')
-        .single();
+      const { data: enrollment, error: enrollmentError } = await checkinService.getEnrollment(sessionId, student.student_id);
 
       if (enrollmentError || !enrollment) {
         setError('You are not enrolled in this session');
@@ -233,13 +205,7 @@ export function PhotoCheckIn() {
       }
 
       // Check if already checked in
-      const { data: existingAttendance } = await supabase
-        .from('attendance')
-        .select('attendance_id, status')
-        .eq('session_id', sessionId)
-        .eq('student_id', student.student_id)
-        .eq('attendance_date', date)
-        .single();
+      const { data: existingAttendance } = await checkinService.getExistingAttendance(sessionId, student.student_id, date);
 
       if (existingAttendance && existingAttendance.status !== 'absent') {
         setError('You have already checked in for this session');
@@ -249,25 +215,10 @@ export function PhotoCheckIn() {
 
       // Load ALL host addresses (students with addresses + teacher)
       // First, get session's teacher info
-      const { data: sessionData } = await supabase
-        .from(Tables.SESSION)
-        .select(`
-          teacher_id,
-          teacher:teacher_id (
-            teacher_id,
-            name,
-            address
-          )
-        `)
-        .eq('session_id', sessionId)
-        .single();
+      const { data: sessionData } = await checkinService.getSessionTeacherInfo(sessionId);
 
       // Load ALL students with non-null addresses
-      const { data: allStudentsWithAddress } = await supabase
-        .from(Tables.STUDENT)
-        .select('student_id, name, address')
-        .not('address', 'is', null)
-        .neq('address', '');
+      const { data: allStudentsWithAddress } = await checkinService.getStudentsWithAddresses();
 
       const hostList: HostInfo[] = [];
 
@@ -300,12 +251,7 @@ export function PhotoCheckIn() {
       setHostAddresses(hostList);
 
       // Check if host is already set for this date in session_date_host table
-      const { data: hostData } = await supabase
-        .from(Tables.SESSION_DATE_HOST)
-        .select('host_id, host_type, host_address')
-        .eq('session_id', sessionId)
-        .eq('attendance_date', date)
-        .maybeSingle();
+      const { data: hostData } = await checkinService.getSessionDateHost(sessionId, date);
 
       // VALIDATION: Host address MUST be set by teacher
       if (!hostData?.host_address || hostData.host_address === 'SESSION_NOT_HELD') {
@@ -628,12 +574,7 @@ export function PhotoCheckIn() {
     try {
       // PROXIMITY VALIDATION: First check if host has coordinates set
       // Get host info from session_date_host
-      const { data: hostData } = await supabase
-        .from(Tables.SESSION_DATE_HOST)
-        .select('host_id, host_type, host_address')
-        .eq('session_id', checkInData.session_id)
-        .eq('attendance_date', checkInData.attendance_date)
-        .maybeSingle();
+      const { data: hostData } = await checkinService.getSessionDateHost(checkInData.session_id, checkInData.attendance_date);
 
       // Load coordinates from student/teacher table (persistent storage)
       let hostLat: number | null = null;
@@ -641,14 +582,8 @@ export function PhotoCheckIn() {
       
       if (hostData?.host_id) {
         const isTeacher = hostData.host_type === 'teacher';
-        const table = isTeacher ? Tables.TEACHER : Tables.STUDENT;
-        const idField = isTeacher ? 'teacher_id' : 'student_id';
         
-        const { data: coordData } = await supabase
-          .from(table)
-          .select('address_latitude, address_longitude')
-          .eq(idField, hostData.host_id)
-          .single();
+        const { data: coordData } = await checkinService.getHostCoordinates(hostData.host_id, isTeacher);
         
         if (coordData?.address_latitude && coordData?.address_longitude) {
           hostLat = Number(coordData.address_latitude);
@@ -715,12 +650,7 @@ export function PhotoCheckIn() {
         console.warn('Ã°Å¸â€œÂ Proximity radius configured but no host coordinates set - validation skipped');
       }
 
-      const { data: enrollment } = await supabase
-        .from('enrollment')
-        .select('enrollment_id')
-        .eq('session_id', checkInData.session_id)
-        .eq('student_id', studentInfo.student_id)
-        .single();
+      const { data: enrollment } = await checkinService.getEnrollmentId(checkInData.session_id, studentInfo.student_id);
 
       if (!enrollment) {
         throw new Error('Enrollment not found');
@@ -809,13 +739,7 @@ export function PhotoCheckIn() {
         }
       }
 
-      const { data: existingRecord } = await supabase
-        .from('attendance')
-        .select('attendance_id, status')
-        .eq('enrollment_id', enrollment.enrollment_id)
-        .eq('session_id', checkInData.session_id)
-        .eq('attendance_date', checkInData.attendance_date)
-        .maybeSingle();
+      const { data: existingRecord } = await checkinService.getExistingAttendanceByEnrollment(enrollment.enrollment_id, checkInData.session_id, checkInData.attendance_date);
 
       if (existingRecord && existingRecord.status !== 'absent') {
         throw new Error('You have already checked in for this session.');
@@ -845,12 +769,7 @@ export function PhotoCheckIn() {
 
       // Use upsert to handle race conditions - if record exists, update it
       // This prevents duplicate key errors when two requests happen simultaneously
-      const { error: attendanceError } = await supabase
-        .from('attendance')
-        .upsert(attendanceData, {
-            onConflict: 'enrollment_id,attendance_date',
-          ignoreDuplicates: false // Update existing record
-        });
+      const { error: attendanceError } = await checkinService.upsertAttendance(attendanceData as Record<string, unknown>);
 
       if (attendanceError) {
         throw attendanceError;

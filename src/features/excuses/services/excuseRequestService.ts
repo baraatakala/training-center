@@ -203,6 +203,54 @@ class ExcuseRequestService {
     return { data: data as ExcuseRequest[] | null, error };
   }
 
+  async getStudentSessionsByEmail(userEmail: string) {
+    const { data: student, error: studentError } = await supabase
+      .from('student')
+      .select('student_id')
+      .ilike('email', userEmail)
+      .single();
+
+    if (studentError || !student) {
+      return {
+        studentId: null,
+        sessions: [],
+        error: studentError,
+      };
+    }
+
+    const { data: enrollments, error: enrollError } = await supabase
+      .from('enrollment')
+      .select(`
+        session_id,
+        session:session_id(
+          session_id,
+          day,
+          time,
+          course:course_id(course_name)
+        )
+      `)
+      .eq('student_id', student.student_id)
+      .eq('status', 'active');
+
+    const sessions = (enrollments || [])
+      .filter((enrollment: Record<string, unknown>) => enrollment.session)
+      .map((enrollment: Record<string, unknown>) => {
+        const session = enrollment.session as Record<string, unknown>;
+        return {
+          session_id: session.session_id as string,
+          course_name: (session.course as Record<string, string> | null)?.course_name || 'Unknown',
+          day: session.day as string | null,
+          time: session.time as string | null,
+        };
+      });
+
+    return {
+      studentId: student.student_id,
+      sessions,
+      error: enrollError,
+    };
+  }
+
   /**
    * Get pending request count (for badge display)
    */
@@ -471,6 +519,22 @@ class ExcuseRequestService {
     } catch (err) {
       return { url: null, error: err as Error };
     }
+  }
+
+  // Lookup: student sessions for CreateRequestModal
+  async getStudentSessions(studentId: string) {
+    return await supabase
+      .from('enrollment')
+      .select(`
+        session_id,
+        session:session_id(
+          course:course_id(course_name),
+          day,
+          time
+        )
+      `)
+      .eq('student_id', studentId)
+      .eq('status', 'active');
   }
 }
 

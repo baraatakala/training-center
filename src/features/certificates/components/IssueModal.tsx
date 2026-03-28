@@ -6,7 +6,6 @@ import {
   certificateService,
   type CertificateTemplate,
 } from '@/features/certificates/services/certificateService';
-import { supabase } from '@/shared/lib/supabase';
 import { attendanceService } from '@/features/attendance/services/attendanceService';
 
 export function IssueModal({
@@ -42,10 +41,7 @@ export function IssueModal({
   // Load teachers on mount
   useEffect(() => {
     const load = async () => {
-      const { data, error } = await supabase
-        .from('teacher')
-        .select('teacher_id, name, specialization')
-        .order('name');
+      const { data, error } = await certificateService.getTeachersLookup();
       if (error) {
         toast.error('Failed to load teachers: ' + error.message);
         return;
@@ -65,11 +61,7 @@ export function IssueModal({
     setStudents([]);
     if (!teacherId) return;
     const load = async () => {
-      // Get courses that have sessions taught by this teacher
-      const { data, error } = await supabase
-        .from('session')
-        .select('course_id, course:course_id(course_id, course_name)')
-        .eq('teacher_id', teacherId);
+      const { data, error } = await certificateService.getCoursesByTeacher(teacherId);
       if (error) {
         toast.error('Failed to load courses: ' + error.message);
         return;
@@ -101,13 +93,7 @@ export function IssueModal({
     setStudents([]);
     if (!courseId || !teacherId) return;
     const load = async () => {
-      // Get sessions for this course+teacher
-      const { data: sessData, error: sessError } = await supabase
-        .from('session')
-        .select('session_id, day, time, start_date')
-        .eq('course_id', courseId)
-        .eq('teacher_id', teacherId)
-        .order('start_date', { ascending: false });
+      const { data: sessData, error: sessError } = await certificateService.getSessionsByTeacherAndCourse(teacherId, courseId);
       if (sessError) {
         toast.error('Failed to load sessions: ' + sessError.message);
         return;
@@ -124,11 +110,11 @@ export function IssueModal({
         // Get enrolled students across ALL sessions for this course+teacher
         const sessionIds = sessData.map(s => s.session_id);
         if (sessionIds.length > 0) {
-          const { data: enrollData, error: enrollError } = await supabase
-            .from('enrollment')
-            .select('student:student_id(student_id, name)')
-            .in('session_id', sessionIds)
-            .eq('status', 'active');
+          const allStudents = await Promise.all(
+            sessionIds.map(async (currentSessionId) => certificateService.getEnrolledStudents(currentSessionId))
+          );
+          const enrollError = allStudents.find((result) => result.error)?.error;
+          const enrollData = allStudents.flatMap((result) => result.data || []);
           if (enrollError) {
             toast.error('Failed to load students: ' + enrollError.message);
             return;
@@ -154,11 +140,7 @@ export function IssueModal({
     if (!sessionId || !courseId || !teacherId) return;
     setStudentId('');
     const load = async () => {
-      const { data: enrollData, error: enrollError } = await supabase
-        .from('enrollment')
-        .select('student:student_id(student_id, name)')
-        .eq('session_id', sessionId)
-        .eq('status', 'active');
+      const { data: enrollData, error: enrollError } = await certificateService.getEnrolledStudents(sessionId);
       if (enrollError) {
         toast.error('Failed to load students: ' + enrollError.message);
         return;
@@ -184,12 +166,7 @@ export function IssueModal({
     const fetchStats = async () => {
       setLoadingStats(true);
       try {
-        // Get all session IDs for this course+teacher
-        const { data: sessData, error: sessErr } = await supabase
-          .from('session')
-          .select('session_id')
-          .eq('course_id', courseId)
-          .eq('teacher_id', teacherId);
+        const { data: sessData, error: sessErr } = await certificateService.getSessionIdsByTeacherAndCourse(teacherId, courseId);
         if (sessErr) {
           toast.error('Failed to load attendance data');
           setLoadingStats(false);

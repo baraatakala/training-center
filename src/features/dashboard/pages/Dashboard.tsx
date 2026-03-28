@@ -3,12 +3,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/Card';
 import { Button } from '@/shared/components/ui/Button';
 import { Badge } from '@/shared/components/ui/Badge';
-import { supabase } from '@/shared/lib/supabase';
-import { Tables } from '@/shared/types/database.types';
+import { authService } from '@/shared/services/authService';
 import { format } from 'date-fns';
 import { analyzeAttendanceRisk } from '@/shared/utils/attendanceAnalytics';
 import type { AbsentStudent } from '@/shared/utils/attendanceAnalytics';
 import { excuseRequestService } from '@/features/excuses/services/excuseRequestService';
+import { dashboardService } from '@/features/dashboard/services/dashboardService';
 import { useRefreshOnFocus } from '@/shared/hooks/useRefreshOnFocus';
 import { toast } from '@/shared/components/ui/toastUtils';
 import type { MessageChannel, MessageTemplate } from '../constants/dashboardConstants';
@@ -68,34 +68,17 @@ export function Dashboard() {
 
   const loadStats = useCallback(async () => {
     try {
-      const today = new Date().toISOString().split('T')[0];
-      // Use count-only queries instead of fetching all rows (massive perf win)
-      const [studentsRes, enrollmentsRes, teachersRes, sessionsRes, todaySessionsRes, coursesRes] = await Promise.all([
-        supabase.from(Tables.STUDENT).select('student_id', { count: 'exact', head: true }),
-        supabase.from(Tables.ENROLLMENT).select('enrollment_id', { count: 'exact', head: true }).eq('status', 'active'),
-        supabase.from(Tables.TEACHER).select('teacher_id', { count: 'exact', head: true }),
-        supabase.from(Tables.SESSION).select('session_id', { count: 'exact', head: true }),
-        supabase.from(Tables.SESSION).select('session_id', { count: 'exact', head: true })
-          .lte('start_date', today).gte('end_date', today),
-        supabase.from(Tables.COURSE).select('course_id', { count: 'exact', head: true }),
-      ]);
-
-      // Certificates table may not exist - query separately with error handling
-      let certsCount = 0;
-      try {
-        const certsRes = await supabase.from('issued_certificate').select('certificate_id', { count: 'exact', head: true }).eq('status', 'issued');
-        certsCount = certsRes.count || 0;
-      } catch { /* table may not exist */ }
+      const summary = await dashboardService.getStats();
 
       setStats({
-        totalStudents: studentsRes.count || 0,
-        totalTeachers: teachersRes.count || 0,
-        activeEnrollments: enrollmentsRes.count || 0,
-        totalSessions: sessionsRes.count || 0,
-        todaySessions: todaySessionsRes.count || 0,
-        totalCourses: coursesRes.count || 0,
+        totalStudents: summary.totalStudents,
+        totalTeachers: summary.totalTeachers,
+        activeEnrollments: summary.activeEnrollments,
+        totalSessions: summary.totalSessions,
+        todaySessions: summary.todaySessions,
+        totalCourses: summary.totalCourses,
         pendingFeedback: 0,
-        issuedCertificates: certsCount,
+        issuedCertificates: summary.issuedCertificates,
         loading: false,
       });
       setLastRefresh(new Date());
@@ -110,35 +93,7 @@ export function Dashboard() {
   const loadAttendanceAlerts = useCallback(async () => {
     setLoadingAlerts(true);
     try {
-      // Get attendance records with session and course info, ordered by date descending
-      // Limit to 5000 records max for performance
-      let attendanceQuery = supabase
-        .from('attendance')
-        .select(`
-          student_id,
-          attendance_date,
-          status,
-          excuse_reason,
-          host_address,
-          session_id,
-          student:student_id(name, email, phone),
-          session:session_id(course_id, course:course_id(course_name))
-        `)
-        .limit(5000);
-      
-      // Apply date filters if set
-      if (startDate) {
-        attendanceQuery = attendanceQuery.gte('attendance_date', startDate);
-      }
-      if (endDate) {
-        attendanceQuery = attendanceQuery.lte('attendance_date', endDate);
-      }
-      
-      // Run attendance and courses queries in parallel
-      const [attendanceResult, coursesResult] = await Promise.all([
-        attendanceQuery.order('attendance_date', { ascending: false }),
-        supabase.from('course').select('course_id, course_name').order('course_name'),
-      ]);
+      const { attendanceResult, coursesResult } = await dashboardService.getAttendanceAlerts({ startDate, endDate });
 
       if (attendanceResult.error) {
         toast.error('Failed to load attendance data: ' + attendanceResult.error.message);
@@ -250,27 +205,11 @@ export function Dashboard() {
 
   useEffect(() => {
     const init = async () => {
-      // Check if current user is a teacher
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = await authService.getCurrentUser();
         if (user?.email) {
-          // Check if teacher or admin
-          const { data: teacher } = await supabase
-            .from('teacher')
-            .select('teacher_id')
-            .ilike('email', user.email)
-            .maybeSingle();
-          if (teacher) {
-            setIsTeacher(true);
-          } else {
-            // Fallback: check admin table (admin should be synced to teacher, but just in case)
-            const { data: adminRecord } = await supabase
-              .from('admin')
-              .select('admin_id')
-              .ilike('email', user.email)
-              .maybeSingle();
-            setIsTeacher(!!adminRecord);
-          }
+          const role = await dashboardService.getUserRole(user.email);
+          setIsTeacher(role.isTeacher || role.isAdmin);
         } else {
           setIsTeacher(false);
         }

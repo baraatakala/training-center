@@ -149,6 +149,7 @@ CREATE TABLE IF NOT EXISTS public.attendance (
   distance_from_host NUMERIC,
   early_minutes INTEGER,
   CONSTRAINT attendance_pkey PRIMARY KEY (attendance_id),
+  CONSTRAINT attendance_enrollment_date_unique UNIQUE (enrollment_id, attendance_date),
   CONSTRAINT attendance_enrollment_id_fkey FOREIGN KEY (enrollment_id) REFERENCES public.enrollment(enrollment_id),
   CONSTRAINT attendance_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.student(student_id),
   CONSTRAINT attendance_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
@@ -200,6 +201,7 @@ CREATE TABLE IF NOT EXISTS public.session_date_host (
   host_latitude NUMERIC CHECK (host_latitude IS NULL OR (host_latitude >= -90 AND host_latitude <= 90)),
   host_longitude NUMERIC CHECK (host_longitude IS NULL OR (host_longitude >= -180 AND host_longitude <= 180)),
   CONSTRAINT session_date_host_pkey PRIMARY KEY (id),
+  CONSTRAINT session_date_host_session_date_unique UNIQUE (session_id, attendance_date),
   CONSTRAINT session_date_host_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
 );
 

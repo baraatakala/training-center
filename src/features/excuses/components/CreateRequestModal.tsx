@@ -7,7 +7,6 @@ import {
   EXCUSE_REASONS,
   type CreateExcuseRequest,
 } from '@/features/excuses/services/excuseRequestService';
-import { supabase } from '@/shared/lib/supabase';
 
 export function CreateRequestModal({
   onClose,
@@ -81,9 +80,8 @@ export function CreateRequestModal({
 
     const today = new Date();
     const currentDay = today.getDay();
-    // Days ahead: if today IS the session day, use today; otherwise jump forward
     let daysAhead = (targetDay - currentDay + 7) % 7;
-    if (daysAhead === 0) daysAhead = 0; // Today is the session day
+    if (daysAhead === 0) daysAhead = 0;
     const targetDate = new Date(today);
     targetDate.setDate(today.getDate() + daysAhead);
 
@@ -129,55 +127,15 @@ export function CreateRequestModal({
     const loadStudentSessions = async () => {
       setLoadingSessions(true);
       try {
-        // Get student by email
-        const { data: student, error: studentError } = await supabase
-          .from('student')
-          .select('student_id')
-          .ilike('email', userEmail)
-          .single();
+        const { studentId: loadedStudentId, sessions: sessionList, error } = await excuseRequestService.getStudentSessionsByEmail(userEmail);
 
-        if (studentError || !student) {
-          toast.error(studentError ? `Failed to load profile: ${studentError.message}` : 'Student profile not found');
+        if (error || !loadedStudentId) {
+          toast.error(error ? `Failed to load profile: ${error.message}` : 'Student profile not found');
           onClose();
           return;
         }
-        setStudentId(student.student_id);
-
-        // Get enrolled sessions
-        const { data: enrollments, error: enrollError } = await supabase
-          .from('enrollment')
-          .select(`
-            session_id,
-            session:session_id(
-              session_id,
-              day,
-              time,
-              course:course_id(course_name)
-            )
-          `)
-          .eq('student_id', student.student_id)
-          .eq('status', 'active');
-
-        if (enrollError) {
-          toast.error(`Failed to load sessions: ${enrollError.message}`);
-          setSessions([]);
-          return;
-        }
-
-        if (enrollments) {
-          const sessionList = enrollments
-            .filter((e: Record<string, unknown>) => e.session)
-            .map((e: Record<string, unknown>) => {
-              const sess = e.session as Record<string, unknown>;
-              return {
-                session_id: sess.session_id as string,
-                course_name: (sess.course as Record<string, string> | null)?.course_name || 'Unknown',
-                day: sess.day as string | null,
-                time: sess.time as string | null,
-              };
-            });
-          setSessions(sessionList);
-        }
+        setStudentId(loadedStudentId);
+        setSessions(sessionList);
       } catch (err) {
         console.error(err);
         toast.error('Failed to load your sessions');

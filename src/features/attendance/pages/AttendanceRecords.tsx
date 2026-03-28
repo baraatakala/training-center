@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { supabase } from '@/shared/lib/supabase';
+import { authService } from '@/shared/services/authService';
+import { attendanceRecordsDataService as supabase } from '@/features/attendance/services/attendanceRecordsDataService';
 import { format, subDays } from 'date-fns';
 import { Pagination } from '@/shared/components/ui/Pagination';
 import type { ExportCategory, ExportSettings } from '@/features/exports/components/AdvancedExportBuilder';
@@ -522,7 +523,7 @@ export const AttendanceRecords = () => {
 
       // Check if current user is a teacher or admin
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = await authService.getCurrentUser();
         if (user?.email) {
           const { data: teacher } = await supabase
             .from('teacher')
@@ -663,21 +664,21 @@ export const AttendanceRecords = () => {
       ]);
 
       if (studentsRes.data) {
-        setStudents(studentsRes.data.map(s => ({ value: s.student_id, label: s.name })));
+        setStudents(studentsRes.data.map((s: { student_id: string; name: string }) => ({ value: s.student_id, label: s.name })));
       }
       if (studentsRes.error) {
         console.error('Error loading students:', studentsRes.error);
       }
 
       if (coursesRes.data) {
-        setCourses(coursesRes.data.map(c => ({ value: c.course_id, label: c.course_name })));
+        setCourses(coursesRes.data.map((c: { course_id: string; course_name: string }) => ({ value: c.course_id, label: c.course_name })));
       }
       if (coursesRes.error) {
         console.error('Error loading courses:', coursesRes.error);
       }
 
       if (teachersRes.data) {
-        setInstructors(teachersRes.data.map(t => ({ value: t.teacher_id, label: t.name })));
+        setInstructors(teachersRes.data.map((t: { teacher_id: string; name: string }) => ({ value: t.teacher_id, label: t.name })));
       }
       if (teachersRes.error) {
         console.error('Error loading teachers:', teachersRes.error);

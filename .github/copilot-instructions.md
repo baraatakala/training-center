@@ -4,6 +4,12 @@
 - React 19 + TypeScript 5.9 + Vite 7 application with Supabase (PostgreSQL + Auth + RLS) backend.
 - Path alias: `@/*` maps to `./src/*`. Always use `@/` imports.
 
+## First Read For Context
+- Read `database/README.md` before proposing SQL or schema changes.
+- Treat `database/schema.sql` as the canonical table snapshot and `database/rls-policies.sql` as the canonical RLS source.
+- Read `docs/architecture.md` before large refactors; it records the audited architectural debt and target structure.
+- Prefer extending existing feature services before adding new query logic.
+
 ## Architecture
 
 ### Feature Modules (`src/features/`)
@@ -33,6 +39,9 @@ Features: `attendance`, `auth`, `certificates`, `checkin`, `communication`, `cou
 2. **Error Handling**: Service calls return `{ data, error }`. Always check `error`.
 3. **Named Exports**: Use named exports, not default exports.
 4. **Type Safety**: Use types from `@/shared/types/` for all data models.
+5. **Database Truth Source**: Do not infer schema from archived SQL files when `database/schema.sql`, `database/functions.sql`, or `database/rls-policies.sql` already define it.
+6. **Migration Discipline**: New database changes go in `database/migrations/` first, then update consolidated SQL if the change becomes part of the new baseline.
+7. **Large Legacy Screens**: `Attendance.tsx` and `BulkScheduleTable.tsx` still contain transitional service facades; prefer extracting narrow service methods rather than expanding page/component query logic.
 
 ## Developer Workflows
 - `npm run dev` — Start Vite dev server with HMR

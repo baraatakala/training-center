@@ -259,4 +259,17 @@ export const enrollmentService = {
       error: null,
     };
   },
+
+  // Lookups for EnrollmentForm
+  async getFormLookups() {
+    const [students, sessions] = await Promise.all([
+      supabase.from(Tables.STUDENT).select('student_id, name, email, address').order('name'),
+      supabase.from(Tables.SESSION).select(`
+        session_id, day, time, start_date, end_date, location,
+        course:course_id(course_name),
+        teacher:teacher_id(name)
+      `).order('start_date', { ascending: false }),
+    ]);
+    return { students, sessions };
+  },
 };

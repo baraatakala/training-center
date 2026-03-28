@@ -441,6 +441,43 @@ class CertificateService {
 
     return { data: data as IssuedCertificate | null, error };
   }
+
+  // Lookups for IssueModal cascading dropdowns
+  async getTeachersLookup() {
+    return await supabase.from('teacher').select('teacher_id, name, specialization').order('name');
+  }
+
+  async getCoursesByTeacher(teacherId: string) {
+    return await supabase
+      .from('session')
+      .select('course_id, course:course_id(course_id, course_name)')
+      .eq('teacher_id', teacherId);
+  }
+
+  async getSessionsByTeacherAndCourse(teacherId: string, courseId: string) {
+    return await supabase
+      .from('session')
+      .select('session_id, day, time, start_date')
+      .eq('teacher_id', teacherId)
+      .eq('course_id', courseId)
+      .order('start_date', { ascending: false });
+  }
+
+  async getEnrolledStudents(sessionId: string) {
+    return await supabase
+      .from('enrollment')
+      .select('student:student_id(student_id, name)')
+      .eq('session_id', sessionId)
+      .eq('status', 'active');
+  }
+
+  async getSessionIdsByTeacherAndCourse(teacherId: string, courseId: string) {
+    return await supabase
+      .from('session')
+      .select('session_id')
+      .eq('course_id', courseId)
+      .eq('teacher_id', teacherId);
+  }
 }
 
 export const certificateService = new CertificateService();

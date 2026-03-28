@@ -2,8 +2,8 @@
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/Card';
 import { Button } from '@/shared/components/ui/Button';
-import { supabase } from '@/shared/lib/supabase';
 import { excuseRequestService } from '@/features/excuses/services/excuseRequestService';
+import { dashboardService } from '@/features/dashboard/services/dashboardService';
 import { toast } from '@/shared/components/ui/toastUtils';
 import type { HealthCheck } from '../constants/dashboardConstants';
 
@@ -20,31 +20,15 @@ export function HealthCheckPanel() {
       const now = Date.now();
       const normalizeAddress = (value: string | null | undefined) => (value || '').trim().replace(/\s+/g, ' ').toLowerCase();
 
-      const [
-        feedbackSessionsRes,
-        feedbackQuestionsRes,
-        attendanceRes,
-        hostRes,
-        qrRes,
-        photoRes,
-        feedbackRes,
-      ] = await Promise.all([
-        supabase.from('session').select('session_id').eq('feedback_enabled', true),
-        supabase.from('feedback_question').select('session_id, attendance_date'),
-        supabase.from('attendance').select('student_id, session_id, attendance_date, status, check_in_method, host_address, excuse_reason').limit(5000),
-        supabase.from('session_date_host').select('session_id, attendance_date, host_address').limit(5000),
-        supabase.from('qr_sessions').select('session_id, attendance_date, check_in_mode, linked_photo_token, is_valid, expires_at').limit(5000),
-        supabase.from('photo_checkin_sessions').select('token, session_id, attendance_date, is_valid, expires_at').limit(5000),
-        supabase.from('session_feedback').select('student_id, session_id, attendance_date, check_in_method').limit(5000),
-      ]);
-
-      const feedbackSessions = feedbackSessionsRes.data || [];
-      const feedbackQuestions = feedbackQuestionsRes.data || [];
-      const attendance = attendanceRes.data || [];
-      const hostRows = hostRes.data || [];
-      const qrRows = qrRes.data || [];
-      const photoRows = photoRes.data || [];
-      const feedbackRows = feedbackRes.data || [];
+      const {
+        feedbackSessions,
+        feedbackQuestions,
+        attendance,
+        hostRows,
+        qrRows,
+        photoRows,
+        feedbackRows,
+      } = await dashboardService.getHealthCheckData();
       const activeAttendance = attendance.filter((row) => row.status !== 'absent');
       const activeQrRows = qrRows.filter((row) => row.is_valid && new Date(row.expires_at).getTime() > now);
       const activePhotoRows = photoRows.filter((row) => row.is_valid && new Date(row.expires_at).getTime() > now);
@@ -253,22 +237,7 @@ export function HealthCheckPanel() {
 
       // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ ADVANCED DIAGNOSTIC CHECKS Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
       // Fetch additional data for deep checks
-      const [
-        sessionsRes,
-        enrollmentsRes,
-        feedbackAllRes,
-        scoringRes,
-      ] = await Promise.all([
-        supabase.from('session').select('session_id, start_date, end_date, feedback_enabled, feedback_anonymous_allowed, course_id, teacher_id').limit(5000),
-        supabase.from('enrollment').select('enrollment_id, student_id, session_id, status').limit(10000),
-        supabase.from('session_feedback').select('id, session_id, student_id, attendance_date').limit(10000),
-        supabase.from('scoring_config').select('teacher_id').limit(1000),
-      ]);
-
-      const allSessions = sessionsRes.data || [];
-      const allEnrollments = enrollmentsRes.data || [];
-      const allFeedback = feedbackAllRes.data || [];
-      const allScoring = scoringRes.data || [];
+      const { allSessions, allEnrollments, allFeedback, allScoring } = await dashboardService.getAdvancedHealthCheckData();
       const today = new Date().toISOString().split('T')[0];
 
       // Ã¢â€â‚¬Ã¢â€â‚¬ Check 8: Duplicate feedback submissions Ã¢â€â‚¬Ã¢â€â‚¬
@@ -345,11 +314,7 @@ export function HealthCheckPanel() {
       const expiredButValidQr = qrRows.filter(row => row.is_valid && new Date(row.expires_at).getTime() <= now);
       if (expiredButValidQr.length > 0) {
         const expiredQrIds = expiredButValidQr.map(row => `${row.session_id}|${row.attendance_date}`);
-        // Auto-invalidate expired QR tokens
-        for (const row of expiredButValidQr) {
-          await supabase.from('qr_sessions').update({ is_valid: false })
-            .eq('session_id', row.session_id).eq('attendance_date', row.attendance_date);
-        }
+        await dashboardService.invalidateExpiredQrTokens(expiredButValidQr);
         checks.push({
           label: 'Expired QR tokens still marked valid',
           status: 'ok',
@@ -370,10 +335,7 @@ export function HealthCheckPanel() {
       // Ã¢â€â‚¬Ã¢â€â‚¬ Check 13: Expired photo check-in sessions still valid Ã¢â€ â€™ auto-fix Ã¢â€â‚¬Ã¢â€â‚¬
       const expiredButValidPhoto = photoRows.filter(row => row.is_valid && new Date(row.expires_at).getTime() <= now);
       if (expiredButValidPhoto.length > 0) {
-        for (const row of expiredButValidPhoto) {
-          await supabase.from('photo_checkin_sessions').update({ is_valid: false })
-            .eq('token', row.token);
-        }
+        await dashboardService.invalidateExpiredPhotoTokens(expiredButValidPhoto.map((row) => row.token));
         checks.push({
           label: 'Expired photo tokens still marked valid',
           status: 'ok',
