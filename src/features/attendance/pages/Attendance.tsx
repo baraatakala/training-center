@@ -158,7 +158,8 @@ export function Attendance() {
   const [confirmUnmarkSessionNotHeld, setConfirmUnmarkSessionNotHeld] = useState<boolean>(false);
   const [confirmClearGPS, setConfirmClearGPS] = useState<{ hostId: string; isTeacher: boolean } | null>(null);
 
-  // Pending excuse requests for current session+date
+  // Per-date time override loaded from session_date_host.override_time
+  const [dateOverrideTime, setDateOverrideTime] = useState<string | null>(null);
   const [pendingExcuseRequests, setPendingExcuseRequests] = useState<ExcuseRequest[]>([]);
 
   // Recording URL for this attendance date
@@ -231,14 +232,15 @@ export function Attendance() {
   // Uses session.time (e.g., "14:00") + grace_period_minutes to determine how late the student is
   // If we can't calculate exact minutes, returns a default of 1 minute when forceLate=true
   const calculateLateMinutes = (forceLate: boolean = true): number | null => {
-    if (!session?.time || !selectedDate) {
+    const effectiveTime = dateOverrideTime ?? session?.time ?? null;
+    if (!effectiveTime || !selectedDate) {
       // If session has no time set but teacher is marking late, use default
       return forceLate ? 1 : null;
     }
     
     try {
-      // Parse session time (e.g., "14:00" or "2:00 PM")
-      const timeMatch = session.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+      // Parse session time (e.g., "14:00" or "2:00 PM"), prefer per-date override
+      const timeMatch = effectiveTime.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
       if (!timeMatch) {
         return forceLate ? 1 : null;
       }
@@ -256,7 +258,7 @@ export function Attendance() {
       sessionStart.setHours(hours, minutes, 0, 0);
       
       // Add grace period
-      const gracePeriod = session.grace_period_minutes || 0;
+      const gracePeriod = session?.grace_period_minutes || 0;
       const graceEnd = new Date(sessionStart.getTime() + gracePeriod * 60 * 1000);
       
       // Calculate how many minutes late from grace end
@@ -468,7 +470,7 @@ export function Attendance() {
       const [hostResult, attendanceResult] = await Promise.all([
         supabase
           .from(Tables.SESSION_DATE_HOST)
-          .select('host_id, host_type, host_address')
+          .select('host_id, host_type, host_address, override_time')
           .eq('session_id', sessionId)
           .eq('attendance_date', selectedDate)
           .maybeSingle(),
@@ -495,6 +497,9 @@ export function Attendance() {
 
       const hostData = hostResult.data;
       const existingAttendance = attendanceResult.data;
+
+      // Store per-date time override (null means use session.time)
+      setDateOverrideTime((hostData as { override_time?: string | null } | null)?.override_time ?? null);
 
       if (attendanceResult.error) {
         console.error('Error loading attendance:', attendanceResult.error);
@@ -1879,7 +1884,8 @@ export function Attendance() {
               <span className="text-3xl">📋</span> Mark Attendance
             </h1>
             <p className="text-white/80 text-sm mt-1">
-              {courseName} &bull; {session.day || ''} {session.time ? `@ ${session.time}` : ''}
+              {courseName} &bull; {session.day || ''} {(dateOverrideTime ?? session.time) ? `@ ${dateOverrideTime ?? session.time}` : ''}
+              {dateOverrideTime && <span className="ml-2 text-xs bg-white/20 rounded px-1.5 py-0.5">⏱ Time override</span>}
             </p>
           </div>
           {selectedDate && !sessionNotHeld && (
@@ -2563,7 +2569,7 @@ export function Attendance() {
                     📅 Attendance for {format(new Date(selectedDate), 'MMMM dd, yyyy')}
                   </h2>
                   <p className="text-white/80 text-sm mt-0.5">
-                    {session.location || 'No location specified'} &bull; {session.time || 'No time specified'} &bull; {courseName}
+                    {session.location || 'No location specified'} &bull; {(dateOverrideTime ?? session.time) || 'No time specified'} &bull; {courseName}
                   </p>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2">

@@ -234,7 +234,12 @@ export const sessionService = {
   //   'after_last_attended' – new day starts after the last date with attendance records
   //   'from_today'        – effective from today (default / legacy)
   //   undefined           – auto (from_today when day changes)
-  async update(id: string, updates: UpdateSession, dayChangeStrategy?: 'from_start' | 'after_last_attended' | 'from_today') {
+  // timeChangeStrategy controls which session_date_host rows get override_time = oldTime:
+  //   'from_start'          – clear all overrides; new time applies to all dates (session.time updated)
+  //   'after_last_attended' – rows up to last attended keep oldTime override; later rows use new session.time
+  //   'from_today'          – rows before today keep oldTime override; today and future use new session.time
+  //   undefined             – prompt handled by caller (Sessions.tsx shows TimeChangeStrategyDialog)
+  async update(id: string, updates: UpdateSession, dayChangeStrategy?: 'from_start' | 'after_last_attended' | 'from_today', timeChangeStrategy?: 'from_start' | 'after_last_attended' | 'from_today') {
     const { data: oldData } = await supabase
       .from(Tables.SESSION)
       .select('*')
@@ -350,6 +355,52 @@ export const sessionService = {
             .eq('session_id', id)
             .lt('effective_date', updates.start_date);
         } catch { /* cleanup non-critical */ }
+      }
+
+      // Handle time changes: stamp override_time on session_date_host rows
+      // so the Attendance page can show the correct time for each date.
+      if (timeChangeStrategy && updates.time !== undefined && oldData.time !== updates.time) {
+        const oldTime = oldData.time as string | null;
+        try {
+          if (timeChangeStrategy === 'from_start') {
+            // Clear all overrides — every date falls back to the new session.time
+            await supabase
+              .from(Tables.SESSION_DATE_HOST)
+              .update({ override_time: null })
+              .eq('session_id', id);
+          } else {
+            // Compute cutoff date
+            let cutoffDate = new Date().toISOString().split('T')[0]; // default: today
+
+            if (timeChangeStrategy === 'after_last_attended') {
+              const { data: lastAtt } = await supabase
+                .from(Tables.ATTENDANCE)
+                .select('attendance_date')
+                .eq('session_id', id)
+                .neq('status', 'absent')
+                .order('attendance_date', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              if (lastAtt?.attendance_date) {
+                cutoffDate = lastAtt.attendance_date;
+              }
+            }
+
+            // Dates up to cutoffDate keep oldTime as override
+            await supabase
+              .from(Tables.SESSION_DATE_HOST)
+              .update({ override_time: oldTime })
+              .eq('session_id', id)
+              .lte('attendance_date', cutoffDate);
+
+            // Dates after cutoffDate clear override → fall back to new session.time
+            await supabase
+              .from(Tables.SESSION_DATE_HOST)
+              .update({ override_time: null })
+              .eq('session_id', id)
+              .gt('attendance_date', cutoffDate);
+          }
+        } catch { /* time override non-critical */ }
       }
     }
     return result;

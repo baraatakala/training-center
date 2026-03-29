@@ -14,6 +14,7 @@ import { SessionCard } from '@/features/sessions/components/SessionCard';
 import { SessionTableRow } from '@/features/sessions/components/SessionTableRow';
 import { CloneSessionModal } from '@/features/sessions/components/CloneSessionModal';
 import { DayChangeStrategyDialog } from '@/features/sessions/components/DayChangeStrategyDialog';
+import { TimeChangeStrategyDialog } from '@/features/sessions/components/TimeChangeStrategyDialog';
 import { sessionService } from '@/features/sessions/services/sessionService';
 import { toast } from '@/shared/components/ui/toastUtils';
 import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
@@ -71,6 +72,14 @@ export function Sessions() {
     data: CreateSession;
     oldDay: string | null;
     newDay: string | null;
+    lastAttendedDate: string | null;
+  } | null>(null);
+
+  // Time-change strategy dialog state
+  const [timeChangeDialog, setTimeChangeDialog] = useState<{
+    data: CreateSession;
+    oldTime: string | null;
+    newTime: string | null;
     lastAttendedDate: string | null;
   } | null>(null);
 
@@ -233,6 +242,8 @@ export function Sessions() {
 
     // If the day changed, ask user how to handle the schedule transition
     const dayChanged = data.day !== editingSession.day;
+    const timeChanged = data.time !== editingSession.time;
+
     if (dayChanged) {
       // Fetch last attendance date to offer the option
       const lastAttendedDate = await sessionService.getLastAttendedDate(editingSession.session_id);
@@ -245,7 +256,18 @@ export function Sessions() {
       return; // Wait for user to pick strategy via dialog
     }
 
-    // No day change — save directly
+    if (timeChanged) {
+      const lastAttendedDate = await sessionService.getLastAttendedDate(editingSession.session_id);
+      setTimeChangeDialog({
+        data,
+        oldTime: editingSession.time ?? null,
+        newTime: data.time ?? null,
+        lastAttendedDate,
+      });
+      return; // Wait for user to pick strategy via dialog
+    }
+
+    // No day or time change — save directly
     const { error } = await sessionService.update(editingSession.session_id, data);
 
     if (error) {
@@ -273,6 +295,27 @@ export function Sessions() {
       const strategyLabel = strategy === 'from_start' ? 'New day applied from session start'
         : strategy === 'after_last_attended' ? 'New day applied after last attended date'
         : 'New day applied from today';
+      toast.success(`Session updated. ${strategyLabel}.`);
+      setIsModalOpen(false);
+      setEditingSession(null);
+      loadSessions();
+    }
+  };
+
+  const executeTimeChangeUpdate = async (strategy: 'from_start' | 'after_last_attended' | 'from_today') => {
+    if (!timeChangeDialog || !editingSession) return;
+    const { data } = timeChangeDialog;
+    setTimeChangeDialog(null);
+
+    const { error } = await sessionService.update(editingSession.session_id, data, undefined, strategy);
+
+    if (error) {
+      const message = error.message || 'Unknown session update error';
+      toast.error(message.startsWith('Session delivery fields are enabled') ? message : 'Error updating session: ' + message, 7000);
+    } else {
+      const strategyLabel = strategy === 'from_start' ? 'New time applied to all dates'
+        : strategy === 'after_last_attended' ? 'New time applied after last attended date'
+        : 'New time applied from today';
       toast.success(`Session updated. ${strategyLabel}.`);
       setIsModalOpen(false);
       setEditingSession(null);
@@ -800,6 +843,23 @@ export function Sessions() {
             lastAttendedDate={dayChangeDialog.lastAttendedDate}
             onExecute={executeDayChangeUpdate}
             onCancel={() => setDayChangeDialog(null)}
+          />
+        )}
+      </Modal>
+
+      {/* Time-Change Strategy Dialog */}
+      <Modal
+        isOpen={!!timeChangeDialog}
+        onClose={() => setTimeChangeDialog(null)}
+        title="Session Time Changed"
+      >
+        {timeChangeDialog && (
+          <TimeChangeStrategyDialog
+            oldTime={timeChangeDialog.oldTime}
+            newTime={timeChangeDialog.newTime}
+            lastAttendedDate={timeChangeDialog.lastAttendedDate}
+            onExecute={executeTimeChangeUpdate}
+            onCancel={() => setTimeChangeDialog(null)}
           />
         )}
       </Modal>

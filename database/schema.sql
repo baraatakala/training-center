@@ -200,6 +200,7 @@ CREATE TABLE IF NOT EXISTS public.session_date_host (
   updated_at TIMESTAMPTZ DEFAULT now(),
   host_latitude NUMERIC CHECK (host_latitude IS NULL OR (host_latitude >= -90 AND host_latitude <= 90)),
   host_longitude NUMERIC CHECK (host_longitude IS NULL OR (host_longitude >= -180 AND host_longitude <= 180)),
+  override_time TEXT DEFAULT NULL,
   CONSTRAINT session_date_host_pkey PRIMARY KEY (id),
   CONSTRAINT session_date_host_session_date_unique UNIQUE (session_id, attendance_date),
   CONSTRAINT session_date_host_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
