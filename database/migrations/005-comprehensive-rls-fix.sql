@@ -9,9 +9,11 @@
 --      (audit_log, photo_checkin_sessions, session_book_coverage)
 --   B. Add missing teacher UPDATE on attendance (needed for excuse approval)
 --   C. Fix "Teachers can delete messages" → both sender AND recipient can delete
---   D. Enable RLS + policies on 6 tables that had NONE in Supabase:
---      late_brackets, session_feedback, feedback_question,
---      certificate_template, issued_certificate, message_attachment
+--   D. Enable RLS + policies on 4 tables that had NONE in Supabase:
+--      session_feedback, feedback_question,
+--      certificate_template, issued_certificate
+--      (late_brackets is a jsonb column in scoring_config — not a table)
+--      (message_attachment does not exist in the live schema)
 --   E. Fix excuse_request, announcement, message, specialization policies
 --      to use TO authenticated (not public anon role)
 -- ============================================================================
@@ -82,12 +84,11 @@ CREATE POLICY "Users can delete their messages" ON public.message
 -- ============================================================================
 -- D. ENABLE RLS + POLICIES ON TABLES MISSING FROM SUPABASE
 -- ============================================================================
-
--- NOTE: late_brackets is a JSONB column inside scoring_config, NOT a separate
--- table. RLS is handled by scoring_config policies. No separate table action needed.
+-- NOTE: late_brackets is a jsonb column in scoring_config (not a table).
+-- NOTE: message_attachment does not exist in the live schema.
 
 -- ----------------------------------------------------------------
--- D2. session_feedback — students INSERT own, teachers/admins SELECT all
+-- D1. session_feedback — students INSERT own, teachers/admins SELECT all
 -- ----------------------------------------------------------------
 ALTER TABLE public.session_feedback ENABLE ROW LEVEL SECURITY;
 
@@ -114,7 +115,7 @@ CREATE POLICY "Students can read own feedback" ON public.session_feedback
   );
 
 -- ----------------------------------------------------------------
--- D3. feedback_question — anyone can read, teachers/admins manage
+-- D2. feedback_question — anyone can read, teachers/admins manage
 -- ----------------------------------------------------------------
 ALTER TABLE public.feedback_question ENABLE ROW LEVEL SECURITY;
 
@@ -129,7 +130,7 @@ CREATE POLICY "Teachers and admins can manage feedback questions" ON public.feed
   WITH CHECK (is_teacher() OR is_admin());
 
 -- ----------------------------------------------------------------
--- D4. certificate_template — authenticated can read active; teachers/admins manage
+-- D3. certificate_template — authenticated can read active; teachers/admins manage
 -- ----------------------------------------------------------------
 ALTER TABLE public.certificate_template ENABLE ROW LEVEL SECURITY;
 
@@ -144,7 +145,7 @@ CREATE POLICY "Teachers can manage templates" ON public.certificate_template
   WITH CHECK (is_teacher() OR is_admin());
 
 -- ----------------------------------------------------------------
--- D5. issued_certificate — students see own; teachers/admins see all and manage
+-- D4. issued_certificate — students see own; teachers/admins see all and manage
 -- ----------------------------------------------------------------
 ALTER TABLE public.issued_certificate ENABLE ROW LEVEL SECURITY;
 
@@ -166,71 +167,6 @@ CREATE POLICY "Teachers manage certificates" ON public.issued_certificate
   FOR ALL TO authenticated
   USING (is_teacher() OR is_admin())
   WITH CHECK (is_teacher() OR is_admin());
-
--- ----------------------------------------------------------------
--- D6. message_attachment — sender/recipient can SELECT; admin full access
--- ----------------------------------------------------------------
-ALTER TABLE public.message_attachment ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Admin has full access" ON public.message_attachment;
-CREATE POLICY "Admin has full access" ON public.message_attachment
-  FOR ALL TO authenticated USING (is_admin()) WITH CHECK (is_admin());
-
--- Allow sender/recipient of the parent message to read attachments
-DROP POLICY IF EXISTS "Message participants can read attachments" ON public.message_attachment;
-CREATE POLICY "Message participants can read attachments" ON public.message_attachment
-  FOR SELECT TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.message m
-      WHERE m.message_id = message_attachment.message_id
-        AND (
-          (m.sender_type = 'teacher' AND EXISTS (
-            SELECT 1 FROM public.teacher
-            WHERE teacher.teacher_id = m.sender_id
-              AND lower(teacher.email) = lower(auth.jwt() ->> 'email')
-          ))
-          OR (m.sender_type = 'student' AND EXISTS (
-            SELECT 1 FROM public.student
-            WHERE student.student_id = m.sender_id
-              AND lower(student.email) = lower(auth.jwt() ->> 'email')
-          ))
-          OR (m.recipient_type = 'teacher' AND EXISTS (
-            SELECT 1 FROM public.teacher
-            WHERE teacher.teacher_id = m.recipient_id
-              AND lower(teacher.email) = lower(auth.jwt() ->> 'email')
-          ))
-          OR (m.recipient_type = 'student' AND EXISTS (
-            SELECT 1 FROM public.student
-            WHERE student.student_id = m.recipient_id
-              AND lower(student.email) = lower(auth.jwt() ->> 'email')
-          ))
-        )
-    )
-  );
-
--- Message senders can insert attachments to their own messages
-DROP POLICY IF EXISTS "Senders can insert attachments" ON public.message_attachment;
-CREATE POLICY "Senders can insert attachments" ON public.message_attachment
-  FOR INSERT TO authenticated
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.message m
-      WHERE m.message_id = message_attachment.message_id
-        AND (
-          (m.sender_type = 'teacher' AND EXISTS (
-            SELECT 1 FROM public.teacher
-            WHERE teacher.teacher_id = m.sender_id
-              AND lower(teacher.email) = lower(auth.jwt() ->> 'email')
-          ))
-          OR (m.sender_type = 'student' AND EXISTS (
-            SELECT 1 FROM public.student
-            WHERE student.student_id = m.sender_id
-              AND lower(student.email) = lower(auth.jwt() ->> 'email')
-          ))
-        )
-    )
-  );
 
 -- ============================================================================
 -- E. FIX: excuse_request policies — add TO authenticated
@@ -384,12 +320,10 @@ COMMIT;
 --   audit_log:              3 policies (Admin ALL, Teacher SELECT, Teacher INSERT)
 --   attendance:             6 policies (Admin ALL, Teacher SELECT+INSERT+UPDATE, Student SELECT+INSERT+UPDATE)
 --   message:                5 policies (Admin ALL, view, send-teacher, send-student, update-read, delete-user)
---   NOTE: late_brackets is NOT a table — it's a JSONB column in scoring_config
 --   session_feedback:       2 policies (Student INSERT, Teacher/Admin SELECT)
 --   feedback_question:      2 policies (Anyone SELECT, Teacher/Admin ALL)
 --   certificate_template:   2 policies (Anyone active SELECT, Teacher/Admin ALL)
 --   issued_certificate:     3 policies (Student SELECT own, Teacher SELECT all, Teacher/Admin ALL)
---   message_attachment:     3 policies (Admin ALL, Participant SELECT, Sender INSERT)
 --   excuse_request:         6 policies (all now TO authenticated)
 --   announcement:           3 policies (Admin ALL + 2 now TO authenticated)
 --   announcement_read:      3 policies (Admin ALL + 2 now TO authenticated)
