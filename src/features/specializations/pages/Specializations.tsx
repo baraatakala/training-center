@@ -24,12 +24,13 @@ export function Specializations() {
       toast.error('Failed to load specializations');
     } else if (data) {
       setSpecializations(data as Specialization[]);
-      // Load student counts for each
+      // Load student counts in parallel (not sequentially)
+      const specs = data as Specialization[];
+      const countResults = await Promise.all(
+        specs.map(spec => specializationService.studentCount(spec.name))
+      );
       const counts: Record<string, number> = {};
-      for (const spec of data as Specialization[]) {
-        const { count } = await specializationService.studentCount(spec.name);
-        counts[spec.id] = count;
-      }
+      specs.forEach((spec, i) => { counts[spec.id] = countResults[i].count; });
       setStudentCounts(counts);
     }
     setLoading(false);

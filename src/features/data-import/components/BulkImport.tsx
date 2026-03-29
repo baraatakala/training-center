@@ -121,6 +121,10 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
     const sessionCache = new Map<string, string>(); // unique key -> session_id
     const enrollmentCache = new Set<string>(); // student_id-session_id
 
+    // Hoist auth lookup — user doesn't change mid-import
+    const { data: { user: authUser } } = await authService.getCurrentUser();
+    const importUserEmail = authUser?.email || 'unknown';
+
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const rowNum = i + 2; // +2 because: 0-indexed + header row
@@ -300,9 +304,8 @@ export function BulkImport({ onImportComplete }: BulkImportProps) {
           throw new Error(`Row ${rowNum}: Enrollment not found`);
         }
 
-        // 7. Get authenticated user for marked_by
-        const { data: { user } } = await authService.getCurrentUser();
-        const userEmail = user?.email || 'system';
+        // 7. Use hoisted auth user for marked_by
+        const userEmail = importUserEmail;
 
         // 8. Validate excuse_reason for excused status
         if (row.status === 'excused' && !row.excuseReason) {

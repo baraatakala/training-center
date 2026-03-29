@@ -117,15 +117,17 @@ export function Messages() {
   // Load starred count separately
   const loadStarredCount = useCallback(async () => {
     if (!userType || !currentUserId) return;
-      const { data } = await messageService.getStarredCount(userType, currentUserId);
-      setStarredCount(data);
+      const { data, error } = await messageService.getStarredCount(userType, currentUserId);
+      if (error) { console.error('Failed to load starred count:', error); return; }
+      setStarredCount(data ?? 0);
   }, [userType, currentUserId]);
 
   // Load inbox stats independently via lightweight count query (no sender resolution)
   const loadInboxStats = useCallback(async () => {
     if (!userType || !currentUserId) return;
-    const { data } = await messageService.getInboxStats(userType, currentUserId);
-    setInboxStats(data);
+    const { data, error } = await messageService.getInboxStats(userType, currentUserId);
+    if (error) { console.error('Failed to load inbox stats:', error); return; }
+    if (data) setInboxStats(data);
   }, [userType, currentUserId]);
 
   const loadMessages = useCallback(async () => {
@@ -192,7 +194,8 @@ export function Messages() {
         setLoading(false);
         return;
       }
-
+
+
       // Resolve role
       const role = await authService.resolveRole(user.email);
 

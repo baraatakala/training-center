@@ -121,8 +121,18 @@ export function Attendance() {
 
   // Get authenticated user email
   const getCurrentUserEmail = async (): Promise<string> => {
-    const { data: { user } } = await supabase.auth.getUser();
-    return user?.email || 'system';
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error || !user?.email) {
+        console.error('Failed to get current user:', error);
+        toast.error('Authentication error — please refresh the page');
+        return 'unknown';
+      }
+      return user.email;
+    } catch (err) {
+      console.error('Auth exception:', err);
+      return 'unknown';
+    }
   };
   const [availableDates, setAvailableDates] = useState<Array<{ value: string; label: string }>>([]);
   const [selectedDate, setSelectedDate] = useState<string>(passedDate || '');
@@ -700,10 +710,14 @@ export function Attendance() {
           marked_at: new Date().toISOString()
         }));
         
-        await supabase.from(Tables.ATTENDANCE).upsert(newRecords, {
+        const { error: upsertErr } = await supabase.from(Tables.ATTENDANCE).upsert(newRecords, {
           onConflict: 'enrollment_id,attendance_date',
           ignoreDuplicates: false
         });
+        if (upsertErr) {
+          console.error('Error auto-excusing newly enrolled:', upsertErr);
+          toast.error('Failed to auto-excuse some newly enrolled students');
+        }
         // Audit log: bulk auto-excuse for session not held (newly enrolled)
         try { for (const r of newRecords) { await logInsert('attendance', r.enrollment_id, r as Record<string, unknown>, 'Auto-excused: session not held (newly enrolled)'); } } catch { /* audit non-critical */ }
         // Reload to show saved records instead of temp placeholders
@@ -1069,11 +1083,15 @@ export function Attendance() {
       }
     } else {
       // Delete if empty
-      await supabase
+      const { error } = await supabase
         .from(Tables.SESSION_BOOK_COVERAGE)
         .delete()
         .eq('session_id', sessionId)
         .eq('attendance_date', selectedDate);
+      if (error) {
+        console.error('Error deleting book reference:', error);
+        toast.error('Failed to clear book reference');
+      }
     }
   };
 
@@ -1651,17 +1669,21 @@ export function Attendance() {
           marked_at: new Date().toISOString()
         }));
         
-        await supabase.from(Tables.ATTENDANCE).upsert(newRecords, {
+        const { error: upsertErr } = await supabase.from(Tables.ATTENDANCE).upsert(newRecords, {
           onConflict: 'enrollment_id,attendance_date',
           ignoreDuplicates: false
         });
+        if (upsertErr) {
+          console.error('Error marking session not held:', upsertErr);
+          toast.error('Failed to create attendance records for session not held');
+        }
         // Audit log: session not held insert
         try { for (const r of newRecords) { await logInsert('attendance', r.enrollment_id, r as Record<string, unknown>, 'Session marked not held'); } } catch { /* audit non-critical */ }
       }
       
       // Update existing records
       if (realIds.length > 0) {
-        await supabase
+        const { error: updateErr } = await supabase
           .from(Tables.ATTENDANCE)
           .update({
             status: 'excused',
@@ -1676,6 +1698,10 @@ export function Attendance() {
             marked_at: new Date().toISOString()
           })
           .in('attendance_id', realIds.map(r => r.attendance_id));
+        if (updateErr) {
+          console.error('Error updating existing records:', updateErr);
+          toast.error('Failed to update some existing attendance records');
+        }
         // Audit log: session not held update
         try { for (const r of realIds) { await logUpdate('attendance', r.attendance_id, {} as Record<string, unknown>, { status: 'excused', excuse_reason: 'session not held' } as Record<string, unknown>, 'Session marked not held'); } } catch { /* audit non-critical */ }
       }

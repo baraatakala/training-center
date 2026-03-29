@@ -10,7 +10,6 @@ export type DashboardStats = {
   totalSessions: number;
   todaySessions: number;
   totalCourses: number;
-  pendingFeedback: number;
   issuedCertificates: number;
   loading: boolean;
 };

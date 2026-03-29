@@ -27,7 +27,6 @@ export function Dashboard() {
     totalSessions: 0,
     todaySessions: 0,
     totalCourses: 0,
-    pendingFeedback: 0,
     issuedCertificates: 0,
     loading: true,
   });
@@ -77,7 +76,6 @@ export function Dashboard() {
         totalSessions: summary.totalSessions,
         todaySessions: summary.todaySessions,
         totalCourses: summary.totalCourses,
-        pendingFeedback: 0,
         issuedCertificates: summary.issuedCertificates,
         loading: false,
       });
