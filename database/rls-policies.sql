@@ -370,22 +370,8 @@ DROP POLICY IF EXISTS "Authenticated read scoring_config" ON scoring_config;
 CREATE POLICY "Authenticated read scoring_config" ON scoring_config
   FOR SELECT TO authenticated USING (true);
 
--- late_brackets ---------------------------------------------------------
-ALTER TABLE late_brackets ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Admin has full access" ON late_brackets;
-CREATE POLICY "Admin has full access" ON late_brackets
-  FOR ALL TO authenticated USING (is_admin()) WITH CHECK (is_admin());
-
-DROP POLICY IF EXISTS "Teachers can manage late brackets" ON late_brackets;
-CREATE POLICY "Teachers can manage late brackets" ON late_brackets
-  FOR ALL TO authenticated
-  USING (is_teacher() AND NOT is_admin())
-  WITH CHECK (is_teacher() AND NOT is_admin());
-
-DROP POLICY IF EXISTS "Authenticated can read late brackets" ON late_brackets;
-CREATE POLICY "Authenticated can read late brackets" ON late_brackets
-  FOR SELECT TO authenticated USING (true);
+-- NOTE: late_brackets is a JSONB column inside scoring_config, NOT a separate
+-- table. RLS is covered by scoring_config policies above.
 
 -- ============================================================================
 -- 8. EXCUSES

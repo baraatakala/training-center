@@ -83,24 +83,8 @@ CREATE POLICY "Users can delete their messages" ON public.message
 -- D. ENABLE RLS + POLICIES ON TABLES MISSING FROM SUPABASE
 -- ============================================================================
 
--- ----------------------------------------------------------------
--- D1. late_brackets — anyone can read (for scoring UI), admin/teacher manage
--- ----------------------------------------------------------------
-ALTER TABLE public.late_brackets ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Admin has full access" ON public.late_brackets;
-CREATE POLICY "Admin has full access" ON public.late_brackets
-  FOR ALL TO authenticated USING (is_admin()) WITH CHECK (is_admin());
-
-DROP POLICY IF EXISTS "Authenticated can read late brackets" ON public.late_brackets;
-CREATE POLICY "Authenticated can read late brackets" ON public.late_brackets
-  FOR SELECT TO authenticated USING (true);
-
-DROP POLICY IF EXISTS "Teachers can manage late brackets" ON public.late_brackets;
-CREATE POLICY "Teachers can manage late brackets" ON public.late_brackets
-  FOR ALL TO authenticated
-  USING (is_teacher() AND NOT is_admin())
-  WITH CHECK (is_teacher() AND NOT is_admin());
+-- NOTE: late_brackets is a JSONB column inside scoring_config, NOT a separate
+-- table. RLS is handled by scoring_config policies. No separate table action needed.
 
 -- ----------------------------------------------------------------
 -- D2. session_feedback — students INSERT own, teachers/admins SELECT all
@@ -400,7 +384,7 @@ COMMIT;
 --   audit_log:              3 policies (Admin ALL, Teacher SELECT, Teacher INSERT)
 --   attendance:             6 policies (Admin ALL, Teacher SELECT+INSERT+UPDATE, Student SELECT+INSERT+UPDATE)
 --   message:                5 policies (Admin ALL, view, send-teacher, send-student, update-read, delete-user)
---   late_brackets:          3 policies (Admin ALL, Authenticated SELECT, Teacher ALL)
+--   NOTE: late_brackets is NOT a table — it's a JSONB column in scoring_config
 --   session_feedback:       2 policies (Student INSERT, Teacher/Admin SELECT)
 --   feedback_question:      2 policies (Anyone SELECT, Teacher/Admin ALL)
 --   certificate_template:   2 policies (Anyone active SELECT, Teacher/Admin ALL)
