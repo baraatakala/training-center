@@ -165,6 +165,12 @@ CREATE POLICY "Students can update own attendance" ON attendance
   USING (NOT is_teacher() AND NOT is_admin() AND student_id = get_my_student_id())
   WITH CHECK (NOT is_teacher() AND NOT is_admin() AND student_id = get_my_student_id());
 
+DROP POLICY IF EXISTS "Teachers can update" ON attendance;
+CREATE POLICY "Teachers can update" ON attendance
+  FOR UPDATE TO authenticated
+  USING (is_teacher() AND NOT is_admin())
+  WITH CHECK (is_teacher() AND NOT is_admin());
+
 -- ============================================================================
 -- 4. SESSION MANAGEMENT
 -- ============================================================================
@@ -371,6 +377,12 @@ DROP POLICY IF EXISTS "Admin has full access" ON late_brackets;
 CREATE POLICY "Admin has full access" ON late_brackets
   FOR ALL TO authenticated USING (is_admin()) WITH CHECK (is_admin());
 
+DROP POLICY IF EXISTS "Teachers can manage late brackets" ON late_brackets;
+CREATE POLICY "Teachers can manage late brackets" ON late_brackets
+  FOR ALL TO authenticated
+  USING (is_teacher() AND NOT is_admin())
+  WITH CHECK (is_teacher() AND NOT is_admin());
+
 DROP POLICY IF EXISTS "Authenticated can read late brackets" ON late_brackets;
 CREATE POLICY "Authenticated can read late brackets" ON late_brackets
   FOR SELECT TO authenticated USING (true);
@@ -383,34 +395,42 @@ ALTER TABLE excuse_request ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Admins have full access to excuse requests" ON excuse_request;
 CREATE POLICY "Admins have full access to excuse requests" ON excuse_request
-  FOR ALL USING (
-    EXISTS (SELECT 1 FROM admin WHERE LOWER(email) = LOWER(auth.jwt() ->> 'email'))
-  );
+  FOR ALL TO authenticated
+  USING (is_admin()) WITH CHECK (is_admin());
 
 DROP POLICY IF EXISTS "Students can view own excuse requests" ON excuse_request;
 CREATE POLICY "Students can view own excuse requests" ON excuse_request
-  FOR SELECT USING (
-    student_id IN (SELECT student_id FROM student WHERE LOWER(email) = LOWER(auth.jwt() ->> 'email'))
+  FOR SELECT TO authenticated
+  USING (
+    NOT is_teacher() AND NOT is_admin()
+    AND student_id = get_my_student_id()
   );
 
 DROP POLICY IF EXISTS "Students can create own excuse requests" ON excuse_request;
 CREATE POLICY "Students can create own excuse requests" ON excuse_request
-  FOR INSERT WITH CHECK (
-    student_id IN (SELECT student_id FROM student WHERE LOWER(email) = LOWER(auth.jwt() ->> 'email'))
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    NOT is_teacher() AND NOT is_admin()
+    AND student_id = get_my_student_id()
     AND status = 'pending'
   );
 
 DROP POLICY IF EXISTS "Students can cancel own pending requests" ON excuse_request;
 CREATE POLICY "Students can cancel own pending requests" ON excuse_request
-  FOR UPDATE USING (
-    student_id IN (SELECT student_id FROM student WHERE LOWER(email) = LOWER(auth.jwt() ->> 'email'))
+  FOR UPDATE TO authenticated
+  USING (
+    NOT is_teacher() AND NOT is_admin()
+    AND student_id = get_my_student_id()
     AND status = 'pending'
-  ) WITH CHECK (status = 'cancelled');
+  )
+  WITH CHECK (status = 'cancelled');
 
 DROP POLICY IF EXISTS "Teachers can view excuse requests for their sessions" ON excuse_request;
 CREATE POLICY "Teachers can view excuse requests for their sessions" ON excuse_request
-  FOR SELECT USING (
-    session_id IN (
+  FOR SELECT TO authenticated
+  USING (
+    is_teacher() AND NOT is_admin()
+    AND session_id IN (
       SELECT s.session_id FROM session s
       JOIN teacher t ON s.teacher_id = t.teacher_id
       WHERE LOWER(t.email) = LOWER(auth.jwt() ->> 'email')
@@ -419,8 +439,10 @@ CREATE POLICY "Teachers can view excuse requests for their sessions" ON excuse_r
 
 DROP POLICY IF EXISTS "Teachers can review excuse requests" ON excuse_request;
 CREATE POLICY "Teachers can review excuse requests" ON excuse_request
-  FOR UPDATE USING (
-    session_id IN (
+  FOR UPDATE TO authenticated
+  USING (
+    is_teacher() AND NOT is_admin()
+    AND session_id IN (
       SELECT s.session_id FROM session s
       JOIN teacher t ON s.teacher_id = t.teacher_id
       WHERE LOWER(t.email) = LOWER(auth.jwt() ->> 'email')
@@ -436,36 +458,36 @@ ALTER TABLE feedback_question ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Anyone can read feedback questions" ON feedback_question;
 CREATE POLICY "Anyone can read feedback questions" ON feedback_question
-  FOR SELECT USING (true);
+  FOR SELECT TO authenticated USING (true);
 
 DROP POLICY IF EXISTS "Teachers and admins can manage feedback questions" ON feedback_question;
 CREATE POLICY "Teachers and admins can manage feedback questions" ON feedback_question
-  FOR ALL
-  USING (
-    EXISTS (SELECT 1 FROM teacher WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
-    OR EXISTS (SELECT 1 FROM admin WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
-  )
-  WITH CHECK (
-    EXISTS (SELECT 1 FROM teacher WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
-    OR EXISTS (SELECT 1 FROM admin WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
-  );
+  FOR ALL TO authenticated
+  USING (is_teacher() OR is_admin())
+  WITH CHECK (is_teacher() OR is_admin());
 
 -- session_feedback ------------------------------------------------------
 ALTER TABLE session_feedback ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Students can submit feedback" ON session_feedback;
 CREATE POLICY "Students can submit feedback" ON session_feedback
-  FOR INSERT WITH CHECK (
-    student_id = (SELECT student_id FROM student WHERE LOWER(email) = LOWER(auth.jwt()->>'email') LIMIT 1)
-    OR student_id IS NULL  -- anonymous
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    NOT is_teacher() AND NOT is_admin()
+    AND (
+      student_id = get_my_student_id()
+      OR student_id IS NULL  -- anonymous
+    )
   );
 
 DROP POLICY IF EXISTS "Students can read own feedback" ON session_feedback;
 CREATE POLICY "Students can read own feedback" ON session_feedback
-  FOR SELECT USING (
-    student_id = (SELECT student_id FROM student WHERE LOWER(email) = LOWER(auth.jwt()->>'email') LIMIT 1)
-    OR EXISTS (SELECT 1 FROM teacher WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
-    OR EXISTS (SELECT 1 FROM admin WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
+  FOR SELECT TO authenticated
+  USING (
+    is_teacher()
+    OR is_admin()
+    OR student_id = get_my_student_id()
+    OR student_id IS NULL
   );
 
 -- feedback_template -----------------------------------------------------
@@ -473,19 +495,13 @@ ALTER TABLE feedback_template ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Anyone can read feedback templates" ON feedback_template;
 CREATE POLICY "Anyone can read feedback templates" ON feedback_template
-  FOR SELECT USING (true);
+  FOR SELECT TO authenticated USING (true);
 
 DROP POLICY IF EXISTS "Teachers and admins can manage feedback templates" ON feedback_template;
 CREATE POLICY "Teachers and admins can manage feedback templates" ON feedback_template
-  FOR ALL
-  USING (
-    EXISTS (SELECT 1 FROM teacher WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
-    OR EXISTS (SELECT 1 FROM admin WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
-  )
-  WITH CHECK (
-    EXISTS (SELECT 1 FROM teacher WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
-    OR EXISTS (SELECT 1 FROM admin WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
-  );
+  FOR ALL TO authenticated
+  USING (is_teacher() OR is_admin())
+  WITH CHECK (is_teacher() OR is_admin());
 
 -- ============================================================================
 -- 10. CERTIFICATES
@@ -496,47 +512,34 @@ ALTER TABLE certificate_template ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Anyone can view active templates" ON certificate_template;
 CREATE POLICY "Anyone can view active templates" ON certificate_template
-  FOR SELECT USING (is_active = true);
+  FOR SELECT TO authenticated USING (is_active = true);
 
 DROP POLICY IF EXISTS "Teachers can manage templates" ON certificate_template;
 CREATE POLICY "Teachers can manage templates" ON certificate_template
-  FOR ALL
-  USING (
-    EXISTS (SELECT 1 FROM teacher WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
-    OR EXISTS (SELECT 1 FROM admin WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
-  )
-  WITH CHECK (
-    EXISTS (SELECT 1 FROM teacher WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
-    OR EXISTS (SELECT 1 FROM admin WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
-  );
+  FOR ALL TO authenticated
+  USING (is_teacher() OR is_admin())
+  WITH CHECK (is_teacher() OR is_admin());
 
 -- issued_certificate ----------------------------------------------------
 ALTER TABLE issued_certificate ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Students view own certificates" ON issued_certificate;
 CREATE POLICY "Students view own certificates" ON issued_certificate
-  FOR SELECT USING (
-    student_id IN (SELECT student_id FROM student WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
+  FOR SELECT TO authenticated
+  USING (
+    NOT is_teacher() AND NOT is_admin()
+    AND student_id = get_my_student_id()
   );
 
 DROP POLICY IF EXISTS "Teachers view all certificates" ON issued_certificate;
 CREATE POLICY "Teachers view all certificates" ON issued_certificate
-  FOR SELECT USING (
-    EXISTS (SELECT 1 FROM teacher WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
-    OR EXISTS (SELECT 1 FROM admin WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
-  );
+  FOR SELECT TO authenticated USING (is_teacher() OR is_admin());
 
 DROP POLICY IF EXISTS "Teachers manage certificates" ON issued_certificate;
 CREATE POLICY "Teachers manage certificates" ON issued_certificate
-  FOR ALL
-  USING (
-    EXISTS (SELECT 1 FROM teacher WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
-    OR EXISTS (SELECT 1 FROM admin WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
-  )
-  WITH CHECK (
-    EXISTS (SELECT 1 FROM teacher WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
-    OR EXISTS (SELECT 1 FROM admin WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
-  );
+  FOR ALL TO authenticated
+  USING (is_teacher() OR is_admin())
+  WITH CHECK (is_teacher() OR is_admin());
 
 -- ============================================================================
 -- 11. SPECIALIZATION
@@ -546,19 +549,13 @@ ALTER TABLE specialization ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Anyone can read specializations" ON specialization;
 CREATE POLICY "Anyone can read specializations" ON specialization
-  FOR SELECT USING (true);
+  FOR SELECT TO authenticated USING (true);
 
 DROP POLICY IF EXISTS "Teachers and admins can manage specializations" ON specialization;
 CREATE POLICY "Teachers and admins can manage specializations" ON specialization
-  FOR ALL
-  USING (
-    EXISTS (SELECT 1 FROM teacher WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
-    OR EXISTS (SELECT 1 FROM admin WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
-  )
-  WITH CHECK (
-    EXISTS (SELECT 1 FROM teacher WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
-    OR EXISTS (SELECT 1 FROM admin WHERE LOWER(email) = LOWER(auth.jwt()->>'email'))
-  );
+  FOR ALL TO authenticated
+  USING (is_teacher() OR is_admin())
+  WITH CHECK (is_teacher() OR is_admin());
 
 -- ============================================================================
 -- 12. COMMUNICATION
@@ -573,8 +570,10 @@ CREATE POLICY "Admin has full access" ON announcement
 
 DROP POLICY IF EXISTS "Teachers can manage their announcements" ON announcement;
 CREATE POLICY "Teachers can manage their announcements" ON announcement
-  FOR ALL USING (
-    EXISTS (
+  FOR ALL TO authenticated
+  USING (
+    is_teacher() AND NOT is_admin()
+    AND EXISTS (
       SELECT 1 FROM teacher
       WHERE teacher.teacher_id = announcement.created_by
         AND LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email')
@@ -583,17 +582,18 @@ CREATE POLICY "Teachers can manage their announcements" ON announcement
 
 DROP POLICY IF EXISTS "Students can read relevant announcements" ON announcement;
 CREATE POLICY "Students can read relevant announcements" ON announcement
-  FOR SELECT USING (
-    course_id IS NULL
-    OR EXISTS (
-      SELECT 1 FROM enrollment e
-      JOIN session s ON e.session_id = s.session_id
-      JOIN student st ON e.student_id = st.student_id
-      WHERE s.course_id = announcement.course_id
-        AND LOWER(st.email) = LOWER(auth.jwt() ->> 'email')
-    )
-    OR EXISTS (
-      SELECT 1 FROM teacher WHERE LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email')
+  FOR SELECT TO authenticated
+  USING (
+    NOT is_teacher() AND NOT is_admin()
+    AND (
+      course_id IS NULL
+      OR EXISTS (
+        SELECT 1 FROM enrollment e
+        JOIN session s ON e.session_id = s.session_id
+        WHERE s.course_id = announcement.course_id
+          AND e.student_id = get_my_student_id()
+          AND e.status = 'active'
+      )
     )
   );
 
@@ -606,19 +606,16 @@ CREATE POLICY "Admin has full access" ON announcement_read
 
 DROP POLICY IF EXISTS "Students can mark announcements as read" ON announcement_read;
 CREATE POLICY "Students can mark announcements as read" ON announcement_read
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM student
-      WHERE student.student_id = announcement_read.student_id
-        AND LOWER(student.email) = LOWER(auth.jwt() ->> 'email')
-    )
+  FOR ALL TO authenticated
+  USING (
+    NOT is_teacher() AND NOT is_admin()
+    AND student_id = get_my_student_id()
   );
 
 DROP POLICY IF EXISTS "Teachers can view read status" ON announcement_read;
 CREATE POLICY "Teachers can view read status" ON announcement_read
-  FOR SELECT USING (
-    EXISTS (SELECT 1 FROM teacher WHERE LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email'))
-  );
+  FOR SELECT TO authenticated
+  USING (is_teacher() AND NOT is_admin());
 
 -- announcement_reaction -------------------------------------------------
 ALTER TABLE announcement_reaction ENABLE ROW LEVEL SECURITY;
@@ -742,12 +739,82 @@ CREATE POLICY "Users can delete their messages" ON message
     ))
   );
 
+DROP POLICY IF EXISTS "Users can delete their messages" ON message;
+CREATE POLICY "Users can delete their messages" ON message
+  FOR DELETE TO authenticated
+  USING (
+    (sender_type = 'teacher' AND EXISTS (
+      SELECT 1 FROM teacher WHERE teacher.teacher_id = message.sender_id
+        AND LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email')
+    ))
+    OR (sender_type = 'student' AND EXISTS (
+      SELECT 1 FROM student WHERE student.student_id = message.sender_id
+        AND LOWER(student.email) = LOWER(auth.jwt() ->> 'email')
+    ))
+    OR (recipient_type = 'teacher' AND EXISTS (
+      SELECT 1 FROM teacher WHERE teacher.teacher_id = message.recipient_id
+        AND LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email')
+    ))
+    OR (recipient_type = 'student' AND EXISTS (
+      SELECT 1 FROM student WHERE student.student_id = message.recipient_id
+        AND LOWER(student.email) = LOWER(auth.jwt() ->> 'email')
+    ))
+  );
+
 -- message_attachment ----------------------------------------------------
 ALTER TABLE message_attachment ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Admin has full access" ON message_attachment;
 CREATE POLICY "Admin has full access" ON message_attachment
   FOR ALL TO authenticated USING (is_admin()) WITH CHECK (is_admin());
+
+DROP POLICY IF EXISTS "Message participants can read attachments" ON message_attachment;
+CREATE POLICY "Message participants can read attachments" ON message_attachment
+  FOR SELECT TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM message m
+      WHERE m.message_id = message_attachment.message_id
+        AND (
+          (m.sender_type = 'teacher' AND EXISTS (
+            SELECT 1 FROM teacher WHERE teacher.teacher_id = m.sender_id
+              AND LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email')
+          ))
+          OR (m.sender_type = 'student' AND EXISTS (
+            SELECT 1 FROM student WHERE student.student_id = m.sender_id
+              AND LOWER(student.email) = LOWER(auth.jwt() ->> 'email')
+          ))
+          OR (m.recipient_type = 'teacher' AND EXISTS (
+            SELECT 1 FROM teacher WHERE teacher.teacher_id = m.recipient_id
+              AND LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email')
+          ))
+          OR (m.recipient_type = 'student' AND EXISTS (
+            SELECT 1 FROM student WHERE student.student_id = m.recipient_id
+              AND LOWER(student.email) = LOWER(auth.jwt() ->> 'email')
+          ))
+        )
+    )
+  );
+
+DROP POLICY IF EXISTS "Senders can insert attachments" ON message_attachment;
+CREATE POLICY "Senders can insert attachments" ON message_attachment
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM message m
+      WHERE m.message_id = message_attachment.message_id
+        AND (
+          (m.sender_type = 'teacher' AND EXISTS (
+            SELECT 1 FROM teacher WHERE teacher.teacher_id = m.sender_id
+              AND LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email')
+          ))
+          OR (m.sender_type = 'student' AND EXISTS (
+            SELECT 1 FROM student WHERE student.student_id = m.sender_id
+              AND LOWER(student.email) = LOWER(auth.jwt() ->> 'email')
+          ))
+        )
+    )
+  );
 
 -- message_reaction ------------------------------------------------------
 ALTER TABLE message_reaction ENABLE ROW LEVEL SECURITY;
