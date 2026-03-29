@@ -11,7 +11,7 @@ CREATE POLICY "Enrolled students can view recordings" ON session_recording
     AND EXISTS (
       SELECT 1 FROM enrollment e
       WHERE e.session_id = session_recording.session_id
-        AND e.student_id = auth.uid()
+        AND e.student_id = get_my_student_id()
         AND e.status = 'active'
     )
   );
