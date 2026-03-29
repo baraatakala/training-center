@@ -275,6 +275,10 @@ $$;
 -- ============================================================================
 
 -- Generic updated_at triggers
+DROP TRIGGER IF EXISTS update_admin_updated_at ON admin;
+CREATE TRIGGER update_admin_updated_at
+  BEFORE UPDATE ON admin FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 DROP TRIGGER IF EXISTS update_teacher_updated_at ON teacher;
 CREATE TRIGGER update_teacher_updated_at
   BEFORE UPDATE ON teacher FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -306,6 +310,10 @@ CREATE TRIGGER update_session_date_host_updated_at
 DROP TRIGGER IF EXISTS update_announcement_comment_updated_at ON announcement_comment;
 CREATE TRIGGER update_announcement_comment_updated_at
   BEFORE UPDATE ON announcement_comment FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_session_recording_updated_at ON session_recording;
+CREATE TRIGGER update_session_recording_updated_at
+  BEFORE UPDATE ON session_recording FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Specialized timestamp triggers
 DROP TRIGGER IF EXISTS trg_certificate_template_updated ON certificate_template;

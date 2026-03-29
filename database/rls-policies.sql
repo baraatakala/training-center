@@ -653,7 +653,7 @@ CREATE POLICY "Admin has full access" ON message
 
 DROP POLICY IF EXISTS "Users can view their messages" ON message;
 CREATE POLICY "Users can view their messages" ON message
-  FOR SELECT USING (
+  FOR SELECT TO authenticated USING (
     (sender_type = 'teacher' AND EXISTS (
       SELECT 1 FROM teacher WHERE teacher.teacher_id = message.sender_id
         AND LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email')
@@ -674,7 +674,7 @@ CREATE POLICY "Users can view their messages" ON message
 
 DROP POLICY IF EXISTS "Teachers can send messages" ON message;
 CREATE POLICY "Teachers can send messages" ON message
-  FOR INSERT WITH CHECK (
+  FOR INSERT TO authenticated WITH CHECK (
     sender_type = 'teacher' AND EXISTS (
       SELECT 1 FROM teacher WHERE teacher.teacher_id = message.sender_id
         AND LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email')
@@ -683,7 +683,7 @@ CREATE POLICY "Teachers can send messages" ON message
 
 DROP POLICY IF EXISTS "Students can send messages" ON message;
 CREATE POLICY "Students can send messages" ON message
-  FOR INSERT WITH CHECK (
+  FOR INSERT TO authenticated WITH CHECK (
     sender_type = 'student' AND EXISTS (
       SELECT 1 FROM student WHERE student.student_id = message.sender_id
         AND LOWER(student.email) = LOWER(auth.jwt() ->> 'email')
@@ -692,29 +692,8 @@ CREATE POLICY "Students can send messages" ON message
 
 DROP POLICY IF EXISTS "Recipients can update message read status" ON message;
 CREATE POLICY "Recipients can update message read status" ON message
-  FOR UPDATE USING (
+  FOR UPDATE TO authenticated USING (
     (recipient_type = 'teacher' AND EXISTS (
-      SELECT 1 FROM teacher WHERE teacher.teacher_id = message.recipient_id
-        AND LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email')
-    ))
-    OR (recipient_type = 'student' AND EXISTS (
-      SELECT 1 FROM student WHERE student.student_id = message.recipient_id
-        AND LOWER(student.email) = LOWER(auth.jwt() ->> 'email')
-    ))
-  );
-
-DROP POLICY IF EXISTS "Users can delete their messages" ON message;
-CREATE POLICY "Users can delete their messages" ON message
-  FOR DELETE USING (
-    (sender_type = 'teacher' AND EXISTS (
-      SELECT 1 FROM teacher WHERE teacher.teacher_id = message.sender_id
-        AND LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email')
-    ))
-    OR (sender_type = 'student' AND EXISTS (
-      SELECT 1 FROM student WHERE student.student_id = message.sender_id
-        AND LOWER(student.email) = LOWER(auth.jwt() ->> 'email')
-    ))
-    OR (recipient_type = 'teacher' AND EXISTS (
       SELECT 1 FROM teacher WHERE teacher.teacher_id = message.recipient_id
         AND LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email')
     ))
@@ -795,7 +774,7 @@ CREATE POLICY "Admin has full access" ON notification_preference
 
 DROP POLICY IF EXISTS "Users can manage their notification preferences" ON notification_preference;
 CREATE POLICY "Users can manage their notification preferences" ON notification_preference
-  FOR ALL USING (
+  FOR ALL TO authenticated USING (
     (user_type = 'teacher' AND EXISTS (
       SELECT 1 FROM teacher WHERE teacher.teacher_id = notification_preference.user_id
         AND LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email')

@@ -3,7 +3,7 @@
 -- ============================================================================
 -- Run this in the Supabase SQL Editor to verify all backend components.
 -- Expected: All checks should return ✅ PASS or show 0 issues.
--- Last updated: 2026-03-23 (matches migration 005)
+-- Last updated: 2026-03-23 (matches migration 006)
 -- ============================================================================
 
 -- ============================================================================
@@ -169,16 +169,15 @@ BEGIN
 END $$;
 
 -- ============================================================================
--- SECTION 6: NO BLANKET "FOR ALL" TO "public" POLICIES (security risk)
+-- SECTION 6: NO POLICIES USING "public" (anon) ROLE (security risk)
 -- ============================================================================
 SELECT
-  '❌ BLANKET POLICY' AS status,
-  schemaname, tablename, policyname, roles
+  '❌ POLICY USES public ROLE' AS status,
+  schemaname, tablename, policyname, cmd, roles
 FROM pg_policies
 WHERE schemaname = 'public'
-  AND 'public' = ANY(roles)
-  AND cmd = 'ALL';
--- Expected: 0 rows
+  AND 'public' = ANY(roles);
+-- Expected: 0 rows (all policies should use TO authenticated)
 
 -- ============================================================================
 -- SECTION 7: CRITICAL CONSTRAINTS EXIST
@@ -361,7 +360,67 @@ BEGIN
 END $$;
 
 -- ============================================================================
--- SECTION 13: SUMMARY COUNTS
+-- SECTION 13: MIGRATION 006 VERIFICATION (security fixes & gaps)
+-- ============================================================================
+DO $$
+DECLARE
+  _issues TEXT[] := '{}';
+BEGIN
+  -- A: Message policies should all be TO authenticated (not public)
+  IF EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE tablename = 'message' AND schemaname = 'public' AND 'public' = ANY(roles)
+  ) THEN
+    _issues := array_append(_issues, 'message: still has policies with public (anon) role');
+  END IF;
+
+  -- B: No duplicate policies on feedback tables
+  IF (SELECT COUNT(*) FROM pg_policies WHERE tablename = 'feedback_question' AND cmd = 'SELECT' AND schemaname = 'public') > 1 THEN
+    _issues := array_append(_issues, 'feedback_question: duplicate SELECT policies');
+  END IF;
+  IF (SELECT COUNT(*) FROM pg_policies WHERE tablename = 'session_feedback' AND cmd = 'INSERT' AND schemaname = 'public') > 1 THEN
+    _issues := array_append(_issues, 'session_feedback: duplicate INSERT policies');
+  END IF;
+  IF (SELECT COUNT(*) FROM pg_policies WHERE tablename = 'session_feedback' AND cmd = 'SELECT' AND schemaname = 'public') > 1 THEN
+    _issues := array_append(_issues, 'session_feedback: duplicate SELECT policies');
+  END IF;
+  IF (SELECT COUNT(*) FROM pg_policies WHERE tablename = 'feedback_template' AND cmd = 'SELECT' AND schemaname = 'public') > 1 THEN
+    _issues := array_append(_issues, 'feedback_template: duplicate SELECT policies');
+  END IF;
+
+  -- C: notification_preference table exists
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'notification_preference'
+  ) THEN
+    _issues := array_append(_issues, 'notification_preference table missing');
+  END IF;
+
+  -- D: admin updated_at trigger exists
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger t
+    JOIN pg_class c ON t.tgrelid = c.oid
+    WHERE c.relname = 'admin' AND t.tgname = 'update_admin_updated_at'
+  ) THEN
+    _issues := array_append(_issues, 'admin: missing update_admin_updated_at trigger');
+  END IF;
+
+  -- E: notification_preference RLS enabled
+  IF EXISTS (
+    SELECT 1 FROM pg_class WHERE relname = 'notification_preference'
+  ) AND NOT (SELECT relrowsecurity FROM pg_class WHERE relname = 'notification_preference') THEN
+    _issues := array_append(_issues, 'notification_preference: RLS not enabled');
+  END IF;
+
+  IF array_length(_issues, 1) IS NULL THEN
+    RAISE NOTICE '✅ PASS: Migration 006 security fixes verified';
+  ELSE
+    RAISE WARNING '❌ FAIL: Migration 006 issues: %', array_to_string(_issues, '; ');
+  END IF;
+END $$;
+
+-- ============================================================================
+-- SECTION 14: SUMMARY COUNTS
 -- ============================================================================
 SELECT
   'Summary' AS section,
