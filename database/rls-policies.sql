@@ -229,20 +229,38 @@ CREATE POLICY "Students can read host schedule" ON teacher_host_schedule
 -- session_recording -----------------------------------------------------
 ALTER TABLE session_recording ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Teachers have full access" ON session_recording;
-CREATE POLICY "Teachers have full access" ON session_recording
+DROP POLICY IF EXISTS "Admins have full access to session recordings"   ON session_recording;
+DROP POLICY IF EXISTS "Teachers have full access to session recordings" ON session_recording;
+DROP POLICY IF EXISTS "Teachers have full access"                       ON session_recording;
+DROP POLICY IF EXISTS "Students can view session recordings"            ON session_recording;
+DROP POLICY IF EXISTS "Students can read visible session recordings"    ON session_recording;
+DROP POLICY IF EXISTS "Enrolled students can view recordings"           ON session_recording;
+
+CREATE POLICY "Admins have full access to session recordings" ON session_recording
+  FOR ALL TO authenticated USING (is_admin()) WITH CHECK (is_admin());
+
+CREATE POLICY "Teachers have full access to session recordings" ON session_recording
   FOR ALL TO authenticated USING (is_teacher()) WITH CHECK (is_teacher());
 
-DROP POLICY IF EXISTS "Enrolled students can view recordings" ON session_recording;
-CREATE POLICY "Enrolled students can view recordings" ON session_recording
+-- NOTE: student.student_id is uuid_generate_v4(), NOT auth.uid().
+-- get_my_student_id() (SECURITY DEFINER) resolves student_id from auth.email().
+CREATE POLICY "Students can view session recordings" ON session_recording
   FOR SELECT TO authenticated
   USING (
-    recording_visibility IN ('enrolled_students', 'organization', 'public_link')
-    AND EXISTS (
-      SELECT 1 FROM enrollment e
-      WHERE e.session_id = session_recording.session_id
-        AND e.student_id = get_my_student_id()
-        AND e.status = 'active'
+    deleted_at IS NULL
+    AND NOT is_teacher()
+    AND NOT is_admin()
+    AND (
+      recording_visibility IN ('organization', 'public_link')
+      OR (
+        recording_visibility IN ('enrolled_students', 'course_staff')
+        AND EXISTS (
+          SELECT 1 FROM enrollment e
+          WHERE e.session_id = session_recording.session_id
+            AND e.student_id = get_my_student_id()
+            AND e.status = 'active'
+        )
+      )
     )
   );
 
