@@ -43,7 +43,8 @@ CREATE INDEX IF NOT EXISTS idx_enrollment_session_status   ON public.enrollment(
 -- ============================================================================
 
 -- attendance
-CREATE INDEX IF NOT EXISTS idx_attendance_enrollment      ON public.attendance(enrollment_id);
+-- NOTE: enrollment_id is the leading column in attendance_enrollment_date_unique,
+-- so a standalone enrollment_id index is not needed.
 CREATE INDEX IF NOT EXISTS idx_attendance_student          ON public.attendance(student_id);
 CREATE INDEX IF NOT EXISTS idx_attendance_status           ON public.attendance(status);
 CREATE INDEX IF NOT EXISTS idx_attendance_session_date     ON public.attendance(session_id, attendance_date);
@@ -66,9 +67,9 @@ CREATE INDEX IF NOT EXISTS idx_photo_checkin_session       ON public.photo_check
 -- ============================================================================
 
 -- session_date_host
-CREATE INDEX IF NOT EXISTS idx_session_date_host_session_id   ON public.session_date_host(session_id);
+-- NOTE: (session_id, attendance_date) is covered by the UNIQUE constraint.
+-- session_id alone is also covered as the UNIQUE's leading column.
 CREATE INDEX IF NOT EXISTS idx_session_date_host_date         ON public.session_date_host(attendance_date);
-CREATE INDEX IF NOT EXISTS idx_session_date_host_session_date ON public.session_date_host(session_id, attendance_date);
 
 -- session_day_change
 CREATE INDEX IF NOT EXISTS idx_session_day_change_session   ON public.session_day_change(session_id);
@@ -128,8 +129,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_feedback_question_unique_per_date
 CREATE INDEX IF NOT EXISTS idx_issued_cert_student       ON public.issued_certificate(student_id);
 CREATE INDEX IF NOT EXISTS idx_issued_cert_session       ON public.issued_certificate(session_id);
 CREATE INDEX IF NOT EXISTS idx_issued_cert_template      ON public.issued_certificate(template_id);
-CREATE INDEX IF NOT EXISTS idx_issued_cert_verification  ON public.issued_certificate(verification_code);
-CREATE INDEX IF NOT EXISTS idx_issued_cert_number        ON public.issued_certificate(certificate_number);
+-- NOTE: verification_code and certificate_number have UNIQUE constraints
+-- that already create implicit indexes.
 CREATE INDEX IF NOT EXISTS idx_issued_certificate_student_session ON public.issued_certificate(student_id, session_id);
 
 -- ============================================================================
@@ -147,8 +148,8 @@ CREATE INDEX IF NOT EXISTS idx_announcement_course_created ON public.announcemen
 
 -- announcement_read
 CREATE INDEX IF NOT EXISTS idx_announcement_read_student      ON public.announcement_read(student_id);
-CREATE INDEX IF NOT EXISTS idx_announcement_read_announcement  ON public.announcement_read(announcement_id);
-CREATE INDEX IF NOT EXISTS idx_announcement_read_ann_student   ON public.announcement_read(announcement_id, student_id);
+-- NOTE: (announcement_id, student_id) is covered by the UNIQUE constraint.
+-- announcement_id alone is also covered as the UNIQUE's leading column.
 
 -- announcement_reaction / comment
 CREATE INDEX IF NOT EXISTS idx_announcement_reaction_announcement ON public.announcement_reaction(announcement_id);

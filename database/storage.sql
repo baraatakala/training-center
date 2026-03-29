@@ -67,7 +67,7 @@ VALUES (
   'student-photos',
   false,
   5242880,  -- 5 MB
-  ARRAY['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+  ARRAY['image/jpeg', 'image/png', 'image/webp']
 )
 ON CONFLICT (id) DO NOTHING;
 
