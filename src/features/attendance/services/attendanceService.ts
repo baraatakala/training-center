@@ -5,6 +5,7 @@ import type {
 } from '@/shared/types/database.types';
 import { logDelete, logUpdate, logInsert } from '@/shared/services/auditService';
 import { Tables } from '@/shared/types/database.types';
+import { DEFAULT_SCORING_CONFIG } from '@/features/scoring/services/scoringConfigService';
 
 type AttendanceSummaryRecord = {
   status: string;
@@ -56,7 +57,10 @@ function summarizeAttendanceRecords(records: AttendanceSummaryRecord[]) {
   for (const record of unique) {
     if (record.status === 'on time' || record.status === 'present') qualitySum += 1;
     else if (record.status === 'late') {
-      qualitySum += Math.max(0.05, Math.exp(-((record.late_minutes || 0) / 43.3)));
+      qualitySum += Math.max(
+        DEFAULT_SCORING_CONFIG.late_minimum_credit,
+        Math.exp(-((record.late_minutes || 0) / DEFAULT_SCORING_CONFIG.late_decay_constant))
+      );
     }
   }
 

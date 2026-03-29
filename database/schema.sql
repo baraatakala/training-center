@@ -315,21 +315,8 @@ CREATE TABLE IF NOT EXISTS public.scoring_config (
   CONSTRAINT scoring_config_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES auth.users(id)
 );
 
-CREATE TABLE IF NOT EXISTS public.late_brackets (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  session_id UUID REFERENCES public.session(session_id) ON DELETE CASCADE,
-  min_minutes INTEGER NOT NULL,
-  max_minutes INTEGER,
-  bracket_name VARCHAR(50) NOT NULL,
-  bracket_name_ar VARCHAR(50),
-  score_weight DECIMAL(3,2) NOT NULL CHECK (score_weight >= 0 AND score_weight <= 1),
-  display_color VARCHAR(20),
-  created_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(session_id, min_minutes)
-);
-
-COMMENT ON TABLE public.late_brackets IS
-  'Configurable late scoring brackets. Per-session or global (session_id=NULL). Score weight is multiplier (0.0 to 1.0).';
+-- NOTE: late_brackets is stored as a JSONB column in scoring_config above.
+-- A separate late_brackets table was originally planned but never deployed.
 
 -- ============================================================================
 -- 7. EXCUSES
@@ -530,15 +517,8 @@ CREATE TABLE IF NOT EXISTS public.message (
   CONSTRAINT message_parent_message_id_fkey FOREIGN KEY (parent_message_id) REFERENCES public.message(message_id)
 );
 
-CREATE TABLE IF NOT EXISTS public.message_attachment (
-  attachment_id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  message_id UUID NOT NULL REFERENCES public.message(message_id) ON DELETE CASCADE,
-  file_name VARCHAR(255) NOT NULL,
-  file_url TEXT NOT NULL,
-  file_size INTEGER,
-  file_type VARCHAR(100),
-  uploaded_at TIMESTAMPTZ DEFAULT now()
-);
+-- NOTE: message_attachment table does not exist in the live schema.
+-- Attachments are handled via Supabase Storage directly.
 
 CREATE TABLE IF NOT EXISTS public.message_reaction (
   reaction_id UUID NOT NULL DEFAULT uuid_generate_v4(),

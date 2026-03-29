@@ -6,6 +6,8 @@ export interface Teacher {
   phone: string | null;
   email: string;
   address: string | null;
+  address_latitude?: number | null;
+  address_longitude?: number | null;
   specialization?: string | null;
   created_at: string;
   updated_at: string;
@@ -21,6 +23,8 @@ export interface Student {
   nationality: string | null;
   age: number | null;
   specialization?: string | null;
+  address_latitude?: number | null;
+  address_longitude?: number | null;
   // URL to student reference photo for face recognition attendance
   photo_url: string | null;
   created_at: string;
@@ -239,6 +243,8 @@ export interface SessionDateHost {
   host_id: string | null;
   host_type: 'student' | 'teacher';
   host_address: string;
+  host_latitude?: number | null;
+  host_longitude?: number | null;
   created_at: string;
   updated_at: string;
 }

@@ -370,8 +370,7 @@ DROP POLICY IF EXISTS "Authenticated read scoring_config" ON scoring_config;
 CREATE POLICY "Authenticated read scoring_config" ON scoring_config
   FOR SELECT TO authenticated USING (true);
 
--- NOTE: late_brackets is a JSONB column inside scoring_config, NOT a separate
--- table. RLS is covered by scoring_config policies above.
+-- NOTE: late_brackets is a jsonb column in scoring_config, not a separate table.
 
 -- ============================================================================
 -- 8. EXCUSES
@@ -747,60 +746,7 @@ CREATE POLICY "Users can delete their messages" ON message
     ))
   );
 
--- message_attachment ----------------------------------------------------
-ALTER TABLE message_attachment ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Admin has full access" ON message_attachment;
-CREATE POLICY "Admin has full access" ON message_attachment
-  FOR ALL TO authenticated USING (is_admin()) WITH CHECK (is_admin());
-
-DROP POLICY IF EXISTS "Message participants can read attachments" ON message_attachment;
-CREATE POLICY "Message participants can read attachments" ON message_attachment
-  FOR SELECT TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM message m
-      WHERE m.message_id = message_attachment.message_id
-        AND (
-          (m.sender_type = 'teacher' AND EXISTS (
-            SELECT 1 FROM teacher WHERE teacher.teacher_id = m.sender_id
-              AND LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email')
-          ))
-          OR (m.sender_type = 'student' AND EXISTS (
-            SELECT 1 FROM student WHERE student.student_id = m.sender_id
-              AND LOWER(student.email) = LOWER(auth.jwt() ->> 'email')
-          ))
-          OR (m.recipient_type = 'teacher' AND EXISTS (
-            SELECT 1 FROM teacher WHERE teacher.teacher_id = m.recipient_id
-              AND LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email')
-          ))
-          OR (m.recipient_type = 'student' AND EXISTS (
-            SELECT 1 FROM student WHERE student.student_id = m.recipient_id
-              AND LOWER(student.email) = LOWER(auth.jwt() ->> 'email')
-          ))
-        )
-    )
-  );
-
-DROP POLICY IF EXISTS "Senders can insert attachments" ON message_attachment;
-CREATE POLICY "Senders can insert attachments" ON message_attachment
-  FOR INSERT TO authenticated
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM message m
-      WHERE m.message_id = message_attachment.message_id
-        AND (
-          (m.sender_type = 'teacher' AND EXISTS (
-            SELECT 1 FROM teacher WHERE teacher.teacher_id = m.sender_id
-              AND LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email')
-          ))
-          OR (m.sender_type = 'student' AND EXISTS (
-            SELECT 1 FROM student WHERE student.student_id = m.sender_id
-              AND LOWER(student.email) = LOWER(auth.jwt() ->> 'email')
-          ))
-        )
-    )
-  );
+-- NOTE: message_attachment table does not exist in the live schema.
 
 -- message_reaction ------------------------------------------------------
 ALTER TABLE message_reaction ENABLE ROW LEVEL SECURITY;
