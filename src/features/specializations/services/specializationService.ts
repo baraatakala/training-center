@@ -42,9 +42,14 @@ export async function rename(id: string, newName: string) {
     .single();
   if (error) return { data: null, error };
 
-  // 3. Cascade: update every student that had the old name
+  // 3. Cascade: update every student and teacher that had the old name
   await supabase
     .from('student')
+    .update({ specialization: newName.trim() })
+    .eq('specialization', old.name);
+
+  await supabase
+    .from('teacher')
     .update({ specialization: newName.trim() })
     .eq('specialization', old.name);
 
@@ -61,9 +66,14 @@ export async function remove(id: string) {
     .single();
   if (fetchErr || !old) return { error: fetchErr };
 
-  // 2. Nullify on students
+  // 2. Nullify on students and teachers
   await supabase
     .from('student')
+    .update({ specialization: null })
+    .eq('specialization', old.name);
+
+  await supabase
+    .from('teacher')
     .update({ specialization: null })
     .eq('specialization', old.name);
 
