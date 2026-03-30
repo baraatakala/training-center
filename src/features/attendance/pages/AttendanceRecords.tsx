@@ -1526,6 +1526,24 @@ export const AttendanceRecords = () => {
 
     // ========== STUDENT PERFORMANCE SHEET - Uses saved field selections ==========
     const studentConfig = filterDataByFields('studentAnalytics', isArabic);
+
+    // Pre-compute specialization correlation data for export
+    const specGroupsExcel = new Map<string, typeof studentAnalytics>();
+    studentAnalytics.forEach(s => {
+      const spec = s.specialization?.trim() || 'Unspecified';
+      if (!specGroupsExcel.has(spec)) specGroupsExcel.set(spec, []);
+      specGroupsExcel.get(spec)!.push(s);
+    });
+    const specCorrExcel = new Map<string, { avgRate: number; avgScore: number; count: number; ranks: Map<string, number> }>();
+    specGroupsExcel.forEach((group, _specName) => {
+      const n = group.length;
+      const avgRate = group.reduce((a, s) => a + s.attendanceRate, 0) / n;
+      const avgScore = group.reduce((a, s) => a + s.weightedScore, 0) / n;
+      const sorted = [...group].sort((a, b) => b.weightedScore - a.weightedScore);
+      const ranks = new Map<string, number>();
+      sorted.forEach((s, idx) => ranks.set(s.student_id, idx + 1));
+      specCorrExcel.set(_specName, { avgRate, avgScore, count: n, ranks });
+    });
     
     // Prepare student data objects with all possible fields
     const studentDataObjectsUnsorted = studentAnalytics.map((student, index) => {
@@ -1574,6 +1592,14 @@ export const AttendanceRecords = () => {
         maxConsecutiveStreak: student.maxConsecutiveStreak,
         firstHalfRate: student.firstHalfRate,
         secondHalfRate: student.secondHalfRate,
+        // Specialization correlation
+        specName: student.specialization || '-',
+        specAvgAttendance: (() => { const c = specCorrExcel.get(student.specialization?.trim() || 'Unspecified'); return c ? Math.round(c.avgRate * 10) / 10 : '-'; })(),
+        specDeviation: (() => { const c = specCorrExcel.get(student.specialization?.trim() || 'Unspecified'); return c ? Math.round((student.attendanceRate - c.avgRate) * 10) / 10 : '-'; })(),
+        specAvgScore: (() => { const c = specCorrExcel.get(student.specialization?.trim() || 'Unspecified'); return c ? Math.round(c.avgScore * 10) / 10 : '-'; })(),
+        specScoreDeviation: (() => { const c = specCorrExcel.get(student.specialization?.trim() || 'Unspecified'); return c ? Math.round((student.weightedScore - c.avgScore) * 10) / 10 : '-'; })(),
+        specRank: (() => { const c = specCorrExcel.get(student.specialization?.trim() || 'Unspecified'); return c ? `${c.ranks.get(student.student_id) || '-'}/${c.count}` : '-'; })(),
+        specStudentCount: (() => { const c = specCorrExcel.get(student.specialization?.trim() || 'Unspecified'); return c ? c.count : '-'; })(),
       };
     });
     
@@ -1840,6 +1866,24 @@ export const AttendanceRecords = () => {
     const dateConfig = filterDataByFields('dateAnalytics', isArabic);
     const hostConfig = filterDataByFields('hostAnalytics', isArabic);
 
+    // Pre-compute specialization correlation data for CSV export
+    const specGroupsCsv = new Map<string, typeof studentAnalytics>();
+    studentAnalytics.forEach(s => {
+      const spec = s.specialization?.trim() || 'Unspecified';
+      if (!specGroupsCsv.has(spec)) specGroupsCsv.set(spec, []);
+      specGroupsCsv.get(spec)!.push(s);
+    });
+    const specCorrCsv = new Map<string, { avgRate: number; avgScore: number; count: number; ranks: Map<string, number> }>();
+    specGroupsCsv.forEach((group, _specName) => {
+      const n = group.length;
+      const avgRate = group.reduce((a, s) => a + s.attendanceRate, 0) / n;
+      const avgScore = group.reduce((a, s) => a + s.weightedScore, 0) / n;
+      const sorted = [...group].sort((a, b) => b.weightedScore - a.weightedScore);
+      const ranks = new Map<string, number>();
+      sorted.forEach((s, idx) => ranks.set(s.student_id, idx + 1));
+      specCorrCsv.set(_specName, { avgRate, avgScore, count: n, ranks });
+    });
+
     // Prepare student data with all possible fields
     const studentDataObjectsUnsorted = studentAnalytics.map((student, index) => {
       const totalPres = student.presentCount + student.lateCount;
@@ -1884,6 +1928,14 @@ export const AttendanceRecords = () => {
         maxConsecutiveStreak: student.maxConsecutiveStreak,
         firstHalfRate: student.firstHalfRate,
         secondHalfRate: student.secondHalfRate,
+        // Specialization correlation
+        specName: student.specialization || '-',
+        specAvgAttendance: (() => { const c = specCorrCsv.get(student.specialization?.trim() || 'Unspecified'); return c ? `${Math.round(c.avgRate * 10) / 10}%` : '-'; })(),
+        specDeviation: (() => { const c = specCorrCsv.get(student.specialization?.trim() || 'Unspecified'); return c ? `${Math.round((student.attendanceRate - c.avgRate) * 10) / 10}%` : '-'; })(),
+        specAvgScore: (() => { const c = specCorrCsv.get(student.specialization?.trim() || 'Unspecified'); return c ? `${Math.round(c.avgScore * 10) / 10}` : '-'; })(),
+        specScoreDeviation: (() => { const c = specCorrCsv.get(student.specialization?.trim() || 'Unspecified'); return c ? `${Math.round((student.weightedScore - c.avgScore) * 10) / 10}` : '-'; })(),
+        specRank: (() => { const c = specCorrCsv.get(student.specialization?.trim() || 'Unspecified'); return c ? `${c.ranks.get(student.student_id) || '-'}/${c.count}` : '-'; })(),
+        specStudentCount: (() => { const c = specCorrCsv.get(student.specialization?.trim() || 'Unspecified'); return c ? c.count : '-'; })(),
       };
     });
     const studentDataObjects = sortDataBySettings(studentDataObjectsUnsorted, 'studentAnalytics');
@@ -2173,6 +2225,24 @@ export const AttendanceRecords = () => {
     const studentConfig = filterDataByFields('studentAnalytics', false); // Always English for PDF
     const dateConfig = filterDataByFields('dateAnalytics', false);
     const hostConfig = filterDataByFields('hostAnalytics', false);
+
+    // Pre-compute specialization correlation data for PDF export
+    const specGroupsPdf = new Map<string, typeof studentAnalytics>();
+    studentAnalytics.forEach(s => {
+      const spec = s.specialization?.trim() || 'Unspecified';
+      if (!specGroupsPdf.has(spec)) specGroupsPdf.set(spec, []);
+      specGroupsPdf.get(spec)!.push(s);
+    });
+    const specCorrPdf = new Map<string, { avgRate: number; avgScore: number; count: number; ranks: Map<string, number> }>();
+    specGroupsPdf.forEach((group, _specName) => {
+      const n = group.length;
+      const avgRate = group.reduce((a, s) => a + s.attendanceRate, 0) / n;
+      const avgScore = group.reduce((a, s) => a + s.weightedScore, 0) / n;
+      const sorted = [...group].sort((a, b) => b.weightedScore - a.weightedScore);
+      const ranks = new Map<string, number>();
+      sorted.forEach((s, idx) => ranks.set(s.student_id, idx + 1));
+      specCorrPdf.set(_specName, { avgRate, avgScore, count: n, ranks });
+    });
     
     // Prepare student data objects
     const studentDataObjectsUnsorted = studentAnalytics.map((student, index) => {
@@ -2218,6 +2288,14 @@ export const AttendanceRecords = () => {
         maxConsecutiveStreak: student.maxConsecutiveStreak,
         firstHalfRate: `${student.firstHalfRate}%`,
         secondHalfRate: `${student.secondHalfRate}%`,
+        // Specialization correlation
+        specName: student.specialization || '-',
+        specAvgAttendance: (() => { const c = specCorrPdf.get(student.specialization?.trim() || 'Unspecified'); return c ? `${Math.round(c.avgRate * 10) / 10}%` : '-'; })(),
+        specDeviation: (() => { const c = specCorrPdf.get(student.specialization?.trim() || 'Unspecified'); return c ? `${Math.round((student.attendanceRate - c.avgRate) * 10) / 10}%` : '-'; })(),
+        specAvgScore: (() => { const c = specCorrPdf.get(student.specialization?.trim() || 'Unspecified'); return c ? `${Math.round(c.avgScore * 10) / 10}` : '-'; })(),
+        specScoreDeviation: (() => { const c = specCorrPdf.get(student.specialization?.trim() || 'Unspecified'); return c ? `${Math.round((student.weightedScore - c.avgScore) * 10) / 10}` : '-'; })(),
+        specRank: (() => { const c = specCorrPdf.get(student.specialization?.trim() || 'Unspecified'); return c ? `${c.ranks.get(student.student_id) || '-'}/${c.count}` : '-'; })(),
+        specStudentCount: (() => { const c = specCorrPdf.get(student.specialization?.trim() || 'Unspecified'); return c ? c.count : '-'; })(),
       };
     });
     
@@ -2870,6 +2948,24 @@ export const AttendanceRecords = () => {
       totalLate,
     };
 
+    // Pre-compute specialization correlation data for Word export
+    const specGroupsWord = new Map<string, typeof studentAnalytics>();
+    studentAnalytics.forEach(s => {
+      const spec = s.specialization?.trim() || 'Unspecified';
+      if (!specGroupsWord.has(spec)) specGroupsWord.set(spec, []);
+      specGroupsWord.get(spec)!.push(s);
+    });
+    const specCorrWord = new Map<string, { avgRate: number; avgScore: number; count: number; ranks: Map<string, number> }>();
+    specGroupsWord.forEach((group, _specName) => {
+      const n = group.length;
+      const avgRate = group.reduce((a, s) => a + s.attendanceRate, 0) / n;
+      const avgScore = group.reduce((a, s) => a + s.weightedScore, 0) / n;
+      const sorted = [...group].sort((a, b) => b.weightedScore - a.weightedScore);
+      const ranks = new Map<string, number>();
+      sorted.forEach((s, idx) => ranks.set(s.student_id, idx + 1));
+      specCorrWord.set(_specName, { avgRate, avgScore, count: n, ranks });
+    });
+
     // Prepare student data with all possible fields
     const studentDataObjectsUnsorted = studentAnalytics.map((s, index) => {
       const totalPres = s.presentCount + s.lateCount;
@@ -2915,6 +3011,14 @@ export const AttendanceRecords = () => {
         maxConsecutiveStreak: s.maxConsecutiveStreak,
         firstHalfRate: `${s.firstHalfRate}%`,
         secondHalfRate: `${s.secondHalfRate}%`,
+        // Specialization correlation
+        specName: s.specialization || '-',
+        specAvgAttendance: (() => { const c = specCorrWord.get(s.specialization?.trim() || 'Unspecified'); return c ? `${Math.round(c.avgRate * 10) / 10}%` : '-'; })(),
+        specDeviation: (() => { const c = specCorrWord.get(s.specialization?.trim() || 'Unspecified'); return c ? `${Math.round((s.attendanceRate - c.avgRate) * 10) / 10}%` : '-'; })(),
+        specAvgScore: (() => { const c = specCorrWord.get(s.specialization?.trim() || 'Unspecified'); return c ? `${Math.round(c.avgScore * 10) / 10}` : '-'; })(),
+        specScoreDeviation: (() => { const c = specCorrWord.get(s.specialization?.trim() || 'Unspecified'); return c ? `${Math.round((s.weightedScore - c.avgScore) * 10) / 10}` : '-'; })(),
+        specRank: (() => { const c = specCorrWord.get(s.specialization?.trim() || 'Unspecified'); return c ? `${c.ranks.get(s.student_id) || '-'}/${c.count}` : '-'; })(),
+        specStudentCount: (() => { const c = specCorrWord.get(s.specialization?.trim() || 'Unspecified'); return c ? c.count : '-'; })(),
       };
     });
     
