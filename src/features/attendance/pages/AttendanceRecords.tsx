@@ -4662,6 +4662,7 @@ export const AttendanceRecords = () => {
                     <AttendanceCharts
                       studentAnalytics={studentAnalytics}
                       dateAnalytics={dateAnalytics}
+                      arabicMode={arabicMode}
                     />
                   </Suspense>
                 </div>
