@@ -6,6 +6,7 @@ import { Badge } from '@/shared/components/ui/Badge';
 import { Select } from '@/shared/components/ui/Select';
 import { Skeleton, TableSkeleton } from '@/shared/components/ui/Skeleton';
 import { attendancePageService as supabase } from '@/features/attendance/services/attendancePageService';
+import { attendanceService } from '@/features/attendance/services/attendanceService';
 import { Tables, type Session } from '@/shared/types/database.types';
 import { format } from 'date-fns';
 import { getAttendanceDateOptions, type DayChange } from '@/shared/utils/attendanceGenerator';
@@ -160,6 +161,9 @@ export function Attendance() {
 
   // Per-date time override loaded from session_date_host.override_time
   const [dateOverrideTime, setDateOverrideTime] = useState<string | null>(null);
+
+  // Per-student risk stats (loaded once per session): consecutive absences + attendance rate
+  const [studentRiskStats, setStudentRiskStats] = useState<Record<string, { rate: number; consecutive: number }>>({});
   const [pendingExcuseRequests, setPendingExcuseRequests] = useState<ExcuseRequest[]>([]);
 
   // Recording URL for this attendance date
@@ -790,6 +794,11 @@ export function Attendance() {
       toast.error('Failed to load attendance data');
       setAttendance([]);
     }
+
+    // Refresh risk stats after attendance data changes
+    if (sessionId) {
+      attendanceService.getSessionRiskStats(sessionId).then(stats => setStudentRiskStats(stats));
+    }
   }, [sessionId, selectedDate]);
 
   useEffect(() => {
@@ -829,6 +838,45 @@ export function Attendance() {
     }
   };
 
+  // Auto-mark all pending (unmarked) students as absent for a past date
+  const handleAutoMarkAbsent = async () => {
+    if (!sessionId || !selectedDate) return;
+    const pendingStudents = attendance.filter(r => r.status === 'pending');
+    if (pendingStudents.length === 0) return;
+
+    const userEmail = await getCurrentUserEmail();
+    const addressOnly = selectedAddress ? selectedAddress.split('|||')[1] || selectedAddress : null;
+
+    const records = pendingStudents.map(r => ({
+      enrollment_id: r.enrollment_id,
+      session_id: sessionId,
+      student_id: r.student_id,
+      attendance_date: selectedDate,
+      status: 'absent',
+      check_in_time: null,
+      late_minutes: null,
+      check_in_method: 'manual',
+      host_address: addressOnly,
+      gps_latitude: null,
+      gps_longitude: null,
+      gps_accuracy: null,
+      gps_timestamp: null,
+      marked_by: userEmail,
+      marked_at: new Date().toISOString(),
+    }));
+
+    const { error } = await supabase
+      .from(Tables.ATTENDANCE)
+      .upsert(records, { onConflict: 'enrollment_id,attendance_date', ignoreDuplicates: false });
+
+    if (error) {
+      toast.error('Failed to auto-mark absent: ' + error.message);
+    } else {
+      toast.success(`${pendingStudents.length} student${pendingStudents.length > 1 ? 's' : ''} marked absent`);
+      loadAttendance();
+    }
+  };
+
   useEffect(() => {
     if (selectedDate) {
       // Reset state before loading new date data
@@ -846,6 +894,13 @@ export function Attendance() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);
+
+  // Load feedback questions and templates for the selected attendance date
+  useEffect(() => {
+    if (!sessionId) return;
+    // Reload session-wide risk stats whenever sessionId is set (or after attendance changes)
+    attendanceService.getSessionRiskStats(sessionId).then(stats => setStudentRiskStats(stats));
+  }, [sessionId]);
 
   // Load feedback questions and templates for the selected attendance date
   useEffect(() => {
@@ -2704,6 +2759,26 @@ export function Attendance() {
                   )}
 
                   <div className="space-y-2">
+                  {/* Auto-mark absent: show when date is in the past and there are unmarked students */}
+                  {(() => {
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    const isPastDate = selectedDate < todayStr;
+                    const pendingCount = attendance.filter(r => r.status === 'pending').length;
+                    if (!isPastDate || pendingCount === 0 || sessionNotHeld) return null;
+                    return (
+                      <div className="flex items-center justify-between bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded-lg px-3 py-2 mb-2">
+                        <span className="text-sm text-orange-800 dark:text-orange-300">
+                          <span className="font-semibold">{pendingCount}</span> student{pendingCount > 1 ? 's' : ''} not marked for this past date
+                        </span>
+                        <button
+                          onClick={handleAutoMarkAbsent}
+                          className="ml-3 text-xs font-semibold bg-orange-600 hover:bg-orange-700 text-white px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                          Mark all absent
+                        </button>
+                      </div>
+                    );
+                  })()}
                   <div className="flex items-center gap-2 mb-4">
                     <input
                       type="checkbox"
@@ -2764,11 +2839,21 @@ export function Attendance() {
                           className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-500 rounded disabled:opacity-30 disabled:cursor-not-allowed"
                         />
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <h3 className="font-medium truncate dark:text-white">{record.student.name}</h3>
                             {studentExcuseReq && (
                               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 animate-pulse" title={`Pending excuse: ${studentExcuseReq.reason}`}>
                                 📋 Excuse Pending
+                              </span>
+                            )}
+                            {(studentRiskStats[record.student_id]?.consecutive ?? 0) >= 3 && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300" title={`${studentRiskStats[record.student_id].consecutive} consecutive absences`}>
+                                ⚠️ {studentRiskStats[record.student_id].consecutive} absent streak
+                              </span>
+                            )}
+                            {(studentRiskStats[record.student_id]?.rate ?? 100) < 50 && (studentRiskStats[record.student_id]?.rate ?? 100) > 0 && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" title="Attendance rate below 50%">
+                                📉 {studentRiskStats[record.student_id].rate}%
                               </span>
                             )}
                           </div>

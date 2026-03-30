@@ -307,6 +307,48 @@ export const attendanceService = {
       .upsert(records, { onConflict: 'enrollment_id,attendance_date', ignoreDuplicates: false });
   },
 
+  // Get per-student risk stats for the Attendance page badges:
+  // - consecutive: number of most-recent consecutive absences
+  // - rate: overall attendance rate (present+late / accountable) as 0–100
+  async getSessionRiskStats(sessionId: string): Promise<Record<string, { rate: number; consecutive: number }>> {
+    const { data, error } = await supabase
+      .from(Tables.ATTENDANCE)
+      .select('student_id, status, attendance_date, host_address, excuse_reason')
+      .eq('session_id', sessionId)
+      .order('attendance_date', { ascending: false });
+
+    if (error || !data) return {};
+
+    // Group by student, records already sorted newest-first
+    const byStudent: Record<string, { status: string }[]> = {};
+    for (const row of data) {
+      if (row.host_address === 'SESSION_NOT_HELD') continue;
+      if (row.excuse_reason === 'session not held') continue;
+      if (!byStudent[row.student_id]) byStudent[row.student_id] = [];
+      byStudent[row.student_id].push({ status: row.status });
+    }
+
+    const result: Record<string, { rate: number; consecutive: number }> = {};
+    for (const [studentId, records] of Object.entries(byStudent)) {
+      const accountable = records.filter(r =>
+        r.status !== 'not enrolled' && r.status !== 'pending' && r.status !== 'excused'
+      );
+      const present = accountable.filter(r => r.status === 'on time' || r.status === 'late').length;
+      const rate = accountable.length > 0 ? Math.round((present / accountable.length) * 100) : 0;
+
+      // Count consecutive absences from most recent
+      let consecutive = 0;
+      for (const r of accountable) {
+        if (r.status === 'absent') consecutive++;
+        else break;
+      }
+
+      result[studentId] = { rate, consecutive };
+    }
+
+    return result;
+  },
+
   // Delete feedback for a session+date (used when unmarking session-not-held)
   async deleteFeedbackForDate(sessionId: string, date: string) {
     return await supabase
