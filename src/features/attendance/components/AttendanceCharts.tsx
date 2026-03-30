@@ -309,8 +309,10 @@ const AttendanceCharts = forwardRef<ChartCaptureHandle, Props>(function Attendan
     { id: 'comparison',     label: t.comparison,     icon: '⚡' },
   ];
 
-  // Only show tabs that are in visibleTabs prop (if provided); empty Set = treat as "all visible"
-  const visibleChartTabs = visibleTabs && visibleTabs.size > 0
+  // Only show tabs that are in visibleTabs prop (if provided)
+  // - undefined = no preference → show all tabs
+  // - empty Set  = user deselected all → show none (placeholder renders)
+  const visibleChartTabs = visibleTabs !== undefined
     ? CHART_TABS.filter(tab => visibleTabs.has(tab.id))
     : CHART_TABS;
 
@@ -449,7 +451,12 @@ const AttendanceCharts = forwardRef<ChartCaptureHandle, Props>(function Attendan
   const captureCharts = useCallback(async (tabs: ChartTab[]): Promise<Map<ChartTab, string>> => {
     const { toPng } = await import('html-to-image');
     const result = new Map<ChartTab, string>();
+    const originalTab = activeTab;
     for (const tab of tabs) {
+      // Switch to this tab so it is fully visible and laid out (not offscreen)
+      setActiveTab(tab);
+      // Wait two frames for React to commit + browser to paint
+      await new Promise(resolve => setTimeout(resolve, 250));
       const el = chartRefs.current[tab];
       if (!el) continue;
       try {
@@ -459,10 +466,12 @@ const AttendanceCharts = forwardRef<ChartCaptureHandle, Props>(function Attendan
           style: { padding: '16px' },
         });
         result.set(tab, dataUrl);
-      } catch { /* skip failed charts */ }
+      } catch { /* skip failed chart */ }
     }
+    // Restore original active tab
+    setActiveTab(originalTab);
     return result;
-  }, []);
+  }, [activeTab]);
 
   useImperativeHandle(ref, () => ({ captureCharts }), [captureCharts]);
 

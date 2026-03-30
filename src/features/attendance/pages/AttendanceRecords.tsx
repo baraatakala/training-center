@@ -2798,10 +2798,14 @@ export const AttendanceRecords = () => {
         currentY += 6;
 
         try {
-          // Determine image dimensions proportionally
-          const img = new Image();
-          img.src = imgData;
-          const aspectRatio = img.naturalHeight > 0 ? img.naturalWidth / img.naturalHeight : 2;
+          // Load image to read natural dimensions
+          const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+            const i = new Image();
+            i.onload = () => resolve(i);
+            i.onerror = reject;
+            i.src = imgData;
+          });
+          const aspectRatio = img.naturalHeight > 0 ? img.naturalWidth / img.naturalHeight : 16 / 9;
           const chartHeightMm = chartWidthMm / aspectRatio;
           const maxHeight = doc.internal.pageSize.getHeight() - currentY - 20;
           const finalHeight = Math.min(chartHeightMm, maxHeight);
