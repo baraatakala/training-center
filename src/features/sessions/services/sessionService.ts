@@ -468,6 +468,58 @@ export const sessionService = {
     return data?.attendance_date || null;
   },
 
+  // Set or clear the time override for a specific session date.
+  // Creates the session_date_host row if it does not already exist.
+  async setDateTimeOverride(
+    sessionId: string,
+    date: string,
+    overrideTime: string | null,
+    reason?: string
+  ): Promise<{ error: { message: string } | null }> {
+    try {
+      const { error } = await supabase
+        .from(Tables.SESSION_DATE_HOST)
+        .upsert(
+          {
+            session_id: sessionId,
+            attendance_date: date,
+            override_time: overrideTime,
+            override_reason: reason ?? null,
+          },
+          { onConflict: 'session_id,attendance_date' }
+        );
+      if (error) return { error: { message: error.message } };
+      return { error: null };
+    } catch (e) {
+      return { error: { message: String(e) } };
+    }
+  },
+
+  // Get all dates with an active time override for a session.
+  async getSessionDateOverrides(sessionId: string) {
+    return supabase
+      .from(Tables.SESSION_DATE_HOST)
+      .select('attendance_date, override_time, override_reason')
+      .eq('session_id', sessionId)
+      .not('override_time', 'is', null)
+      .order('attendance_date', { ascending: true });
+  },
+
+  // Clear all time overrides for a session (bulk reset to session.time).
+  async clearAllDateTimeOverrides(sessionId: string): Promise<{ error: { message: string } | null }> {
+    try {
+      const { error } = await supabase
+        .from(Tables.SESSION_DATE_HOST)
+        .update({ override_time: null, override_reason: null })
+        .eq('session_id', sessionId)
+        .not('override_time', 'is', null);
+      if (error) return { error: { message: error.message } };
+      return { error: null };
+    } catch (e) {
+      return { error: { message: String(e) } };
+    }
+  },
+
   // Delete session
   async delete(id: string) {
     // Fetch session data before deletion for audit log
