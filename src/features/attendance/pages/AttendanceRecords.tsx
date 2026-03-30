@@ -14,6 +14,7 @@ import { loadAttendanceRecordsPageData } from '@/features/attendance/services/at
 import { useRefreshOnFocus } from '@/shared/hooks/useRefreshOnFocus';
 import { ATTENDANCE_STATUS } from '@/shared/constants/attendance';
 import { Breadcrumb } from '@/shared/components/ui/Breadcrumb';
+import { computeSpecializationAnalytics } from '@/features/attendance/components/AttendanceCharts';
 
 const AttendanceCharts = lazy(() => import('@/features/attendance/components/AttendanceCharts'));
 const AdvancedExportBuilder = lazy(() => import('@/features/exports/components/AdvancedExportBuilder').then((module) => ({ default: module.AdvancedExportBuilder })));
@@ -195,7 +196,7 @@ export const AttendanceRecords = () => {
 
   // Advanced Export Builder state
   const [showAdvancedExport, setShowAdvancedExport] = useState(false);
-  const [exportDataType, setExportDataType] = useState<'records' | 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics'>('records');
+  const [exportDataType, setExportDataType] = useState<'records' | 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics' | 'specializationAnalytics'>('records');
 
   // Load saved field selections from localStorage
   const [savedFieldSelections, setSavedFieldSelections] = useState<{
@@ -203,12 +204,13 @@ export const AttendanceRecords = () => {
     studentAnalytics: string[];
     dateAnalytics: string[];
     hostAnalytics: string[];
+    specializationAnalytics: string[];
   }>(() => {
     try {
       const saved = localStorage.getItem('exportFieldSelections');
       if (saved) return JSON.parse(saved);
     } catch { /* ignore */ }
-    return { records: [], studentAnalytics: [], dateAnalytics: [], hostAnalytics: [] };
+    return { records: [], studentAnalytics: [], dateAnalytics: [], hostAnalytics: [], specializationAnalytics: [] };
   });
 
   // Load saved export settings from localStorage (includes sort, coloring options)
@@ -217,13 +219,14 @@ export const AttendanceRecords = () => {
     studentAnalytics: ExportSettings;
     dateAnalytics: ExportSettings;
     hostAnalytics: ExportSettings;
+    specializationAnalytics: ExportSettings;
   }>(() => {
     try {
       const saved = localStorage.getItem('exportSettings');
       if (saved) return JSON.parse(saved);
     } catch { /* ignore */ }
     const defaultSettings: ExportSettings = { fields: [], enableConditionalColoring: true, coloringTheme: 'default' };
-    return { records: defaultSettings, studentAnalytics: defaultSettings, dateAnalytics: defaultSettings, hostAnalytics: defaultSettings };
+    return { records: defaultSettings, studentAnalytics: defaultSettings, dateAnalytics: defaultSettings, hostAnalytics: defaultSettings, specializationAnalytics: defaultSettings };
   });
 
   useEffect(() => {
@@ -324,13 +327,14 @@ export const AttendanceRecords = () => {
     student: boolean;
     date: boolean;
     host: boolean;
+    specialization: boolean;
     crosstab: boolean;
   }>(() => {
     try {
       const saved = localStorage.getItem('analyticsIncludedTables');
       if (saved) return JSON.parse(saved);
     } catch { /* ignore */ }
-    return { summary: true, student: true, date: true, host: true, crosstab: false };
+    return { summary: true, student: true, date: true, host: true, specialization: true, crosstab: false };
   });
   useEffect(() => {
     localStorage.setItem('analyticsIncludedTables', JSON.stringify(includedTables));
@@ -823,6 +827,7 @@ export const AttendanceRecords = () => {
     studentTable: 'الطلاب',
     dateTable: 'التواريخ',
     hostTable: 'المضيفين',
+    specTable: 'التخصصات',
     crosstabTable: 'المصفوفة',
     locationMap: '📍 خريطة المواقع',
     locationMapDesc: 'مواقع الاستضافة مع المسافات والتوجيه',
@@ -851,6 +856,7 @@ export const AttendanceRecords = () => {
     studentPerformanceReport: 'تقرير أداء الطلاب',
     attendanceByDateReport: 'تقرير الحضور حسب التاريخ',
     hostRankingsReport: 'تقرير ترتيب المضيفين',
+    specializationReport: 'تقرير تحليل التخصصات',
     dateRowsToExport: '📅 صفوف التاريخ للتصدير',
   } : {
     attendanceRecords: 'Attendance Records',
@@ -928,6 +934,7 @@ export const AttendanceRecords = () => {
     studentTable: 'Students',
     dateTable: 'Dates',
     hostTable: 'Hosts',
+    specTable: 'Specializations',
     crosstabTable: 'Matrix',
     locationMap: '📍 Location Map',
     locationMapDesc: 'Host locations with distances & routing',
@@ -956,6 +963,7 @@ export const AttendanceRecords = () => {
     studentPerformanceReport: 'Student Performance Report',
     attendanceByDateReport: 'Attendance by Date Report',
     hostRankingsReport: 'Host Rankings Report',
+    specializationReport: 'Specialization Analytics Report',
     dateRowsToExport: '📅 Date Rows to Export',
   }, [arabicMode]);
 
@@ -1632,7 +1640,34 @@ export const AttendanceRecords = () => {
       XLSX.utils.book_append_sheet(wb, ws3, isArabic ? 'تصنيف المضيفين' : 'Host Rankings');
     }
 
-    // Sheet 5: Cross-Tab Heatmap (Student × Date matrix)
+    // Sheet 5: Specialization Analytics
+    if (includedTables.specialization) {
+      const specConfig = filterDataByFields('specializationAnalytics', isArabic);
+      const specData = computeSpecializationAnalytics(studentAnalytics, isArabic ? 'غير محدد' : 'Unspecified');
+      const specDataObjects = sortDataBySettings(specData.map((spec, index) => ({
+        rank: index + 1,
+        specialization: spec.specialization,
+        studentCount: spec.studentCount,
+        avgAttendanceRate: spec.avgAttendanceRate,
+        avgScore: spec.avgScore,
+        avgPunctuality: spec.avgPunctuality,
+        avgConsistency: spec.avgConsistency,
+        totalPresent: spec.totalPresent,
+        totalLate: spec.totalLate,
+        totalAbsent: spec.totalAbsent,
+        totalExcused: spec.totalExcused,
+        bestStudent: spec.bestStudent,
+        bestStudentScore: spec.bestStudentScore,
+        worstStudent: spec.worstStudent,
+        worstStudentScore: spec.worstStudentScore,
+      })), 'specializationAnalytics');
+      specDataObjects.forEach((obj, idx) => { obj.rank = idx + 1; });
+      const specRows = specDataObjects.map((data, index) => specConfig.getData(data as Record<string, unknown>, index));
+      const wsSpec = XLSX.utils.aoa_to_sheet([specConfig.headers, ...specRows]);
+      XLSX.utils.book_append_sheet(wb, wsSpec, isArabic ? 'تحليل التخصصات' : 'Specialization Analytics');
+    }
+
+    // Sheet 6: Cross-Tab Heatmap (Student × Date matrix)
     if (includedTables.crosstab) {
       const sortedStudents = sortStudentsForMatrix(studentAnalytics);
       const allSortedDates = [...dateAnalytics].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -1870,7 +1905,40 @@ export const AttendanceRecords = () => {
       sections.push('');
     }
 
-    // Section 4: Cross-Tab Matrix
+    // Section 4: Specialization Analytics
+    if (includedTables.specialization) {
+      const specConfig = filterDataByFields('specializationAnalytics', isArabic);
+      const specData = computeSpecializationAnalytics(studentAnalytics, isArabic ? 'غير محدد' : 'Unspecified');
+      const specDataObjects = sortDataBySettings(specData.map((spec, index) => ({
+        rank: index + 1,
+        specialization: spec.specialization,
+        studentCount: spec.studentCount,
+        avgAttendanceRate: spec.avgAttendanceRate,
+        avgScore: spec.avgScore,
+        avgPunctuality: spec.avgPunctuality,
+        avgConsistency: spec.avgConsistency,
+        totalPresent: spec.totalPresent,
+        totalLate: spec.totalLate,
+        totalAbsent: spec.totalAbsent,
+        totalExcused: spec.totalExcused,
+        bestStudent: spec.bestStudent,
+        bestStudentScore: spec.bestStudentScore,
+        worstStudent: spec.worstStudent,
+        worstStudentScore: spec.worstStudentScore,
+      })), 'specializationAnalytics');
+      specDataObjects.forEach((obj, idx) => { obj.rank = idx + 1; });
+      const specTitle = isArabic ? '# تحليل التخصصات' : '# Specialization Analytics';
+      const specHeaderRow = specConfig.headers.map(escapeCSV).join(',');
+      const specRows = specDataObjects.map((data, index) =>
+        specConfig.getData(data as Record<string, unknown>, index).map(escapeCSV).join(',')
+      );
+      sections.push(specTitle);
+      sections.push(specHeaderRow);
+      sections.push(...specRows);
+      sections.push('');
+    }
+
+    // Section 5: Cross-Tab Matrix
     if (includedTables.crosstab) {
       const sortedStudents = sortStudentsForMatrix(studentAnalytics);
       const allSortedDates = [...dateAnalytics].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -2311,6 +2379,62 @@ export const AttendanceRecords = () => {
     }
     } // end includedTables.host
 
+    // Specialization Analytics for PDF
+    if (includedTables.specialization && studentAnalytics.length > 0) {
+      const specConfig = filterDataByFields('specializationAnalytics', isArabic);
+      const specData = computeSpecializationAnalytics(studentAnalytics, isArabic ? 'غير محدد' : 'Unspecified');
+      const specDataObjects = sortDataBySettings(specData.map((spec, index) => ({
+        rank: index + 1,
+        specialization: spec.specialization,
+        studentCount: spec.studentCount,
+        avgAttendanceRate: spec.avgAttendanceRate,
+        avgScore: spec.avgScore,
+        avgPunctuality: spec.avgPunctuality,
+        avgConsistency: spec.avgConsistency,
+        totalPresent: spec.totalPresent,
+        totalLate: spec.totalLate,
+        totalAbsent: spec.totalAbsent,
+        totalExcused: spec.totalExcused,
+        bestStudent: spec.bestStudent,
+        bestStudentScore: spec.bestStudentScore,
+        worstStudent: spec.worstStudent,
+        worstStudentScore: spec.worstStudentScore,
+      })), 'specializationAnalytics');
+      specDataObjects.forEach((obj, idx) => { obj.rank = idx + 1; });
+
+      const specColoring = getColoringSettingsForType('specializationAnalytics');
+      const specColorColumns = specColoring.coloringFields.length > 0
+        ? specColoring.coloringFields.map(fk => getSelectedFieldsForType('specializationAnalytics').indexOf(fk)).filter(i => i !== -1)
+        : [];
+
+      doc.setFontSize(12);
+      doc.text(isArabic ? 'تحليل التخصصات' : 'Specialization Analytics', 14, currentY + 10);
+
+      autoTable(doc, {
+        startY: currentY + 14,
+        head: [specConfig.headers],
+        body: specDataObjects.map((data, index) => specConfig.getData(data as Record<string, unknown>, index)) as (string | number)[][],
+        styles: { fontSize: 7, cellPadding: 2 },
+        headStyles: { fillColor: [139, 92, 246], fontSize: 7 },
+        alternateRowStyles: { fillColor: [245, 245, 245] },
+        didParseCell: (hookData) => {
+          if (specColoring.enableConditionalColoring && hookData.section === 'body' && specColorColumns.includes(hookData.column.index)) {
+            const cellText = hookData.cell.text.join('');
+            const numMatch = cellText.match(/(\d+\.?\d*)/);
+            if (numMatch) {
+              const value = parseFloat(numMatch[1]);
+              if (!isNaN(value) && value >= 0 && value <= 100) {
+                hookData.cell.styles.fillColor = getColorForValuePDF(value, specColoring.coloringTheme);
+                hookData.cell.styles.textColor = [255, 255, 255];
+                hookData.cell.styles.fontStyle = 'bold';
+              }
+            }
+          }
+        },
+      });
+      currentY = (doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || currentY + 14;
+    }
+
     // Cross-Tab Matrix (Student × Date) for PDF — Smart Auto-Builder
     // Automatically handles any number of dates/students with orientation & pagination
     if (includedTables.crosstab && studentAnalytics.length > 0 && dateAnalytics.length > 0) {
@@ -2743,6 +2867,41 @@ export const AttendanceRecords = () => {
       return row;
     });
 
+    // Prepare specialization data for Word export
+    let specDataForExport: Record<string, unknown>[] = [];
+    let specHeadersForExport: string[] = [];
+    if (includedTables.specialization) {
+      const specConfig = filterDataByFields('specializationAnalytics', isArabic);
+      const specData = computeSpecializationAnalytics(studentAnalytics, isArabic ? 'غير محدد' : 'Unspecified');
+      const specDataObjects = sortDataBySettings(specData.map((spec, index) => ({
+        rank: index + 1,
+        specialization: spec.specialization,
+        studentCount: spec.studentCount,
+        avgAttendanceRate: spec.avgAttendanceRate,
+        avgScore: spec.avgScore,
+        avgPunctuality: spec.avgPunctuality,
+        avgConsistency: spec.avgConsistency,
+        totalPresent: spec.totalPresent,
+        totalLate: spec.totalLate,
+        totalAbsent: spec.totalAbsent,
+        totalExcused: spec.totalExcused,
+        bestStudent: spec.bestStudent,
+        bestStudentScore: spec.bestStudentScore,
+        worstStudent: spec.worstStudent,
+        worstStudentScore: spec.worstStudentScore,
+      })), 'specializationAnalytics');
+      specDataObjects.forEach((obj, idx) => { obj.rank = idx + 1; });
+      specHeadersForExport = specConfig.headers;
+      specDataForExport = specDataObjects.map((data, index) => {
+        const row: Record<string, unknown> = {};
+        specConfig.headers.forEach((header, i) => {
+          const values = specConfig.getData(data as Record<string, unknown>, index);
+          row[header] = values[i];
+        });
+        return row;
+      });
+    }
+
     // Get per-type coloring settings for Word export
     const wordStudentColoring = (() => {
       const s = getColoringSettingsForType('studentAnalytics');
@@ -2769,6 +2928,14 @@ export const AttendanceRecords = () => {
       return { enabled: s.enableConditionalColoring, theme: s.coloringTheme, colorColumns: colorCols };
     })();
     const wordAnyEnabled = wordStudentColoring.enabled || wordDateColoring.enabled || wordHostColoring.enabled;
+    const wordSpecColoring = (() => {
+      const s = getColoringSettingsForType('specializationAnalytics');
+      const selectedKeys = getSelectedFieldsForType('specializationAnalytics');
+      const colorCols = s.coloringFields.length > 0
+        ? s.coloringFields.map(fk => selectedKeys.indexOf(fk)).filter(i => i !== -1)
+        : [];
+      return { enabled: s.enableConditionalColoring, theme: s.coloringTheme, colorColumns: colorCols };
+    })();
 
     // Build cross-tab matrix data for Word export
     let crosstabForWord: { headers: string[]; rows: string[][] } | undefined;
@@ -2809,14 +2976,17 @@ export const AttendanceRecords = () => {
         filters.endDate,
         undefined, // filename
         {
-          enableConditionalColoring: wordAnyEnabled,
+          enableConditionalColoring: wordAnyEnabled || wordSpecColoring.enabled,
           coloringTheme: wordStudentColoring.theme,
           perTypeColoring: {
             studentAnalytics: wordStudentColoring,
             dateAnalytics: wordDateColoring,
             hostAnalytics: wordHostColoring,
+            specializationAnalytics: wordSpecColoring,
           },
           crosstabData: crosstabForWord,
+          specializationData: specDataForExport,
+          specializationHeaders: specHeadersForExport,
         }
       );
       success('Word document exported successfully!');
@@ -3589,6 +3759,56 @@ export const AttendanceRecords = () => {
           ]
         }
       ];
+    } else if (exportDataType === 'specializationAnalytics') {
+      return [
+        {
+          id: 'specInfo',
+          label: 'Specialization Info',
+          labelAr: 'معلومات التخصص',
+          icon: '🎓',
+          fields: [
+            { key: 'rank', label: 'Rank', labelAr: 'الترتيب', category: 'specInfo', defaultSelected: true },
+            { key: 'specialization', label: 'Specialization', labelAr: 'التخصص', category: 'specInfo', defaultSelected: true },
+            { key: 'studentCount', label: 'Student Count', labelAr: 'عدد الطلاب', category: 'specInfo', defaultSelected: true },
+          ]
+        },
+        {
+          id: 'specPerformance',
+          label: 'Performance Metrics',
+          labelAr: 'مؤشرات الأداء',
+          icon: '📊',
+          fields: [
+            { key: 'avgAttendanceRate', label: 'Avg Attendance Rate %', labelAr: 'معدل الحضور %', category: 'specPerformance', defaultSelected: true },
+            { key: 'avgScore', label: 'Avg Weighted Score', labelAr: 'متوسط الدرجة', category: 'specPerformance', defaultSelected: true },
+            { key: 'avgPunctuality', label: 'Avg Punctuality %', labelAr: 'متوسط الانضباط %', category: 'specPerformance', defaultSelected: true },
+            { key: 'avgConsistency', label: 'Avg Consistency', labelAr: 'متوسط الانتظام', category: 'specPerformance', defaultSelected: true },
+          ]
+        },
+        {
+          id: 'specCounts',
+          label: 'Attendance Totals',
+          labelAr: 'إجماليات الحضور',
+          icon: '✅',
+          fields: [
+            { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحضور', category: 'specCounts', defaultSelected: true },
+            { key: 'totalLate', label: 'Total Late', labelAr: 'إجمالي المتأخرين', category: 'specCounts', defaultSelected: true },
+            { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب', category: 'specCounts', defaultSelected: true },
+            { key: 'totalExcused', label: 'Total Excused', labelAr: 'إجمالي المعذورين', category: 'specCounts', defaultSelected: true },
+          ]
+        },
+        {
+          id: 'specStudents',
+          label: 'Top/Bottom Students',
+          labelAr: 'أفضل/أضعف الطلاب',
+          icon: '🏆',
+          fields: [
+            { key: 'bestStudent', label: 'Best Student', labelAr: 'أفضل طالب', category: 'specStudents', defaultSelected: true },
+            { key: 'bestStudentScore', label: 'Best Score', labelAr: 'أعلى درجة', category: 'specStudents', defaultSelected: true },
+            { key: 'worstStudent', label: 'Weakest Student', labelAr: 'أضعف طالب', category: 'specStudents', defaultSelected: false },
+            { key: 'worstStudentScore', label: 'Weakest Score', labelAr: 'أدنى درجة', category: 'specStudents', defaultSelected: false },
+          ]
+        }
+      ];
     }
     // Default: records - Full field list for detailed record exports
     return [
@@ -3704,7 +3924,7 @@ export const AttendanceRecords = () => {
   };
 
   // Helper: Get all field definitions for a data type (flattened from categories)
-  const getAllFieldsForType = (dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics') => {
+  const getAllFieldsForType = (dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics' | 'specializationAnalytics') => {
     // Build map of all available fields for each data type
     const allFields: { key: string; label: string; labelAr: string }[] = [];
     
@@ -3795,13 +4015,31 @@ export const AttendanceRecords = () => {
         { key: 'totalStudents', label: 'Total Students', labelAr: 'إجمالي الطلاب' },
         { key: 'dates', label: 'All Dates', labelAr: 'جميع التواريخ' },
       );
+    } else if (dataType === 'specializationAnalytics') {
+      allFields.push(
+        { key: 'rank', label: 'Rank', labelAr: 'الترتيب' },
+        { key: 'specialization', label: 'Specialization', labelAr: 'التخصص' },
+        { key: 'studentCount', label: 'Student Count', labelAr: 'عدد الطلاب' },
+        { key: 'avgAttendanceRate', label: 'Avg Attendance Rate %', labelAr: 'معدل الحضور %' },
+        { key: 'avgScore', label: 'Avg Weighted Score', labelAr: 'متوسط الدرجة' },
+        { key: 'avgPunctuality', label: 'Avg Punctuality %', labelAr: 'متوسط الانضباط %' },
+        { key: 'avgConsistency', label: 'Avg Consistency', labelAr: 'متوسط الانتظام' },
+        { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحضور' },
+        { key: 'totalLate', label: 'Total Late', labelAr: 'إجمالي المتأخرين' },
+        { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب' },
+        { key: 'totalExcused', label: 'Total Excused', labelAr: 'إجمالي المعذورين' },
+        { key: 'bestStudent', label: 'Best Student', labelAr: 'أفضل طالب' },
+        { key: 'bestStudentScore', label: 'Best Score', labelAr: 'أعلى درجة' },
+        { key: 'worstStudent', label: 'Weakest Student', labelAr: 'أضعف طالب' },
+        { key: 'worstStudentScore', label: 'Weakest Score', labelAr: 'أدنى درجة' },
+      );
     }
     
     return allFields;
   };
 
   // Helper: Get selected fields or default fields for a data type
-  const getSelectedFieldsForType = (dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics'): string[] => {
+  const getSelectedFieldsForType = (dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics' | 'specializationAnalytics'): string[] => {
     const saved = savedFieldSelections[dataType];
     if (saved && saved.length > 0) {
       return saved;
@@ -3811,7 +4049,7 @@ export const AttendanceRecords = () => {
   };
   
   // Helper: Get sort settings for a data type (supports multi-layer)
-  const getSortSettingsForType = (dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics'): { sortByField?: string; sortDirection: 'asc' | 'desc'; sortLayers?: Array<{field: string; direction: 'asc' | 'desc'}> } => {
+  const getSortSettingsForType = (dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics' | 'specializationAnalytics'): { sortByField?: string; sortDirection: 'asc' | 'desc'; sortLayers?: Array<{field: string; direction: 'asc' | 'desc'}> } => {
     const settings = savedExportSettings[dataType];
     return {
       sortByField: settings?.sortByField,
@@ -3823,7 +4061,7 @@ export const AttendanceRecords = () => {
   // Helper: Sort data array based on saved settings (supports multi-layer)
   const sortDataBySettings = <T extends Record<string, unknown>>(
     data: T[],
-    dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics'
+    dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics' | 'specializationAnalytics'
   ): T[] => {
     const { sortByField, sortDirection, sortLayers } = getSortSettingsForType(dataType);
     
@@ -3884,7 +4122,7 @@ export const AttendanceRecords = () => {
   };
 
   // Helper: Get conditional coloring settings for a data type
-  const getColoringSettingsForType = (dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics'): { 
+  const getColoringSettingsForType = (dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics' | 'specializationAnalytics'): { 
     enableConditionalColoring: boolean; 
     coloringFields: string[];
     coloringTheme: 'default' | 'traffic' | 'heatmap' | 'status';
@@ -3940,7 +4178,7 @@ export const AttendanceRecords = () => {
 
   // Helper: Filter headers and data based on selected fields
   const filterDataByFields = (
-    dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics',
+    dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics' | 'specializationAnalytics',
     isArabic: boolean
   ): { headers: string[]; getData: (item: Record<string, unknown>, index: number) => unknown[] } => {
     const selectedKeys = getSelectedFieldsForType(dataType);
@@ -4135,6 +4373,26 @@ export const AttendanceRecords = () => {
             datesList: host.rawDates.map(d => smartDateFormat(d, allHostRawDates5)).join('\n'),
           };
         });
+    } else if (exportDataType === 'specializationAnalytics') {
+      const isArabic = reportLanguage === 'ar';
+      const specData = computeSpecializationAnalytics(studentAnalytics, isArabic ? 'غير محدد' : 'Unspecified');
+      return specData.map((spec, index) => ({
+        rank: index + 1,
+        specialization: spec.specialization,
+        studentCount: spec.studentCount,
+        avgAttendanceRate: spec.avgAttendanceRate,
+        avgScore: spec.avgScore,
+        avgPunctuality: spec.avgPunctuality,
+        avgConsistency: spec.avgConsistency,
+        totalPresent: spec.totalPresent,
+        totalLate: spec.totalLate,
+        totalAbsent: spec.totalAbsent,
+        totalExcused: spec.totalExcused,
+        bestStudent: spec.bestStudent,
+        bestStudentScore: spec.bestStudentScore,
+        worstStudent: spec.worstStudent,
+        worstStudentScore: spec.worstStudentScore,
+      }));
     }
     // Default: filtered records with all available fields
     return filteredRecords.map(r => {
@@ -4225,6 +4483,7 @@ export const AttendanceRecords = () => {
               exportDataType === 'studentAnalytics' ? t.studentPerformanceReport :
               exportDataType === 'dateAnalytics' ? t.attendanceByDateReport :
               exportDataType === 'hostAnalytics' ? t.hostRankingsReport :
+              exportDataType === 'specializationAnalytics' ? t.specializationReport :
               t.attendanceRecords
             }
             savedFields={savedFieldSelections[exportDataType]}
@@ -4478,6 +4737,19 @@ export const AttendanceRecords = () => {
                   {savedExportSettings.hostAnalytics?.enableConditionalColoring !== false && <span className="text-rose-500 text-xs">🌈</span>}
                   <button onClick={() => { setExportDataType('hostAnalytics'); setShowAdvancedExport(true); }} className="text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-300 underline text-xs ml-1">{t.edit}</button>
                 </div>
+                <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg px-3 py-1.5 shadow-sm">
+                  <span className="text-violet-600 dark:text-violet-400 font-semibold">🎓 {t.specTable}:</span>
+                  <span className="text-green-600 dark:text-green-400">
+                    {savedFieldSelections.specializationAnalytics.length > 0 ? `${savedFieldSelections.specializationAnalytics.length} ${t.fields}` : t.all}
+                  </span>
+                  {(savedExportSettings.specializationAnalytics?.sortLayers || []).length > 0 ? (
+                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.specializationAnalytics.sortLayers!.map(l => `${l.field} ${l.direction === 'desc' ? '\u2193' : '\u2191'}`).join(', ')})</span>
+                  ) : savedExportSettings.specializationAnalytics?.sortByField && (
+                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.specializationAnalytics.sortByField} {savedExportSettings.specializationAnalytics.sortDirection === 'desc' ? '\u2193' : '\u2191'})</span>
+                  )}
+                  {savedExportSettings.specializationAnalytics?.enableConditionalColoring !== false && <span className="text-rose-500 text-xs">🌈</span>}
+                  <button onClick={() => { setExportDataType('specializationAnalytics'); setShowAdvancedExport(true); }} className="text-violet-600 dark:text-violet-400 hover:text-violet-800 dark:hover:text-violet-300 underline text-xs ml-1">{t.edit}</button>
+                </div>
               </div>
               {/* Table Include/Exclude Toggles */}
               <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
@@ -4487,6 +4759,7 @@ export const AttendanceRecords = () => {
                   { key: 'student' as const, label: t.studentTable, icon: '🎓' },
                   { key: 'date' as const, label: t.dateTable, icon: '📅' },
                   { key: 'host' as const, label: t.hostTable, icon: '🏠' },
+                  { key: 'specialization' as const, label: t.specTable, icon: '🎓' },
                   { key: 'crosstab' as const, label: t.crosstabTable, icon: '🗓️' },
                 ]).map(({ key, label, icon }) => (
                   <button

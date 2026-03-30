@@ -155,12 +155,16 @@ export interface ExportOptions {
     studentAnalytics?: { enabled: boolean; theme: 'default' | 'traffic' | 'heatmap' | 'status'; colorColumns?: number[] };
     dateAnalytics?: { enabled: boolean; theme: 'default' | 'traffic' | 'heatmap' | 'status'; colorColumns?: number[] };
     hostAnalytics?: { enabled: boolean; theme: 'default' | 'traffic' | 'heatmap' | 'status'; colorColumns?: number[] };
+    specializationAnalytics?: { enabled: boolean; theme: 'default' | 'traffic' | 'heatmap' | 'status'; colorColumns?: number[] };
   };
   // Cross-tab matrix data for Student × Date table
   crosstabData?: {
     headers: string[];
     rows: string[][];
   };
+  // Specialization analytics data
+  specializationData?: Record<string, unknown>[];
+  specializationHeaders?: string[];
 }
 
 export class WordExportService {
@@ -1917,6 +1921,42 @@ export class WordExportService {
       );
 
       sections.push(this.createTable(hostHeaders, hostRows, isArabic, theme, hostColorColumns));
+    }
+
+    // Specialization Analytics Section (dynamic headers with conditional coloring)
+    const specHeaders = options?.specializationHeaders;
+    const specData = options?.specializationData;
+    if (specHeaders && specHeaders.length > 0 && specData && specData.length > 0) {
+      const specTitle = isArabic
+        ? '🎓 تحليل التخصصات'
+        : '🎓 Specialization Analytics';
+      sections.push(
+        this.createHeading(specTitle, HeadingLevel.HEADING_2, isArabic, theme)
+      );
+
+      const specPerType = options?.perTypeColoring?.specializationAnalytics;
+      const specColorEnabled = specPerType ? specPerType.enabled : enableConditionalColoring;
+      const specColorColumns = specColorEnabled
+        ? (specPerType?.colorColumns && specPerType.colorColumns.length > 0
+            ? specPerType.colorColumns
+            : detectPercentageColumns(specHeaders))
+        : [];
+
+      const specRows = specData.map((row) =>
+        specHeaders.map((header) => {
+          const value = row[header];
+          if (value === undefined || value === null) return '-';
+          if (typeof value === 'number') {
+            return header.includes('%') || header.includes('Rate') || header.includes('معدل')
+              ? `${value.toFixed(1)}%`
+              : value.toString();
+          }
+          return String(value);
+        })
+      );
+
+      sections.push(this.createTable(specHeaders, specRows, isArabic, theme, specColorColumns));
+      sections.push(new Paragraph({ text: '', spacing: { after: 400 } }));
     }
 
     // Cross-Tab Matrix is rendered as a separate landscape section below

@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ResponsiveContainer,
   BarChart,
@@ -22,7 +22,7 @@ import {
   Line,
 } from 'recharts';
 
-// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Types
 interface StudentAnalytics {
   student_id: string;
   student_name: string;
@@ -54,13 +54,30 @@ interface DateAnalytics {
   topSpecialization?: string | null;
 }
 
+export interface SpecializationAnalytics {
+  specialization: string;
+  studentCount: number;
+  avgAttendanceRate: number;
+  avgScore: number;
+  avgPunctuality: number;
+  avgConsistency: number;
+  totalPresent: number;
+  totalLate: number;
+  totalAbsent: number;
+  totalExcused: number;
+  bestStudent: string;
+  bestStudentScore: number;
+  worstStudent: string;
+  worstStudentScore: number;
+}
+
 interface Props {
   studentAnalytics: StudentAnalytics[];
   dateAnalytics: DateAnalytics[];
   arabicMode?: boolean;
 }
 
-// â”€â”€â”€ Colors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Colors
 const COLORS = {
   present: '#22c55e',
   late: '#f59e0b',
@@ -75,14 +92,14 @@ const COLORS = {
 
 const PIE_COLORS = ['#22c55e', '#f59e0b', '#ef4444', '#6366f1', '#06b6d4', '#f97316', '#14b8a6', '#ec4899'];
 
-// â”€â”€â”€ Custom Tooltip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Custom Tooltip
 function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ name: string; value: number; color: string }>; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl p-3 shadow-xl backdrop-blur-sm">
       <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">{label}</p>
-      {payload.map((entry, i) => (
-        <div key={i} className="flex items-center gap-2 text-xs">
+      {payload.map((entry, idx) => (
+        <div key={idx} className="flex items-center gap-2 text-xs">
           <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
           <span className="text-gray-600 dark:text-gray-400">{entry.name}:</span>
           <span className="font-bold text-gray-900 dark:text-white">{typeof entry.value === 'number' ? entry.value.toFixed(1) : entry.value}</span>
@@ -92,111 +109,122 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
   );
 }
 
-// â”€â”€â”€ Main Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Exported helper: compute specialization analytics from studentAnalytics
+// Used by both the charts component and the export system in AttendanceRecords
+export function computeSpecializationAnalytics(
+  students: StudentAnalytics[],
+  unspecifiedLabel = 'Unspecified'
+): SpecializationAnalytics[] {
+  const map = new Map<string, StudentAnalytics[]>();
+  students.forEach(s => {
+    const spec = s.specialization?.trim() || unspecifiedLabel;
+    if (!map.has(spec)) map.set(spec, []);
+    map.get(spec)!.push(s);
+  });
+  return Array.from(map.entries())
+    .map(([spec, group]) => {
+      const n = group.length;
+      const avgRate = Math.round(group.reduce((a, x) => a + x.attendanceRate, 0) / n * 10) / 10;
+      const avgScore = Math.round(group.reduce((a, x) => a + x.weightedScore, 0) / n * 10) / 10;
+      const avgPunctuality = Math.round(group.reduce((a, x) => a + x.punctualityRate, 0) / n * 10) / 10;
+      const avgConsistency = Math.round(group.reduce((a, x) => a + x.consistencyIndex, 0) / n * 10) / 10;
+      const sorted = [...group].sort((a, b) => b.weightedScore - a.weightedScore);
+      return {
+        specialization: spec,
+        studentCount: n,
+        avgAttendanceRate: avgRate,
+        avgScore,
+        avgPunctuality,
+        avgConsistency,
+        totalPresent: group.reduce((a, x) => a + x.presentCount, 0),
+        totalLate: group.reduce((a, x) => a + x.lateCount, 0),
+        totalAbsent: group.reduce((a, x) => a + x.absentCount, 0),
+        totalExcused: group.reduce((a, x) => a + x.excusedCount, 0),
+        bestStudent: sorted[0]?.student_name ?? '-',
+        bestStudentScore: sorted[0]?.weightedScore ?? 0,
+        worstStudent: sorted[sorted.length - 1]?.student_name ?? '-',
+        worstStudentScore: sorted[sorted.length - 1]?.weightedScore ?? 0,
+      };
+    })
+    .sort((a, b) => b.avgAttendanceRate - a.avgAttendanceRate);
+}
+
+// Main Component
 export default function AttendanceCharts({ studentAnalytics, dateAnalytics, arabicMode = false }: Props) {
-  // Dynamic tab ids â€” must include specialization
   type ChartTab = 'trend' | 'distribution' | 'performance' | 'radar' | 'lateness' | 'comparison' | 'specialization';
   const [activeTab, setActiveTab] = useState<ChartTab>('trend');
 
-  // i18n labels
-  const i = arabicMode ? {
-    trend: 'Ù…Ø³Ø§Ø± Ø§Ù„Ø­Ø¶ÙˆØ±',
-    distribution: 'ØªÙˆØ²ÙŠØ¹ Ø§Ù„Ø­Ø§Ù„Ø§Øª',
-    performance: 'Ø¯Ø±Ø¬Ø§Øª Ø§Ù„Ø·Ù„Ø§Ø¨',
-    radar: 'Ø±Ø§Ø¯Ø§Ø± Ø§Ù„ÙØµÙ„',
-    lateness: 'ØªØ­Ù„ÙŠÙ„ Ø§Ù„ØªØ£Ø®Ø±',
-    comparison: 'Ø§Ù„Ù…Ø¹Ø¯Ù„ Ù…Ù‚Ø§Ø¨Ù„ Ø§Ù„Ø¯Ø±Ø¬Ø©',
-    specialization: 'Ø§Ù„ØªØ®ØµØµØ§Øª',
-    present: 'Ø­Ø§Ø¶Ø±',
-    late: 'Ù…ØªØ£Ø®Ø±',
-    absent: 'ØºØ§Ø¦Ø¨',
-    excused: 'Ù…Ø¹Ø°ÙˆØ±',
-    onTime: 'ÙÙŠ Ø§Ù„ÙˆÙ‚Øª',
-    attendancePct: 'Ù†Ø³Ø¨Ø© Ø§Ù„Ø­Ø¶ÙˆØ± %',
-    avg: 'Ø§Ù„Ù…ØªÙˆØ³Ø·',
-    score: 'Ø§Ù„Ø¯Ø±Ø¬Ø©',
-    punctualityPct: 'Ù†Ø³Ø¨Ø© Ø§Ù„Ø§Ù†Ø¶Ø¨Ø§Ø· %',
-    lateCount: 'Ø¹Ø¯Ø¯ Ø§Ù„Ù…ØªØ£Ø®Ø±ÙŠÙ†',
-    avgLateMin: 'Ù…ØªÙˆØ³Ø· Ø¯Ù‚Ø§Ø¦Ù‚ Ø§Ù„ØªØ£Ø®Ø±',
-    attendancePctLabel: 'Ø§Ù„Ø­Ø¶ÙˆØ± %',
-    weightedScore: 'Ø§Ù„Ø¯Ø±Ø¬Ø© Ø§Ù„Ù…Ø±Ø¬Ø­Ø©',
-    noData: 'Ù„Ø§ ØªÙˆØ¬Ø¯ Ø¨ÙŠØ§Ù†Ø§Øª Ù„Ù‡Ø°Ø§ Ø§Ù„Ø±Ø³Ù…',
-    noPunctuality: 'ðŸŽ‰ Ù„Ø§ ØªØ£Ø®Ø± Ù…Ø³Ø¬Ù„ â€” Ø§Ù†Ø¶Ø¨Ø§Ø· Ù…Ù…ØªØ§Ø²!',
-    topStudents: (n: number) => `Ø£Ø¹Ù„Ù‰ ${n} Ø·Ù„Ø§Ø¨ Ø¨Ø­Ø³Ø¨ Ø§Ù„Ø¯Ø±Ø¬Ø© Ø§Ù„Ù…Ø±Ø¬Ø­Ø©`,
-    eachDot: 'ÙƒÙ„ Ù†Ù‚Ø·Ø© ØªÙ…Ø«Ù„ Ø·Ø§Ù„Ø¨Ø§Ù‹. Ù…Ø±Ø± Ø§Ù„ÙØ£Ø±Ø© Ù„Ø¹Ø±Ø¶ Ø§Ù„ØªÙØ§ØµÙŠÙ„.',
-    classAvg: 'Ù…ØªÙˆØ³Ø· Ø§Ù„ÙØµÙ„',
-    specAttendance: 'Ù…ØªÙˆØ³Ø· Ø§Ù„Ø­Ø¶ÙˆØ± %',
-    specScore: 'Ù…ØªÙˆØ³Ø· Ø§Ù„Ø¯Ø±Ø¬Ø©',
-    specStudents: 'Ø¹Ø¯Ø¯ Ø§Ù„Ø·Ù„Ø§Ø¨',
-    specHeader: 'ðŸŽ“ Ø§Ù„Ø­Ø¶ÙˆØ± ÙˆØ§Ù„Ø£Ø¯Ø§Ø¡ Ø­Ø³Ø¨ Ø§Ù„ØªØ®ØµØµ',
-    specDesc: 'Ù…Ù‚Ø§Ø±Ù†Ø© Ù…ØªÙˆØ³Ø· Ø§Ù„Ø­Ø¶ÙˆØ± ÙˆØ§Ù„Ù†ØªØ§Ø¦Ø¬ Ù„ÙƒÙ„ ØªØ®ØµØµ',
-    attendance: 'Ø§Ù„Ø­Ø¶ÙˆØ±',
-    punctuality: 'Ø§Ù„Ø§Ù†Ø¶Ø¨Ø§Ø·',
-    consistency: 'Ø§Ù„Ø§Ù†ØªØ¸Ø§Ù…',
-  } : {
-    trend: 'Attendance Trend',
-    distribution: 'Status Distribution',
-    performance: 'Student Scores',
-    radar: 'Class Radar',
-    lateness: 'Late Analysis',
-    comparison: 'Rate vs Score',
-    specialization: 'Specializations',
-    present: 'Present',
-    late: 'Late',
-    absent: 'Absent',
-    excused: 'Excused',
-    onTime: 'On Time',
-    attendancePct: 'Attendance %',
-    avg: 'Avg',
-    score: 'Score',
-    punctualityPct: 'Punctuality %',
-    lateCount: 'Late Count',
-    avgLateMin: 'Avg Late Min',
-    attendancePctLabel: 'Attendance %',
-    weightedScore: 'Weighted Score',
-    noData: 'No data available for this chart',
-    noPunctuality: 'ðŸŽ‰ No late arrivals recorded â€” perfect punctuality!',
-    topStudents: (n: number) => `Top ${n} students by weighted score`,
-    eachDot: 'Each dot is a student. Hover to see details.',
-    classAvg: 'Class Average',
-    specAttendance: 'Avg Attendance %',
-    specScore: 'Avg Score',
-    specStudents: 'Students',
-    specHeader: 'ðŸŽ“ Attendance & Performance by Specialization',
-    specDesc: 'Compare average attendance rates and scores across specializations',
-    attendance: 'Attendance',
-    punctuality: 'Punctuality',
-    consistency: 'Consistency',
+  // i18n
+  const ar = arabicMode;
+  const t = {
+    trend:           ar ? '\u0645\u0633\u0627\u0631 \u0627\u0644\u062D\u0636\u0648\u0631' : 'Attendance Trend',
+    distribution:    ar ? '\u062A\u0648\u0632\u064A\u0639 \u0627\u0644\u062D\u0627\u0644\u0627\u062A' : 'Status Distribution',
+    performance:     ar ? '\u062F\u0631\u062C\u0627\u062A \u0627\u0644\u0637\u0644\u0627\u0628' : 'Student Scores',
+    radar:           ar ? '\u0631\u0627\u062F\u0627\u0631 \u0627\u0644\u0641\u0635\u0644' : 'Class Radar',
+    lateness:        ar ? '\u062A\u062D\u0644\u064A\u0644 \u0627\u0644\u062A\u0623\u062E\u0631' : 'Late Analysis',
+    comparison:      ar ? '\u0627\u0644\u0645\u0639\u062F\u0644 \u0645\u0642\u0627\u0628\u0644 \u0627\u0644\u062F\u0631\u062C\u0629' : 'Rate vs Score',
+    specialization:  ar ? '\u0627\u0644\u062A\u062E\u0635\u0635\u0627\u062A' : 'Specializations',
+    present:         ar ? '\u062D\u0627\u0636\u0631' : 'Present',
+    late:            ar ? '\u0645\u062A\u0623\u062E\u0631' : 'Late',
+    absent:          ar ? '\u063A\u0627\u0626\u0628' : 'Absent',
+    excused:         ar ? '\u0645\u0639\u0630\u0648\u0631' : 'Excused',
+    onTime:          ar ? '\u0641\u064A \u0627\u0644\u0648\u0642\u062A' : 'On Time',
+    attendancePct:   ar ? '\u0646\u0633\u0628\u0629 \u0627\u0644\u062D\u0636\u0648\u0631 %' : 'Attendance %',
+    avg:             ar ? '\u0627\u0644\u0645\u062A\u0648\u0633\u0637' : 'Avg',
+    score:           ar ? '\u0627\u0644\u062F\u0631\u062C\u0629' : 'Score',
+    punctualityPct:  ar ? '\u0646\u0633\u0628\u0629 \u0627\u0644\u0627\u0646\u0636\u0628\u0627\u0637 %' : 'Punctuality %',
+    lateCount:       ar ? '\u0639\u062F\u062F \u0627\u0644\u0645\u062A\u0623\u062E\u0631\u064A\u0646' : 'Late Count',
+    avgLateMin:      ar ? '\u0645\u062A\u0648\u0633\u0637 \u062F\u0642\u0627\u0626\u0642 \u0627\u0644\u062A\u0623\u062E\u0631' : 'Avg Late Min',
+    attendanceLabel: ar ? '\u0627\u0644\u062D\u0636\u0648\u0631 %' : 'Attendance %',
+    weightedScore:   ar ? '\u0627\u0644\u062F\u0631\u062C\u0629 \u0627\u0644\u0645\u0631\u062C\u062D\u0629' : 'Weighted Score',
+    noData:          ar ? '\u0644\u0627 \u062A\u0648\u062C\u062F \u0628\u064A\u0627\u0646\u0627\u062A \u0644\u0647\u0630\u0627 \u0627\u0644\u0631\u0633\u0645' : 'No data available for this chart',
+    noPunctuality:   ar ? '\u0644\u0627 \u062A\u0623\u062E\u0631 \u0645\u0633\u062C\u0644 \u2014 \u0627\u0646\u0636\u0628\u0627\u0637 \u0645\u0645\u062A\u0627\u0632!' : 'No late arrivals recorded \u2014 perfect punctuality!',
+    topStudents:     (n: number) => ar ? `\u0623\u0639\u0644\u0649 ${n} \u0637\u0644\u0627\u0628 \u0628\u062D\u0633\u0628 \u0627\u0644\u062F\u0631\u062C\u0629 \u0627\u0644\u0645\u0631\u062C\u062D\u0629` : `Top ${n} students by weighted score`,
+    eachDot:         ar ? '\u0643\u0644 \u0646\u0642\u0637\u0629 \u062A\u0645\u062B\u0644 \u0637\u0627\u0644\u0628\u0627\u064B. \u0645\u0631\u0631 \u0627\u0644\u0641\u0623\u0631\u0629 \u0644\u0639\u0631\u0636 \u0627\u0644\u062A\u0641\u0627\u0635\u064A\u0644.' : 'Each dot is a student. Hover to see details.',
+    classAvg:        ar ? '\u0645\u062A\u0648\u0633\u0637 \u0627\u0644\u0641\u0635\u0644' : 'Class Average',
+    specAttendance:  ar ? '\u0645\u062A\u0648\u0633\u0637 \u0627\u0644\u062D\u0636\u0648\u0631 %' : 'Avg Attendance %',
+    specScore:       ar ? '\u0645\u062A\u0648\u0633\u0637 \u0627\u0644\u062F\u0631\u062C\u0629' : 'Avg Score',
+    specStudents:    ar ? '\u0639\u062F\u062F \u0627\u0644\u0637\u0644\u0627\u0628' : 'Students',
+    specHeader:      ar ? '\u0627\u0644\u062D\u0636\u0648\u0631 \u0648\u0627\u0644\u0623\u062F\u0627\u0621 \u062D\u0633\u0628 \u0627\u0644\u062A\u062E\u0635\u0635' : 'Attendance & Performance by Specialization',
+    specDesc:        ar ? '\u0645\u0642\u0627\u0631\u0646\u0629 \u0645\u062A\u0648\u0633\u0637 \u0627\u0644\u062D\u0636\u0648\u0631 \u0648\u0627\u0644\u0646\u062A\u0627\u0626\u062C \u0644\u0643\u0644 \u062A\u062E\u0635\u0635' : 'Compare average attendance rates and scores across specializations',
+    attendance:      ar ? '\u0627\u0644\u062D\u0636\u0648\u0631' : 'Attendance',
+    punctuality:     ar ? '\u0627\u0644\u0627\u0646\u0636\u0628\u0627\u0637' : 'Punctuality',
+    consistency:     ar ? '\u0627\u0644\u0627\u0646\u062A\u0638\u0627\u0645' : 'Consistency',
+    hostLabel:       ar ? '\u0627\u0644\u0645\u0648\u0642\u0639' : 'Host',
+    topSpec:         ar ? '\u0627\u0644\u062A\u062E\u0635\u0635 \u0627\u0644\u0623\u0643\u062B\u0631' : 'Top Specialization',
+    sessions:        ar ? '\u062C\u0644\u0633\u0627\u062A' : 'Sessions',
+    breakdown:       ar ? '\u0627\u0644\u062A\u0641\u0627\u0635\u064A\u0644' : 'Breakdown',
+    hostSpecTitle:   ar ? '\u0627\u0644\u062A\u062E\u0635\u0635 \u0627\u0644\u0633\u0627\u0626\u062F \u0644\u0643\u0644 \u0645\u0648\u0642\u0639 \u0627\u0633\u062A\u0636\u0627\u0641\u0629' : 'Dominant Specialization per Host Location',
   };
 
   const CHART_TABS: { id: ChartTab; label: string; icon: string }[] = [
-    { id: 'trend',           label: i.trend,           icon: 'ðŸ“ˆ' },
-    { id: 'specialization',  label: i.specialization,  icon: 'ðŸŽ“' },
-    { id: 'distribution',   label: i.distribution,    icon: 'ðŸ©' },
-    { id: 'performance',    label: i.performance,     icon: 'ðŸ†' },
-    { id: 'radar',          label: i.radar,           icon: 'ðŸŽ¯' },
-    { id: 'lateness',       label: i.lateness,        icon: 'â°' },
-    { id: 'comparison',     label: i.comparison,      icon: 'âš¡' },
+    { id: 'trend',          label: t.trend,          icon: '\uD83D\uDCC8' },
+    { id: 'specialization', label: t.specialization, icon: '\uD83C\uDF93' },
+    { id: 'distribution',   label: t.distribution,   icon: '\uD83C\uDF69' },
+    { id: 'performance',    label: t.performance,    icon: '\uD83C\uDFC6' },
+    { id: 'radar',          label: t.radar,          icon: '\uD83C\uDFAF' },
+    { id: 'lateness',       label: t.lateness,       icon: '\u23F0' },
+    { id: 'comparison',     label: t.comparison,     icon: '\u26A1' },
   ];
 
   const statusColors = [
-    { label: i.onTime,   color: COLORS.present },
-    { label: i.late,     color: COLORS.late },
-    { label: i.absent,   color: COLORS.absent },
-    { label: i.excused,  color: COLORS.excused },
+    { label: t.onTime,  color: COLORS.present },
+    { label: t.late,    color: COLORS.late },
+    { label: t.absent,  color: COLORS.absent },
+    { label: t.excused, color: COLORS.excused },
   ];
 
-  // â”€â”€ Memoized Data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Memoized chart data
   const trendData = useMemo(() => {
-    const heldDates = dateAnalytics.filter(d => !d.isSessionNotHeld);
-    return heldDates.map((d, idx) => {
-      const dateObj = new Date(d.date);
+    const held = dateAnalytics.filter(d => !d.isSessionNotHeld);
+    return held.map((d, idx) => {
+      const dt = new Date(d.date);
       return {
-        name: `${dateObj.getMonth() + 1}/${dateObj.getDate()}`,
-        [i.attendancePct]: Math.round(d.attendanceRate),
-        [i.late]: d.lateCount,
-        [i.absent]: d.unexcusedAbsentCount,
-        [i.avg]: Math.round(heldDates.slice(0, idx + 1).reduce((s, x) => s + x.attendanceRate, 0) / (idx + 1)),
+        name: `${dt.getMonth() + 1}/${dt.getDate()}`,
+        [t.attendancePct]: Math.round(d.attendanceRate),
+        [t.late]: d.lateCount,
+        [t.absent]: d.unexcusedAbsentCount,
+        [t.avg]: Math.round(held.slice(0, idx + 1).reduce((s, x) => s + x.attendanceRate, 0) / (idx + 1)),
       };
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -213,10 +241,10 @@ export default function AttendanceCharts({ studentAnalytics, dateAnalytics, arab
       { present: 0, late: 0, absent: 0, excused: 0 }
     );
     return [
-      { name: i.onTime,   value: totals.present - totals.late, fill: COLORS.present },
-      { name: i.late,     value: totals.late,                  fill: COLORS.late },
-      { name: i.absent,   value: totals.absent,                fill: COLORS.absent },
-      { name: i.excused,  value: totals.excused,               fill: COLORS.excused },
+      { name: t.onTime,  value: totals.present - totals.late, fill: COLORS.present },
+      { name: t.late,    value: totals.late,                  fill: COLORS.late },
+      { name: t.absent,  value: totals.absent,                fill: COLORS.absent },
+      { name: t.excused, value: totals.excused,               fill: COLORS.excused },
     ].filter(d => d.value > 0);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentAnalytics, arabicMode]);
@@ -226,10 +254,10 @@ export default function AttendanceCharts({ studentAnalytics, dateAnalytics, arab
       .sort((a, b) => b.weightedScore - a.weightedScore)
       .slice(0, 15)
       .map(s => ({
-        name: s.student_name.length > 12 ? s.student_name.substring(0, 12) + 'â€¦' : s.student_name,
-        [i.score]: Math.round(s.weightedScore),
-        [i.attendancePctLabel]: Math.round(s.attendanceRate),
-        [i.punctualityPct]: Math.round(s.punctualityRate),
+        name: s.student_name.length > 12 ? s.student_name.substring(0, 12) + '\u2026' : s.student_name,
+        [t.score]: Math.round(s.weightedScore),
+        [t.attendanceLabel]: Math.round(s.attendanceRate),
+        [t.punctualityPct]: Math.round(s.punctualityRate),
       }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentAnalytics, arabicMode]);
@@ -237,93 +265,62 @@ export default function AttendanceCharts({ studentAnalytics, dateAnalytics, arab
   const radarData = useMemo(() => {
     if (studentAnalytics.length === 0) return [];
     const avg = (field: keyof StudentAnalytics) => {
-      const vals = studentAnalytics.map(s => {
-        const v = s[field];
-        return typeof v === 'number' ? v : 0;
-      });
+      const vals = studentAnalytics.map(s => { const v = s[field]; return typeof v === 'number' ? v : 0; });
       return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
     };
     return [
-      { metric: i.attendance,   value: avg('attendanceRate'),   fullMark: 100 },
-      { metric: i.punctuality,  value: avg('punctualityRate'),  fullMark: 100 },
-      { metric: i.consistency,  value: avg('consistencyIndex'), fullMark: 100 },
-      { metric: i.score,        value: avg('weightedScore'),    fullMark: 100 },
+      { metric: t.attendance,  value: avg('attendanceRate'),   fullMark: 100 },
+      { metric: t.punctuality, value: avg('punctualityRate'),  fullMark: 100 },
+      { metric: t.consistency, value: avg('consistencyIndex'), fullMark: 100 },
+      { metric: t.score,       value: avg('weightedScore'),    fullMark: 100 },
     ];
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentAnalytics, arabicMode]);
 
   const latenessData = useMemo(() => {
     return dateAnalytics.filter(d => !d.isSessionNotHeld && d.lateCount > 0).map(d => {
-      const dateObj = new Date(d.date);
+      const dt = new Date(d.date);
       return {
-        name: `${dateObj.getMonth() + 1}/${dateObj.getDate()}`,
-        [i.lateCount]: d.lateCount,
-        [i.avgLateMin]: Math.round(d.avgLateMinutes),
+        name: `${dt.getMonth() + 1}/${dt.getDate()}`,
+        [t.lateCount]: d.lateCount,
+        [t.avgLateMin]: Math.round(d.avgLateMinutes),
       };
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateAnalytics, arabicMode]);
 
-  const scatterData = useMemo(() => {
-    return studentAnalytics.map(s => ({
+  const scatterData = useMemo(() =>
+    studentAnalytics.map(s => ({
       name: s.student_name,
-      [i.attendancePctLabel]: Math.round(s.attendanceRate),
-      [i.weightedScore]: Math.round(s.weightedScore),
-      [i.punctualityPct]: Math.round(s.punctualityRate),
-    }));
+      [t.attendanceLabel]: Math.round(s.attendanceRate),
+      [t.weightedScore]: Math.round(s.weightedScore),
+      [t.punctualityPct]: Math.round(s.punctualityRate),
+    })),
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [studentAnalytics, arabicMode]);
+  [studentAnalytics, arabicMode]);
 
-  // â”€â”€ Specialization Analytics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // Derived entirely from studentAnalytics â€” no extra data needed
-  const specializationData = useMemo(() => {
-    const map = new Map<string, { students: StudentAnalytics[] }>();
-    studentAnalytics.forEach(s => {
-      const spec = s.specialization?.trim() || (arabicMode ? 'ØºÙŠØ± Ù…Ø­Ø¯Ø¯' : 'Unspecified');
-      if (!map.has(spec)) map.set(spec, { students: [] });
-      map.get(spec)!.students.push(s);
-    });
-    return Array.from(map.entries())
-      .map(([spec, { students }]) => {
-        const n = students.length;
-        const avgRate = Math.round(students.reduce((s, x) => s + x.attendanceRate, 0) / n * 10) / 10;
-        const avgScore = Math.round(students.reduce((s, x) => s + x.weightedScore, 0) / n * 10) / 10;
-        const totalPresent = students.reduce((s, x) => s + x.presentCount, 0);
-        const totalLate = students.reduce((s, x) => s + x.lateCount, 0);
-        const totalAbsent = students.reduce((s, x) => s + x.absentCount, 0);
-        return {
-          specialization: spec,
-          studentCount: n,
-          avgAttendanceRate: avgRate,
-          avgScore,
-          totalPresent,
-          totalLate,
-          totalAbsent,
-        };
-      })
-      .sort((a, b) => b.avgAttendanceRate - a.avgAttendanceRate);
-  }, [studentAnalytics, arabicMode]);
+  // Specialization analytics
+  const unspecLabel = ar ? '\u063A\u064A\u0631 \u0645\u062D\u062F\u062F' : 'Unspecified';
+  const specData = useMemo(
+    () => computeSpecializationAnalytics(studentAnalytics, unspecLabel),
+    [studentAnalytics, unspecLabel]
+  );
 
-  // â”€â”€ Host Ã— Specialization affinity (from dateAnalytics topSpecialization) â”€â”€
+  // Host x Specialization affinity from dateAnalytics
   const hostSpecData = useMemo(() => {
     const hostMap = new Map<string, Map<string, number>>();
     dateAnalytics.forEach(d => {
       if (!d.hostAddress || d.isSessionNotHeld || d.hostAddress === 'SESSION_NOT_HELD') return;
       if (!d.topSpecialization) return;
-      const host = d.hostAddress.length > 28 ? d.hostAddress.substring(0, 28) + 'â€¦' : d.hostAddress;
+      const host = d.hostAddress.length > 28 ? d.hostAddress.substring(0, 28) + '\u2026' : d.hostAddress;
       if (!hostMap.has(host)) hostMap.set(host, new Map());
-      const specMap = hostMap.get(host)!;
-      specMap.set(d.topSpecialization, (specMap.get(d.topSpecialization) || 0) + 1);
+      const sm = hostMap.get(host)!;
+      sm.set(d.topSpecialization, (sm.get(d.topSpecialization) || 0) + 1);
     });
-    return Array.from(hostMap.entries()).map(([host, specMap]) => {
-      const sorted = [...specMap.entries()].sort((a, b) => b[1] - a[1]);
+    return Array.from(hostMap.entries()).map(([host, sm]) => {
+      const sorted = [...sm.entries()].sort((a, b) => b[1] - a[1]);
       const top = sorted[0];
-      return {
-        host,
-        topSpec: top?.[0] ?? '-',
-        topSpecCount: top?.[1] ?? 0,
-        breakdown: sorted.map(([s, c]) => `${s}(${c})`).join(', '),
-      };
+      return { host, topSpec: top?.[0] ?? '-', topSpecCount: top?.[1] ?? 0, breakdown: sorted.map(([s, c]) => `${s}(${c})`).join(', ') };
     }).sort((a, b) => b.topSpecCount - a.topSpecCount);
   }, [dateAnalytics]);
 
@@ -331,7 +328,7 @@ export default function AttendanceCharts({ studentAnalytics, dateAnalytics, arab
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg dark:shadow-gray-900/30 border border-gray-100 dark:border-gray-700 overflow-hidden">
-      {/* Tab Bar â€” no redundant inner header; the parent section already labels this */}
+      {/* Tab Bar */}
       <div className="flex overflow-x-auto gap-1 px-4 pt-3 pb-2 border-b border-gray-100 dark:border-gray-700 scrollbar-hide">
         {CHART_TABS.map(tab => (
           <button
@@ -350,7 +347,7 @@ export default function AttendanceCharts({ studentAnalytics, dateAnalytics, arab
       </div>
 
       {/* Chart Area */}
-      <div className="p-4 sm:p-6" dir={arabicMode ? 'rtl' : 'ltr'}>
+      <div className="p-4 sm:p-6" dir={ar ? 'rtl' : 'ltr'}>
 
         {/* 1. Attendance Trend */}
         {activeTab === 'trend' && trendData.length > 0 && (
@@ -375,34 +372,33 @@ export default function AttendanceCharts({ studentAnalytics, dateAnalytics, arab
                 <XAxis dataKey="name" tick={{ fontSize: 10 }} stroke="#9ca3af" />
                 <YAxis tick={{ fontSize: 10 }} stroke="#9ca3af" domain={[0, 100]} />
                 <Tooltip content={<CustomTooltip />} />
-                <Area type="monotone" dataKey={i.attendancePct} stroke={COLORS.primary} fill="url(#attendanceGrad)" strokeWidth={2.5} dot={{ r: 3, fill: COLORS.primary }} activeDot={{ r: 6, strokeWidth: 2 }} />
-                <Line type="monotone" dataKey={i.avg} stroke={COLORS.accent} strokeWidth={2} strokeDasharray="5 5" dot={false} />
-                <Bar dataKey={i.late} fill={COLORS.late} opacity={0.6} barSize={8} radius={[2, 2, 0, 0]} />
-                <Bar dataKey={i.absent} fill={COLORS.absent} opacity={0.6} barSize={8} radius={[2, 2, 0, 0]} />
+                <Area type="monotone" dataKey={t.attendancePct} stroke={COLORS.primary} fill="url(#attendanceGrad)" strokeWidth={2.5} dot={{ r: 3, fill: COLORS.primary }} activeDot={{ r: 6, strokeWidth: 2 }} />
+                <Line type="monotone" dataKey={t.avg} stroke={COLORS.accent} strokeWidth={2} strokeDasharray="5 5" dot={false} />
+                <Bar dataKey={t.late} fill={COLORS.late} opacity={0.6} barSize={8} radius={[2, 2, 0, 0]} />
+                <Bar dataKey={t.absent} fill={COLORS.absent} opacity={0.6} barSize={8} radius={[2, 2, 0, 0]} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
         )}
 
-        {/* 2. Specialization Tab â€” two panels */}
+        {/* 2. Specialization */}
         {activeTab === 'specialization' && (
           <div className="space-y-6">
-            {/* Header */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{i.specHeader}</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{i.specDesc}</p>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{'\uD83C\uDF93'} {t.specHeader}</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{t.specDesc}</p>
             </div>
 
-            {specializationData.length === 0 ? (
+            {specData.length === 0 ? (
               <div className="text-center py-10 text-gray-400 dark:text-gray-500">
-                <span className="text-3xl block mb-2">ðŸŽ“</span>
-                <p className="text-sm">{i.noData}</p>
+                <span className="text-3xl block mb-2">{'\uD83C\uDF93'}</span>
+                <p className="text-sm">{t.noData}</p>
               </div>
             ) : (
               <>
                 {/* Summary cards */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {specializationData.map((spec, idx) => {
+                  {specData.map((spec, idx) => {
                     const rateColor = spec.avgAttendanceRate >= 80 ? 'text-green-600 dark:text-green-400'
                       : spec.avgAttendanceRate >= 60 ? 'text-amber-600 dark:text-amber-400'
                       : 'text-red-600 dark:text-red-400';
@@ -415,47 +411,47 @@ export default function AttendanceCharts({ studentAnalytics, dateAnalytics, arab
                           </span>
                         </div>
                         <div className={`text-xl font-bold ${rateColor}`}>{spec.avgAttendanceRate}%</div>
-                        <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">{i.specAttendance}</div>
+                        <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">{t.specAttendance}</div>
                         <div className="mt-2 h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
                           <div className="h-full rounded-full" style={{ width: `${spec.avgAttendanceRate}%`, backgroundColor: PIE_COLORS[idx % PIE_COLORS.length] }} />
                         </div>
-                        <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">{i.score}: {spec.avgScore}</div>
+                        <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">{t.score}: {spec.avgScore}</div>
                       </div>
                     );
                   })}
                 </div>
 
-                {/* Bar chart: avg attendance rate per specialization */}
-                <ResponsiveContainer width="100%" height={Math.max(220, specializationData.length * 44)}>
-                  <BarChart data={specializationData} layout="vertical" margin={{ left: 10, right: 40 }}>
+                {/* Bar chart */}
+                <ResponsiveContainer width="100%" height={Math.max(220, specData.length * 44)}>
+                  <BarChart data={specData} layout="vertical" margin={{ left: 10, right: 40 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.3} horizontal={false} />
                     <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10 }} stroke="#9ca3af" tickFormatter={v => `${v}%`} />
                     <YAxis type="category" dataKey="specialization" tick={{ fontSize: 10 }} stroke="#9ca3af" width={100} />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Bar dataKey="avgAttendanceRate" name={i.specAttendance} radius={[0, 6, 6, 0]} barSize={18}>
-                      {specializationData.map((_, idx) => (
+                    <Bar dataKey="avgAttendanceRate" name={t.specAttendance} radius={[0, 6, 6, 0]} barSize={18}>
+                      {specData.map((_, idx) => (
                         <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
                       ))}
                     </Bar>
-                    <Bar dataKey="avgScore" name={i.specScore} fill={COLORS.secondary} radius={[0, 6, 6, 0]} barSize={18} />
+                    <Bar dataKey="avgScore" name={t.specScore} fill={COLORS.secondary} radius={[0, 6, 6, 0]} barSize={18} />
                   </BarChart>
                 </ResponsiveContainer>
 
-                {/* Host Ã— Specialization affinity table */}
+                {/* Host x Specialization */}
                 {hostSpecData.length > 0 && (
                   <div>
                     <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                      {arabicMode ? 'ðŸ  Ø§Ù„ØªØ®ØµØµ Ø§Ù„Ø³Ø§Ø¦Ø¯ Ù„ÙƒÙ„ Ù…ÙˆÙ‚Ø¹ Ø§Ø³ØªØ¶Ø§ÙØ©' : 'ðŸ  Dominant Specialization per Host Location'}
+                      {'\uD83C\uDFE0'} {t.hostSpecTitle}
                     </h4>
                     <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
                       <table className="min-w-full text-xs">
                         <thead>
                           <tr className="bg-gray-50 dark:bg-gray-700">
-                            <th className="px-3 py-2 text-left font-semibold text-gray-600 dark:text-gray-300">{arabicMode ? 'Ø§Ù„Ù…ÙˆÙ‚Ø¹' : 'Host'}</th>
-                            <th className="px-3 py-2 text-left font-semibold text-gray-600 dark:text-gray-300">{arabicMode ? 'Ø§Ù„ØªØ®ØµØµ Ø§Ù„Ø£ÙƒØ«Ø±' : 'Top Specialization'}</th>
-                            <th className="px-3 py-2 text-left font-semibold text-gray-600 dark:text-gray-300">{arabicMode ? 'Ø¬Ù„Ø³Ø§Øª' : 'Sessions'}</th>
-                            <th className="px-3 py-2 text-left font-semibold text-gray-600 dark:text-gray-300">{arabicMode ? 'Ø§Ù„ØªÙØ§ØµÙŠÙ„' : 'Breakdown'}</th>
+                            <th className="px-3 py-2 text-left font-semibold text-gray-600 dark:text-gray-300">{t.hostLabel}</th>
+                            <th className="px-3 py-2 text-left font-semibold text-gray-600 dark:text-gray-300">{t.topSpec}</th>
+                            <th className="px-3 py-2 text-left font-semibold text-gray-600 dark:text-gray-300">{t.sessions}</th>
+                            <th className="px-3 py-2 text-left font-semibold text-gray-600 dark:text-gray-300">{t.breakdown}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -486,17 +482,9 @@ export default function AttendanceCharts({ studentAnalytics, dateAnalytics, arab
           <div className="flex flex-col md:flex-row items-center gap-6">
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
-                <Pie
-                  data={statusDistribution}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={110}
-                  paddingAngle={3}
-                  dataKey="value"
+                <Pie data={statusDistribution} cx="50%" cy="50%" innerRadius={60} outerRadius={110} paddingAngle={3} dataKey="value"
                   label={({ name, percent }: { name?: string; percent?: number }) => `${name ?? ''} ${((percent ?? 0) * 100).toFixed(0)}%`}
-                  labelLine={{ stroke: '#9ca3af', strokeWidth: 1 }}
-                >
+                  labelLine={{ stroke: '#9ca3af', strokeWidth: 1 }}>
                   {statusDistribution.map((_, index) => (
                     <Cell key={index} fill={PIE_COLORS[index % PIE_COLORS.length]} stroke="none" />
                   ))}
@@ -521,7 +509,7 @@ export default function AttendanceCharts({ studentAnalytics, dateAnalytics, arab
         {/* 4. Student Performance */}
         {activeTab === 'performance' && performanceData.length > 0 && (
           <div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{i.topStudents(performanceData.length)}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{t.topStudents(performanceData.length)}</p>
             <ResponsiveContainer width="100%" height={Math.max(300, performanceData.length * 28)}>
               <BarChart data={performanceData} layout="vertical" margin={{ left: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.3} horizontal={false} />
@@ -529,9 +517,9 @@ export default function AttendanceCharts({ studentAnalytics, dateAnalytics, arab
                 <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} stroke="#9ca3af" width={90} />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey={i.score} fill={COLORS.primary} radius={[0, 4, 4, 0]} barSize={14} />
-                <Bar dataKey={i.attendancePctLabel} fill={COLORS.present} radius={[0, 4, 4, 0]} barSize={14} />
-                <Bar dataKey={i.punctualityPct} fill={COLORS.secondary} radius={[0, 4, 4, 0]} barSize={14} />
+                <Bar dataKey={t.score} fill={COLORS.primary} radius={[0, 4, 4, 0]} barSize={14} />
+                <Bar dataKey={t.attendanceLabel} fill={COLORS.present} radius={[0, 4, 4, 0]} barSize={14} />
+                <Bar dataKey={t.punctualityPct} fill={COLORS.secondary} radius={[0, 4, 4, 0]} barSize={14} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -545,14 +533,7 @@ export default function AttendanceCharts({ studentAnalytics, dateAnalytics, arab
                 <PolarGrid stroke="#e5e7eb" />
                 <PolarAngleAxis dataKey="metric" tick={{ fontSize: 12, fill: '#6b7280' }} />
                 <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 10 }} />
-                <Radar
-                  name={i.classAvg}
-                  dataKey="value"
-                  stroke={COLORS.primary}
-                  fill={COLORS.primary}
-                  fillOpacity={0.3}
-                  strokeWidth={2}
-                />
+                <Radar name={t.classAvg} dataKey="value" stroke={COLORS.primary} fill={COLORS.primary} fillOpacity={0.3} strokeWidth={2} />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
               </RadarChart>
@@ -579,41 +560,41 @@ export default function AttendanceCharts({ studentAnalytics, dateAnalytics, arab
                   <YAxis tick={{ fontSize: 10 }} stroke="#9ca3af" />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Bar dataKey={i.lateCount} fill={COLORS.late} radius={[4, 4, 0, 0]} barSize={16} />
-                  <Bar dataKey={i.avgLateMin} fill={COLORS.accent} radius={[4, 4, 0, 0]} barSize={16} />
+                  <Bar dataKey={t.lateCount} fill={COLORS.late} radius={[4, 4, 0, 0]} barSize={16} />
+                  <Bar dataKey={t.avgLateMin} fill={COLORS.accent} radius={[4, 4, 0, 0]} barSize={16} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
               <div className="text-center py-12 text-gray-400 dark:text-gray-500">
-                <span className="text-4xl block mb-2">ðŸŽ‰</span>
-                <p className="text-sm">{i.noPunctuality}</p>
+                <span className="text-4xl block mb-2">{'\uD83C\uDF89'}</span>
+                <p className="text-sm">{t.noPunctuality}</p>
               </div>
             )}
           </div>
         )}
 
-        {/* 7. Rate vs Score (Scatter) */}
+        {/* 7. Rate vs Score */}
         {activeTab === 'comparison' && scatterData.length > 0 && (
           <div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{i.eachDot}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{t.eachDot}</p>
             <ResponsiveContainer width="100%" height={350}>
               <ComposedChart data={scatterData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.3} />
-                <XAxis dataKey={i.attendancePctLabel} type="number" domain={[0, 100]} tick={{ fontSize: 10 }} stroke="#9ca3af" name={i.attendancePctLabel} />
-                <YAxis dataKey={i.weightedScore} type="number" domain={[0, 100]} tick={{ fontSize: 10 }} stroke="#9ca3af" name={i.weightedScore} />
+                <XAxis dataKey={t.attendanceLabel} type="number" domain={[0, 100]} tick={{ fontSize: 10 }} stroke="#9ca3af" name={t.attendanceLabel} />
+                <YAxis dataKey={t.weightedScore} type="number" domain={[0, 100]} tick={{ fontSize: 10 }} stroke="#9ca3af" name={t.weightedScore} />
                 <Tooltip content={({ active, payload }) => {
                   if (!active || !payload?.length) return null;
-                  const d = payload[0].payload;
+                  const d = payload[0].payload as Record<string, unknown>;
                   return (
                     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl p-3 shadow-xl">
-                      <p className="text-xs font-semibold text-gray-900 dark:text-white mb-1">{d.name}</p>
-                      <p className="text-xs text-gray-600 dark:text-gray-400">{i.attendancePctLabel}: {d[i.attendancePctLabel]}%</p>
-                      <p className="text-xs text-gray-600 dark:text-gray-400">{i.score}: {d[i.weightedScore]}</p>
-                      <p className="text-xs text-gray-600 dark:text-gray-400">{i.punctualityPct}: {d[i.punctualityPct]}%</p>
+                      <p className="text-xs font-semibold text-gray-900 dark:text-white mb-1">{String(d.name)}</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">{t.attendanceLabel}: {String(d[t.attendanceLabel])}%</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">{t.score}: {String(d[t.weightedScore])}</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">{t.punctualityPct}: {String(d[t.punctualityPct])}%</p>
                     </div>
                   );
                 }} />
-                <Scatter dataKey={i.weightedScore} fill={COLORS.primary} r={6} fillOpacity={0.7} />
+                <Scatter dataKey={t.weightedScore} fill={COLORS.primary} r={6} fillOpacity={0.7} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -628,8 +609,8 @@ export default function AttendanceCharts({ studentAnalytics, dateAnalytics, arab
           (activeTab === 'comparison' && scatterData.length === 0)
         ) && (
           <div className="text-center py-12 text-gray-400 dark:text-gray-500">
-            <span className="text-4xl block mb-2">ðŸ“­</span>
-            <p className="text-sm">{i.noData}</p>
+            <span className="text-4xl block mb-2">{'\uD83D\uDCED'}</span>
+            <p className="text-sm">{t.noData}</p>
           </div>
         )}
       </div>
