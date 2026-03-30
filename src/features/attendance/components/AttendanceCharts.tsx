@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, forwardRef, useImperativeHandle, useCallback } from 'react';
 import {
   ResponsiveContainer,
   BarChart,
@@ -235,9 +235,16 @@ export function computeHostSpecAffinity(
   }).sort((a, b) => b.totalSessions - a.totalSessions);
 }
 
+// Chart tab type — exported for use in export chart selection
+export type ChartTab = 'trend' | 'distribution' | 'performance' | 'radar' | 'lateness' | 'comparison' | 'specialization';
+
+// Handle exposed by AttendanceCharts via forwardRef
+export interface ChartCaptureHandle {
+  captureCharts: (tabs: ChartTab[]) => Promise<Map<ChartTab, string>>;
+}
+
 // Main Component
-export default function AttendanceCharts({ studentAnalytics, dateAnalytics, arabicMode = false }: Props) {
-  type ChartTab = 'trend' | 'distribution' | 'performance' | 'radar' | 'lateness' | 'comparison' | 'specialization';
+const AttendanceCharts = forwardRef<ChartCaptureHandle, Props>(function AttendanceCharts({ studentAnalytics, dateAnalytics, arabicMode = false }, ref) {
   const [activeTab, setActiveTab] = useState<ChartTab>('trend');
 
   // i18n
@@ -410,6 +417,33 @@ export default function AttendanceCharts({ studentAnalytics, dateAnalytics, arab
     }).sort((a, b) => b.topSpecCount - a.topSpecCount);
   }, [dateAnalytics]);
 
+  // Chart container refs for image capture
+  const chartRefs = useRef<Record<ChartTab, HTMLDivElement | null>>({
+    trend: null, distribution: null, performance: null,
+    radar: null, lateness: null, comparison: null, specialization: null,
+  });
+
+  // Capture charts as PNG images using html-to-image
+  const captureCharts = useCallback(async (tabs: ChartTab[]): Promise<Map<ChartTab, string>> => {
+    const { toPng } = await import('html-to-image');
+    const result = new Map<ChartTab, string>();
+    for (const tab of tabs) {
+      const el = chartRefs.current[tab];
+      if (!el) continue;
+      try {
+        const dataUrl = await toPng(el, {
+          backgroundColor: '#ffffff',
+          pixelRatio: 2,
+          style: { padding: '16px' },
+        });
+        result.set(tab, dataUrl);
+      } catch { /* skip failed charts */ }
+    }
+    return result;
+  }, []);
+
+  useImperativeHandle(ref, () => ({ captureCharts }), [captureCharts]);
+
   if (studentAnalytics.length === 0 && dateAnalytics.length === 0) return null;
 
   return (
@@ -433,10 +467,11 @@ export default function AttendanceCharts({ studentAnalytics, dateAnalytics, arab
       </div>
 
       {/* Chart Area */}
-      <div className="p-4 sm:p-6" dir={ar ? 'rtl' : 'ltr'}>
+      <div className="p-4 sm:p-6 relative" dir={ar ? 'rtl' : 'ltr'}>
 
         {/* 1. Attendance Trend */}
-        {activeTab === 'trend' && trendData.length > 0 && (
+        <div ref={el => { chartRefs.current.trend = el; }} style={activeTab !== 'trend' ? { position: 'absolute', left: '-9999px', width: '800px' } : undefined}>
+        {trendData.length > 0 && (
           <div>
             <div className="flex flex-wrap items-center gap-3 mb-3">
               {statusColors.map(s => (
@@ -466,9 +501,10 @@ export default function AttendanceCharts({ studentAnalytics, dateAnalytics, arab
             </ResponsiveContainer>
           </div>
         )}
+        </div>
 
         {/* 2. Specialization */}
-        {activeTab === 'specialization' && (
+        <div ref={el => { chartRefs.current.specialization = el; }} style={activeTab !== 'specialization' ? { position: 'absolute', left: '-9999px', width: '800px' } : undefined}>
           <div className="space-y-6">
             <div>
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{'\uD83C\uDF93'} {t.specHeader}</h3>
@@ -561,10 +597,11 @@ export default function AttendanceCharts({ studentAnalytics, dateAnalytics, arab
               </>
             )}
           </div>
-        )}
+        </div>
 
         {/* 3. Status Distribution */}
-        {activeTab === 'distribution' && statusDistribution.length > 0 && (
+        <div ref={el => { chartRefs.current.distribution = el; }} style={activeTab !== 'distribution' ? { position: 'absolute', left: '-9999px', width: '800px' } : undefined}>
+        {statusDistribution.length > 0 && (
           <div className="flex flex-col md:flex-row items-center gap-6">
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
@@ -591,9 +628,11 @@ export default function AttendanceCharts({ studentAnalytics, dateAnalytics, arab
             </div>
           </div>
         )}
+        </div>
 
         {/* 4. Student Performance */}
-        {activeTab === 'performance' && performanceData.length > 0 && (
+        <div ref={el => { chartRefs.current.performance = el; }} style={activeTab !== 'performance' ? { position: 'absolute', left: '-9999px', width: '800px' } : undefined}>
+        {performanceData.length > 0 && (
           <div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{t.topStudents(performanceData.length)}</p>
             <ResponsiveContainer width="100%" height={Math.max(300, performanceData.length * 28)}>
@@ -610,9 +649,11 @@ export default function AttendanceCharts({ studentAnalytics, dateAnalytics, arab
             </ResponsiveContainer>
           </div>
         )}
+        </div>
 
         {/* 5. Class Radar */}
-        {activeTab === 'radar' && radarData.length > 0 && (
+        <div ref={el => { chartRefs.current.radar = el; }} style={activeTab !== 'radar' ? { position: 'absolute', left: '-9999px', width: '800px' } : undefined}>
+        {radarData.length > 0 && (
           <div className="flex flex-col items-center">
             <ResponsiveContainer width="100%" height={350}>
               <RadarChart data={radarData}>
@@ -634,9 +675,10 @@ export default function AttendanceCharts({ studentAnalytics, dateAnalytics, arab
             </div>
           </div>
         )}
+        </div>
 
         {/* 6. Lateness Analysis */}
-        {activeTab === 'lateness' && (
+        <div ref={el => { chartRefs.current.lateness = el; }} style={activeTab !== 'lateness' ? { position: 'absolute', left: '-9999px', width: '800px' } : undefined}>
           <div>
             {latenessData.length > 0 ? (
               <ResponsiveContainer width="100%" height={320}>
@@ -657,10 +699,11 @@ export default function AttendanceCharts({ studentAnalytics, dateAnalytics, arab
               </div>
             )}
           </div>
-        )}
+        </div>
 
         {/* 7. Rate vs Score */}
-        {activeTab === 'comparison' && scatterData.length > 0 && (
+        <div ref={el => { chartRefs.current.comparison = el; }} style={activeTab !== 'comparison' ? { position: 'absolute', left: '-9999px', width: '800px' } : undefined}>
+        {scatterData.length > 0 && (
           <div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{t.eachDot}</p>
             <ResponsiveContainer width="100%" height={350}>
@@ -685,6 +728,7 @@ export default function AttendanceCharts({ studentAnalytics, dateAnalytics, arab
             </ResponsiveContainer>
           </div>
         )}
+        </div>
 
         {/* Empty state */}
         {(
@@ -702,5 +746,6 @@ export default function AttendanceCharts({ studentAnalytics, dateAnalytics, arab
       </div>
     </div>
   );
-}
+});
 
+export default AttendanceCharts;

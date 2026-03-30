@@ -23,6 +23,7 @@ import {
   PageNumber,
   ShadingType,
   PageOrientation,
+  ImageRun,
 } from 'docx';
 import { saveAs } from 'file-saver';
 import { format } from 'date-fns';
@@ -165,9 +166,14 @@ export interface ExportOptions {
   // Specialization analytics data
   specializationData?: Record<string, unknown>[];
   specializationHeaders?: string[];
-  // Host × Specialization affinity data
-  hostSpecData?: Record<string, unknown>[];
-  hostSpecHeaders?: string[];
+  // Chart images (base64 data URLs) and layout settings
+  chartImages?: Record<string, string>;
+  layoutSettings?: {
+    tableFontSize?: number;
+    sectionSpacing?: number;
+    chartWidth?: number;
+    pageBreakBetweenTables?: boolean;
+  };
 }
 
 export class WordExportService {
@@ -1731,6 +1737,9 @@ export class WordExportService {
   ): Promise<void> {
     const theme = options?.theme || this.defaultTheme;
     const enableConditionalColoring = options?.enableConditionalColoring ?? true;
+    // Layout settings from user controls
+    const sectionGap = Math.round((options?.layoutSettings?.sectionSpacing ?? 10) * 20); // mm → twips approx
+    const shouldPageBreak = options?.layoutSettings?.pageBreakBetweenTables ?? false;
     const sections: (Paragraph | Table)[] = [];
 
     // Title and Date Info
@@ -1797,7 +1806,7 @@ export class WordExportService {
     ];
 
     sections.push(this.createTable(summaryTableHeaders, summaryRows, isArabic, theme));
-    sections.push(new Paragraph({ text: '', spacing: { after: 400 } }));
+    sections.push(new Paragraph({ text: '', spacing: { after: sectionGap } }));
     }
 
     // Helper function to detect percentage columns for conditional coloring
@@ -1823,6 +1832,7 @@ export class WordExportService {
 
     // Student Performance Section (dynamic headers with conditional coloring)
     if (studentHeaders.length > 0 && studentData.length > 0) {
+      if (shouldPageBreak) sections.push(new Paragraph({ pageBreakBefore: true, text: '' }));
       const studentTitle = isArabic ? '👨‍🎓 أداء الطلاب' : '👨‍🎓 Student Performance';
       sections.push(
         this.createHeading(studentTitle, HeadingLevel.HEADING_2, isArabic, theme)
@@ -1852,11 +1862,12 @@ export class WordExportService {
       );
 
       sections.push(this.createTable(studentHeaders, studentRows, isArabic, theme, studentColorColumns));
-      sections.push(new Paragraph({ text: '', spacing: { after: 400 } }));
+      sections.push(new Paragraph({ text: '', spacing: { after: sectionGap } }));
     }
 
     // Date Analytics Section (dynamic headers with conditional coloring)
     if (dateHeaders.length > 0 && dateData.length > 0) {
+      if (shouldPageBreak) sections.push(new Paragraph({ pageBreakBefore: true, text: '' }));
       const dateTitle = isArabic
         ? '📅 الحضور حسب التاريخ'
         : '📅 Attendance by Date';
@@ -1888,11 +1899,12 @@ export class WordExportService {
       );
 
       sections.push(this.createTable(dateHeaders, dateRows, isArabic, theme, dateColorColumns));
-      sections.push(new Paragraph({ text: '', spacing: { after: 400 } }));
+      sections.push(new Paragraph({ text: '', spacing: { after: sectionGap } }));
     }
 
     // Host Rankings Section (dynamic headers with conditional coloring)
     if (hostHeaders.length > 0 && hostData.length > 0) {
+      if (shouldPageBreak) sections.push(new Paragraph({ pageBreakBefore: true, text: '' }));
       const hostTitle = isArabic
         ? '🏠 تصنيف المضيفين'
         : '🏠 Host Rankings';
@@ -1930,6 +1942,7 @@ export class WordExportService {
     const specHeaders = options?.specializationHeaders;
     const specData = options?.specializationData;
     if (specHeaders && specHeaders.length > 0 && specData && specData.length > 0) {
+      if (shouldPageBreak) sections.push(new Paragraph({ pageBreakBefore: true, text: '' }));
       const specTitle = isArabic
         ? '🎓 تحليل التخصصات'
         : '🎓 Specialization Analytics';
@@ -1959,30 +1972,95 @@ export class WordExportService {
       );
 
       sections.push(this.createTable(specHeaders, specRows, isArabic, theme, specColorColumns));
-      sections.push(new Paragraph({ text: '', spacing: { after: 400 } }));
+      sections.push(new Paragraph({ text: '', spacing: { after: sectionGap } }));
     }
 
-    // Host × Specialization Affinity Section
-    const hsHeaders = options?.hostSpecHeaders;
-    const hsData = options?.hostSpecData;
-    if (hsHeaders && hsHeaders.length > 0 && hsData && hsData.length > 0) {
-      const hsTitle = isArabic
-        ? '\uD83D\uDD17 \u0645\u0648\u0642\u0639\u00d7\u062A\u062E\u0635\u0635'
-        : '\uD83D\uDD17 Host x Specialization Affinity';
+    // ========== Chart Images Section ==========
+    if (options?.chartImages && Object.keys(options.chartImages).length > 0) {
+      const chartLabels: Record<string, string> = {
+        trend: isArabic ? 'مسار الحضور' : 'Attendance Trend',
+        specialization: isArabic ? 'تحليل التخصصات' : 'Specialization Analysis',
+        distribution: isArabic ? 'توزيع الحالات' : 'Status Distribution',
+        performance: isArabic ? 'أداء الطلاب' : 'Student Performance',
+        radar: isArabic ? 'رادار الصف' : 'Class Radar',
+        lateness: isArabic ? 'تحليل التأخر' : 'Lateness Analysis',
+        comparison: isArabic ? 'المعدل مقابل الدرجة' : 'Rate vs Score',
+      };
+
       sections.push(
-        this.createHeading(hsTitle, HeadingLevel.HEADING_2, isArabic, theme)
+        this.createHeading(
+          isArabic ? '📊 الرسوم البيانية' : '📊 Charts',
+          HeadingLevel.HEADING_2,
+          isArabic,
+          theme
+        )
       );
 
-      const hsRows = hsData.map((row) =>
-        hsHeaders.map((header) => {
-          const value = row[header];
-          if (value === undefined || value === null) return '-';
-          return String(value);
-        })
-      );
+      const chartWidthPct = options.layoutSettings?.chartWidth || 85;
+      // A4 content area ≈ 620px at 96dpi; scale by user preference
+      const displayWidth = Math.round(620 * (chartWidthPct / 100));
+      const displayHeight = Math.round(displayWidth * 0.5); // ~2:1 aspect ratio
 
-      sections.push(this.createTable(hsHeaders, hsRows, isArabic, theme, []));
-      sections.push(new Paragraph({ text: '', spacing: { after: 400 } }));
+      for (const [tabId, dataUrl] of Object.entries(options.chartImages)) {
+        // Add chart title
+        sections.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: `📈 ${chartLabels[tabId] || tabId}`,
+                bold: true,
+                size: 22,
+                color: theme.primary,
+              }),
+            ],
+            spacing: { before: 300, after: 100 },
+          })
+        );
+
+        // Convert data URL to buffer for ImageRun
+        try {
+          const base64Data = dataUrl.split(',')[1];
+          if (base64Data) {
+            // Convert base64 to Uint8Array
+            const binaryStr = atob(base64Data);
+            const bytes = new Uint8Array(binaryStr.length);
+            for (let i = 0; i < binaryStr.length; i++) {
+              bytes[i] = binaryStr.charCodeAt(i);
+            }
+
+            sections.push(
+              new Paragraph({
+                children: [
+                  new ImageRun({
+                    data: bytes,
+                    transformation: {
+                      width: displayWidth,
+                      height: displayHeight,
+                    },
+                    type: 'png',
+                  }),
+                ],
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 300 },
+              })
+            );
+          }
+        } catch {
+          // If image fails, add placeholder text
+          sections.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: `[Chart: ${chartLabels[tabId] || tabId} — image could not be embedded]`,
+                  italics: true,
+                  color: '999999',
+                }),
+              ],
+              spacing: { after: 200 },
+            })
+          );
+        }
+      }
     }
 
     // Cross-Tab Matrix is rendered as a separate landscape section below

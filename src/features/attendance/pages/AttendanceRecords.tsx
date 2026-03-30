@@ -14,7 +14,8 @@ import { loadAttendanceRecordsPageData } from '@/features/attendance/services/at
 import { useRefreshOnFocus } from '@/shared/hooks/useRefreshOnFocus';
 import { ATTENDANCE_STATUS } from '@/shared/constants/attendance';
 import { Breadcrumb } from '@/shared/components/ui/Breadcrumb';
-import { computeSpecializationAnalytics, computeHostSpecAffinity } from '@/features/attendance/components/AttendanceCharts';
+import { computeSpecializationAnalytics } from '@/features/attendance/components/AttendanceCharts';
+import type { ChartTab, ChartCaptureHandle } from '@/features/attendance/components/AttendanceCharts';
 
 const AttendanceCharts = lazy(() => import('@/features/attendance/components/AttendanceCharts'));
 const AdvancedExportBuilder = lazy(() => import('@/features/exports/components/AdvancedExportBuilder').then((module) => ({ default: module.AdvancedExportBuilder })));
@@ -330,10 +331,9 @@ export const AttendanceRecords = () => {
     date: boolean;
     host: boolean;
     specialization: boolean;
-    hostSpecAffinity: boolean;
     crosstab: boolean;
   }>(() => {
-    const defaults = { summary: true, student: true, date: true, host: true, specialization: true, hostSpecAffinity: true, crosstab: false };
+    const defaults = { summary: true, student: true, date: true, host: true, specialization: true, crosstab: false };
     try {
       const saved = localStorage.getItem('analyticsIncludedTables');
       if (saved) return { ...defaults, ...JSON.parse(saved) };
@@ -362,6 +362,38 @@ export const AttendanceRecords = () => {
     } catch { /* ignore */ }
   }, [matrixSelectedDates]);
   const [showMatrixDatePicker, setShowMatrixDatePicker] = useState(false);
+
+  // Chart export selection — which charts to include in exported reports
+  const chartRef = useRef<ChartCaptureHandle>(null);
+  const ALL_CHART_TABS: ChartTab[] = ['trend', 'specialization', 'distribution', 'performance', 'radar', 'lateness', 'comparison'];
+  const [selectedChartsForExport, setSelectedChartsForExport] = useState<Set<ChartTab>>(() => {
+    try {
+      const saved = localStorage.getItem('analyticsExportCharts');
+      if (saved) { const arr = JSON.parse(saved) as ChartTab[]; return new Set(arr); }
+    } catch { /* ignore */ }
+    return new Set<ChartTab>();
+  });
+  useEffect(() => {
+    localStorage.setItem('analyticsExportCharts', JSON.stringify([...selectedChartsForExport]));
+  }, [selectedChartsForExport]);
+
+  // Export layout settings — persisted
+  const [exportLayout, setExportLayout] = useState<{
+    pageBreakBetweenTables: boolean;
+    chartWidth: number; // percentage of page width (50-100)
+    tableFontSize: number; // pt (6-12)
+    sectionSpacing: number; // mm (5-30)
+  }>(() => {
+    const defaults = { pageBreakBetweenTables: false, chartWidth: 85, tableFontSize: 7, sectionSpacing: 10 };
+    try {
+      const saved = localStorage.getItem('analyticsExportLayout');
+      if (saved) return { ...defaults, ...JSON.parse(saved) };
+    } catch { /* ignore */ }
+    return defaults;
+  });
+  useEffect(() => {
+    localStorage.setItem('analyticsExportLayout', JSON.stringify(exportLayout));
+  }, [exportLayout]);
 
   // Matrix sorting — persisted in localStorage
   type MatrixSortField = 'name' | 'score' | 'attendance' | 'present' | 'absent' | 'late';
@@ -833,6 +865,15 @@ export const AttendanceRecords = () => {
     hostTable: 'المضيفين',
     specTable: 'التخصصات',
     crosstabTable: 'المصفوفة',
+    includeCharts: 'تضمين الرسوم البيانية',
+    chartTrend: 'المسار',
+    chartSpec: 'التخصصات',
+    chartDist: 'التوزيع',
+    chartPerf: 'الأداء',
+    chartRadar: 'رادار',
+    chartLate: 'التأخر',
+    chartCompare: 'المقارنة',
+    capturingCharts: 'جاري التقاط الرسوم البيانية...',
     locationMap: '📍 خريطة المواقع',
     locationMapDesc: 'مواقع الاستضافة مع المسافات والتوجيه',
     viewOnMap: 'عرض على الخريطة',
@@ -942,6 +983,15 @@ export const AttendanceRecords = () => {
     hostTable: 'Hosts',
     specTable: 'Specializations',
     crosstabTable: 'Matrix',
+    includeCharts: 'Include Charts',
+    chartTrend: 'Trend',
+    chartSpec: 'Specializations',
+    chartDist: 'Distribution',
+    chartPerf: 'Performance',
+    chartRadar: 'Radar',
+    chartLate: 'Lateness',
+    chartCompare: 'Comparison',
+    capturingCharts: 'Capturing charts...',
     locationMap: '📍 Location Map',
     locationMapDesc: 'Host locations with distances & routing',
     viewOnMap: 'View on Map',
@@ -1367,6 +1417,14 @@ export const AttendanceRecords = () => {
       return;
     }
 
+    // Capture selected charts as images before generating Excel
+    let chartImages: Map<string, string> = new Map();
+    if (selectedChartsForExport.size > 0 && chartRef.current) {
+      try {
+        chartImages = await chartRef.current.captureCharts([...selectedChartsForExport]);
+      } catch { /* charts optional */ }
+    }
+
     const XLSX = await import('xlsx');
 
     const isArabic = reportLanguage === 'ar';
@@ -1662,20 +1720,7 @@ export const AttendanceRecords = () => {
       XLSX.utils.book_append_sheet(wb, wsSpec, isArabic ? '\u062A\u062D\u0644\u064A\u0644 \u0627\u0644\u062A\u062E\u0635\u0635\u0627\u062A' : 'Specialization Analytics');
     }
 
-    // Sheet 6: Host × Specialization Affinity
-    if (includedTables.hostSpecAffinity) {
-      const hostSpecData = computeHostSpecAffinity(dateAnalytics);
-      if (hostSpecData.length > 0) {
-        const hsHeaders = isArabic
-          ? ['\u0627\u0644\u0645\u0648\u0642\u0639', '\u0627\u0644\u062A\u062E\u0635\u0635 \u0627\u0644\u0633\u0627\u0626\u062F', '\u0639\u062F\u062F \u0627\u0644\u062C\u0644\u0633\u0627\u062A', '\u0625\u062C\u0645\u0627\u0644\u064A \u0627\u0644\u062C\u0644\u0633\u0627\u062A', '\u0627\u0644\u062A\u0641\u0627\u0635\u064A\u0644']
-          : ['Host Location', 'Dominant Specialization', 'Spec Sessions', 'Total Sessions', 'Breakdown'];
-        const hsRows = hostSpecData.map(row => [row.host, row.topSpec, row.topSpecCount, row.totalSessions, row.breakdown]);
-        const wsHS = XLSX.utils.aoa_to_sheet([hsHeaders, ...hsRows]);
-        XLSX.utils.book_append_sheet(wb, wsHS, isArabic ? '\u0645\u0648\u0642\u0639\u00d7\u062A\u062E\u0635\u0635' : 'Host x Spec Affinity');
-      }
-    }
-
-    // Sheet 7: Cross-Tab Heatmap (Student \u00d7 Date matrix)
+    // Sheet 6: Cross-Tab Heatmap (Student \u00d7 Date matrix)
     if (includedTables.crosstab) {
       const sortedStudents = sortStudentsForMatrix(studentAnalytics);
       const allSortedDates = [...dateAnalytics].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -1698,6 +1743,25 @@ export const AttendanceRecords = () => {
       });
       const wsCT = XLSX.utils.aoa_to_sheet([ctHeaders, ...ctRows]);
       XLSX.utils.book_append_sheet(wb, wsCT, isArabic ? 'مصفوفة الطلاب × التواريخ' : 'Student × Date Matrix');
+    }
+
+    // Chart Images Sheet (Excel can't embed images via XLSX, add chart info index)
+    if (chartImages.size > 0) {
+      const chartLabels: Record<string, string> = {
+        trend: 'Attendance Trend', specialization: 'Specialization Analysis',
+        distribution: 'Status Distribution', performance: 'Student Performance',
+        radar: 'Class Radar', lateness: 'Lateness Analysis', comparison: 'Rate vs Score',
+      };
+      const chartInfoRows = [
+        [isArabic ? 'الرسوم البيانية المصدرة' : 'Exported Charts'],
+        [isArabic ? 'الرسم البياني' : 'Chart', isArabic ? 'الحالة' : 'Status'],
+        ...[...chartImages.keys()].map(tabId => [chartLabels[tabId] || tabId, '✓ Included']),
+        [],
+        [isArabic ? 'ملاحظة: يتم تضمين صور الرسوم البيانية في ملفات PDF و Word فقط' : 'Note: Chart images are embedded in PDF & Word exports. Use PDF for visual charts.'],
+      ];
+      const wsCharts = XLSX.utils.aoa_to_sheet(chartInfoRows);
+      wsCharts['!cols'] = [{ wch: 30 }, { wch: 15 }];
+      XLSX.utils.book_append_sheet(wb, wsCharts, isArabic ? 'الرسوم' : 'Charts');
     }
 
     // Ensure at least one sheet exists
@@ -1933,25 +1997,7 @@ export const AttendanceRecords = () => {
       sections.push('');
     }
 
-    // Section 5: Host × Specialization Affinity
-    if (includedTables.hostSpecAffinity) {
-      const hostSpecData = computeHostSpecAffinity(dateAnalytics);
-      if (hostSpecData.length > 0) {
-        const hsTitle = isArabic ? '# \u0645\u0648\u0642\u0639\u00d7\u062A\u062E\u0635\u0635' : '# Host x Specialization Affinity';
-        const hsHeaders = isArabic
-          ? ['\u0627\u0644\u0645\u0648\u0642\u0639', '\u0627\u0644\u062A\u062E\u0635\u0635 \u0627\u0644\u0633\u0627\u0626\u062F', '\u0639\u062F\u062F \u0627\u0644\u062C\u0644\u0633\u0627\u062A', '\u0625\u062C\u0645\u0627\u0644\u064A \u0627\u0644\u062C\u0644\u0633\u0627\u062A', '\u0627\u0644\u062A\u0641\u0627\u0635\u064A\u0644']
-          : ['Host Location', 'Dominant Specialization', 'Spec Sessions', 'Total Sessions', 'Breakdown'];
-        const hsRows = hostSpecData.map(row =>
-          [row.host, row.topSpec, row.topSpecCount, row.totalSessions, row.breakdown].map(v => escapeCSV(String(v))).join(',')
-        );
-        sections.push(hsTitle);
-        sections.push(hsHeaders.map(escapeCSV).join(','));
-        sections.push(...hsRows);
-        sections.push('');
-      }
-    }
-
-    // Section 6: Cross-Tab Matrix
+    // Section 5: Cross-Tab Matrix
     if (includedTables.crosstab) {
       const sortedStudents = sortStudentsForMatrix(studentAnalytics);
       const allSortedDates = [...dateAnalytics].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -2002,6 +2048,14 @@ export const AttendanceRecords = () => {
     if (!showAnalytics || studentAnalytics.length === 0 || dateAnalytics.length === 0) {
       warning('Please show analytics first to export PDF report');
       return;
+    }
+
+    // Capture selected charts as images before generating PDF
+    let chartImages: Map<string, string> = new Map();
+    if (selectedChartsForExport.size > 0 && chartRef.current) {
+      try {
+        chartImages = await chartRef.current.captureCharts([...selectedChartsForExport]);
+      } catch { /* charts optional — continue without them */ }
     }
 
     const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
@@ -2155,6 +2209,16 @@ export const AttendanceRecords = () => {
       return getColorForPercentage(value, theme).rgb;
     };
 
+    // Layout settings shorthand
+    const tblFontSize = exportLayout.tableFontSize;
+    const sectionGap = exportLayout.sectionSpacing;
+    const addPageBreakIfNeeded = () => {
+      if (exportLayout.pageBreakBetweenTables) {
+        doc.addPage();
+        currentY = 14;
+      }
+    };
+
     // Resolve per-type coloring settings
     const studentColoring = resolveColorColumns('studentAnalytics', studentConfig.headers);
     const dateColoring = resolveColorColumns('dateAnalytics', dateConfig.headers);
@@ -2171,8 +2235,8 @@ export const AttendanceRecords = () => {
         startY: currentY + 8,
         head: [studentConfig.headers],
         body: studentDataObjects.slice(0, 20).map((data, index) => studentConfig.getData(data as Record<string, unknown>, index)) as (string | number)[][],
-        styles: { fontSize: 7, cellPadding: 2 },
-        headStyles: { fillColor: [59, 130, 246], fontSize: 7 },
+        styles: { fontSize: tblFontSize, cellPadding: 2 },
+        headStyles: { fillColor: [59, 130, 246], fontSize: tblFontSize },
         alternateRowStyles: { fillColor: [245, 245, 245] },
         rowPageBreak: 'avoid',
         didParseCell: (hookData) => {
@@ -2191,6 +2255,7 @@ export const AttendanceRecords = () => {
         },
       });
       currentY = (doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || currentY + 8;
+      currentY += sectionGap;
     }
 
     // Date Analytics Table using saved fields
@@ -2260,6 +2325,7 @@ export const AttendanceRecords = () => {
     // Detect percentage columns for date table - use per-type settings
     const dateColorColumns = dateColoring.colorColumns;
 
+    addPageBreakIfNeeded();
     doc.setFontSize(12);
     doc.text('Attendance by Date', 14, currentY + 10);
 
@@ -2267,8 +2333,8 @@ export const AttendanceRecords = () => {
       startY: currentY + 14,
       head: [dateConfig.headers],
       body: dateDataObjects.map((data, index) => dateConfig.getData(data as Record<string, unknown>, index)) as (string | number)[][],
-      styles: { fontSize: 6, cellPadding: 1.5 },
-      headStyles: { fillColor: [59, 130, 246], fontSize: 6 },
+      styles: { fontSize: Math.max(tblFontSize - 1, 5), cellPadding: 1.5 },
+      headStyles: { fillColor: [59, 130, 246], fontSize: Math.max(tblFontSize - 1, 5) },
       alternateRowStyles: { fillColor: [245, 245, 245] },
       rowPageBreak: 'avoid',
       didParseCell: (hookData) => {
@@ -2289,8 +2355,11 @@ export const AttendanceRecords = () => {
     currentY = (doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || currentY + 14;
     } // end includedTables.date
 
+    currentY += sectionGap;
+
     // Host Rankings Table using saved fields
     if (includedTables.host) {
+    addPageBreakIfNeeded();
     
     // Calculate host rankings
     const hostMap = new Map<string, { 
@@ -2370,8 +2439,8 @@ export const AttendanceRecords = () => {
         startY: currentY + 14,
         head: [hostConfig.headers],
         body: hostDataObjects.map((data, index) => hostConfig.getData(data as Record<string, unknown>, index)) as (string | number)[][],
-        styles: { fontSize: 7, cellPadding: 2 },
-        headStyles: { fillColor: [59, 130, 246], fontSize: 7 },
+        styles: { fontSize: tblFontSize, cellPadding: 2 },
+        headStyles: { fillColor: [59, 130, 246], fontSize: tblFontSize },
         alternateRowStyles: { fillColor: [245, 245, 245] },
         didParseCell: (hookData) => {
           if (hostColoring.enabled && hookData.section === 'body' && hostColorColumns.includes(hookData.column.index)) {
@@ -2389,11 +2458,13 @@ export const AttendanceRecords = () => {
         },
       });
       currentY = (doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || currentY + 14;
+      currentY += sectionGap;
     }
     } // end includedTables.host
 
     // Specialization Analytics for PDF
     if (includedTables.specialization && studentAnalytics.length > 0) {
+      addPageBreakIfNeeded();
       const specConfig = filterDataByFields('specializationAnalytics', isArabic);
       const specData = computeSpecializationAnalytics(studentAnalytics, isArabic ? '\u063A\u064A\u0631 \u0645\u062D\u062F\u062F' : 'Unspecified');
       const specDataObjects = sortDataBySettings(specData.map((spec, index) => ({
@@ -2414,8 +2485,8 @@ export const AttendanceRecords = () => {
         startY: currentY + 14,
         head: [specConfig.headers],
         body: specDataObjects.map((data, index) => specConfig.getData(data as Record<string, unknown>, index)) as (string | number)[][],
-        styles: { fontSize: 7, cellPadding: 2 },
-        headStyles: { fillColor: [139, 92, 246], fontSize: 7 },
+        styles: { fontSize: tblFontSize, cellPadding: 2 },
+        headStyles: { fillColor: [139, 92, 246], fontSize: tblFontSize },
         alternateRowStyles: { fillColor: [245, 245, 245] },
         didParseCell: (hookData) => {
           if (specColoring.enableConditionalColoring && hookData.section === 'body' && specColorColumns.includes(hookData.column.index)) {
@@ -2433,28 +2504,6 @@ export const AttendanceRecords = () => {
         },
       });
       currentY = (doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || currentY + 14;
-    }
-
-    // Host × Specialization Affinity for PDF
-    if (includedTables.hostSpecAffinity && dateAnalytics.length > 0) {
-      const hostSpecData = computeHostSpecAffinity(dateAnalytics);
-      if (hostSpecData.length > 0) {
-        if (currentY > doc.internal.pageSize.getHeight() - 60) { doc.addPage(); currentY = 14; }
-        doc.setFontSize(12);
-        doc.text(isArabic ? '\u0645\u0648\u0642\u0639\u00d7\u062A\u062E\u0635\u0635' : 'Host x Specialization Affinity', 14, currentY + 10);
-        const hsHeaders = isArabic
-          ? ['\u0627\u0644\u0645\u0648\u0642\u0639', '\u0627\u0644\u062A\u062E\u0635\u0635 \u0627\u0644\u0633\u0627\u0626\u062F', '\u0639\u062F\u062F \u0627\u0644\u062C\u0644\u0633\u0627\u062A', '\u0625\u062C\u0645\u0627\u0644\u064A', '\u0627\u0644\u062A\u0641\u0627\u0635\u064A\u0644']
-          : ['Host Location', 'Dominant Spec', 'Spec Sessions', 'Total', 'Breakdown'];
-        autoTable(doc, {
-          startY: currentY + 14,
-          head: [hsHeaders],
-          body: hostSpecData.map(row => [row.host, row.topSpec, row.topSpecCount, row.totalSessions, row.breakdown]),
-          styles: { fontSize: 7, cellPadding: 2 },
-          headStyles: { fillColor: [16, 185, 129], fontSize: 7 },
-          alternateRowStyles: { fillColor: [245, 245, 245] },
-        });
-        currentY = (doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || currentY + 14;
-      }
     }
 
     // Cross-Tab Matrix (Student \u00d7 Date) for PDF \u2014 Smart Auto-Builder
@@ -2595,6 +2644,37 @@ export const AttendanceRecords = () => {
       currentY = (doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || currentY + 14;
     }
 
+    // ========== Chart Images Section ==========
+    if (chartImages.size > 0) {
+      const chartLabels: Record<string, string> = {
+        trend: 'Attendance Trend', specialization: 'Specialization Analysis',
+        distribution: 'Status Distribution', performance: 'Student Performance',
+        radar: 'Class Radar', lateness: 'Lateness Analysis', comparison: 'Rate vs Score',
+      };
+      const chartWidthMm = (pageWidth - 28) * (exportLayout.chartWidth / 100);
+      const chartXOffset = 14 + ((pageWidth - 28) - chartWidthMm) / 2;
+
+      for (const [tabId, imgData] of chartImages) {
+        doc.addPage();
+        currentY = 14;
+        doc.setFontSize(12);
+        doc.text(`📊 ${chartLabels[tabId] || tabId}`, 14, currentY);
+        currentY += 6;
+
+        try {
+          // Determine image dimensions proportionally
+          const img = new Image();
+          img.src = imgData;
+          const aspectRatio = img.naturalHeight > 0 ? img.naturalWidth / img.naturalHeight : 2;
+          const chartHeightMm = chartWidthMm / aspectRatio;
+          const maxHeight = doc.internal.pageSize.getHeight() - currentY - 20;
+          const finalHeight = Math.min(chartHeightMm, maxHeight);
+          const finalWidth = finalHeight * aspectRatio;
+          doc.addImage(imgData, 'PNG', chartXOffset, currentY, Math.min(finalWidth, chartWidthMm), finalHeight);
+        } catch { /* skip failed chart */ }
+      }
+    }
+
     // Add color legend at the end of the PDF - only if any coloring was applied
     const anyColoringEnabled = studentColoring.enabled || dateColoring.enabled || hostColoring.enabled;
     if (anyColoringEnabled) {
@@ -2655,6 +2735,15 @@ export const AttendanceRecords = () => {
 
     setExportingWord(true);
     const isArabic = reportLanguage === 'ar';
+
+    // Capture selected charts as images for Word export
+    let chartImages: Map<string, string> = new Map();
+    if (selectedChartsForExport.size > 0 && chartRef.current) {
+      try {
+        chartImages = await chartRef.current.captureCharts([...selectedChartsForExport]);
+      } catch { /* charts optional */ }
+    }
+
   const { wordExportService } = await import('@/features/exports/services/wordExportService');
 
     // ========== Use saved field selections for Word export ==========
@@ -2911,25 +3000,6 @@ export const AttendanceRecords = () => {
       });
     }
 
-    // Prepare Host × Specialization data for Word export
-    let hostSpecDataForExport: Record<string, unknown>[] = [];
-    let hostSpecHeadersForExport: string[] = [];
-    if (includedTables.hostSpecAffinity) {
-      const hostSpecData = computeHostSpecAffinity(dateAnalytics);
-      if (hostSpecData.length > 0) {
-        hostSpecHeadersForExport = isArabic
-          ? ['\u0627\u0644\u0645\u0648\u0642\u0639', '\u0627\u0644\u062A\u062E\u0635\u0635 \u0627\u0644\u0633\u0627\u0626\u062F', '\u0639\u062F\u062F \u0627\u0644\u062C\u0644\u0633\u0627\u062A', '\u0625\u062C\u0645\u0627\u0644\u064A \u0627\u0644\u062C\u0644\u0633\u0627\u062A', '\u0627\u0644\u062A\u0641\u0627\u0635\u064A\u0644']
-          : ['Host Location', 'Dominant Specialization', 'Spec Sessions', 'Total Sessions', 'Breakdown'];
-        hostSpecDataForExport = hostSpecData.map(row => {
-          const obj: Record<string, unknown> = {};
-          hostSpecHeadersForExport.forEach((h, i) => {
-            obj[h] = [row.host, row.topSpec, row.topSpecCount, row.totalSessions, row.breakdown][i];
-          });
-          return obj;
-        });
-      }
-    }
-
     // Get per-type coloring settings for Word export
     const wordStudentColoring = (() => {
       const s = getColoringSettingsForType('studentAnalytics');
@@ -3015,8 +3085,13 @@ export const AttendanceRecords = () => {
           crosstabData: crosstabForWord,
           specializationData: specDataForExport,
           specializationHeaders: specHeadersForExport,
-          hostSpecData: hostSpecDataForExport,
-          hostSpecHeaders: hostSpecHeadersForExport,
+          chartImages: chartImages.size > 0 ? Object.fromEntries(chartImages) : undefined,
+          layoutSettings: {
+            tableFontSize: exportLayout.tableFontSize,
+            sectionSpacing: exportLayout.sectionSpacing,
+            chartWidth: exportLayout.chartWidth,
+            pageBreakBetweenTables: exportLayout.pageBreakBetweenTables,
+          },
         }
       );
       success('Word document exported successfully!');
@@ -3794,6 +3869,17 @@ export const AttendanceRecords = () => {
           ]
         },
         {
+          id: 'specAffinity',
+          label: 'Specialization Affinity',
+          labelAr: '\u062A\u062E\u0635\u0635 \u0627\u0644\u0645\u0648\u0642\u0639',
+          icon: '🎓',
+          fields: [
+            { key: 'topSpec', label: 'Dominant Specialization', labelAr: '\u0627\u0644\u062A\u062E\u0635\u0635 \u0627\u0644\u0633\u0627\u0626\u062F', category: 'specAffinity', defaultSelected: true },
+            { key: 'topSpecCount', label: 'Spec Sessions', labelAr: '\u062C\u0644\u0633\u0627\u062A \u0627\u0644\u062A\u062E\u0635\u0635', category: 'specAffinity', defaultSelected: true },
+            { key: 'specBreakdown', label: 'Spec Breakdown', labelAr: '\u062A\u0641\u0627\u0635\u064A\u0644 \u0627\u0644\u062A\u062E\u0635\u0635\u0627\u062A', category: 'specAffinity', defaultSelected: true },
+          ]
+        },
+        {
           id: 'dates',
           label: 'Hosting Dates',
           labelAr: 'تواريخ الاستضافة',
@@ -4101,6 +4187,9 @@ export const AttendanceRecords = () => {
         { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب' },
         { key: 'totalExcused', label: 'Total Excused', labelAr: 'إجمالي المعذورين' },
         { key: 'totalStudents', label: 'Total Students', labelAr: 'إجمالي الطلاب' },
+        { key: 'topSpec', label: 'Dominant Specialization', labelAr: '\u0627\u0644\u062A\u062E\u0635\u0635 \u0627\u0644\u0633\u0627\u0626\u062F' },
+        { key: 'topSpecCount', label: 'Spec Sessions', labelAr: '\u062C\u0644\u0633\u0627\u062A \u0627\u0644\u062A\u062E\u0635\u0635' },
+        { key: 'specBreakdown', label: 'Spec Breakdown', labelAr: '\u062A\u0641\u0627\u0635\u064A\u0644 \u0627\u0644\u062A\u062E\u0635\u0635\u0627\u062A' },
         { key: 'dates', label: 'All Dates', labelAr: 'جميع التواريخ' },
       );
     } else if (dataType === 'specializationAnalytics') {
@@ -4471,6 +4560,15 @@ export const AttendanceRecords = () => {
       });
       const totalHostings = Array.from(hostMap.values()).reduce((sum, h) => sum + h.count, 0);
       const allHostRawDates5 = Array.from(hostMap.values()).flatMap(h => h.rawDates);
+      // Pre-compute spec affinity per host
+      const hostSpecMap = new Map<string, Map<string, number>>();
+      dateAnalytics.forEach((dateData) => {
+        if (dateData.hostAddress && dateData.hostAddress !== 'SESSION_NOT_HELD' && dateData.topSpecialization && dateData.topSpecialization !== '-') {
+          if (!hostSpecMap.has(dateData.hostAddress)) hostSpecMap.set(dateData.hostAddress, new Map());
+          const specCounts = hostSpecMap.get(dateData.hostAddress)!;
+          specCounts.set(dateData.topSpecialization, (specCounts.get(dateData.topSpecialization) || 0) + 1);
+        }
+      });
       return Array.from(hostMap.entries())
         .map(([address, data]) => ({ address, ...data }))
         .sort((a, b) => b.count - a.count)
@@ -4498,6 +4596,10 @@ export const AttendanceRecords = () => {
             totalAbsent: host.absent,
             totalExcused: host.excused,
             totalStudents: host.totalStudents,
+            // Specialization Affinity
+            topSpec: (() => { const sc = hostSpecMap.get(host.address); if (!sc || sc.size === 0) return '-'; let top = ''; let max = 0; sc.forEach((c, s) => { if (c > max) { max = c; top = s; } }); return top; })(),
+            topSpecCount: (() => { const sc = hostSpecMap.get(host.address); if (!sc || sc.size === 0) return 0; let max = 0; sc.forEach((c) => { if (c > max) max = c; }); return max; })(),
+            specBreakdown: (() => { const sc = hostSpecMap.get(host.address); if (!sc || sc.size === 0) return '-'; return Array.from(sc.entries()).sort((a, b) => b[1] - a[1]).map(([s, c]) => `${s}(${c})`).join(', '); })(),
             // Hosting Dates
             dates: host.rawDates.map(d => smartDateFormat(d, allHostRawDates5)).join(', '),
             datesList: host.rawDates.map(d => smartDateFormat(d, allHostRawDates5)).join('\n'),
@@ -4877,7 +4979,7 @@ export const AttendanceRecords = () => {
                   { key: 'date' as const, label: t.dateTable, icon: '📅' },
                   { key: 'host' as const, label: t.hostTable, icon: '🏠' },
                   { key: 'specialization' as const, label: t.specTable, icon: '🎓' },
-                  { key: 'hostSpecAffinity' as const, label: t.hostSpecTable, icon: '🔗' },
+
                   { key: 'crosstab' as const, label: t.crosstabTable, icon: '🗓️' },
                 ]).map(({ key, label, icon }) => (
                   <button
@@ -4899,6 +5001,115 @@ export const AttendanceRecords = () => {
                   </button>
                 ))}
               </div>
+
+              {/* Chart Include/Exclude Toggles */}
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-gray-600 dark:text-gray-400 font-medium">{t.includeCharts}:</span>
+                {([
+                  { key: 'trend' as ChartTab, label: t.chartTrend, icon: '📈' },
+                  { key: 'specialization' as ChartTab, label: t.chartSpec, icon: '🎓' },
+                  { key: 'distribution' as ChartTab, label: t.chartDist, icon: '🍩' },
+                  { key: 'performance' as ChartTab, label: t.chartPerf, icon: '🏆' },
+                  { key: 'radar' as ChartTab, label: t.chartRadar, icon: '🎯' },
+                  { key: 'lateness' as ChartTab, label: t.chartLate, icon: '⏰' },
+                  { key: 'comparison' as ChartTab, label: t.chartCompare, icon: '⚡' },
+                ] as const).map(({ key, label, icon }) => {
+                  const selected = selectedChartsForExport.has(key);
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setSelectedChartsForExport(prev => {
+                        const next = new Set(prev);
+                        if (next.has(key)) next.delete(key); else next.add(key);
+                        return next;
+                      })}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-md border transition-all duration-150 ${
+                        selected
+                          ? 'bg-violet-100 dark:bg-violet-900/40 border-violet-300 dark:border-violet-700 text-violet-700 dark:text-violet-300'
+                          : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500'
+                      }`}
+                      title={selected ? `Click to exclude ${label} chart from export` : `Click to include ${label} chart in export`}
+                    >
+                      <span>{icon}</span>
+                      <span>{label}</span>
+                      {selected
+                        ? <svg className="w-3 h-3 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                        : <svg className="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                      }
+                    </button>
+                  );
+                })}
+                {selectedChartsForExport.size > 0 && (
+                  <button
+                    onClick={() => setSelectedChartsForExport(new Set())}
+                    className="px-2 py-1 rounded-md border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-[10px] hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
+                  >
+                    ✕ Clear
+                  </button>
+                )}
+                {selectedChartsForExport.size === 0 && (
+                  <button
+                    onClick={() => setSelectedChartsForExport(new Set(ALL_CHART_TABS))}
+                    className="px-2 py-1 rounded-md border border-violet-300 dark:border-violet-700 bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400 text-[10px] hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-colors"
+                  >
+                    + All Charts
+                  </button>
+                )}
+              </div>
+
+              {/* Export Layout Controls */}
+              <details className="mt-2">
+                <summary className="text-xs text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300 select-none">
+                  ⚙️ {arabicMode ? 'إعدادات التخطيط المتقدمة' : 'Advanced Layout Settings'}
+                </summary>
+                <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] text-gray-500 dark:text-gray-400">{arabicMode ? 'حجم خط الجدول' : 'Table Font Size'}</span>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="range" min={6} max={12} step={0.5}
+                        value={exportLayout.tableFontSize}
+                        onChange={e => setExportLayout(prev => ({ ...prev, tableFontSize: Number(e.target.value) }))}
+                        className="flex-1 h-1.5 accent-violet-600"
+                      />
+                      <span className="text-[10px] font-mono w-6 text-gray-600 dark:text-gray-400">{exportLayout.tableFontSize}</span>
+                    </div>
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] text-gray-500 dark:text-gray-400">{arabicMode ? 'المسافة بين الأقسام' : 'Section Spacing (mm)'}</span>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="range" min={5} max={30} step={1}
+                        value={exportLayout.sectionSpacing}
+                        onChange={e => setExportLayout(prev => ({ ...prev, sectionSpacing: Number(e.target.value) }))}
+                        className="flex-1 h-1.5 accent-violet-600"
+                      />
+                      <span className="text-[10px] font-mono w-6 text-gray-600 dark:text-gray-400">{exportLayout.sectionSpacing}</span>
+                    </div>
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] text-gray-500 dark:text-gray-400">{arabicMode ? 'عرض الرسم البياني %' : 'Chart Width %'}</span>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="range" min={50} max={100} step={5}
+                        value={exportLayout.chartWidth}
+                        onChange={e => setExportLayout(prev => ({ ...prev, chartWidth: Number(e.target.value) }))}
+                        className="flex-1 h-1.5 accent-violet-600"
+                      />
+                      <span className="text-[10px] font-mono w-8 text-gray-600 dark:text-gray-400">{exportLayout.chartWidth}%</span>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={exportLayout.pageBreakBetweenTables}
+                      onChange={e => setExportLayout(prev => ({ ...prev, pageBreakBetweenTables: e.target.checked }))}
+                      className="rounded border-gray-300 text-violet-600 focus:ring-violet-500 h-3.5 w-3.5"
+                    />
+                    <span className="text-[10px] text-gray-500 dark:text-gray-400">{arabicMode ? 'فصل صفحات بين الجداول' : 'Page break between tables'}</span>
+                  </label>
+                </div>
+              </details>
 
               {/* Matrix Date Picker — Select which dates to include in cross-tab */}
               {includedTables.crosstab && dateAnalytics.length > 0 && (
@@ -5051,6 +5262,7 @@ export const AttendanceRecords = () => {
                     </div>
                   }>
                     <AttendanceCharts
+                      ref={chartRef}
                       studentAnalytics={studentAnalytics}
                       dateAnalytics={dateAnalytics}
                       arabicMode={arabicMode}
@@ -5352,6 +5564,15 @@ export const AttendanceRecords = () => {
 
                   const totalHostings = Array.from(hostMap.values()).reduce((sum, h) => sum + h.count, 0);
                   const allHostRawDates6 = Array.from(hostMap.values()).flatMap(h => h.rawDates);
+                  // Pre-compute spec affinity per host
+                  const hostSpecMap = new Map<string, Map<string, number>>();
+                  dateAnalytics.forEach((d) => {
+                    if (d.hostAddress && d.hostAddress !== 'SESSION_NOT_HELD' && d.topSpecialization && d.topSpecialization !== '-') {
+                      if (!hostSpecMap.has(d.hostAddress)) hostSpecMap.set(d.hostAddress, new Map());
+                      const sc = hostSpecMap.get(d.hostAddress)!;
+                      sc.set(d.topSpecialization, (sc.get(d.topSpecialization) || 0) + 1);
+                    }
+                  });
                   const hostRankings = Array.from(hostMap.entries())
                     .map(([address, data]) => ({ address, ...data }))
                     .sort((a, b) => b.count - a.count);
@@ -5380,6 +5601,9 @@ export const AttendanceRecords = () => {
                       totalAbsent: host.absent,
                       totalExcused: host.excused,
                       totalStudents,
+                      topSpec: (() => { const sc = hostSpecMap.get(host.address); if (!sc || sc.size === 0) return '-'; let top = ''; let max = 0; sc.forEach((c, s) => { if (c > max) { max = c; top = s; } }); return top; })(),
+                      topSpecCount: (() => { const sc = hostSpecMap.get(host.address); if (!sc || sc.size === 0) return 0; let max = 0; sc.forEach((c) => { if (c > max) max = c; }); return max; })(),
+                      specBreakdown: (() => { const sc = hostSpecMap.get(host.address); if (!sc || sc.size === 0) return '-'; return Array.from(sc.entries()).sort((a, b) => b[1] - a[1]).map(([s, c]) => `${s}(${c})`).join(', '); })(),
                       dates: host.rawDates.map(d => smartDateFormat(d, allHostRawDates6)).join(', '),
                     } as Record<string, unknown>;
                   });
