@@ -67,7 +67,8 @@ export interface SpecializationAnalytics {
   avgScore: number;
   avgPunctuality: number;
   avgConsistency: number;
-  totalPresent: number;
+  totalOnTime: number;    // on-time only (status = 'on time')
+  totalPresent: number;   // total who attended = totalOnTime + totalLate
   totalLate: number;
   totalAbsent: number;
   totalExcused: number;
@@ -80,6 +81,7 @@ export interface SpecializationAnalytics {
   avgLateMinutes: number;
   minAttendanceRate: number;
   maxAttendanceRate: number;
+  stdDevRate: number;     // std deviation of attendance rates within spec
   minScore: number;
   maxScore: number;
   dominantTrend: string;
@@ -148,16 +150,21 @@ export function computeSpecializationAnalytics(
       const avgPunctuality = Math.round(group.reduce((a, x) => a + x.punctualityRate, 0) / n * 10) / 10;
       const avgConsistency = Math.round(group.reduce((a, x) => a + x.consistencyIndex, 0) / n * 10) / 10;
       const sorted = [...group].sort((a, b) => b.weightedScore - a.weightedScore);
-      const totalPresent = group.reduce((a, x) => a + x.presentCount, 0);
+      const totalOnTime = group.reduce((a, x) => a + x.presentCount, 0);
       const totalLate = group.reduce((a, x) => a + x.lateCount, 0);
+      const totalPresent = totalOnTime + totalLate; // all who showed up
       const totalAbsent = group.reduce((a, x) => a + x.absentCount, 0);
       const totalExcused = group.reduce((a, x) => a + x.excusedCount, 0);
-      // Late duration
+      // Late duration — use weighted average (total minutes / total late events), not mean-of-means
       const specTotalLateMin = group.reduce((a, x) => a + (x.totalLateMinutes || 0), 0);
-      const specAvgLateMin = n > 0 ? Math.round(group.reduce((a, x) => a + (x.avgLateMinutes || 0), 0) / n * 10) / 10 : 0;
+      const specAvgLateMin = totalLate > 0 ? Math.round(specTotalLateMin / totalLate * 10) / 10 : 0;
       // Rate statistics (variance within specialization)
       const rates = group.map(x => x.attendanceRate);
       const scores = group.map(x => x.weightedScore);
+      const rateMean = rates.reduce((a, b) => a + b, 0) / (rates.length || 1);
+      const stdDevRate = rates.length > 1
+        ? Math.round(Math.sqrt(rates.reduce((a, x) => a + Math.pow(x - rateMean, 2), 0) / rates.length) * 10) / 10
+        : 0;
       // Trend analysis
       const trendCounts = new Map<string, number>();
       group.forEach(x => {
@@ -167,8 +174,7 @@ export function computeSpecializationAnalytics(
       const dominantTrend = [...trendCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || 'STABLE';
       const avgWeeklyChange = n > 0 ? Math.round(group.reduce((a, x) => a + (x.weeklyChange || 0), 0) / n * 10) / 10 : 0;
       // Ratios
-      const presentPlusLate = totalPresent + totalLate;
-      const totalAll = presentPlusLate + totalAbsent;
+      const totalAll = totalPresent + totalAbsent;
       return {
         specialization: spec,
         studentCount: n,
@@ -176,6 +182,7 @@ export function computeSpecializationAnalytics(
         avgScore,
         avgPunctuality,
         avgConsistency,
+        totalOnTime,
         totalPresent,
         totalLate,
         totalAbsent,
@@ -188,12 +195,13 @@ export function computeSpecializationAnalytics(
         avgLateMinutes: specAvgLateMin,
         minAttendanceRate: rates.length > 0 ? Math.round(Math.min(...rates) * 10) / 10 : 0,
         maxAttendanceRate: rates.length > 0 ? Math.round(Math.max(...rates) * 10) / 10 : 0,
+        stdDevRate,
         minScore: scores.length > 0 ? Math.round(Math.min(...scores) * 10) / 10 : 0,
         maxScore: scores.length > 0 ? Math.round(Math.max(...scores) * 10) / 10 : 0,
         dominantTrend,
         avgWeeklyChange,
         studentNames: group.map(x => x.student_name).join(', '),
-        lateRatio: presentPlusLate > 0 ? Math.round(totalLate / presentPlusLate * 1000) / 10 : 0,
+        lateRatio: totalPresent > 0 ? Math.round(totalLate / totalPresent * 1000) / 10 : 0,
         absentRatio: totalAll > 0 ? Math.round(totalAbsent / totalAll * 1000) / 10 : 0,
       };
     })

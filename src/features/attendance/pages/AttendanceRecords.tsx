@@ -84,6 +84,11 @@ interface StudentAnalytics {
   maxLateMinutes: number;
   lateScoreAvg: number;
   sessionNotHeldCount: number;
+  // Advanced metrics
+  percentileRank: number;       // 0–100 percentile among all students by attendanceRate
+  maxConsecutiveStreak: number; // longest consecutive-week attendance streak
+  firstHalfRate: number;        // attendanceRate for first 50% of sessions
+  secondHalfRate: number;       // attendanceRate for last 50% of sessions
 }
 
 interface DateAnalytics {
@@ -1440,7 +1445,8 @@ export const AttendanceRecords = () => {
 
     // Calculate summary values
     const totalStudents = studentAnalytics.length;
-    const totalSessions = dateAnalytics.length;
+    const heldSessionsExcel = dateAnalytics.filter(d => !d.isSessionNotHeld).length;
+    const notHeldSessionsExcel = dateAnalytics.length - heldSessionsExcel;
     const totalPresent = studentAnalytics.reduce((sum, s) => sum + s.presentCount, 0);
     const totalLate = studentAnalytics.reduce((sum, s) => sum + s.lateCount, 0);
     const totalAbsent = studentAnalytics.reduce((sum, s) => sum + s.unexcusedAbsent, 0);
@@ -1454,27 +1460,47 @@ export const AttendanceRecords = () => {
     const avgConsistency = studentAnalytics.length > 0
       ? Math.round(studentAnalytics.reduce((sum, s) => sum + s.consistencyIndex, 0) / studentAnalytics.length * 100) / 100
       : 0;
-    const avgAttendanceByDate = dateAnalytics.length > 0
-      ? Math.round(dateAnalytics.reduce((sum, d) => sum + d.attendanceRate, 0) / dateAnalytics.length)
+    const avgAttendanceByDate = heldSessionsExcel > 0
+      ? Math.round(dateAnalytics.filter(d => !d.isSessionNotHeld).reduce((sum, d) => sum + d.attendanceRate, 0) / heldSessionsExcel)
       : 0;
     const medianRateByDate = (() => {
-      if (dateAnalytics.length === 0) return 0;
-      const sorted = [...dateAnalytics].sort((a, b) => a.attendanceRate - b.attendanceRate);
+      const heldDates = dateAnalytics.filter(d => !d.isSessionNotHeld);
+      if (heldDates.length === 0) return 0;
+      const sorted = [...heldDates].sort((a, b) => a.attendanceRate - b.attendanceRate);
       const mid = Math.floor(sorted.length / 2);
       return sorted.length % 2 === 0
         ? Math.round((sorted[mid - 1].attendanceRate + sorted[mid].attendanceRate) / 2)
         : Math.round(sorted[mid].attendanceRate);
     })();
+    // Additional analytics-grade stats
+    const studentRates = studentAnalytics.map(s => s.attendanceRate);
+    const medianStudentRate = (() => {
+      if (studentRates.length === 0) return 0;
+      const sorted = [...studentRates].sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      return sorted.length % 2 === 0
+        ? Math.round((sorted[mid - 1] + sorted[mid]) / 2 * 10) / 10
+        : Math.round(sorted[mid] * 10) / 10;
+    })();
+    const rateMeanForStd = studentRates.length > 0 ? studentRates.reduce((a, b) => a + b, 0) / studentRates.length : 0;
+    const classStdDev = studentRates.length > 1
+      ? Math.round(Math.sqrt(studentRates.reduce((a, x) => a + Math.pow(x - rateMeanForStd, 2), 0) / studentRates.length) * 10) / 10
+      : 0;
+    const atRiskCount = studentRates.filter(r => r < 75).length;
 
     const summaryRows = isArabic
       ? [
           ['عدد الطلاب', totalStudents],
-          ['عدد الجلسات', totalSessions],
+          ['الجلسات المنعقدة', heldSessionsExcel],
+          ['الجلسات الملغاة', notHeldSessionsExcel],
           ['إجمالي الحضور في الوقت', totalPresent],
           ['إجمالي المتأخرين', totalLate],
           ['إجمالي الغياب بدون عذر', totalAbsent],
           ['إجمالي الغياب بعذر', totalExcused],
           ['معدل الحضور للصف (%)', `${classAvgRate}%`],
+          ['وسيط معدل حضور الطلاب (%)', `${medianStudentRate}%`],
+          ['الانحراف المعياري (%)', `${classStdDev}%`],
+          ['الطلاب في خطر (< 75%)', atRiskCount],
           ['متوسط النقاط المرجحة', avgWeightedScore],
           ['متوسط مؤشر الانتظام', avgConsistency],
           ['متوسط الحضور حسب التاريخ (%)', `${avgAttendanceByDate}%`],
@@ -1482,12 +1508,16 @@ export const AttendanceRecords = () => {
         ]
       : [
           ['Total Students', totalStudents],
-          ['Total Sessions', totalSessions],
+          ['Held Sessions', heldSessionsExcel],
+          ['Cancelled Sessions', notHeldSessionsExcel],
           ['Total On Time', totalPresent],
           ['Total Late', totalLate],
           ['Total Unexcused Absent', totalAbsent],
           ['Total Excused', totalExcused],
           ['Class Avg Rate (%)', `${classAvgRate}%`],
+          ['Median Student Rate (%)', `${medianStudentRate}%`],
+          ['Class Std Dev (%)', `${classStdDev}%`],
+          ['At-Risk Students (< 75%)', atRiskCount],
           ['Avg Weighted Score', avgWeightedScore],
           ['Avg Consistency Index', avgConsistency],
           ['Avg Attendance by Date (%)', `${avgAttendanceByDate}%`],
@@ -1843,6 +1873,11 @@ export const AttendanceRecords = () => {
         maxLateMinutes: Math.round((student.maxLateMinutes || 0) * 10) / 10,
         lateScoreAvg: Math.round((student.lateScoreAvg || 0) * 1000) / 1000,
         sessionNotHeldCount: student.sessionNotHeldCount || 0,
+        // Advanced metrics
+        percentileRank: student.percentileRank,
+        maxConsecutiveStreak: student.maxConsecutiveStreak,
+        firstHalfRate: student.firstHalfRate,
+        secondHalfRate: student.secondHalfRate,
       };
     });
     const studentDataObjects = sortDataBySettings(studentDataObjectsUnsorted, 'studentAnalytics');
@@ -2094,26 +2129,34 @@ export const AttendanceRecords = () => {
       doc.setFontSize(10);
       
       const totalStudents = studentAnalytics.length;
+      const heldSessionsPdf = dateAnalytics.filter(d => !d.isSessionNotHeld).length;
       const classAvgRate = studentAnalytics.length > 0 
         ? Math.round(studentAnalytics.reduce((sum, s) => sum + s.attendanceRate, 0) / studentAnalytics.length)
         : 0;
       const avgWeightedScore = studentAnalytics.length > 0
         ? Math.round(studentAnalytics.reduce((sum, s) => sum + s.weightedScore, 0) / studentAnalytics.length)
         : 0;
-      const avgAttendanceByDate = dateAnalytics.length > 0
-        ? Math.round(dateAnalytics.reduce((sum, d) => sum + d.attendanceRate, 0) / dateAnalytics.length)
+      const avgAttendanceByDate = heldSessionsPdf > 0
+        ? Math.round(dateAnalytics.filter(d => !d.isSessionNotHeld).reduce((sum, d) => sum + d.attendanceRate, 0) / heldSessionsPdf)
         : 0;
       const medianRateByDate = (() => {
-        if (dateAnalytics.length === 0) return 0;
-        const sorted = [...dateAnalytics].sort((a, b) => a.attendanceRate - b.attendanceRate);
+        const heldD = dateAnalytics.filter(d => !d.isSessionNotHeld);
+        if (heldD.length === 0) return 0;
+        const sorted = [...heldD].sort((a, b) => a.attendanceRate - b.attendanceRate);
         const mid = Math.floor(sorted.length / 2);
         return sorted.length % 2 === 0
           ? Math.round((sorted[mid - 1].attendanceRate + sorted[mid].attendanceRate) / 2)
           : Math.round(sorted[mid].attendanceRate);
       })();
+      const studentRatesPdf = studentAnalytics.map(s => s.attendanceRate);
+      const rateMeanPdf = studentRatesPdf.length > 0 ? studentRatesPdf.reduce((a, b) => a + b, 0) / studentRatesPdf.length : 0;
+      const classStdDevPdf = studentRatesPdf.length > 1
+        ? Math.round(Math.sqrt(studentRatesPdf.reduce((a, x) => a + Math.pow(x - rateMeanPdf, 2), 0) / studentRatesPdf.length) * 10) / 10
+        : 0;
+      const atRiskCountPdf = studentRatesPdf.filter(r => r < 75).length;
 
       // Compact inline stats display (Always English for PDF)
-      const statsText = `Total Students: ${totalStudents} Students | class Avg Rate: ${classAvgRate}% | Avg weighted Score: ${avgWeightedScore} | Avg attendance by Date: ${avgAttendanceByDate}% | Median Rate by Date: ${medianRateByDate}%`;
+      const statsText = `Students: ${totalStudents} | Held Sessions: ${heldSessionsPdf} | Class Avg: ${classAvgRate}% | Std Dev: ${classStdDevPdf}% | At-Risk (<75%): ${atRiskCountPdf} | Avg Score: ${avgWeightedScore} | Avg by Date: ${avgAttendanceByDate}% | Median by Date: ${medianRateByDate}%`;
       doc.setFontSize(8);
       doc.text(statsText, 8, 35);
       doc.setFontSize(10); // Restore font size for following content
@@ -2164,12 +2207,17 @@ export const AttendanceRecords = () => {
         maxLateMinutes: Math.round((student.maxLateMinutes || 0) * 10) / 10,
         lateScoreAvg: (student.lateScoreAvg || 0).toFixed(3),
         sessionNotHeldCount: student.sessionNotHeldCount || 0,
+        // Advanced metrics
+        percentileRank: student.percentileRank,
+        maxConsecutiveStreak: student.maxConsecutiveStreak,
+        firstHalfRate: `${student.firstHalfRate}%`,
+        secondHalfRate: `${student.secondHalfRate}%`,
       };
     });
     
     // Apply sorting from saved settings
     const studentDataObjects = sortDataBySettings(studentDataObjectsUnsorted, 'studentAnalytics');
-    studentDataObjects.forEach((obj, idx) => { obj.rank = idx + 1; });
+    studentDataObjects.forEach((obj, idx) => { obj.rank = idx + 1; })
 
 
     // Student Performance Table using saved fields
@@ -2757,19 +2805,21 @@ export const AttendanceRecords = () => {
 
     // Prepare comprehensive summary statistics matching Excel/PDF
     const totalStudents = studentAnalytics.length;
-    const totalSessions = dateAnalytics.length;
+    const heldSessionsWord = dateAnalytics.filter(d => !d.isSessionNotHeld).length;
+    const notHeldSessionsWord = dateAnalytics.length - heldSessionsWord;
     const classAvgRate = studentAnalytics.length > 0
       ? studentAnalytics.reduce((sum, s) => sum + s.attendanceRate, 0) / studentAnalytics.length
       : 0;
     const avgWeightedScore = studentAnalytics.length > 0
       ? studentAnalytics.reduce((sum, s) => sum + s.weightedScore, 0) / studentAnalytics.length
       : 0;
-    const avgAttendanceByDate = dateAnalytics.length > 0
-      ? dateAnalytics.reduce((sum, d) => sum + d.attendanceRate, 0) / dateAnalytics.length
+    const avgAttendanceByDate = heldSessionsWord > 0
+      ? dateAnalytics.filter(d => !d.isSessionNotHeld).reduce((sum, d) => sum + d.attendanceRate, 0) / heldSessionsWord
       : 0;
     const medianRateByDate = (() => {
-      if (dateAnalytics.length === 0) return 0;
-      const sorted = [...dateAnalytics].sort((a, b) => a.attendanceRate - b.attendanceRate);
+      const heldDates = dateAnalytics.filter(d => !d.isSessionNotHeld);
+      if (heldDates.length === 0) return 0;
+      const sorted = [...heldDates].sort((a, b) => a.attendanceRate - b.attendanceRate);
       const mid = Math.floor(sorted.length / 2);
       return sorted.length % 2 === 0
         ? (sorted[mid - 1].attendanceRate + sorted[mid].attendanceRate) / 2
@@ -2780,14 +2830,34 @@ export const AttendanceRecords = () => {
     const totalLate = studentAnalytics.reduce((sum, s) => sum + s.lateCount, 0);
     const totalAbsent = studentAnalytics.reduce((sum, s) => sum + s.unexcusedAbsent, 0);
     const totalExcused = studentAnalytics.reduce((sum, s) => sum + s.excusedCount, 0);
+    // Additional analytics-grade stats for Word summary
+    const studentRatesWord = studentAnalytics.map(s => s.attendanceRate);
+    const medianStudentRateWord = (() => {
+      if (studentRatesWord.length === 0) return 0;
+      const sorted = [...studentRatesWord].sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      return sorted.length % 2 === 0
+        ? (sorted[mid - 1] + sorted[mid]) / 2
+        : sorted[mid];
+    })();
+    const rateMeanWord = studentRatesWord.length > 0 ? studentRatesWord.reduce((a, b) => a + b, 0) / studentRatesWord.length : 0;
+    const classStdDevWord = studentRatesWord.length > 1
+      ? Math.round(Math.sqrt(studentRatesWord.reduce((a, x) => a + Math.pow(x - rateMeanWord, 2), 0) / studentRatesWord.length) * 10) / 10
+      : 0;
+    const atRiskCountWord = studentRatesWord.filter(r => r < 75).length;
 
     const summaryStats = {
       totalStudents,
-      totalSessions,
+      totalSessions: heldSessionsWord,
+      heldSessions: heldSessionsWord,
+      notHeldSessions: notHeldSessionsWord,
       classAvgRate,
       avgWeightedScore,
       avgAttendanceByDate,
       medianRateByDate,
+      medianStudentRate: medianStudentRateWord,
+      classStdDev: classStdDevWord,
+      atRiskCount: atRiskCountWord,
       totalPresent,
       totalAbsent,
       totalExcused,
@@ -2834,6 +2904,11 @@ export const AttendanceRecords = () => {
         maxLateMinutes: Math.round((s.maxLateMinutes || 0) * 10) / 10,
         lateScoreAvg: (s.lateScoreAvg || 0).toFixed(3),
         sessionNotHeldCount: s.sessionNotHeldCount || 0,
+        // Advanced metrics
+        percentileRank: s.percentileRank,
+        maxConsecutiveStreak: s.maxConsecutiveStreak,
+        firstHalfRate: `${s.firstHalfRate}%`,
+        secondHalfRate: `${s.secondHalfRate}%`,
       };
     });
     
@@ -3278,40 +3353,43 @@ export const AttendanceRecords = () => {
         weightedScore = Math.max(0, weightedScore - extraPenalty);
       }
       
-      // Streak bonus: reward consecutive weeks of attendance
-      if (scoringConfig.streak_bonus_per_week > 0) {
-        // Count consecutive attendance weeks (7-day windows with at least one present day)
-        let consecutiveWeeks = 0;
-        let maxConsecutiveWeeks = 0;
-        const sortedDates = studentEffectiveDates.sort();
-        if (sortedDates.length > 0) {
-          const weekStart = new Date(sortedDates[0]);
-          let currentWeek = 0;
-          let hadPresenceThisWeek = false;
-          for (const dateStr of sortedDates) {
-            const d = new Date(dateStr);
-            const daysSinceStart = Math.floor((d.getTime() - weekStart.getTime()) / 86400000);
-            const weekNum = Math.floor(daysSinceStart / 7);
-            if (weekNum > currentWeek) {
-              if (hadPresenceThisWeek) {
-                consecutiveWeeks++;
-                maxConsecutiveWeeks = Math.max(maxConsecutiveWeeks, consecutiveWeeks);
-              } else {
-                consecutiveWeeks = 0;
-              }
-              currentWeek = weekNum;
-              hadPresenceThisWeek = false;
+      // ==================== STREAK COMPUTATION ====================
+      // Always computed (not gated on config) so maxConsecutiveStreak can be stored.
+      // Count consecutive attendance weeks: 7-day windows with ≥ 1 present day.
+      let consecutiveWeeks = 0;
+      let maxConsecutiveWeeks = 0;
+      const sortedDatesForStreak = [...studentEffectiveDates].sort();
+      if (sortedDatesForStreak.length > 0) {
+        const weekStart = new Date(sortedDatesForStreak[0]);
+        let currentWeek = 0;
+        let hadPresenceThisWeek = false;
+        for (const dateStr of sortedDatesForStreak) {
+          const d = new Date(dateStr);
+          const daysSinceStart = Math.floor((d.getTime() - weekStart.getTime()) / 86400000);
+          const weekNum = Math.floor(daysSinceStart / 7);
+          if (weekNum > currentWeek) {
+            if (hadPresenceThisWeek) {
+              consecutiveWeeks++;
+              maxConsecutiveWeeks = Math.max(maxConsecutiveWeeks, consecutiveWeeks);
+            } else {
+              consecutiveWeeks = 0;
             }
-            const rec = studentRecords.find(r => r.attendance_date === dateStr);
-            if (rec && (rec.status === 'on time' || rec.status === 'late')) {
-              hadPresenceThisWeek = true;
-            }
+            currentWeek = weekNum;
+            hadPresenceThisWeek = false;
           }
-          if (hadPresenceThisWeek) {
-            consecutiveWeeks++;
-            maxConsecutiveWeeks = Math.max(maxConsecutiveWeeks, consecutiveWeeks);
+          const rec = studentRecords.find(r => r.attendance_date === dateStr);
+          if (rec && (rec.status === 'on time' || rec.status === 'late')) {
+            hadPresenceThisWeek = true;
           }
         }
+        if (hadPresenceThisWeek) {
+          consecutiveWeeks++;
+          maxConsecutiveWeeks = Math.max(maxConsecutiveWeeks, consecutiveWeeks);
+        }
+      }
+
+      // Apply streak bonus only when config enables it
+      if (scoringConfig.streak_bonus_per_week > 0) {
         weightedScore += maxConsecutiveWeeks * scoringConfig.streak_bonus_per_week;
       }
       
@@ -3345,6 +3423,24 @@ export const AttendanceRecords = () => {
         }
       });
 
+      // ==================== FIRST / SECOND HALF SPLIT ====================
+      // Split effective dates at midpoint to detect semester improvement/decline.
+      const midIdx = Math.floor(studentEffectiveDates.length / 2);
+      const firstHalfDates = studentEffectiveDates.slice(0, Math.max(midIdx, 1));
+      const secondHalfDates = studentEffectiveDates.slice(Math.max(midIdx, 1));
+      const calcHalfRate = (halfdates: string[]) => {
+        let p = 0, t = 0;
+        for (const hd of halfdates) {
+          const rec = studentRecords.find(r => r.attendance_date === hd);
+          if (!rec || rec.status === 'excused') continue;
+          t++;
+          if (rec.status === 'on time' || rec.status === 'late') p++;
+        }
+        return t > 0 ? Math.round(p / t * 1000) / 10 : 0;
+      };
+      const firstHalfRate = calcHalfRate(firstHalfDates);
+      const secondHalfRate = secondHalfDates.length > 0 ? calcHalfRate(secondHalfDates) : firstHalfRate;
+
       return {
         student_id: studentId,
         student_name: studentName,
@@ -3377,8 +3473,26 @@ export const AttendanceRecords = () => {
         maxLateMinutes: Math.round(maxLateMinutes),
         lateScoreAvg: lateRecords.length > 0 ? Math.round((lateScoreSum / lateRecords.length) * 100) / 100 : 0,
         sessionNotHeldCount: studentSessionNotHeldCount,
+        // Advanced metrics (percentileRank is filled in after full sort below)
+        percentileRank: 0,
+        maxConsecutiveStreak: maxConsecutiveWeeks,
+        firstHalfRate,
+        secondHalfRate,
       };
     }).sort((a, b) => b.weightedScore - a.weightedScore);
+
+    // Assign percentile ranks based on attendanceRate after all students are computed
+    {
+      const nSt = studentStats.length;
+      if (nSt > 1) {
+        const sortedByRate = [...studentStats].sort((a, b) => a.attendanceRate - b.attendanceRate);
+        const rankMap = new Map<string, number>();
+        sortedByRate.forEach((s, idx) => rankMap.set(s.student_id, Math.round(idx / (nSt - 1) * 100)));
+        studentStats.forEach(s => { s.percentileRank = rankMap.get(s.student_id) ?? 0; });
+      } else if (nSt === 1) {
+        studentStats[0].percentileRank = 100;
+      }
+    }
 
     setStudentAnalytics(studentStats);
 
@@ -4144,6 +4258,11 @@ export const AttendanceRecords = () => {
         { key: 'specScoreDeviation', label: 'Score Deviation from Spec', labelAr: '\u0627\u0646\u062D\u0631\u0627\u0641 \u0627\u0644\u062F\u0631\u062C\u0629 \u0639\u0646 \u0627\u0644\u062A\u062E\u0635\u0635' },
         { key: 'specRank', label: 'Rank within Spec', labelAr: '\u0627\u0644\u062A\u0631\u062A\u064A\u0628 \u0636\u0645\u0646 \u0627\u0644\u062A\u062E\u0635\u0635' },
         { key: 'specStudentCount', label: 'Spec Student Count', labelAr: '\u0639\u062F\u062F \u0637\u0644\u0627\u0628 \u0627\u0644\u062A\u062E\u0635\u0635' },
+        // Advanced metrics
+        { key: 'percentileRank', label: 'Percentile Rank', labelAr: '\u0627\u0644\u062A\u0631\u062A\u064A\u0628 \u0627\u0644\u0645\u0626\u0648\u064A' },
+        { key: 'maxConsecutiveStreak', label: 'Max Streak (wks)', labelAr: '\u0623\u0637\u0648\u0644 \u062A\u0633\u0644\u0633\u0644 \u062D\u0636\u0648\u0631' },
+        { key: 'firstHalfRate', label: 'First Half Rate %', labelAr: '\u0645\u0639\u062F\u0644 \u0627\u0644\u0646\u0635\u0641 \u0627\u0644\u0623\u0648\u0644' },
+        { key: 'secondHalfRate', label: 'Second Half Rate %', labelAr: '\u0645\u0639\u062F\u0644 \u0627\u0644\u0646\u0635\u0641 \u0627\u0644\u062B\u0627\u0646\u064A' },
       );
     } else if (dataType === 'dateAnalytics') {
       // Date fields
@@ -4202,9 +4321,11 @@ export const AttendanceRecords = () => {
         { key: 'specialization', label: 'Specialization', labelAr: 'التخصص' },
         { key: 'studentCount', label: 'Student Count', labelAr: 'عدد الطلاب' },
         { key: 'avgAttendanceRate', label: 'Avg Attendance Rate %', labelAr: 'معدل الحضور %' },
+        { key: 'stdDevRate', label: 'Rate Std Dev %', labelAr: 'الانحراف المعياري %' },
         { key: 'avgScore', label: 'Avg Weighted Score', labelAr: 'متوسط الدرجة' },
         { key: 'avgPunctuality', label: 'Avg Punctuality %', labelAr: 'متوسط الانضباط %' },
         { key: 'avgConsistency', label: 'Avg Consistency', labelAr: 'متوسط الانتظام' },
+        { key: 'totalOnTime', label: 'Total On Time', labelAr: 'إجمالي الحضور في الوقت' },
         { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحضور' },
         { key: 'totalLate', label: 'Total Late', labelAr: 'إجمالي المتأخرين' },
         { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب' },
@@ -4472,6 +4593,11 @@ export const AttendanceRecords = () => {
           specScoreDeviation: corr ? Math.round((student.weightedScore - corr.avgScore) * 10) / 10 : '-',
           specRank: corr ? `${corr.ranks.get(student.student_id) || '-'}/${corr.count}` : '-',
           specStudentCount: corr?.count ?? '-',
+          // Advanced metrics
+          percentileRank: student.percentileRank,
+          maxConsecutiveStreak: student.maxConsecutiveStreak,
+          firstHalfRate: student.firstHalfRate,
+          secondHalfRate: student.secondHalfRate,
         };
       });
     } else if (exportDataType === 'dateAnalytics') {
