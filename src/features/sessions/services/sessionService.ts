@@ -378,6 +378,7 @@ export const sessionService = {
                 .select('attendance_date')
                 .eq('session_id', id)
                 .neq('status', 'absent')
+                .neq('host_address', 'SESSION_NOT_HELD')
                 .order('attendance_date', { ascending: false })
                 .limit(1)
                 .maybeSingle();
@@ -404,6 +405,53 @@ export const sessionService = {
       }
     }
     return result;
+  },
+
+  // Apply time overrides to session_date_host rows without re-saving the session row.
+  // Used when time change is chained after a day change (session row already saved).
+  async applyTimeOverride(
+    sessionId: string,
+    oldTime: string | null,
+    strategy: 'from_start' | 'after_last_attended' | 'from_today'
+  ): Promise<{ error: { message: string } | null }> {
+    try {
+      if (strategy === 'from_start') {
+        await supabase
+          .from(Tables.SESSION_DATE_HOST)
+          .update({ override_time: null })
+          .eq('session_id', sessionId);
+      } else {
+        let cutoffDate = new Date().toISOString().split('T')[0];
+
+        if (strategy === 'after_last_attended') {
+          const { data: lastAtt } = await supabase
+            .from(Tables.ATTENDANCE)
+            .select('attendance_date')
+            .eq('session_id', sessionId)
+            .neq('status', 'absent')
+            .neq('host_address', 'SESSION_NOT_HELD')
+            .order('attendance_date', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (lastAtt?.attendance_date) cutoffDate = lastAtt.attendance_date;
+        }
+
+        await supabase
+          .from(Tables.SESSION_DATE_HOST)
+          .update({ override_time: oldTime })
+          .eq('session_id', sessionId)
+          .lte('attendance_date', cutoffDate);
+
+        await supabase
+          .from(Tables.SESSION_DATE_HOST)
+          .update({ override_time: null })
+          .eq('session_id', sessionId)
+          .gt('attendance_date', cutoffDate);
+      }
+      return { error: null };
+    } catch (e) {
+      return { error: { message: String(e) } };
+    }
   },
 
   // Get the last attendance date with actual records for a session

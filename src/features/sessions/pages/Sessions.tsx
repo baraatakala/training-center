@@ -73,14 +73,18 @@ export function Sessions() {
     oldDay: string | null;
     newDay: string | null;
     lastAttendedDate: string | null;
+    // When time also changed simultaneously, store it here to chain after day strategy
+    pendingTimeChange: { oldTime: string | null; newTime: string | null } | null;
   } | null>(null);
 
   // Time-change strategy dialog state
+  // chained=true means session row already saved (day change ran first) → only update overrides
   const [timeChangeDialog, setTimeChangeDialog] = useState<{
     data: CreateSession;
     oldTime: string | null;
     newTime: string | null;
     lastAttendedDate: string | null;
+    chained: boolean;
   } | null>(null);
 
   const loadSessions = useCallback(async () => {
@@ -245,13 +249,17 @@ export function Sessions() {
     const timeChanged = data.time !== editingSession.time;
 
     if (dayChanged) {
-      // Fetch last attendance date to offer the option
+      // Fetch last attendance date once — used for both day and (possibly) time strategy
       const lastAttendedDate = await sessionService.getLastAttendedDate(editingSession.session_id);
       setDayChangeDialog({
         data,
         oldDay: editingSession.day,
         newDay: data.day,
         lastAttendedDate,
+        // If time also changed, store it so we can chain after day strategy is picked
+        pendingTimeChange: timeChanged
+          ? { oldTime: editingSession.time ?? null, newTime: data.time ?? null }
+          : null,
       });
       return; // Wait for user to pick strategy via dialog
     }
@@ -263,6 +271,7 @@ export function Sessions() {
         oldTime: editingSession.time ?? null,
         newTime: data.time ?? null,
         lastAttendedDate,
+        chained: false,
       });
       return; // Wait for user to pick strategy via dialog
     }
@@ -283,7 +292,7 @@ export function Sessions() {
 
   const executeDayChangeUpdate = async (strategy: 'from_start' | 'after_last_attended' | 'from_today') => {
     if (!dayChangeDialog || !editingSession) return;
-    const { data } = dayChangeDialog;
+    const { data, pendingTimeChange, lastAttendedDate } = dayChangeDialog;
     setDayChangeDialog(null);
 
     const { error } = await sessionService.update(editingSession.session_id, data, strategy);
@@ -295,19 +304,45 @@ export function Sessions() {
       const strategyLabel = strategy === 'from_start' ? 'New day applied from session start'
         : strategy === 'after_last_attended' ? 'New day applied after last attended date'
         : 'New day applied from today';
-      toast.success(`Session updated. ${strategyLabel}.`);
-      setIsModalOpen(false);
-      setEditingSession(null);
-      loadSessions();
+
+      if (pendingTimeChange) {
+        // Time also changed — session row is already saved (new day + new time both persisted).
+        // Now show the time strategy dialog to apply session_date_host overrides.
+        toast.success(`Session day updated. ${strategyLabel}. Now choose the time change strategy.`);
+        setTimeChangeDialog({
+          data,
+          oldTime: pendingTimeChange.oldTime,
+          newTime: pendingTimeChange.newTime,
+          lastAttendedDate,
+          chained: true, // session row already saved — only update overrides
+        });
+        // Keep edit modal open until time strategy is also picked
+      } else {
+        toast.success(`Session updated. ${strategyLabel}.`);
+        setIsModalOpen(false);
+        setEditingSession(null);
+        loadSessions();
+      }
     }
   };
 
   const executeTimeChangeUpdate = async (strategy: 'from_start' | 'after_last_attended' | 'from_today') => {
     if (!timeChangeDialog || !editingSession) return;
-    const { data } = timeChangeDialog;
+    const { data, oldTime, chained } = timeChangeDialog;
     setTimeChangeDialog(null);
 
-    const { error } = await sessionService.update(editingSession.session_id, data, undefined, strategy);
+    let error: { message?: string } | null = null;
+
+    if (chained) {
+      // Session row was already saved by executeDayChangeUpdate.
+      // Only apply session_date_host overrides — do NOT re-save the session row.
+      const result = await sessionService.applyTimeOverride(editingSession.session_id, oldTime, strategy);
+      error = result.error;
+    } else {
+      // Standalone time change — save session row and apply overrides together.
+      const result = await sessionService.update(editingSession.session_id, data, undefined, strategy);
+      error = result.error;
+    }
 
     if (error) {
       const message = error.message || 'Unknown session update error';

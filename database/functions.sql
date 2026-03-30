@@ -231,40 +231,77 @@ RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 DECLARE
-  session_day_text TEXT;
-  expected_dow INT;
-  actual_dow INT;
+  v_session_day    TEXT;
+  v_effective_day  TEXT;
+  v_first_old_day  TEXT;
+  v_actual_dow     INT;
+  v_days           TEXT[];
+  v_day            TEXT;
+  v_day_dow        INT;
 BEGIN
-  SELECT LOWER(day) INTO session_day_text
-  FROM public.session WHERE session_id = NEW.session_id;
+  -- Fetch the current canonical day(s) for this session
+  SELECT LOWER(day) INTO v_session_day
+  FROM public.session
+  WHERE session_id = NEW.session_id;
 
-  IF session_day_text IS NULL THEN
-    RAISE EXCEPTION 'Session schedule day could not be verified for session %', NEW.session_id;
+  -- No day configured → no day constraint, always allow
+  IF v_session_day IS NULL OR TRIM(v_session_day) = '' THEN
+    RETURN NEW;
   END IF;
 
-  expected_dow := CASE session_day_text
-    WHEN 'sunday'    THEN 0
-    WHEN 'monday'    THEN 1
-    WHEN 'tuesday'   THEN 2
-    WHEN 'wednesday' THEN 3
-    WHEN 'thursday'  THEN 4
-    WHEN 'friday'    THEN 5
-    WHEN 'saturday'  THEN 6
-    ELSE NULL
-  END;
+  -- Resolve effective day(s) for the excuse date using day-change history
+  -- Find the most recent change that was in effect on or before the excuse date
+  SELECT LOWER(new_day) INTO v_effective_day
+  FROM public.session_day_change
+  WHERE session_id = NEW.session_id
+    AND effective_date <= NEW.attendance_date
+  ORDER BY effective_date DESC
+  LIMIT 1;
 
-  IF expected_dow IS NULL THEN
-    RAISE EXCEPTION 'Unsupported session day value: %', session_day_text;
+  IF v_effective_day IS NOT NULL AND TRIM(v_effective_day) <> '' THEN
+    v_session_day := v_effective_day;
+  ELSE
+    -- No in-effect change: if ANY change exists, use that change's old_day
+    -- (the date may be before the first change, i.e. the original schedule)
+    SELECT LOWER(old_day) INTO v_first_old_day
+    FROM public.session_day_change
+    WHERE session_id = NEW.session_id
+    ORDER BY effective_date ASC
+    LIMIT 1;
+
+    IF v_first_old_day IS NOT NULL AND TRIM(v_first_old_day) <> '' THEN
+      v_session_day := v_first_old_day;
+    END IF;
   END IF;
 
-  actual_dow := EXTRACT(DOW FROM NEW.attendance_date);
+  -- Check if attendance_date DOW matches any scheduled day
+  -- (handles comma-separated multi-day strings, e.g. 'friday, sunday')
+  v_actual_dow := EXTRACT(DOW FROM NEW.attendance_date)::INT;
+  v_days := string_to_array(v_session_day, ',');
 
-  IF actual_dow <> expected_dow THEN
-    RAISE EXCEPTION 'Invalid excuse date %. Session is scheduled on %, but selected date is %.',
-      NEW.attendance_date,
-      initcap(session_day_text),
-      trim(to_char(NEW.attendance_date, 'Day'));
-  END IF;
+  FOR i IN 1 .. array_length(v_days, 1) LOOP
+    v_day := TRIM(v_days[i]);
+    v_day_dow := CASE v_day
+      WHEN 'sunday'    THEN 0
+      WHEN 'monday'    THEN 1
+      WHEN 'tuesday'   THEN 2
+      WHEN 'wednesday' THEN 3
+      WHEN 'thursday'  THEN 4
+      WHEN 'friday'    THEN 5
+      WHEN 'saturday'  THEN 6
+      ELSE NULL
+    END;
+
+    IF v_day_dow IS NULL THEN CONTINUE; END IF; -- unknown token, skip
+    IF v_day_dow = v_actual_dow THEN RETURN NEW; END IF; -- matched
+  END LOOP;
+
+  RAISE EXCEPTION
+    'Invalid excuse date %. Session (%) is not scheduled on %. Scheduled day(s): %.',
+    NEW.attendance_date,
+    NEW.session_id,
+    TRIM(TO_CHAR(NEW.attendance_date, 'Day')),
+    v_session_day;
 
   RETURN NEW;
 END;
