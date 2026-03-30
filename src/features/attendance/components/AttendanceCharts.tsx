@@ -37,7 +37,13 @@ interface StudentAnalytics {
   totalLateMinutes: number;
   avgLateMinutes: number;
   consistencyIndex: number;
-  trend: { classification: string };
+  trend: { classification: string; slope?: number; rSquared?: number };
+  // Optional enriched fields (from full state in AttendanceRecords)
+  maxLateMinutes?: number;
+  weeklyChange?: number;
+  avgRate?: number;
+  minRate?: number;
+  maxRate?: number;
 }
 
 interface DateAnalytics {
@@ -69,6 +75,18 @@ export interface SpecializationAnalytics {
   bestStudentScore: number;
   worstStudent: string;
   worstStudentScore: number;
+  // Enriched fields
+  totalLateMinutes: number;
+  avgLateMinutes: number;
+  minAttendanceRate: number;
+  maxAttendanceRate: number;
+  minScore: number;
+  maxScore: number;
+  dominantTrend: string;
+  avgWeeklyChange: number;
+  studentNames: string;
+  lateRatio: number;
+  absentRatio: number;
 }
 
 interface Props {
@@ -129,6 +147,27 @@ export function computeSpecializationAnalytics(
       const avgPunctuality = Math.round(group.reduce((a, x) => a + x.punctualityRate, 0) / n * 10) / 10;
       const avgConsistency = Math.round(group.reduce((a, x) => a + x.consistencyIndex, 0) / n * 10) / 10;
       const sorted = [...group].sort((a, b) => b.weightedScore - a.weightedScore);
+      const totalPresent = group.reduce((a, x) => a + x.presentCount, 0);
+      const totalLate = group.reduce((a, x) => a + x.lateCount, 0);
+      const totalAbsent = group.reduce((a, x) => a + x.absentCount, 0);
+      const totalExcused = group.reduce((a, x) => a + x.excusedCount, 0);
+      // Late duration
+      const specTotalLateMin = group.reduce((a, x) => a + (x.totalLateMinutes || 0), 0);
+      const specAvgLateMin = n > 0 ? Math.round(group.reduce((a, x) => a + (x.avgLateMinutes || 0), 0) / n * 10) / 10 : 0;
+      // Rate statistics (variance within specialization)
+      const rates = group.map(x => x.attendanceRate);
+      const scores = group.map(x => x.weightedScore);
+      // Trend analysis
+      const trendCounts = new Map<string, number>();
+      group.forEach(x => {
+        const cls = x.trend?.classification || 'STABLE';
+        trendCounts.set(cls, (trendCounts.get(cls) || 0) + 1);
+      });
+      const dominantTrend = [...trendCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || 'STABLE';
+      const avgWeeklyChange = n > 0 ? Math.round(group.reduce((a, x) => a + (x.weeklyChange || 0), 0) / n * 10) / 10 : 0;
+      // Ratios
+      const presentPlusLate = totalPresent + totalLate;
+      const totalAll = presentPlusLate + totalAbsent;
       return {
         specialization: spec,
         studentCount: n,
@@ -136,17 +175,64 @@ export function computeSpecializationAnalytics(
         avgScore,
         avgPunctuality,
         avgConsistency,
-        totalPresent: group.reduce((a, x) => a + x.presentCount, 0),
-        totalLate: group.reduce((a, x) => a + x.lateCount, 0),
-        totalAbsent: group.reduce((a, x) => a + x.absentCount, 0),
-        totalExcused: group.reduce((a, x) => a + x.excusedCount, 0),
+        totalPresent,
+        totalLate,
+        totalAbsent,
+        totalExcused,
         bestStudent: sorted[0]?.student_name ?? '-',
         bestStudentScore: sorted[0]?.weightedScore ?? 0,
         worstStudent: sorted[sorted.length - 1]?.student_name ?? '-',
         worstStudentScore: sorted[sorted.length - 1]?.weightedScore ?? 0,
+        totalLateMinutes: Math.round(specTotalLateMin),
+        avgLateMinutes: specAvgLateMin,
+        minAttendanceRate: rates.length > 0 ? Math.round(Math.min(...rates) * 10) / 10 : 0,
+        maxAttendanceRate: rates.length > 0 ? Math.round(Math.max(...rates) * 10) / 10 : 0,
+        minScore: scores.length > 0 ? Math.round(Math.min(...scores) * 10) / 10 : 0,
+        maxScore: scores.length > 0 ? Math.round(Math.max(...scores) * 10) / 10 : 0,
+        dominantTrend,
+        avgWeeklyChange,
+        studentNames: group.map(x => x.student_name).join(', '),
+        lateRatio: presentPlusLate > 0 ? Math.round(totalLate / presentPlusLate * 1000) / 10 : 0,
+        absentRatio: totalAll > 0 ? Math.round(totalAbsent / totalAll * 1000) / 10 : 0,
       };
     })
     .sort((a, b) => b.avgAttendanceRate - a.avgAttendanceRate);
+}
+
+// Exported helper: compute host × specialization affinity for export
+export interface HostSpecAffinity {
+  host: string;
+  topSpec: string;
+  topSpecCount: number;
+  totalSessions: number;
+  breakdown: string;
+  allSpecs: string[];
+}
+
+export function computeHostSpecAffinity(
+  dateAnalytics: Array<{ hostAddress: string | null; isSessionNotHeld: boolean; topSpecialization?: string | null }>
+): HostSpecAffinity[] {
+  const hostMap = new Map<string, Map<string, number>>();
+  dateAnalytics.forEach(d => {
+    if (!d.hostAddress || d.isSessionNotHeld || d.hostAddress === 'SESSION_NOT_HELD') return;
+    if (!d.topSpecialization) return;
+    if (!hostMap.has(d.hostAddress)) hostMap.set(d.hostAddress, new Map());
+    const sm = hostMap.get(d.hostAddress)!;
+    sm.set(d.topSpecialization, (sm.get(d.topSpecialization) || 0) + 1);
+  });
+  return Array.from(hostMap.entries()).map(([host, sm]) => {
+    const sorted = [...sm.entries()].sort((a, b) => b[1] - a[1]);
+    const top = sorted[0];
+    const totalSessions = sorted.reduce((a, [, c]) => a + c, 0);
+    return {
+      host,
+      topSpec: top?.[0] ?? '-',
+      topSpecCount: top?.[1] ?? 0,
+      totalSessions,
+      breakdown: sorted.map(([s, c]) => `${s}(${c})`).join(', '),
+      allSpecs: sorted.map(([s]) => s),
+    };
+  }).sort((a, b) => b.totalSessions - a.totalSessions);
 }
 
 // Main Component

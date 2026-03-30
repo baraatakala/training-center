@@ -165,6 +165,9 @@ export interface ExportOptions {
   // Specialization analytics data
   specializationData?: Record<string, unknown>[];
   specializationHeaders?: string[];
+  // Host × Specialization affinity data
+  hostSpecData?: Record<string, unknown>[];
+  hostSpecHeaders?: string[];
 }
 
 export class WordExportService {
@@ -1956,6 +1959,29 @@ export class WordExportService {
       );
 
       sections.push(this.createTable(specHeaders, specRows, isArabic, theme, specColorColumns));
+      sections.push(new Paragraph({ text: '', spacing: { after: 400 } }));
+    }
+
+    // Host × Specialization Affinity Section
+    const hsHeaders = options?.hostSpecHeaders;
+    const hsData = options?.hostSpecData;
+    if (hsHeaders && hsHeaders.length > 0 && hsData && hsData.length > 0) {
+      const hsTitle = isArabic
+        ? '\uD83D\uDD17 \u0645\u0648\u0642\u0639\u00d7\u062A\u062E\u0635\u0635'
+        : '\uD83D\uDD17 Host x Specialization Affinity';
+      sections.push(
+        this.createHeading(hsTitle, HeadingLevel.HEADING_2, isArabic, theme)
+      );
+
+      const hsRows = hsData.map((row) =>
+        hsHeaders.map((header) => {
+          const value = row[header];
+          if (value === undefined || value === null) return '-';
+          return String(value);
+        })
+      );
+
+      sections.push(this.createTable(hsHeaders, hsRows, isArabic, theme, []));
       sections.push(new Paragraph({ text: '', spacing: { after: 400 } }));
     }
 
