@@ -86,7 +86,7 @@ CREATE TABLE IF NOT EXISTS public.session (
   teacher_id UUID NOT NULL,
   start_date DATE NOT NULL,
   end_date DATE NOT NULL,
-  day VARCHAR,
+  day TEXT,    -- TEXT (unbounded) — supports multi-day strings e.g. "Monday, Friday, Tuesday"
   time VARCHAR,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
