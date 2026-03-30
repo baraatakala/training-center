@@ -263,6 +263,9 @@ export const AttendanceRecords = () => {
   const [reportLanguage, setReportLanguage] = useState<'en' | 'ar'>('en');
   const [showArabicPdfConfirm, setShowArabicPdfConfirm] = useState(false);
 
+  // Quick column picker — tracks which table's column dropdown is open
+  const [openColumnPicker, setOpenColumnPicker] = useState<'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics' | 'specializationAnalytics' | null>(null);
+
   const [collapseStudentTable, setCollapseStudentTable] = useState(() => {
     try {
       return localStorage.getItem('attendance_collapseStudentTable') === 'true';
@@ -5650,30 +5653,70 @@ export const AttendanceRecords = () => {
           {/* Student Performance Table — Dynamic columns from field selections */}
           {includedTables.student && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
-            <button
-              onClick={() => setCollapseStudentTable(prev => !prev)}
-              className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer"
-            >
-              <div>
-                <h2 className="text-base sm:text-lg font-semibold dark:text-white">{t.studentPerformance}</h2>
-                {(() => {
-                  const _cfg = loadConfigSync();
-                  return (
-                    <span className="text-[10px] text-gray-400 dark:text-gray-500 font-normal">
-                      Weights: Q{_cfg.weight_quality}% / A{_cfg.weight_attendance}% / P{_cfg.weight_punctuality}%
-                    </span>
-                  );
-                })()}
-              </div>
-              <div className="flex items-center gap-2">
+            <div className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600 flex items-center justify-between">
+              <button onClick={() => setCollapseStudentTable(prev => !prev)} className="flex-1 flex items-center gap-2 text-left min-w-0">
+                <div className="min-w-0">
+                  <h2 className="text-base sm:text-lg font-semibold dark:text-white">{t.studentPerformance}</h2>
+                  {(() => {
+                    const _cfg = loadConfigSync();
+                    return (
+                      <span className="text-[10px] text-gray-400 dark:text-gray-500 font-normal">
+                        Weights: Q{_cfg.weight_quality}% / A{_cfg.weight_attendance}% / P{_cfg.weight_punctuality}%
+                      </span>
+                    );
+                  })()}
+                </div>
+              </button>
+              <div className="flex items-center gap-2 flex-shrink-0">
                 <span className="text-xs text-gray-500 dark:text-gray-400">{studentAnalytics.length} {t.students}</span>
-                <svg className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${collapseStudentTable ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
+                {/* Quick Column Picker */}
+                <div className="relative">
+                  <button
+                    onClick={e => { e.stopPropagation(); setOpenColumnPicker(prev => prev === 'studentAnalytics' ? null : 'studentAnalytics'); }}
+                    className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/60 transition"
+                    title="Show/hide columns"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7" /></svg>
+                    {arabicMode ? 'الأعمدة' : 'Columns'}
+                  </button>
+                  {openColumnPicker === 'studentAnalytics' && (
+                    <div className="absolute right-0 top-8 z-50 w-64 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-600 p-3 max-h-80 overflow-y-auto" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">Show / Hide Columns</span>
+                        <div className="flex gap-1">
+                          <button onClick={() => setSavedFieldSelections(prev => ({ ...prev, studentAnalytics: getAllFieldsForType('studentAnalytics').map(f => f.key) }))} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">All</button>
+                          <span className="text-gray-300 dark:text-gray-600">|</span>
+                          <button onClick={() => setSavedFieldSelections(prev => ({ ...prev, studentAnalytics: getAllFieldsForType('studentAnalytics').slice(0, 5).map(f => f.key) }))} className="text-xs text-gray-500 dark:text-gray-400 hover:underline">Min</button>
+                        </div>
+                      </div>
+                      {getAllFieldsForType('studentAnalytics').map(f => {
+                        const selected = getSelectedFieldsForType('studentAnalytics');
+                        const isChecked = selected.includes(f.key);
+                        return (
+                          <label key={f.key} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                            <input type="checkbox" checked={isChecked}
+                              onChange={() => setSavedFieldSelections(prev => {
+                                const cur = prev.studentAnalytics.length > 0 ? prev.studentAnalytics : getAllFieldsForType('studentAnalytics').map(ff => ff.key);
+                                return { ...prev, studentAnalytics: isChecked ? cur.filter(k => k !== f.key) : [...cur, f.key] };
+                              })}
+                              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-xs text-gray-700 dark:text-gray-300">{arabicMode ? (f.labelAr || f.label) : f.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                <button onClick={() => setCollapseStudentTable(prev => !prev)} className="p-1">
+                  <svg className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${collapseStudentTable ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
               </div>
-            </button>
+            </div>
             {!collapseStudentTable && (
-              <div className="overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto">
+              <div className="overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto" onClick={() => { if (openColumnPicker) setOpenColumnPicker(null); }}>
                 {(() => {
                   const isArabic = reportLanguage === 'ar';
                   const config = filterDataByFields('studentAnalytics', isArabic);
@@ -5777,12 +5820,11 @@ export const AttendanceRecords = () => {
           {/* Date Analytics Table — Dynamic columns from field selections */}
           {includedTables.date && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
-            <button
-              onClick={() => setCollapseDateTable(prev => !prev)}
-              className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer"
-            >
-              <h2 className="text-base sm:text-lg font-semibold dark:text-white">{t.attendanceByDate}</h2>
-              <div className="flex items-center gap-2">
+            <div className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600 flex items-center justify-between">
+              <button onClick={() => setCollapseDateTable(prev => !prev)} className="flex-1 text-left">
+                <h2 className="text-base sm:text-lg font-semibold dark:text-white">{t.attendanceByDate}</h2>
+              </button>
+              <div className="flex items-center gap-2 flex-shrink-0">
                 <span className="text-xs text-gray-500 dark:text-gray-400">
                   {(() => {
                     const excluded = savedExportSettings.dateAnalytics?.excludedRows;
@@ -5799,13 +5841,54 @@ export const AttendanceRecords = () => {
                     return `${dateAnalytics.length} ${t.sessions}`;
                   })()}
                 </span>
-                <svg className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${collapseDateTable ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
+                {/* Quick Column Picker */}
+                <div className="relative">
+                  <button
+                    onClick={e => { e.stopPropagation(); setOpenColumnPicker(prev => prev === 'dateAnalytics' ? null : 'dateAnalytics'); }}
+                    className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/60 transition"
+                    title="Show/hide columns"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7" /></svg>
+                    {arabicMode ? 'الأعمدة' : 'Columns'}
+                  </button>
+                  {openColumnPicker === 'dateAnalytics' && (
+                    <div className="absolute right-0 top-8 z-50 w-64 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-600 p-3 max-h-80 overflow-y-auto" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">Show / Hide Columns</span>
+                        <div className="flex gap-1">
+                          <button onClick={() => setSavedFieldSelections(prev => ({ ...prev, dateAnalytics: getAllFieldsForType('dateAnalytics').map(f => f.key) }))} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">All</button>
+                          <span className="text-gray-300 dark:text-gray-600">|</span>
+                          <button onClick={() => setSavedFieldSelections(prev => ({ ...prev, dateAnalytics: getAllFieldsForType('dateAnalytics').slice(0, 5).map(f => f.key) }))} className="text-xs text-gray-500 dark:text-gray-400 hover:underline">Min</button>
+                        </div>
+                      </div>
+                      {getAllFieldsForType('dateAnalytics').map(f => {
+                        const selected = getSelectedFieldsForType('dateAnalytics');
+                        const isChecked = selected.includes(f.key);
+                        return (
+                          <label key={f.key} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                            <input type="checkbox" checked={isChecked}
+                              onChange={() => setSavedFieldSelections(prev => {
+                                const cur = prev.dateAnalytics.length > 0 ? prev.dateAnalytics : getAllFieldsForType('dateAnalytics').map(ff => ff.key);
+                                return { ...prev, dateAnalytics: isChecked ? cur.filter(k => k !== f.key) : [...cur, f.key] };
+                              })}
+                              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-xs text-gray-700 dark:text-gray-300">{arabicMode ? (f.labelAr || f.label) : f.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                <button onClick={() => setCollapseDateTable(prev => !prev)} className="p-1">
+                  <svg className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${collapseDateTable ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
               </div>
-            </button>
+            </div>
             {!collapseDateTable && (
-              <div className="overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto">
+              <div className="overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto" onClick={() => { if (openColumnPicker) setOpenColumnPicker(null); }}>
                 {(() => {
                   const isArabic = reportLanguage === 'ar';
                   const config = filterDataByFields('dateAnalytics', isArabic);
@@ -5898,12 +5981,11 @@ export const AttendanceRecords = () => {
           {/* Host Analytics Table — Dynamic columns from field selections */}
           {includedTables.host && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
-            <button
-              onClick={() => setCollapseHostTable(prev => !prev)}
-              className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer"
-            >
-              <h2 className="text-base sm:text-lg font-semibold dark:text-white">{t.hostAnalyticsTitle}</h2>
-              <div className="flex items-center gap-2">
+            <div className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600 flex items-center justify-between">
+              <button onClick={() => setCollapseHostTable(prev => !prev)} className="flex-1 text-left">
+                <h2 className="text-base sm:text-lg font-semibold dark:text-white">{t.hostAnalyticsTitle}</h2>
+              </button>
+              <div className="flex items-center gap-2 flex-shrink-0">
                 <span className="text-xs text-gray-500 dark:text-gray-400">
                   {(() => {
                     const hostMap = new Map<string, number>();
@@ -5915,13 +5997,54 @@ export const AttendanceRecords = () => {
                     return `${hostMap.size} ${t.hosts}`;
                   })()}
                 </span>
-                <svg className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${collapseHostTable ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
+                {/* Quick Column Picker */}
+                <div className="relative">
+                  <button
+                    onClick={e => { e.stopPropagation(); setOpenColumnPicker(prev => prev === 'hostAnalytics' ? null : 'hostAnalytics'); }}
+                    className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/60 transition"
+                    title="Show/hide columns"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7" /></svg>
+                    {arabicMode ? 'الأعمدة' : 'Columns'}
+                  </button>
+                  {openColumnPicker === 'hostAnalytics' && (
+                    <div className="absolute right-0 top-8 z-50 w-64 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-600 p-3 max-h-80 overflow-y-auto" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">Show / Hide Columns</span>
+                        <div className="flex gap-1">
+                          <button onClick={() => setSavedFieldSelections(prev => ({ ...prev, hostAnalytics: getAllFieldsForType('hostAnalytics').map(f => f.key) }))} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">All</button>
+                          <span className="text-gray-300 dark:text-gray-600">|</span>
+                          <button onClick={() => setSavedFieldSelections(prev => ({ ...prev, hostAnalytics: getAllFieldsForType('hostAnalytics').slice(0, 5).map(f => f.key) }))} className="text-xs text-gray-500 dark:text-gray-400 hover:underline">Min</button>
+                        </div>
+                      </div>
+                      {getAllFieldsForType('hostAnalytics').map(f => {
+                        const selected = getSelectedFieldsForType('hostAnalytics');
+                        const isChecked = selected.includes(f.key);
+                        return (
+                          <label key={f.key} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                            <input type="checkbox" checked={isChecked}
+                              onChange={() => setSavedFieldSelections(prev => {
+                                const cur = prev.hostAnalytics.length > 0 ? prev.hostAnalytics : getAllFieldsForType('hostAnalytics').map(ff => ff.key);
+                                return { ...prev, hostAnalytics: isChecked ? cur.filter(k => k !== f.key) : [...cur, f.key] };
+                              })}
+                              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-xs text-gray-700 dark:text-gray-300">{arabicMode ? (f.labelAr || f.label) : f.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                <button onClick={() => setCollapseHostTable(prev => !prev)} className="p-1">
+                  <svg className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${collapseHostTable ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
               </div>
-            </button>
+            </div>
             {!collapseHostTable && (
-              <div className="overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto">
+              <div className="overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto" onClick={() => { if (openColumnPicker) setOpenColumnPicker(null); }}>
                 {(() => {
                   const isArabic = reportLanguage === 'ar';
                   const config = filterDataByFields('hostAnalytics', isArabic);

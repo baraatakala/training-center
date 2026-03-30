@@ -74,6 +74,16 @@ export interface ExportConfig {
   sortDirection?: 'asc' | 'desc';    // Sort direction (legacy single-sort)
   sortLayers?: Array<{field: string; direction: 'asc' | 'desc'}>;  // Multi-layer sort
   filterEmptyValues?: boolean;       // Filter out rows with empty key values
+  // Layout & Spacing options
+  rowDensity?: 'compact' | 'normal' | 'comfortable'; // Row height / cell padding
+  pageSize?: 'a4' | 'a3' | 'letter' | 'legal';       // PDF page size
+  columnWidths?: Record<string, number>;              // Per-field column width (Excel chars / PDF% fraction)
+  showGridlines?: boolean;                            // Show cell borders in export
+  headerBgColor?: string;                             // Header background (6-char hex, no #)
+  headerFontSizePt?: number;                          // Header font override in pt
+  bodyFontSizePt?: number;                            // Body font override in pt
+  repeatHeaders?: boolean;                            // Repeat headers on each page (PDF)
+  alternateRowColors?: boolean;                       // Zebra-stripe rows
 }
 
 // Export settings to pass back to parent
@@ -174,9 +184,19 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     sortDirection: 'asc',
     sortLayers: [],
     filterEmptyValues: false,
+    // Layout defaults
+    rowDensity: 'normal',
+    pageSize: 'a4',
+    columnWidths: {},
+    showGridlines: true,
+    headerBgColor: '3b82f6',
+    headerFontSizePt: undefined,
+    bodyFontSizePt: undefined,
+    repeatHeaders: true,
+    alternateRowColors: true,
   });
 
-  const [activeTab, setActiveTab] = useState<'fields' | 'format' | 'validation' | 'preview'>('fields');
+  const [activeTab, setActiveTab] = useState<'fields' | 'format' | 'layout' | 'validation' | 'preview'>('fields');
   const [exporting, setExporting] = useState(false);
   const [excludedRows, setExcludedRows] = useState<Set<string>>(
     new Set(savedSettings?.excludedRows || [])
@@ -626,9 +646,22 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     // Add main data sheet
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
     
+    // Apply RTL direction for Arabic — fixes disconnected letter display
+    if (isArabic) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (ws as any)['!rtl'] = true;
+    }
+
     // Apply column widths for better readability
-    const colWidths = headers.map(h => ({ wch: Math.max(h.length + 2, 12) }));
+    const colWidths = selectedFields.map(f => ({
+      wch: config.columnWidths?.[f.key] ?? Math.max((isArabic && f.labelAr ? f.labelAr.length : f.label.length) + 4, 12),
+    }));
     ws['!cols'] = colWidths;
+
+    // Apply row height based on density
+    const rowHeightMap = { compact: 15, normal: 20, comfortable: 30 };
+    const rowH = rowHeightMap[config.rowDensity || 'normal'];
+    ws['!rows'] = [{ hpt: rowH + 6 }, ...rows.map(() => ({ hpt: rowH }))];
     
     XLSX.utils.book_append_sheet(wb, ws, isArabic ? 'البيانات' : 'Data');
     
@@ -658,11 +691,16 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     const { processedData, stats } = processDataForExport(data);
     const selectedFields = getSelectedFieldsOrdered();
     const isArabic = config.language === 'ar';
+
+    // Arabic warning — jsPDF cannot shape Arabic script
+    if (isArabic) {
+      toast.warning('Arabic text in PDF may appear garbled. Use Word or Excel export for perfect Arabic rendering.');
+    }
     
     const doc = new jsPDF({
       orientation: config.orientation,
       unit: 'mm',
-      format: 'a4',
+      format: config.pageSize || 'a4',
     });
 
     const pageWidth = doc.internal.pageSize.width;
@@ -675,14 +713,31 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     };
     const sizes = fontSizes[config.fontSize];
 
+    // Apply numeric overrides from Layout tab
+    const effectiveTitleSize = config.headerFontSizePt ?? sizes.title;
+    const effectiveBodySize = config.bodyFontSizePt ?? sizes.table;
+    const effectiveSubtitleSize = Math.max(effectiveTitleSize - 4, 7);
+
+    // Row density → cell padding
+    const cellPaddingMap = { compact: 1, normal: 2, comfortable: 4 };
+    const cellPad = cellPaddingMap[config.rowDensity || 'normal'];
+
+    // Header background color from config
+    const hexColor = config.headerBgColor || '3b82f6';
+    const headerFillColor: [number, number, number] = [
+      parseInt(hexColor.substring(0, 2), 16),
+      parseInt(hexColor.substring(2, 4), 16),
+      parseInt(hexColor.substring(4, 6), 16),
+    ];
+
     // Title
-    doc.setFontSize(sizes.title);
+    doc.setFontSize(effectiveTitleSize);
     doc.text(config.title, pageWidth / 2, 15, { align: 'center' });
 
     // Subtitle / Date Range
     let currentY = 22;
     if (config.subtitle || config.includeTimestamp) {
-      doc.setFontSize(sizes.subtitle);
+      doc.setFontSize(effectiveSubtitleSize);
       
       if (config.subtitle) {
         doc.text(config.subtitle, pageWidth / 2, currentY, { align: 'center' });
@@ -696,7 +751,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
       
       // Add data processing summary if enabled
       if (config.dataValidation.showDataQualityReport && stats.totalRows !== stats.cleanedRows) {
-        doc.setFontSize(sizes.subtitle - 1);
+        doc.setFontSize(effectiveSubtitleSize - 1);
         doc.setTextColor(100, 100, 100);
         doc.text(`${stats.cleanedRows} of ${stats.totalRows} records (${stats.totalRows - stats.cleanedRows} filtered)`, pageWidth / 2, currentY, { align: 'center' });
         doc.setTextColor(0, 0, 0);
@@ -741,14 +796,28 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
       selectedFields.map(field => formatValue(field, record))
     );
 
+    // Build column widths for PDF (relative, using custom widths or auto)
+    const colStyles: Record<number, { cellWidth: number | 'auto' | 'wrap' }> = {};
+    selectedFields.forEach((f, idx) => {
+      const custom = config.columnWidths?.[f.key];
+      if (custom) colStyles[idx] = { cellWidth: custom };
+    });
+
     autoTable(doc, {
       startY: currentY + 5,
       head: [headers],
       body: rows,
-      styles: { fontSize: sizes.table, cellPadding: 2 },
-      headStyles: { fillColor: [59, 130, 246], fontSize: sizes.table },
-      alternateRowStyles: { fillColor: [245, 245, 245] },
+      styles: {
+        fontSize: effectiveBodySize,
+        cellPadding: cellPad,
+        lineColor: config.showGridlines !== false ? [200, 200, 200] : [255, 255, 255],
+        lineWidth: config.showGridlines !== false ? 0.1 : 0,
+      },
+      headStyles: { fillColor: headerFillColor, fontSize: effectiveBodySize, textColor: [255, 255, 255], fontStyle: 'bold' },
+      alternateRowStyles: config.alternateRowColors !== false ? { fillColor: [245, 248, 255] } : {},
       margin: { top: 35 },
+      showHead: config.repeatHeaders !== false ? 'everyPage' : 'firstPage',
+      columnStyles: colStyles,
       // Apply conditional coloring to cells
       didParseCell: (hookData) => {
         if (hookData.section === 'body' && colorColumns.includes(hookData.column.index)) {
@@ -769,7 +838,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     // Add color legend if conditional coloring is enabled
     if (colorColumns.length > 0) {
       const finalY = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY || currentY + 50;
-      doc.setFontSize(sizes.subtitle - 1);
+      doc.setFontSize(effectiveSubtitleSize - 1);
       doc.setTextColor(100, 100, 100);
       doc.text('Color Legend:', 14, finalY + 8);
       
@@ -955,7 +1024,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
           
           {/* Tabs */}
           <div className="flex flex-wrap gap-2 mt-4">
-            {(['fields', 'format', 'validation', 'preview'] as const).map(tab => (
+            {(['fields', 'format', 'layout', 'validation', 'preview'] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -967,6 +1036,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
               >
                 {tab === 'fields' && '📋 Fields'}
                 {tab === 'format' && '⚙️ Format'}
+                {tab === 'layout' && '📐 Layout'}
                 {tab === 'validation' && '✅ Validation'}
                 {tab === 'preview' && '👁️ Preview'}
               </button>
@@ -1381,6 +1451,299 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                   </label>
                 )}
               </div>
+
+              {/* Arabic + PDF Warning */}
+              {config.language === 'ar' && config.format === 'pdf' && (
+                <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded-xl p-4 flex items-start gap-3">
+                  <span className="text-amber-500 text-2xl flex-shrink-0">⚠️</span>
+                  <div>
+                    <h4 className="font-semibold text-amber-800 dark:text-amber-200">تحذير: ملف PDF لا يدعم العربية</h4>
+                    <p className="text-sm text-amber-700 dark:text-amber-400 mt-1">
+                      محرك PDF الحالي (jsPDF) لا يدعم تشكيل الحروف العربية بشكل صحيح — قد تظهر الحروف منفصلة أو مقلوبة.
+                    </p>
+                    <p className="text-sm text-amber-700 dark:text-amber-400 mt-1">
+                      <strong>للحصول على نتائج مثالية باللغة العربية: استخدم تصدير Word أو Excel بدلاً من PDF.</strong>
+                    </p>
+                    <p className="text-xs text-amber-600 dark:text-amber-500 mt-2">
+                      Arabic PDF Limitation: Use <strong>Word (.docx)</strong> or <strong>Excel (.xlsx)</strong> for proper Arabic text rendering with full RTL support.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Layout Tab */}
+          {activeTab === 'layout' && (
+            <div className="space-y-6">
+              {/* Row Density */}
+              <div className="border dark:border-gray-700 rounded-xl overflow-hidden">
+                <div className="bg-gradient-to-r from-teal-50 to-cyan-50 dark:from-teal-900/30 dark:to-cyan-900/30 p-4 border-b dark:border-teal-800">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">↕️</span>
+                    <div>
+                      <h3 className="font-semibold text-gray-900 dark:text-white">Row Density / حجم الصفوف</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Control cell padding and row height in exported tables</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4 dark:bg-gray-800">
+                  <div className="grid grid-cols-3 gap-3">
+                    {([
+                      { value: 'compact', label: 'Compact', labelAr: 'مضغوط', preview: 'py-0.5 px-2 text-xs', desc: 'Minimal padding, fits more rows' },
+                      { value: 'normal', label: 'Normal', labelAr: 'عادي', preview: 'py-1.5 px-3 text-sm', desc: 'Standard spacing (default)' },
+                      { value: 'comfortable', label: 'Comfortable', labelAr: 'مريح', preview: 'py-3 px-4 text-base', desc: 'Generous padding, easier to read' },
+                    ] as const).map(opt => (
+                      <button
+                        key={opt.value}
+                        onClick={() => setConfig(prev => ({ ...prev, rowDensity: opt.value }))}
+                        className={`p-3 rounded-xl border-2 transition flex flex-col items-center gap-2 ${
+                          config.rowDensity === opt.value
+                            ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/40'
+                            : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
+                        }`}
+                      >
+                        <div className="w-full border border-gray-300 dark:border-gray-600 rounded overflow-hidden text-xs">
+                          <div className={`bg-teal-100 dark:bg-teal-900/50 ${opt.preview} text-center text-gray-700 dark:text-gray-300 font-semibold border-b border-gray-300 dark:border-gray-600`}>Header</div>
+                          <div className={`${opt.preview} text-center text-gray-600 dark:text-gray-400`}>Cell Value</div>
+                          <div className={`${opt.preview} text-center text-gray-500 dark:text-gray-500 bg-gray-50 dark:bg-gray-700`}>Cell Value</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="font-medium text-gray-900 dark:text-white text-sm">{opt.label}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">{opt.labelAr}</div>
+                          <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">{opt.desc}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Font Sizes */}
+              <div className="border dark:border-gray-700 rounded-xl overflow-hidden">
+                <div className="bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-900/30 dark:to-purple-900/30 p-4 border-b dark:border-violet-800">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">🔤</span>
+                    <div>
+                      <h3 className="font-semibold text-gray-900 dark:text-white">Font Sizes / أحجام الخطوط</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Control exact font sizes for each section (applies to PDF &amp; Word)</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4 dark:bg-gray-800 space-y-5">
+                  {/* Header Font Size */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Header Font Size</label>
+                      <span className="text-sm font-bold text-violet-600 dark:text-violet-400">{config.headerFontSizePt ?? (config.fontSize === 'small' ? 14 : config.fontSize === 'large' ? 18 : 16)}pt</span>
+                    </div>
+                    <input
+                      type="range" min={8} max={24} step={1}
+                      value={config.headerFontSizePt ?? (config.fontSize === 'small' ? 14 : config.fontSize === 'large' ? 18 : 16)}
+                      onChange={e => setConfig(prev => ({ ...prev, headerFontSizePt: parseInt(e.target.value) }))}
+                      className="w-full accent-violet-600"
+                    />
+                    <div className="flex justify-between text-xs text-gray-400 mt-1"><span>8pt</span><span>16pt</span><span>24pt</span></div>
+                  </div>
+                  {/* Body Font Size */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Body / Table Font Size</label>
+                      <span className="text-sm font-bold text-violet-600 dark:text-violet-400">{config.bodyFontSizePt ?? (config.fontSize === 'small' ? 6 : config.fontSize === 'large' ? 10 : 8)}pt</span>
+                    </div>
+                    <input
+                      type="range" min={6} max={16} step={1}
+                      value={config.bodyFontSizePt ?? (config.fontSize === 'small' ? 6 : config.fontSize === 'large' ? 10 : 8)}
+                      onChange={e => setConfig(prev => ({ ...prev, bodyFontSizePt: parseInt(e.target.value) }))}
+                      className="w-full accent-violet-600"
+                    />
+                    <div className="flex justify-between text-xs text-gray-400 mt-1"><span>6pt</span><span>11pt</span><span>16pt</span></div>
+                  </div>
+                  <button
+                    onClick={() => setConfig(prev => ({ ...prev, headerFontSizePt: undefined, bodyFontSizePt: undefined }))}
+                    className="text-xs text-violet-600 dark:text-violet-400 hover:underline"
+                  >
+                    Reset to defaults (based on Size setting in Format tab)
+                  </button>
+                </div>
+              </div>
+
+              {/* PDF Page Size */}
+              {config.format === 'pdf' && (
+                <div className="border dark:border-gray-700 rounded-xl overflow-hidden">
+                  <div className="bg-gradient-to-r from-blue-50 to-sky-50 dark:from-blue-900/30 dark:to-sky-900/30 p-4 border-b dark:border-blue-800">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">📄</span>
+                      <div>
+                        <h3 className="font-semibold text-gray-900 dark:text-white">Page Size / حجم الصفحة</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">PDF paper size</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-4 dark:bg-gray-800">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {([
+                        { value: 'a4', label: 'A4', dim: '210×297mm' },
+                        { value: 'a3', label: 'A3', dim: '297×420mm' },
+                        { value: 'letter', label: 'Letter', dim: '216×279mm' },
+                        { value: 'legal', label: 'Legal', dim: '216×356mm' },
+                      ] as const).map(sz => (
+                        <button
+                          key={sz.value}
+                          onClick={() => setConfig(prev => ({ ...prev, pageSize: sz.value }))}
+                          className={`p-3 rounded-xl border-2 transition text-center ${
+                            config.pageSize === sz.value
+                              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/40'
+                              : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
+                          }`}
+                        >
+                          <div className="font-semibold text-gray-900 dark:text-white">{sz.label}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{sz.dim}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Table Style Options */}
+              <div className="border dark:border-gray-700 rounded-xl overflow-hidden">
+                <div className="bg-gradient-to-r from-rose-50 to-pink-50 dark:from-rose-900/30 dark:to-pink-900/30 p-4 border-b dark:border-rose-800">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">🎨</span>
+                    <div>
+                      <h3 className="font-semibold text-gray-900 dark:text-white">Table Style / نمط الجدول</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Appearance controls for exported tables</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4 dark:bg-gray-800 space-y-4">
+                  {/* Gridlines */}
+                  <label className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer transition">
+                    <input
+                      type="checkbox"
+                      checked={config.showGridlines !== false}
+                      onChange={e => setConfig(prev => ({ ...prev, showGridlines: e.target.checked }))}
+                      className="w-5 h-5 rounded border-gray-300 text-rose-600 focus:ring-rose-500"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Show Gridlines / إظهار خطوط الشبكة</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Display cell borders in the exported table</p>
+                    </div>
+                  </label>
+
+                  {/* Alternate Row Colors */}
+                  <label className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer transition">
+                    <input
+                      type="checkbox"
+                      checked={config.alternateRowColors !== false}
+                      onChange={e => setConfig(prev => ({ ...prev, alternateRowColors: e.target.checked }))}
+                      className="w-5 h-5 rounded border-gray-300 text-rose-600 focus:ring-rose-500"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Alternate Row Colors / ألوان متناوبة للصفوف</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Zebra-stripe alternate rows for easier reading</p>
+                    </div>
+                  </label>
+
+                  {/* Repeat Headers */}
+                  <label className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer transition">
+                    <input
+                      type="checkbox"
+                      checked={config.repeatHeaders !== false}
+                      onChange={e => setConfig(prev => ({ ...prev, repeatHeaders: e.target.checked }))}
+                      className="w-5 h-5 rounded border-gray-300 text-rose-600 focus:ring-rose-500"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Repeat Headers on Each Page</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">PDF: Show column headers at the top of every page</p>
+                    </div>
+                  </label>
+
+                  {/* Header Color */}
+                  <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-700">
+                    <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">Header Background Color / لون خلفية الرأس</label>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {['3b82f6', '6366f1', '8b5cf6', '0891b2', '047857', 'd97706', 'dc2626', '1f2937', '0f766e'].map(hex => (
+                        <button
+                          key={hex}
+                          onClick={() => setConfig(prev => ({ ...prev, headerBgColor: hex }))}
+                          style={{ backgroundColor: `#${hex}` }}
+                          className={`w-8 h-8 rounded-full flex-shrink-0 transition transform hover:scale-110 ${config.headerBgColor === hex ? 'ring-2 ring-offset-2 ring-gray-900 dark:ring-white scale-110' : ''}`}
+                          title={`#${hex}`}
+                        />
+                      ))}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">Custom:</span>
+                        <input
+                          type="color"
+                          value={`#${config.headerBgColor || '3b82f6'}`}
+                          onChange={e => setConfig(prev => ({ ...prev, headerBgColor: e.target.value.replace('#', '') }))}
+                          className="w-8 h-8 rounded cursor-pointer border border-gray-300 dark:border-gray-600"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Column Widths */}
+              {config.selectedFields.length > 0 && (
+                <div className="border dark:border-gray-700 rounded-xl overflow-hidden">
+                  <div className="bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/30 dark:to-yellow-900/30 p-4 border-b dark:border-amber-800">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">📏</span>
+                        <div>
+                          <h3 className="font-semibold text-gray-900 dark:text-white">Column Widths / عرض الأعمدة</h3>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Set custom width for each column (Excel: characters, PDF: relative proportion)</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setConfig(prev => ({ ...prev, columnWidths: {} }))}
+                        className="text-xs text-amber-600 dark:text-amber-400 hover:underline px-2"
+                      >
+                        Reset All
+                      </button>
+                    </div>
+                  </div>
+                  <div className="p-4 dark:bg-gray-800 max-h-72 overflow-y-auto">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {getSelectedFieldsOrdered().map(field => (
+                        <div key={field.key} className="flex items-center gap-3 p-2.5 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{field.label}</div>
+                            {field.labelAr && <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{field.labelAr}</div>}
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <input
+                              type="number"
+                              min={5}
+                              max={80}
+                              placeholder="auto"
+                              value={config.columnWidths?.[field.key] ?? ''}
+                              onChange={e => {
+                                const val = e.target.value === '' ? undefined : parseInt(e.target.value);
+                                setConfig(prev => ({
+                                  ...prev,
+                                  columnWidths: {
+                                    ...(prev.columnWidths || {}),
+                                    ...(val !== undefined ? { [field.key]: val } : {}),
+                                    ...(val === undefined ? Object.fromEntries(Object.entries(prev.columnWidths || {}).filter(([k]) => k !== field.key)) : {}),
+                                  }
+                                }));
+                              }}
+                              className="w-16 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-center"
+                            />
+                            <span className="text-xs text-gray-400 dark:text-gray-500">ch</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">Leave blank to use automatic width based on content. Range: 5–80 characters.</p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
