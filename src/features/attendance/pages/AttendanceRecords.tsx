@@ -1685,16 +1685,19 @@ export const AttendanceRecords = () => {
     const hostConfig = filterDataByFields('hostAnalytics', isArabic);
     
     // Build host data
-    const hostMap = new Map<string, { count: number; dates: string[]; rawDates: Date[]; present: number; late: number; absent: number; excused: number }>();
+    const hostMap = new Map<string, { count: number; dates: string[]; rawDates: Date[]; present: number; late: number; absent: number; excused: number; specCounts: Map<string, number> }>();
     dateAnalytics.forEach((dateData) => {
       if (dateData.hostAddress && dateData.hostAddress !== 'SESSION_NOT_HELD') {
-        const existing = hostMap.get(dateData.hostAddress) || { count: 0, dates: [], rawDates: [], present: 0, late: 0, absent: 0, excused: 0 };
+        const existing = hostMap.get(dateData.hostAddress) || { count: 0, dates: [], rawDates: [], present: 0, late: 0, absent: 0, excused: 0, specCounts: new Map<string, number>() };
         existing.count++;
         existing.rawDates.push(new Date(dateData.date));
         existing.present += dateData.presentCount;
         existing.late += dateData.lateCount;
         existing.absent += dateData.unexcusedAbsentCount;
         existing.excused += dateData.excusedAbsentCount;
+        if (dateData.topSpecialization) {
+          existing.specCounts.set(dateData.topSpecialization, (existing.specCounts.get(dateData.topSpecialization) ?? 0) + 1);
+        }
         hostMap.set(dateData.hostAddress, existing);
       }
     });
@@ -1715,6 +1718,8 @@ export const AttendanceRecords = () => {
       const attendanceRate = expectedAttendees > 0 ? Math.round(totalPresent / expectedAttendees * 100) : 0;
       const firstDateTimestamp = host.rawDates.length > 0 ? Math.min(...host.rawDates.map(d => d.getTime())) : 0;
       const lastDateTimestamp = host.rawDates.length > 0 ? Math.max(...host.rawDates.map(d => d.getTime())) : 0;
+      const specCountEntries = [...host.specCounts.entries()].sort((a, b) => b[1] - a[1]);
+      const topSpecEntry = specCountEntries[0];
       
       return {
         rank: index + 1,
@@ -1729,9 +1734,12 @@ export const AttendanceRecords = () => {
         totalOnTime: host.present,
         totalLate: host.late,
         totalPresent,
-        totalAbsent: host.absent,
+        totalAbsent: host.absent + host.excused,
         totalExcused: host.excused,
         totalStudents,
+        topSpec: topSpecEntry?.[0] || '-',
+        topSpecCount: topSpecEntry?.[1] ?? 0,
+        specBreakdown: specCountEntries.map(([s, c]) => `${s}: ${c}`).join('; ') || '-',
         dates: host.rawDates.map(d => smartDateFormat(d, allHostRawDates)).join(', '),
       };
     });
@@ -1983,16 +1991,19 @@ export const AttendanceRecords = () => {
     const dateDataObjects = filterExcludedDateRows(sortDataBySettings(dateDataObjectsUnsorted, 'dateAnalytics'));
 
     // Prepare host data with all possible fields
-    const hostMap = new Map<string, { count: number; rawDates: Date[]; present: number; late: number; absent: number; excused: number }>();
+    const hostMap = new Map<string, { count: number; rawDates: Date[]; present: number; late: number; absent: number; excused: number; specCounts: Map<string, number> }>();
     dateAnalytics.forEach((dateData) => {
       if (dateData.hostAddress && dateData.hostAddress !== 'SESSION_NOT_HELD') {
-        const existing = hostMap.get(dateData.hostAddress) || { count: 0, rawDates: [], present: 0, late: 0, absent: 0, excused: 0 };
+        const existing = hostMap.get(dateData.hostAddress) || { count: 0, rawDates: [], present: 0, late: 0, absent: 0, excused: 0, specCounts: new Map<string, number>() };
         existing.count++;
         existing.rawDates.push(new Date(dateData.date));
         existing.present += dateData.presentCount;
         existing.late += dateData.lateCount;
         existing.absent += dateData.unexcusedAbsentCount;
         existing.excused += dateData.excusedAbsentCount;
+        if (dateData.topSpecialization) {
+          existing.specCounts.set(dateData.topSpecialization, (existing.specCounts.get(dateData.topSpecialization) ?? 0) + 1);
+        }
         hostMap.set(dateData.hostAddress, existing);
       }
     });
@@ -2009,6 +2020,8 @@ export const AttendanceRecords = () => {
         const attendanceRate = expectedAttendees > 0 ? Math.round(totalPresent / expectedAttendees * 100) : 0;
         const firstDateTimestamp = host.rawDates.length > 0 ? Math.min(...host.rawDates.map(d => d.getTime())) : 0;
         const lastDateTimestamp = host.rawDates.length > 0 ? Math.max(...host.rawDates.map(d => d.getTime())) : 0;
+        const specCountEntries = [...host.specCounts.entries()].sort((a, b) => b[1] - a[1]);
+        const topSpecEntry = specCountEntries[0];
         
         return {
           rank: index + 1,
@@ -2026,6 +2039,9 @@ export const AttendanceRecords = () => {
           totalAbsent: host.absent + host.excused,
           totalExcused: host.excused,
           totalStudents,
+          topSpec: topSpecEntry?.[0] || '-',
+          topSpecCount: topSpecEntry?.[1] ?? 0,
+          specBreakdown: specCountEntries.map(([s, c]) => `${s}: ${c}`).join('; ') || '-',
           dates: host.rawDates.map(d => smartDateFormat(d, allHostRawDates2)).join(', '),
         };
       });
@@ -2505,6 +2521,7 @@ export const AttendanceRecords = () => {
       late: number;
       absent: number;
       excused: number;
+      specCounts: Map<string, number>;
     }>();
     dateAnalytics.forEach((dateData) => {
       if (dateData.hostAddress && dateData.hostAddress !== 'SESSION_NOT_HELD') {
@@ -2515,6 +2532,7 @@ export const AttendanceRecords = () => {
           late: 0,
           absent: 0,
           excused: 0,
+          specCounts: new Map<string, number>(),
         };
         existing.count++;
         existing.rawDates.push(new Date(dateData.date));
@@ -2522,6 +2540,9 @@ export const AttendanceRecords = () => {
         existing.late += dateData.lateCount;
         existing.absent += dateData.unexcusedAbsentCount;
         existing.excused += dateData.excusedAbsentCount;
+        if (dateData.topSpecialization) {
+          existing.specCounts.set(dateData.topSpecialization, (existing.specCounts.get(dateData.topSpecialization) ?? 0) + 1);
+        }
         hostMap.set(dateData.hostAddress, existing);
       }
     });
@@ -2540,6 +2561,8 @@ export const AttendanceRecords = () => {
         const attendanceRate = expectedAttendees > 0 ? Math.round(totalPresent / expectedAttendees * 100) : 0;
         const firstRaw = host.rawDates.length > 0 ? Math.min(...host.rawDates.map(d => d.getTime())) : 0;
         const lastRaw = host.rawDates.length > 0 ? Math.max(...host.rawDates.map(d => d.getTime())) : 0;
+        const specCountEntries = [...host.specCounts.entries()].sort((a, b) => b[1] - a[1]);
+        const topSpecEntry = specCountEntries[0];
         return {
           rank: index + 1,
           address: host.address,
@@ -2553,9 +2576,12 @@ export const AttendanceRecords = () => {
           totalOnTime: host.present,
           totalLate: host.late,
           totalPresent,
-          totalAbsent: host.absent,
+          totalAbsent: host.absent + host.excused,
           totalExcused: host.excused,
           totalStudents,
+          topSpec: topSpecEntry?.[0] || '-',
+          topSpecCount: topSpecEntry?.[1] ?? 0,
+          specBreakdown: specCountEntries.map(([s, c]) => `${s}: ${c}`).join('; ') || '-',
           dates: host.rawDates.map(d => smartDateFormat(d, allHostRawDates3)).join(', '),
         };
       });
@@ -3088,12 +3114,13 @@ export const AttendanceRecords = () => {
       late: number;
       absent: number;
       excused: number;
+      specCounts: Map<string, number>;
     }>();
     
     dateAnalytics.forEach((dateData) => {
       if (dateData.hostAddress && dateData.hostAddress !== 'SESSION_NOT_HELD') {
         const existing = hostMap.get(dateData.hostAddress) || {
-          count: 0, rawDates: [], present: 0, late: 0, absent: 0, excused: 0,
+          count: 0, rawDates: [], present: 0, late: 0, absent: 0, excused: 0, specCounts: new Map<string, number>(),
         };
         existing.count++;
         existing.rawDates.push(new Date(dateData.date));
@@ -3101,6 +3128,9 @@ export const AttendanceRecords = () => {
         existing.late += dateData.lateCount;
         existing.absent += dateData.unexcusedAbsentCount;
         existing.excused += dateData.excusedAbsentCount;
+        if (dateData.topSpecialization) {
+          existing.specCounts.set(dateData.topSpecialization, (existing.specCounts.get(dateData.topSpecialization) ?? 0) + 1);
+        }
         hostMap.set(dateData.hostAddress, existing);
       }
     });
@@ -3119,6 +3149,8 @@ export const AttendanceRecords = () => {
         const attendanceRate = expectedAttendees > 0 ? Math.round(totalPresent / expectedAttendees * 100) : 0;
         const firstRaw = host.rawDates.length > 0 ? Math.min(...host.rawDates.map(d => d.getTime())) : 0;
         const lastRaw = host.rawDates.length > 0 ? Math.max(...host.rawDates.map(d => d.getTime())) : 0;
+        const specCountEntries = [...host.specCounts.entries()].sort((a, b) => b[1] - a[1]);
+        const topSpecEntry = specCountEntries[0];
         return {
           rank: index + 1,
           address: host.address,
@@ -3132,9 +3164,12 @@ export const AttendanceRecords = () => {
           totalOnTime: host.present,
           totalLate: host.late,
           totalPresent,
-          totalAbsent: host.absent,
+          totalAbsent: host.absent + host.excused,
           totalExcused: host.excused,
           totalStudents,
+          topSpec: topSpecEntry?.[0] || '-',
+          topSpecCount: topSpecEntry?.[1] ?? 0,
+          specBreakdown: specCountEntries.map(([s, c]) => `${s}: ${c}`).join('; ') || '-',
           dates: host.rawDates.map(d => smartDateFormat(d, allHostRawDates4)).join(', '),
         };
       });
