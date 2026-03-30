@@ -2050,7 +2050,87 @@ export const AttendanceRecords = () => {
 
     // Build CSV content with sections — respect includedTables toggles
     const sections: string[] = [];
-    
+
+    // Section 0: Summary Statistics
+    if (includedTables.summary) {
+      const heldSessionsCsv = dateAnalytics.filter(d => !d.isSessionNotHeld).length;
+      const notHeldSessionsCsv = dateAnalytics.filter(d => d.isSessionNotHeld).length;
+      const totalStudentsCsv = studentAnalytics.length;
+      const classAvgRateCsv = totalStudentsCsv > 0
+        ? Math.round(studentAnalytics.reduce((s, x) => s + x.attendanceRate, 0) / totalStudentsCsv)
+        : 0;
+      const avgWeightedScoreCsv = totalStudentsCsv > 0
+        ? Math.round(studentAnalytics.reduce((s, x) => s + x.weightedScore, 0) / totalStudentsCsv)
+        : 0;
+      const avgByDateCsv = heldSessionsCsv > 0
+        ? Math.round(dateAnalytics.filter(d => !d.isSessionNotHeld).reduce((s, d) => s + d.attendanceRate, 0) / heldSessionsCsv)
+        : 0;
+      const heldRatesCsv = dateAnalytics.filter(d => !d.isSessionNotHeld).map(d => d.attendanceRate).sort((a, b) => a - b);
+      const midCsv = Math.floor(heldRatesCsv.length / 2);
+      const medianByDateCsv = heldRatesCsv.length === 0 ? 0
+        : heldRatesCsv.length % 2 === 0 ? Math.round((heldRatesCsv[midCsv - 1] + heldRatesCsv[midCsv]) / 2)
+        : Math.round(heldRatesCsv[midCsv]);
+      const studentRatesCsv = studentAnalytics.map(s => s.attendanceRate).sort((a, b) => a - b);
+      const midStCsv = Math.floor(studentRatesCsv.length / 2);
+      const medianStudentRateCsv = studentRatesCsv.length === 0 ? 0
+        : studentRatesCsv.length % 2 === 0 ? Math.round((studentRatesCsv[midStCsv - 1] + studentRatesCsv[midStCsv]) / 2 * 10) / 10
+        : Math.round(studentRatesCsv[midStCsv] * 10) / 10;
+      const meanCsv = studentRatesCsv.length > 0 ? studentRatesCsv.reduce((a, b) => a + b, 0) / studentRatesCsv.length : 0;
+      const classStdDevCsv = studentRatesCsv.length > 1
+        ? Math.round(Math.sqrt(studentRatesCsv.reduce((a, x) => a + Math.pow(x - meanCsv, 2), 0) / studentRatesCsv.length) * 10) / 10
+        : 0;
+      const atRiskCsv = studentRatesCsv.filter(r => r < 75).length;
+      const totalPresentCsv = studentAnalytics.reduce((s, x) => s + x.presentCount, 0);
+      const totalLateCsv = studentAnalytics.reduce((s, x) => s + x.lateCount, 0);
+      const totalAbsentCsv = studentAnalytics.reduce((s, x) => s + x.unexcusedAbsent, 0);
+      const totalExcusedCsv = studentAnalytics.reduce((s, x) => s + x.excusedCount, 0);
+      const avgConsistencyCsv = totalStudentsCsv > 0
+        ? Math.round(studentAnalytics.reduce((s, x) => s + x.consistencyIndex, 0) / totalStudentsCsv * 100) / 100
+        : 0;
+
+      const summaryTitle = isArabic ? '# إحصائيات عامة' : '# Summary Statistics';
+      const summaryRows = isArabic
+        ? [
+            ['المقياس', 'القيمة'],
+            ['عدد الطلاب', totalStudentsCsv],
+            ['الجلسات المنعقدة', heldSessionsCsv],
+            ['الجلسات الملغاة', notHeldSessionsCsv],
+            ['إجمالي الحضور في الوقت', totalPresentCsv],
+            ['إجمالي المتأخرين', totalLateCsv],
+            ['إجمالي الغياب بدون عذر', totalAbsentCsv],
+            ['إجمالي الغياب بعذر', totalExcusedCsv],
+            ['معدل الحضور للصف (%)', `${classAvgRateCsv}%`],
+            ['وسيط معدل الطلاب (%)', `${medianStudentRateCsv}%`],
+            ['الانحراف المعياري (%)', `${classStdDevCsv}%`],
+            ['الطلاب في خطر (< 75%)', atRiskCsv],
+            ['متوسط النقاط المرجحة', avgWeightedScoreCsv],
+            ['متوسط مؤشر الانتظام', avgConsistencyCsv],
+            ['متوسط الحضور حسب التاريخ (%)', `${avgByDateCsv}%`],
+            ['الوسيط لمعدل الحضور حسب التاريخ (%)', `${medianByDateCsv}%`],
+          ]
+        : [
+            ['Metric', 'Value'],
+            ['Total Students', totalStudentsCsv],
+            ['Held Sessions', heldSessionsCsv],
+            ['Cancelled Sessions', notHeldSessionsCsv],
+            ['Total On Time', totalPresentCsv],
+            ['Total Late', totalLateCsv],
+            ['Total Unexcused Absent', totalAbsentCsv],
+            ['Total Excused', totalExcusedCsv],
+            ['Class Avg Rate (%)', `${classAvgRateCsv}%`],
+            ['Median Student Rate (%)', `${medianStudentRateCsv}%`],
+            ['Class Std Dev (%)', `${classStdDevCsv}%`],
+            ['At-Risk Students (< 75%)', atRiskCsv],
+            ['Avg Weighted Score', avgWeightedScoreCsv],
+            ['Avg Consistency Index', avgConsistencyCsv],
+            ['Avg Attendance by Date (%)', `${avgByDateCsv}%`],
+            ['Median Rate by Date (%)', `${medianByDateCsv}%`],
+          ];
+      sections.push(summaryTitle);
+      summaryRows.forEach(row => sections.push(row.map(escapeCSV).join(',')));
+      sections.push('');
+    }
+
     // Section 1: Student Performance
     if (includedTables.student) {
       const studentTitle = isArabic ? '# أداء الطلاب' : '# Student Performance';
@@ -4009,6 +4089,18 @@ export const AttendanceRecords = () => {
             { key: 'specScoreDeviation', label: 'Score Deviation from Spec', labelAr: '\u0627\u0646\u062D\u0631\u0627\u0641 \u0627\u0644\u062F\u0631\u062C\u0629 \u0639\u0646 \u0627\u0644\u062A\u062E\u0635\u0635', category: 'specCorrelation', defaultSelected: false },
             { key: 'specRank', label: 'Rank within Spec', labelAr: '\u0627\u0644\u062A\u0631\u062A\u064A\u0628 \u0636\u0645\u0646 \u0627\u0644\u062A\u062E\u0635\u0635', category: 'specCorrelation', defaultSelected: false },
             { key: 'specStudentCount', label: 'Spec Student Count', labelAr: '\u0639\u062F\u062F \u0637\u0644\u0627\u0628 \u0627\u0644\u062A\u062E\u0635\u0635', category: 'specCorrelation', defaultSelected: false },
+          ]
+        },
+        {
+          id: 'advancedMetrics',
+          label: '🧩 Advanced Metrics',
+          labelAr: '🧩 مقاييس متقدمة',
+          icon: '🧩',
+          fields: [
+            { key: 'percentileRank', label: 'Percentile Rank', labelAr: '\u0627\u0644\u062A\u0631\u062A\u064A\u0628 \u0627\u0644\u0645\u0626\u0648\u064A', category: 'advancedMetrics', defaultSelected: false },
+            { key: 'maxConsecutiveStreak', label: 'Max Streak (wks)', labelAr: '\u0623\u0637\u0648\u0644 \u062A\u0633\u0644\u0633\u0644 \u062D\u0636\u0648\u0631', category: 'advancedMetrics', defaultSelected: false },
+            { key: 'firstHalfRate', label: 'First Half Rate %', labelAr: '\u0645\u0639\u062F\u0644 \u0627\u0644\u0646\u0635\u0641 \u0627\u0644\u0623\u0648\u0644', category: 'advancedMetrics', defaultSelected: false },
+            { key: 'secondHalfRate', label: 'Second Half Rate %', labelAr: '\u0645\u0639\u062F\u0644 \u0627\u0644\u0646\u0635\u0641 \u0627\u0644\u062B\u0627\u0646\u064A', category: 'advancedMetrics', defaultSelected: false },
           ]
         }
       ];
