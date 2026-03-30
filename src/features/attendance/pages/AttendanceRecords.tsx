@@ -1568,6 +1568,12 @@ export const AttendanceRecords = () => {
         avgLateMinutes: Math.round((student.avgLateMinutes || 0) * 10) / 10,
         maxLateMinutes: Math.round((student.maxLateMinutes || 0) * 10) / 10,
         lateScoreAvg: Math.round((student.lateScoreAvg || 0) * 1000) / 1000,
+        sessionNotHeldCount: student.sessionNotHeldCount || 0,
+        // Advanced metrics
+        percentileRank: student.percentileRank,
+        maxConsecutiveStreak: student.maxConsecutiveStreak,
+        firstHalfRate: student.firstHalfRate,
+        secondHalfRate: student.secondHalfRate,
       };
     });
     
@@ -4028,6 +4034,7 @@ export const AttendanceRecords = () => {
           icon: '📊',
           fields: [
             { key: 'avgAttendanceRate', label: 'Avg Attendance Rate %', labelAr: 'معدل الحضور %', category: 'specPerformance', defaultSelected: true },
+            { key: 'stdDevRate', label: 'Rate Std Dev %', labelAr: 'الانحراف المعياري للمعدل %', category: 'specPerformance', defaultSelected: true },
             { key: 'avgScore', label: 'Avg Weighted Score', labelAr: 'متوسط الدرجة', category: 'specPerformance', defaultSelected: true },
             { key: 'avgPunctuality', label: 'Avg Punctuality %', labelAr: 'متوسط الانضباط %', category: 'specPerformance', defaultSelected: true },
             { key: 'avgConsistency', label: 'Avg Consistency', labelAr: 'متوسط الانتظام', category: 'specPerformance', defaultSelected: true },
@@ -4039,7 +4046,8 @@ export const AttendanceRecords = () => {
           labelAr: 'إجماليات الحضور',
           icon: '✅',
           fields: [
-            { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحضور', category: 'specCounts', defaultSelected: true },
+            { key: 'totalOnTime', label: 'Total On Time', labelAr: 'إجمالي الحضور في الوقت', category: 'specCounts', defaultSelected: true },
+            { key: 'totalPresent', label: 'Total Present (On Time + Late)', labelAr: 'إجمالي الحاضرين (في الوقت + متأخر)', category: 'specCounts', defaultSelected: true },
             { key: 'totalLate', label: 'Total Late', labelAr: 'إجمالي المتأخرين', category: 'specCounts', defaultSelected: true },
             { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب', category: 'specCounts', defaultSelected: true },
             { key: 'totalExcused', label: 'Total Excused', labelAr: 'إجمالي المعذورين', category: 'specCounts', defaultSelected: true },
@@ -5493,6 +5501,11 @@ export const AttendanceRecords = () => {
                       specScoreDeviation: (() => { const c = specCorrelation.get(student.specialization?.trim() || 'Unspecified'); return c ? `${Math.round((student.weightedScore - c.avgScore) * 10) / 10}` : '-'; })(),
                       specRank: (() => { const c = specCorrelation.get(student.specialization?.trim() || 'Unspecified'); return c ? `${c.ranks.get(student.student_id) || '-'}/${c.count}` : '-'; })(),
                       specStudentCount: (() => { const c = specCorrelation.get(student.specialization?.trim() || 'Unspecified'); return c ? c.count : '-'; })(),
+                      // Advanced metrics
+                      percentileRank: student.percentileRank,
+                      maxConsecutiveStreak: student.maxConsecutiveStreak,
+                      firstHalfRate: `${student.firstHalfRate}%`,
+                      secondHalfRate: `${student.secondHalfRate}%`,
                     } as Record<string, unknown>;
                   });
                   const sorted = sortDataBySettings(dataObjects, 'studentAnalytics');
