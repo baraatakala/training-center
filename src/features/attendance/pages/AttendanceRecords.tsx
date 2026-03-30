@@ -363,15 +363,19 @@ export const AttendanceRecords = () => {
   }, [matrixSelectedDates]);
   const [showMatrixDatePicker, setShowMatrixDatePicker] = useState(false);
 
-  // Chart export selection — which charts to include in exported reports
+  // Chart export selection — which charts to include in exported reports AND displayed in UI
   const chartRef = useRef<ChartCaptureHandle>(null);
   const ALL_CHART_TABS: ChartTab[] = ['trend', 'specialization', 'distribution', 'performance', 'radar', 'lateness', 'comparison'];
   const [selectedChartsForExport, setSelectedChartsForExport] = useState<Set<ChartTab>>(() => {
     try {
       const saved = localStorage.getItem('analyticsExportCharts');
-      if (saved) { const arr = JSON.parse(saved) as ChartTab[]; return new Set(arr); }
+      if (saved) {
+        const arr = JSON.parse(saved) as ChartTab[];
+        // Migration: treat empty array as all-selected (backwards compat — previously empty meant "export none")
+        if (arr.length > 0) return new Set(arr);
+      }
     } catch { /* ignore */ }
-    return new Set<ChartTab>();
+    return new Set<ChartTab>(ALL_CHART_TABS); // default: all charts visible
   });
   useEffect(() => {
     localStorage.setItem('analyticsExportCharts', JSON.stringify([...selectedChartsForExport]));
@@ -5266,6 +5270,7 @@ export const AttendanceRecords = () => {
                       studentAnalytics={studentAnalytics}
                       dateAnalytics={dateAnalytics}
                       arabicMode={arabicMode}
+                      visibleTabs={selectedChartsForExport}
                     />
                   </Suspense>
                 </div>

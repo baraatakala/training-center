@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, forwardRef, useImperativeHandle, useCallback } from 'react';
+import { useMemo, useState, useEffect, useRef, forwardRef, useImperativeHandle, useCallback } from 'react';
 import {
   ResponsiveContainer,
   BarChart,
@@ -93,6 +93,7 @@ interface Props {
   studentAnalytics: StudentAnalytics[];
   dateAnalytics: DateAnalytics[];
   arabicMode?: boolean;
+  visibleTabs?: Set<ChartTab>; // which tabs to show in UI (mirrors includedTables behavior)
 }
 
 // Colors
@@ -244,7 +245,7 @@ export interface ChartCaptureHandle {
 }
 
 // Main Component
-const AttendanceCharts = forwardRef<ChartCaptureHandle, Props>(function AttendanceCharts({ studentAnalytics, dateAnalytics, arabicMode = false }, ref) {
+const AttendanceCharts = forwardRef<ChartCaptureHandle, Props>(function AttendanceCharts({ studentAnalytics, dateAnalytics, arabicMode = false, visibleTabs }, ref) {
   const [activeTab, setActiveTab] = useState<ChartTab>('trend');
 
   // i18n
@@ -291,14 +292,27 @@ const AttendanceCharts = forwardRef<ChartCaptureHandle, Props>(function Attendan
   };
 
   const CHART_TABS: { id: ChartTab; label: string; icon: string }[] = [
-    { id: 'trend',          label: t.trend,          icon: '\uD83D\uDCC8' },
-    { id: 'specialization', label: t.specialization, icon: '\uD83C\uDF93' },
-    { id: 'distribution',   label: t.distribution,   icon: '\uD83C\uDF69' },
-    { id: 'performance',    label: t.performance,    icon: '\uD83C\uDFC6' },
-    { id: 'radar',          label: t.radar,          icon: '\uD83C\uDFAF' },
-    { id: 'lateness',       label: t.lateness,       icon: '\u23F0' },
-    { id: 'comparison',     label: t.comparison,     icon: '\u26A1' },
+    { id: 'trend',          label: t.trend,          icon: '📈' },
+    { id: 'specialization', label: t.specialization, icon: '🎓' },
+    { id: 'distribution',   label: t.distribution,   icon: '🍩' },
+    { id: 'performance',    label: t.performance,    icon: '🏆' },
+    { id: 'radar',          label: t.radar,          icon: '🎯' },
+    { id: 'lateness',       label: t.lateness,       icon: '⏰' },
+    { id: 'comparison',     label: t.comparison,     icon: '⚡' },
   ];
+
+  // Only show tabs that are in visibleTabs prop (if provided); empty Set = treat as "all visible"
+  const visibleChartTabs = visibleTabs && visibleTabs.size > 0
+    ? CHART_TABS.filter(tab => visibleTabs.has(tab.id))
+    : CHART_TABS;
+
+  // Auto-switch active tab when the current one becomes hidden
+  useEffect(() => {
+    if (visibleChartTabs.length > 0 && !visibleChartTabs.some(tab => tab.id === activeTab)) {
+      setActiveTab(visibleChartTabs[0].id);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleTabs]);
 
   const statusColors = [
     { label: t.onTime,  color: COLORS.present },
@@ -446,11 +460,23 @@ const AttendanceCharts = forwardRef<ChartCaptureHandle, Props>(function Attendan
 
   if (studentAnalytics.length === 0 && dateAnalytics.length === 0) return null;
 
+  // If all charts are deselected, show a placeholder
+  if (visibleChartTabs.length === 0) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg dark:shadow-gray-900/30 border border-gray-100 dark:border-gray-700 overflow-hidden p-8 text-center">
+        <div className="text-3xl mb-3">📊</div>
+        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+          {arabicMode ? 'لم يتم تحديد أي رسوم بيانية — استخدم "تضمين الرسوم البيانية" أعلاه لتفعيلها' : 'No charts selected — use "Include Charts" above to enable them'}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg dark:shadow-gray-900/30 border border-gray-100 dark:border-gray-700 overflow-hidden">
-      {/* Tab Bar */}
+      {/* Tab Bar — only shows visible/selected chart tabs */}
       <div className="flex overflow-x-auto gap-1 px-4 pt-3 pb-2 border-b border-gray-100 dark:border-gray-700 scrollbar-hide">
-        {CHART_TABS.map(tab => (
+        {visibleChartTabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
