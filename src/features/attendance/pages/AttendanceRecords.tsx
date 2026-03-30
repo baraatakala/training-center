@@ -206,11 +206,12 @@ export const AttendanceRecords = () => {
     hostAnalytics: string[];
     specializationAnalytics: string[];
   }>(() => {
+    const defaults = { records: [], studentAnalytics: [], dateAnalytics: [], hostAnalytics: [], specializationAnalytics: [] };
     try {
       const saved = localStorage.getItem('exportFieldSelections');
-      if (saved) return JSON.parse(saved);
+      if (saved) return { ...defaults, ...JSON.parse(saved) };
     } catch { /* ignore */ }
-    return { records: [], studentAnalytics: [], dateAnalytics: [], hostAnalytics: [], specializationAnalytics: [] };
+    return defaults;
   });
 
   // Load saved export settings from localStorage (includes sort, coloring options)
@@ -221,12 +222,13 @@ export const AttendanceRecords = () => {
     hostAnalytics: ExportSettings;
     specializationAnalytics: ExportSettings;
   }>(() => {
+    const defaultSettings: ExportSettings = { fields: [], enableConditionalColoring: true, coloringTheme: 'default' };
+    const defaults = { records: defaultSettings, studentAnalytics: defaultSettings, dateAnalytics: defaultSettings, hostAnalytics: defaultSettings, specializationAnalytics: defaultSettings };
     try {
       const saved = localStorage.getItem('exportSettings');
-      if (saved) return JSON.parse(saved);
+      if (saved) return { ...defaults, ...JSON.parse(saved) };
     } catch { /* ignore */ }
-    const defaultSettings: ExportSettings = { fields: [], enableConditionalColoring: true, coloringTheme: 'default' };
-    return { records: defaultSettings, studentAnalytics: defaultSettings, dateAnalytics: defaultSettings, hostAnalytics: defaultSettings, specializationAnalytics: defaultSettings };
+    return defaults;
   });
 
   useEffect(() => {
@@ -330,11 +332,12 @@ export const AttendanceRecords = () => {
     specialization: boolean;
     crosstab: boolean;
   }>(() => {
+    const defaults = { summary: true, student: true, date: true, host: true, specialization: true, crosstab: false };
     try {
       const saved = localStorage.getItem('analyticsIncludedTables');
-      if (saved) return JSON.parse(saved);
+      if (saved) return { ...defaults, ...JSON.parse(saved) };
     } catch { /* ignore */ }
-    return { summary: true, student: true, date: true, host: true, specialization: true, crosstab: false };
+    return defaults;
   });
   useEffect(() => {
     localStorage.setItem('analyticsIncludedTables', JSON.stringify(includedTables));
