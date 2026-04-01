@@ -239,7 +239,16 @@ export const sessionService = {
   //   'after_last_attended' – rows up to last attended keep oldTime override; later rows use new session.time
   //   'from_today'          – rows before today keep oldTime override; today and future use new session.time
   //   undefined             – prompt handled by caller (Sessions.tsx shows TimeChangeStrategyDialog)
-  async update(id: string, updates: UpdateSession, dayChangeStrategy?: 'from_start' | 'after_last_attended' | 'from_today', timeChangeStrategy?: 'from_start' | 'after_last_attended' | 'from_today') {
+  async update(
+    id: string,
+    updates: UpdateSession,
+    dayChangeStrategy?: 'from_start' | 'after_last_attended' | 'from_today' | 'from_date',
+    timeChangeStrategy?: 'from_start' | 'after_last_attended' | 'from_today' | 'from_date',
+    /** Required when dayChangeStrategy = 'from_date' */
+    dayChangeCutoffDate?: string,
+    /** Required when timeChangeStrategy = 'from_date' */
+    timeChangeCutoffDate?: string,
+  ) {
     const { data: oldData } = await supabase
       .from(Tables.SESSION)
       .select('*')
@@ -295,8 +304,9 @@ export const sessionService = {
           // Compute effective_date based on strategy
           let effectiveDate = new Date().toISOString().split('T')[0]; // default: today
 
-          if (strategy === 'after_last_attended') {
-            try {
+          if (strategy === 'from_date' && dayChangeCutoffDate) {
+            effectiveDate = dayChangeCutoffDate;
+          } else if (strategy === 'after_last_attended') {            try {
               const { data: lastAtt } = await supabase
                 .from(Tables.ATTENDANCE)
                 .select('attendance_date')
@@ -372,7 +382,9 @@ export const sessionService = {
             // Compute cutoff date
             let cutoffDate = new Date().toISOString().split('T')[0]; // default: today
 
-            if (timeChangeStrategy === 'after_last_attended') {
+            if (timeChangeStrategy === 'from_date' && timeChangeCutoffDate) {
+              cutoffDate = timeChangeCutoffDate;
+            } else if (timeChangeStrategy === 'after_last_attended') {
               const { data: lastAtt } = await supabase
                 .from(Tables.ATTENDANCE)
                 .select('attendance_date')

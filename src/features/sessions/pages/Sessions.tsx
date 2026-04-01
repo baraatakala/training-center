@@ -14,8 +14,7 @@ import { SessionCard } from '@/features/sessions/components/SessionCard';
 import { SessionTableRow } from '@/features/sessions/components/SessionTableRow';
 import { CloneSessionModal } from '@/features/sessions/components/CloneSessionModal';
 import { SessionMergeModal } from '@/features/sessions/components/SessionMergeModal';
-import { DayChangeStrategyDialog } from '@/features/sessions/components/DayChangeStrategyDialog';
-import { TimeChangeStrategyDialog } from '@/features/sessions/components/TimeChangeStrategyDialog';
+import { ScheduleChangeCutoffPicker } from '@/features/sessions/components/ScheduleChangeCutoffPicker';
 import { sessionService } from '@/features/sessions/services/sessionService';
 import { toast } from '@/shared/components/ui/toastUtils';
 import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
@@ -71,25 +70,18 @@ export function Sessions() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
 
-  // Day-change strategy dialog state
-  const [dayChangeDialog, setDayChangeDialog] = useState<{
+  // Unified schedule-change dialog (replaces the old separate day/time dialogs)
+  const [scheduleChangeDialog, setScheduleChangeDialog] = useState<{
     data: CreateSession;
+    dayChanged: boolean;
+    timeChanged: boolean;
     oldDay: string | null;
     newDay: string | null;
-    lastAttendedDate: string | null;
-    // When time also changed simultaneously, store it here to chain after day strategy
-    pendingTimeChange: { oldTime: string | null; newTime: string | null } | null;
-  } | null>(null);
-
-  // Time-change strategy dialog state
-  // chained=true means session row already saved (day change ran first) → only update overrides
-  const [timeChangeDialog, setTimeChangeDialog] = useState<{
-    data: CreateSession;
     oldTime: string | null;
     newTime: string | null;
     lastAttendedDate: string | null;
-    chained: boolean;
   } | null>(null);
+  const [scheduleChanging, setScheduleChanging] = useState(false);
 
   const loadSessions = useCallback(async () => {
     setError(null);
@@ -252,32 +244,19 @@ export function Sessions() {
     const dayChanged = data.day !== editingSession.day;
     const timeChanged = data.time !== editingSession.time;
 
-    if (dayChanged) {
-      // Fetch last attendance date once — used for both day and (possibly) time strategy
+    if (dayChanged || timeChanged) {
       const lastAttendedDate = await sessionService.getLastAttendedDate(editingSession.session_id);
-      setDayChangeDialog({
+      setScheduleChangeDialog({
         data,
-        oldDay: editingSession.day,
-        newDay: data.day,
-        lastAttendedDate,
-        // If time also changed, store it so we can chain after day strategy is picked
-        pendingTimeChange: timeChanged
-          ? { oldTime: editingSession.time ?? null, newTime: data.time ?? null }
-          : null,
-      });
-      return; // Wait for user to pick strategy via dialog
-    }
-
-    if (timeChanged) {
-      const lastAttendedDate = await sessionService.getLastAttendedDate(editingSession.session_id);
-      setTimeChangeDialog({
-        data,
+        dayChanged,
+        timeChanged,
+        oldDay: editingSession.day ?? null,
+        newDay: data.day ?? null,
         oldTime: editingSession.time ?? null,
         newTime: data.time ?? null,
         lastAttendedDate,
-        chained: false,
       });
-      return; // Wait for user to pick strategy via dialog
+      return; // Wait for user to pick cutoff date via dialog
     }
 
     // No day or time change — save directly
@@ -294,71 +273,33 @@ export function Sessions() {
     }
   };
 
-  const executeDayChangeUpdate = async (strategy: 'from_start' | 'after_last_attended' | 'from_today') => {
-    if (!dayChangeDialog || !editingSession) return;
-    const { data, pendingTimeChange, lastAttendedDate } = dayChangeDialog;
-    setDayChangeDialog(null);
-
-    const { error } = await sessionService.update(editingSession.session_id, data, strategy);
-
-    if (error) {
-      const message = error.message || 'Unknown session update error';
-      toast.error(message.startsWith('Session delivery fields are enabled') ? message : 'Error updating session: ' + message, 7000);
-    } else {
-      const strategyLabel = strategy === 'from_start' ? 'New day applied from session start'
-        : strategy === 'after_last_attended' ? 'New day applied after last attended date'
-        : 'New day applied from today';
-
-      if (pendingTimeChange) {
-        // Time also changed — session row is already saved (new day + new time both persisted).
-        // Now show the time strategy dialog to apply session_date_host overrides.
-        toast.success(`Session day updated. ${strategyLabel}. Now choose the time change strategy.`);
-        setTimeChangeDialog({
-          data,
-          oldTime: pendingTimeChange.oldTime,
-          newTime: pendingTimeChange.newTime,
-          lastAttendedDate,
-          chained: true, // session row already saved — only update overrides
-        });
-        // Keep edit modal open until time strategy is also picked
+  const executeScheduleChange = async (cutoffDate: string | null) => {
+    if (!scheduleChangeDialog || !editingSession) return;
+    const { data, dayChanged, timeChanged } = scheduleChangeDialog;
+    setScheduleChanging(true);
+    try {
+      const strategy = cutoffDate === null ? 'from_start' : 'from_date';
+      const { error } = await sessionService.update(
+        editingSession.session_id,
+        data,
+        dayChanged ? strategy : undefined,
+        timeChanged ? strategy : undefined,
+        dayChanged && cutoffDate ? cutoffDate : undefined,
+        timeChanged && cutoffDate ? cutoffDate : undefined,
+      );
+      if (error) {
+        const message = error.message || 'Unknown session update error';
+        toast.error(message.startsWith('Session delivery fields are enabled') ? message : 'Error updating session: ' + message, 7000);
       } else {
-        toast.success(`Session updated. ${strategyLabel}.`);
+        const label = cutoffDate === null ? 'applied from session start' : `applied from ${cutoffDate}`;
+        toast.success(`Session updated — schedule change ${label}.`);
+        setScheduleChangeDialog(null);
         setIsModalOpen(false);
         setEditingSession(null);
         loadSessions();
       }
-    }
-  };
-
-  const executeTimeChangeUpdate = async (strategy: 'from_start' | 'after_last_attended' | 'from_today') => {
-    if (!timeChangeDialog || !editingSession) return;
-    const { data, oldTime, chained } = timeChangeDialog;
-    setTimeChangeDialog(null);
-
-    let error: { message?: string } | null = null;
-
-    if (chained) {
-      // Session row was already saved by executeDayChangeUpdate.
-      // Only apply session_date_host overrides — do NOT re-save the session row.
-      const result = await sessionService.applyTimeOverride(editingSession.session_id, oldTime, strategy);
-      error = result.error;
-    } else {
-      // Standalone time change — save session row and apply overrides together.
-      const result = await sessionService.update(editingSession.session_id, data, undefined, strategy);
-      error = result.error;
-    }
-
-    if (error) {
-      const message = error.message || 'Unknown session update error';
-      toast.error(message.startsWith('Session delivery fields are enabled') ? message : 'Error updating session: ' + message, 7000);
-    } else {
-      const strategyLabel = strategy === 'from_start' ? 'New time applied to all dates'
-        : strategy === 'after_last_attended' ? 'New time applied after last attended date'
-        : 'New time applied from today';
-      toast.success(`Session updated. ${strategyLabel}.`);
-      setIsModalOpen(false);
-      setEditingSession(null);
-      loadSessions();
+    } finally {
+      setScheduleChanging(false);
     }
   };
 
@@ -871,36 +812,25 @@ export function Sessions() {
 
       {/* Clone Session Modal */}
 
-      {/* Day-Change Strategy Dialog */}
+      {/* Schedule Change Dialog */}
       <Modal
-        isOpen={!!dayChangeDialog}
-        onClose={() => setDayChangeDialog(null)}
-        title="Schedule Day Changed"
+        isOpen={!!scheduleChangeDialog}
+        onClose={() => { if (!scheduleChanging) setScheduleChangeDialog(null); }}
+        title="Schedule Change"
       >
-        {dayChangeDialog && (
-          <DayChangeStrategyDialog
-            oldDay={dayChangeDialog.oldDay}
-            newDay={dayChangeDialog.newDay}
-            lastAttendedDate={dayChangeDialog.lastAttendedDate}
-            onExecute={executeDayChangeUpdate}
-            onCancel={() => setDayChangeDialog(null)}
-          />
-        )}
-      </Modal>
-
-      {/* Time-Change Strategy Dialog */}
-      <Modal
-        isOpen={!!timeChangeDialog}
-        onClose={() => setTimeChangeDialog(null)}
-        title="Session Time Changed"
-      >
-        {timeChangeDialog && (
-          <TimeChangeStrategyDialog
-            oldTime={timeChangeDialog.oldTime}
-            newTime={timeChangeDialog.newTime}
-            lastAttendedDate={timeChangeDialog.lastAttendedDate}
-            onExecute={executeTimeChangeUpdate}
-            onCancel={() => setTimeChangeDialog(null)}
+        {scheduleChangeDialog && (
+          <ScheduleChangeCutoffPicker
+            dayChanged={scheduleChangeDialog.dayChanged}
+            timeChanged={scheduleChangeDialog.timeChanged}
+            oldDay={scheduleChangeDialog.oldDay}
+            newDay={scheduleChangeDialog.newDay}
+            oldTime={scheduleChangeDialog.oldTime}
+            newTime={scheduleChangeDialog.newTime}
+            sessionStartDate={editingSession?.start_date ?? null}
+            lastAttendedDate={scheduleChangeDialog.lastAttendedDate}
+            onApply={executeScheduleChange}
+            onCancel={() => setScheduleChangeDialog(null)}
+            executing={scheduleChanging}
           />
         )}
       </Modal>
@@ -921,6 +851,29 @@ export function Sessions() {
             enrollmentCount={enrollmentCounts[cloneSource.session_id] || 0}
             onClone={handleCloneSession}
             onClose={() => setCloneSource(null)}
+          />
+        )}
+      </Modal>
+
+      {/* Schedule Change Dialog */}
+      <Modal
+        isOpen={!!scheduleChangeDialog}
+        onClose={() => { if (!scheduleChanging) setScheduleChangeDialog(null); }}
+        title="Schedule Change"
+      >
+        {scheduleChangeDialog && (
+          <ScheduleChangeCutoffPicker
+            dayChanged={scheduleChangeDialog.dayChanged}
+            timeChanged={scheduleChangeDialog.timeChanged}
+            oldDay={scheduleChangeDialog.oldDay}
+            newDay={scheduleChangeDialog.newDay}
+            oldTime={scheduleChangeDialog.oldTime}
+            newTime={scheduleChangeDialog.newTime}
+            sessionStartDate={editingSession?.start_date ?? null}
+            lastAttendedDate={scheduleChangeDialog.lastAttendedDate}
+            onApply={executeScheduleChange}
+            onCancel={() => setScheduleChangeDialog(null)}
+            executing={scheduleChanging}
           />
         )}
       </Modal>

@@ -65,7 +65,7 @@ export function CreateRequestModal({
     return () => { cancelled = true; };
   }, [studentId, selectedSession, attendanceDate]);
 
-  // Auto-fill absence date when session is selected (next upcoming occurrence of session day)
+  // Auto-fill absence date: find the next occurrence of ANY of the session's scheduled days
   useEffect(() => {
     if (!selectedSession) return;
     const session = sessions.find(s => s.session_id === selectedSession);
@@ -75,15 +75,19 @@ export function CreateRequestModal({
       sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
       thursday: 4, friday: 5, saturday: 6,
     };
-    const targetDay = dayMap[session.day.toLowerCase()];
-    if (targetDay === undefined) return;
+    const dayNums = session.day.split(',').map(d => dayMap[d.trim().toLowerCase()]).filter((n): n is number => n !== undefined);
+    if (dayNums.length === 0) return;
 
     const today = new Date();
     const currentDay = today.getDay();
-    let daysAhead = (targetDay - currentDay + 7) % 7;
-    if (daysAhead === 0) daysAhead = 0;
+    // Find which of the session days is nearest (including today)
+    let minDaysAhead = 7;
+    for (const targetDay of dayNums) {
+      const daysAhead = (targetDay - currentDay + 7) % 7;
+      if (daysAhead < minDaysAhead) minDaysAhead = daysAhead;
+    }
     const targetDate = new Date(today);
-    targetDate.setDate(today.getDate() + daysAhead);
+    targetDate.setDate(today.getDate() + minDaysAhead);
 
     const yyyy = targetDate.getFullYear();
     const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
@@ -91,8 +95,8 @@ export function CreateRequestModal({
     setAttendanceDate(`${yyyy}-${mm}-${dd}`);
   }, [selectedSession, sessions]);
 
-  // Get the session day number for calendar highlighting
-  const sessionDayNum = useMemo(() => {
+  // Get the set of session day numbers for calendar highlighting (supports multi-day sessions)
+  const sessionDayNums = useMemo((): Set<number> | null => {
     if (!selectedSession) return null;
     const session = sessions.find(s => s.session_id === selectedSession);
     if (!session?.day) return null;
@@ -100,14 +104,19 @@ export function CreateRequestModal({
       sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
       thursday: 4, friday: 5, saturday: 6,
     };
-    return dayMap[session.day.toLowerCase()] ?? null;
+    const result = new Set<number>();
+    for (const part of session.day.split(',')) {
+      const num = dayMap[part.trim().toLowerCase()];
+      if (num !== undefined) result.add(num);
+    }
+    return result.size > 0 ? result : null;
   }, [selectedSession, sessions]);
 
   const isScheduledSessionDate = useCallback((dateStr: string) => {
-    if (!dateStr || sessionDayNum === null) return false;
+    if (!dateStr || !sessionDayNums) return false;
     const [year, month, day] = dateStr.split('-').map(Number);
-    return new Date(year, (month || 1) - 1, day || 1).getDay() === sessionDayNum;
-  }, [sessionDayNum]);
+    return sessionDayNums.has(new Date(year, (month || 1) - 1, day || 1).getDay());
+  }, [sessionDayNums]);
 
   // Calendar state
   const [calendarMonth, setCalendarMonth] = useState(() => {
@@ -266,7 +275,7 @@ export function CreateRequestModal({
                       cells.push({
                         day: d,
                         dateStr: ds,
-                        isSessionDay: sessionDayNum !== null && dateObj.getDay() === sessionDayNum,
+                        isSessionDay: sessionDayNums !== null && sessionDayNums.has(dateObj.getDay()),
                         isToday: ds === todayStr,
                         isSelected: ds === attendanceDate,
                         isPast: dateObj < new Date(today.getFullYear(), today.getMonth(), today.getDate()),
@@ -304,7 +313,7 @@ export function CreateRequestModal({
                         <div className="grid grid-cols-7 text-center">
                           {dayLabels.map((dl, i) => (
                             <div key={dl} className={`py-2 text-[11px] font-semibold uppercase tracking-wider ${
-                              sessionDayNum === i
+                              sessionDayNums?.has(i)
                                 ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
                                 : 'text-gray-400 dark:text-gray-500'
                             }`}>{dl}</div>

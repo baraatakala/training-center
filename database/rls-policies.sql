@@ -108,6 +108,16 @@ DROP POLICY IF EXISTS "Teachers can insert" ON session;
 CREATE POLICY "Teachers can insert" ON session
   FOR INSERT TO authenticated WITH CHECK (is_teacher() AND NOT is_admin());
 
+DROP POLICY IF EXISTS "Teachers can update" ON session;
+CREATE POLICY "Teachers can update" ON session
+  FOR UPDATE TO authenticated
+  USING (is_teacher() AND NOT is_admin())
+  WITH CHECK (is_teacher() AND NOT is_admin());
+
+DROP POLICY IF EXISTS "Teachers can delete" ON session;
+CREATE POLICY "Teachers can delete" ON session
+  FOR DELETE TO authenticated USING (is_teacher() AND NOT is_admin());
+
 DROP POLICY IF EXISTS "Students can read sessions" ON session;
 CREATE POLICY "Students can read sessions" ON session
   FOR SELECT TO authenticated USING (NOT is_teacher() AND NOT is_admin());
@@ -128,8 +138,14 @@ CREATE POLICY "Teachers can insert" ON enrollment
   FOR INSERT TO authenticated WITH CHECK (is_teacher() AND NOT is_admin());
 
 DROP POLICY IF EXISTS "Students can read enrollments" ON enrollment;
-CREATE POLICY "Students can read enrollments" ON enrollment
-  FOR SELECT TO authenticated USING (NOT is_teacher() AND NOT is_admin());
+CREATE POLICY "Students can read own enrollments" ON enrollment
+  FOR SELECT TO authenticated USING (NOT is_teacher() AND NOT is_admin() AND student_id = get_my_student_id());
+
+DROP POLICY IF EXISTS "Teachers can update enrollment" ON enrollment;
+CREATE POLICY "Teachers can update enrollment" ON enrollment
+  FOR UPDATE TO authenticated
+  USING (is_teacher() AND NOT is_admin())
+  WITH CHECK (is_teacher() AND NOT is_admin());
 
 -- ============================================================================
 -- 3. ATTENDANCE
@@ -190,6 +206,12 @@ DROP POLICY IF EXISTS "Teachers can insert" ON session_date_host;
 CREATE POLICY "Teachers can insert" ON session_date_host
   FOR INSERT TO authenticated WITH CHECK (is_teacher() AND NOT is_admin());
 
+DROP POLICY IF EXISTS "Teachers can update" ON session_date_host;
+CREATE POLICY "Teachers can update" ON session_date_host
+  FOR UPDATE TO authenticated
+  USING (is_teacher() AND NOT is_admin())
+  WITH CHECK (is_teacher() AND NOT is_admin());
+
 DROP POLICY IF EXISTS "Students can read session hosts" ON session_date_host;
 CREATE POLICY "Students can read session hosts" ON session_date_host
   FOR SELECT TO authenticated USING (NOT is_teacher() AND NOT is_admin());
@@ -209,6 +231,10 @@ DROP POLICY IF EXISTS "Teachers can insert" ON session_day_change;
 CREATE POLICY "Teachers can insert" ON session_day_change
   FOR INSERT TO authenticated WITH CHECK (is_teacher() AND NOT is_admin());
 
+DROP POLICY IF EXISTS "Teachers can delete day changes" ON session_day_change;
+CREATE POLICY "Teachers can delete day changes" ON session_day_change
+  FOR DELETE TO authenticated USING (is_teacher() AND NOT is_admin());
+
 DROP POLICY IF EXISTS "Students can read day changes" ON session_day_change;
 CREATE POLICY "Students can read day changes" ON session_day_change
   FOR SELECT TO authenticated USING (NOT is_teacher() AND NOT is_admin());
@@ -227,6 +253,16 @@ CREATE POLICY "Teachers can read" ON teacher_host_schedule
 DROP POLICY IF EXISTS "Teachers can insert" ON teacher_host_schedule;
 CREATE POLICY "Teachers can insert" ON teacher_host_schedule
   FOR INSERT TO authenticated WITH CHECK (is_teacher() AND NOT is_admin());
+
+DROP POLICY IF EXISTS "Teachers can update host schedule" ON teacher_host_schedule;
+CREATE POLICY "Teachers can update host schedule" ON teacher_host_schedule
+  FOR UPDATE TO authenticated
+  USING (is_teacher() AND NOT is_admin())
+  WITH CHECK (is_teacher() AND NOT is_admin());
+
+DROP POLICY IF EXISTS "Teachers can delete host schedule" ON teacher_host_schedule;
+CREATE POLICY "Teachers can delete host schedule" ON teacher_host_schedule
+  FOR DELETE TO authenticated USING (is_teacher() AND NOT is_admin());
 
 DROP POLICY IF EXISTS "Students can read host schedule" ON teacher_host_schedule;
 CREATE POLICY "Students can read host schedule" ON teacher_host_schedule
@@ -331,6 +367,16 @@ DROP POLICY IF EXISTS "Teachers can insert" ON course_book_reference;
 CREATE POLICY "Teachers can insert" ON course_book_reference
   FOR INSERT TO authenticated WITH CHECK (is_teacher() AND NOT is_admin());
 
+DROP POLICY IF EXISTS "Teachers can update book references" ON course_book_reference;
+CREATE POLICY "Teachers can update book references" ON course_book_reference
+  FOR UPDATE TO authenticated
+  USING (is_teacher() AND NOT is_admin())
+  WITH CHECK (is_teacher() AND NOT is_admin());
+
+DROP POLICY IF EXISTS "Teachers can delete book references" ON course_book_reference;
+CREATE POLICY "Teachers can delete book references" ON course_book_reference
+  FOR DELETE TO authenticated USING (is_teacher() AND NOT is_admin());
+
 DROP POLICY IF EXISTS "Students can read book references" ON course_book_reference;
 CREATE POLICY "Students can read book references" ON course_book_reference
   FOR SELECT TO authenticated USING (NOT is_teacher() AND NOT is_admin());
@@ -349,6 +395,16 @@ CREATE POLICY "Teachers can read" ON session_book_coverage
 DROP POLICY IF EXISTS "Teachers can insert" ON session_book_coverage;
 CREATE POLICY "Teachers can insert" ON session_book_coverage
   FOR INSERT TO authenticated WITH CHECK (is_teacher() AND NOT is_admin());
+
+DROP POLICY IF EXISTS "Teachers can update book coverage" ON session_book_coverage;
+CREATE POLICY "Teachers can update book coverage" ON session_book_coverage
+  FOR UPDATE TO authenticated
+  USING (is_teacher() AND NOT is_admin())
+  WITH CHECK (is_teacher() AND NOT is_admin());
+
+DROP POLICY IF EXISTS "Teachers can delete book coverage" ON session_book_coverage;
+CREATE POLICY "Teachers can delete book coverage" ON session_book_coverage
+  FOR DELETE TO authenticated USING (is_teacher() AND NOT is_admin());
 
 DROP POLICY IF EXISTS "Students can read book coverage" ON session_book_coverage;
 CREATE POLICY "Students can read book coverage" ON session_book_coverage
@@ -432,6 +488,10 @@ CREATE POLICY "Teachers can review excuse requests" ON excuse_request
       JOIN teacher t ON s.teacher_id = t.teacher_id
       WHERE LOWER(t.email) = LOWER(auth.jwt() ->> 'email')
     )
+    AND status = 'pending'
+  )
+  WITH CHECK (
+    status IN ('approved', 'rejected')
   );
 
 -- ============================================================================

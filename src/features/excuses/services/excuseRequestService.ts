@@ -73,6 +73,17 @@ const getWeekdayFromDateString = (dateStr: string) => {
   return new Date(year, (month || 1) - 1, day || 1).getDay();
 };
 
+// Parses a day string that may be comma-separated (e.g. "Monday, Wednesday, Friday")
+// into a Set of weekday numbers (0=Sun…6=Sat).
+const parseSessionDays = (dayString: string): Set<number> => {
+  const result = new Set<number>();
+  for (const part of dayString.split(',')) {
+    const num = SESSION_DAY_MAP[part.trim().toLowerCase()];
+    if (num !== undefined) result.add(num);
+  }
+  return result;
+};
+
 class ExcuseRequestService {
   private async validateScheduledSessionDate(sessionId: string, attendanceDate: string) {
     const { data: session, error } = await supabase
@@ -92,16 +103,16 @@ class ExcuseRequestService {
       };
     }
 
-    const expectedWeekday = SESSION_DAY_MAP[session.day.toLowerCase()];
-    if (expectedWeekday === undefined) {
+    const allowedWeekdays = parseSessionDays(session.day);
+    if (allowedWeekdays.size === 0) {
       return {
         valid: false,
-        error: new Error(`Unsupported session day: ${session.day}`),
+        error: new Error(`Session schedule day could not be verified: ${session.day}`),
       };
     }
 
     const actualWeekday = getWeekdayFromDateString(attendanceDate);
-    if (actualWeekday !== expectedWeekday) {
+    if (!allowedWeekdays.has(actualWeekday)) {
       return {
         valid: false,
         error: new Error(`Excuse requests can only be submitted for scheduled ${session.day} sessions`),
