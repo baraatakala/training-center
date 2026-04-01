@@ -242,9 +242,12 @@ export interface SessionDateHost {
   attendance_date: string;
   host_id: string | null;
   host_type: 'student' | 'teacher';
-  host_address: string;
+  host_address: string | null;          // nullable: NULL when row exists only for a time override (migration 009)
   host_latitude?: number | null;
   host_longitude?: number | null;
+  override_time?: string | null;        // per-date session start-time override (migration 007)
+  override_reason?: string | null;     // admin note explaining time override (migration 009)
+  override_end_time?: string | null;   // per-date session end-time override (migration 010)
   created_at: string;
   updated_at: string;
 }

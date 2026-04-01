@@ -234,18 +234,16 @@ export function Attendance() {
     });
   };
 
-  // Calculate late_minutes for tiered late scoring
-  // Uses session.time (e.g., "14:00") + grace_period_minutes to determine how late the student is
-  // If we can't calculate exact minutes, returns a default of 1 minute when forceLate=true
-  const calculateLateMinutes = (forceLate: boolean = true): number | null => {
+  // Calculate late_minutes for tiered late scoring.
+  // Uses the student's actual check_in_time when available (from QR/photo/prior check-in).
+  // Falls back to the current time only for fresh manual entries with no prior check-in.
+  const calculateLateMinutes = (checkInTime?: string | null, forceLate: boolean = true): number | null => {
     const effectiveTime = dateOverrideTime ?? session?.time ?? null;
     if (!effectiveTime || !selectedDate) {
-      // If session has no time set but teacher is marking late, use default
       return forceLate ? 1 : null;
     }
     
     try {
-      // Parse session time (e.g., "14:00" or "2:00 PM"), prefer per-date override
       const timeMatch = effectiveTime.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
       if (!timeMatch) {
         return forceLate ? 1 : null;
@@ -255,25 +253,25 @@ export function Attendance() {
       const minutes = parseInt(timeMatch[2], 10);
       const meridiem = timeMatch[3]?.toUpperCase();
       
-      // Convert to 24-hour format if needed
       if (meridiem === 'PM' && hours !== 12) hours += 12;
       if (meridiem === 'AM' && hours === 12) hours = 0;
       
-      // Create session start datetime
       const sessionStart = new Date(selectedDate);
       sessionStart.setHours(hours, minutes, 0, 0);
       
-      // Add grace period
       const gracePeriod = session?.grace_period_minutes || 0;
       const graceEnd = new Date(sessionStart.getTime() + gracePeriod * 60 * 1000);
       
-      // Calculate how many minutes late from grace end
-      const now = new Date();
-      if (now > graceEnd) {
-        const lateMinutes = Math.ceil((now.getTime() - graceEnd.getTime()) / (1000 * 60));
-        return Math.max(1, lateMinutes); // At least 1 minute
+      // Prefer the student's recorded check-in time over the current clock.
+      // This ensures that if a student checked in via QR at 15:19 but the teacher
+      // is clicking "late" at 15:16, we calculate against the actual arrival time.
+      const referenceTime = checkInTime ? new Date(checkInTime) : new Date();
+      
+      if (referenceTime > graceEnd) {
+        const lateMs = referenceTime.getTime() - graceEnd.getTime();
+        const lateMinutes = Math.round(lateMs / (1000 * 60)); // round, not ceil
+        return Math.max(1, lateMinutes);
       }
-      // If marking as late but current time shows not late, use default
       return forceLate ? 1 : null;
     } catch {
       console.error('Error calculating late minutes');
@@ -1324,7 +1322,7 @@ export function Attendance() {
         
         if (status === 'on time' || status === 'late') {
           updates.check_in_time = new Date().toISOString();
-          updates.late_minutes = status === 'late' ? calculateLateMinutes() : null;
+          updates.late_minutes = status === 'late' ? calculateLateMinutes(updates.check_in_time as string) : null;
           updates.excuse_reason = null;
         } else if (status === 'excused') {
           updates.excuse_reason = excuseReason[attendanceId];
@@ -1354,14 +1352,15 @@ export function Attendance() {
         }
       } else {
         // No existing record - INSERT new one
+        const freshCheckInTime = (status === 'on time' || status === 'late') ? new Date().toISOString() : null;
         const newRecord: Record<string, unknown> = {
           enrollment_id: record.enrollment_id,
           session_id: sessionId,
           student_id: record.student_id,
           attendance_date: selectedDate,
           status: actualStatus,
-          check_in_time: (status === 'on time' || status === 'late') ? new Date().toISOString() : null,
-          late_minutes: status === 'late' ? calculateLateMinutes() : null,
+          check_in_time: freshCheckInTime,
+          late_minutes: status === 'late' ? calculateLateMinutes(freshCheckInTime) : null,
           check_in_method: 'manual', // Track check-in method
           host_address: addressOnly,
           gps_latitude: gpsData?.latitude || null,
@@ -1397,7 +1396,9 @@ export function Attendance() {
         }
       }
     } else {
-      // Update existing record
+      // Update existing record — preserve the original check_in_time if already set,
+      // so that QR/photo check-in timestamps are not overwritten by teacher click time.
+      const existingCheckInTime = record?.check_in_time as string | undefined;
       const addressOnly = selectedAddress ? selectedAddress.split('|||')[1] || selectedAddress : null;
       const updates: Record<string, unknown> = {
         status: actualStatus,
@@ -1412,8 +1413,10 @@ export function Attendance() {
       };
       
       if (status === 'on time' || status === 'late') {
-        updates.check_in_time = new Date().toISOString();
-        updates.late_minutes = status === 'late' ? calculateLateMinutes() : null;
+        // Keep original check_in_time if student already checked in (QR/photo), else record now
+        const effectiveCheckInTime = existingCheckInTime || new Date().toISOString();
+        updates.check_in_time = effectiveCheckInTime;
+        updates.late_minutes = status === 'late' ? calculateLateMinutes(effectiveCheckInTime) : null;
         updates.excuse_reason = null;
       } else if (status === 'excused') {
         updates.excuse_reason = excuseReason[attendanceId];

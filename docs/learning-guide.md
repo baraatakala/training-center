@@ -1,811 +1,1569 @@
-# From Vibe Coder to Junior Software Engineer
-## A Practical Learning Guide Using Your Training Center Project
+﻿# Software Engineering: From Vibe Coder to Professional
+## A Self-Contained Curriculum Built Around Your Training Center Project
 
-> **Goal**: Transform how you understand code — from "it works because the AI said so" to "I know *why* it works and can build on it myself."
-
----
-
-## Table of Contents
-
-1. [How Software Architecture Works (The Big Picture)](#1-how-software-architecture-works)
-2. [Your Project's Architecture (Concrete Map)](#2-your-projects-architecture)
-3. [TypeScript Fundamentals You Actually Use](#3-typescript-fundamentals-you-actually-use)
-4. [React Patterns Explained With Your Code](#4-react-patterns-explained-with-your-code)
-5. [The Service Layer — Why It Exists](#5-the-service-layer)
-6. [Database & Supabase Patterns](#6-database--supabase-patterns)
-7. [State Management (useState, useMemo, useCallback)](#7-state-management)
-8. [Component Composition](#8-component-composition)
-9. [How Exports (PDF/Word/Excel) Work](#9-how-exports-work)
-10. [Common Patterns to Recognize](#10-common-patterns-to-recognize)
-11. [Debugging Like an Engineer](#11-debugging-like-an-engineer)
-12. [What to Learn Next](#12-what-to-learn-next)
+> **Philosophy**: You don't need a course. You need the mental model that makes all code make sense. This document gives you that mental model, anchored to code you can open right now.
 
 ---
 
-## 1. How Software Architecture Works
+## PART 1 â€” HOW COMPUTERS AND PROGRAMS WORK
 
-### What is Architecture?
+### 1.1 What Happens When You Type a URL
 
-Architecture is **how you organize code so it stays manageable** as it grows. A 500-line project needs no structure. A 40,000-line project (like yours) collapses without it.
-
-Think of it like a building:
-- **Foundation** = Database schema (tables, relationships)
-- **Plumbing** = Service layer (data flows in/out)
-- **Rooms** = Feature modules (attendance, students, courses...)
-- **Furniture** = UI components (buttons, tables, modals)
-- **Hallways** = Routing (how users navigate between rooms)
-
-### The Three Laws of Good Architecture
-
-1. **Separation of Concerns**: Each file/module does ONE thing
-2. **Dependencies flow ONE direction**: UI → Services → Database (never backwards)
-3. **Changes are local**: Modifying the student form shouldn't break the attendance page
-
-### Layer Cake Pattern (Your App Uses This)
+When you go to your app in the browser:
 
 ```
-┌─────────────────────────────────┐
-│         PAGES (orchestration)    │  ← Assembles components + calls services
-├─────────────────────────────────┤
-│       COMPONENTS (UI display)    │  ← Renders data, handles user input
-├─────────────────────────────────┤
-│        SERVICES (data access)    │  ← Talks to Supabase, returns { data, error }
-├─────────────────────────────────┤
-│     SUPABASE CLIENT (transport)  │  ← Handles HTTP, auth tokens, real-time
-├─────────────────────────────────┤
-│   POSTGRESQL DATABASE (storage)  │  ← Tables, RLS policies, functions
-└─────────────────────────────────┘
+Browser â†’ DNS â†’ Web Server â†’ Your React App (HTML+JS bundle)
+                                    â†“
+                 User Actions â†’ React renders UI
+                                    â†“
+                 Data needed â†’ HTTPS to Supabase API
+                                    â†“
+                 Supabase â†’ PostgreSQL database â†’ rows â†’ JSON back to browser
 ```
 
-**Data flows DOWN** (page calls service, service calls database).
-**Results flow UP** (database returns rows, service returns `{ data, error }`, page updates state).
+Your app is **three separate systems**:
+1. **Frontend** (React HTML/JS/CSS) â€” runs in the user's browser
+2. **API** (Supabase REST/GraphQL) â€” runs on Supabase's servers
+3. **Database** (PostgreSQL) â€” stores all the actual data
+
+Nothing is magic. Every piece of data you see had to travel this path.
 
 ---
 
-## 2. Your Project's Architecture
+### 1.2 What a Program Actually Is
 
-### Folder Structure (Mental Model)
+A program is a list of instructions that the CPU executes one at a time. But you don't write CPU instructions â€” you write in **TypeScript**, which is:
 
 ```
-src/
-├── app/                    ← THE APP SHELL (entry point, layout, routing)
-│   ├── App.tsx             ← Routes: which URL → which page
-│   ├── Layout.tsx          ← Sidebar + navbar wrapper
-│   └── NotFound.tsx        ← 404 page
-│
-├── features/               ← 18 FEATURE MODULES (the "rooms")
-│   ├── students/
-│   │   ├── pages/          ← Route-level containers
-│   │   ├── components/     ← UI pieces specific to students
-│   │   └── services/       ← Data access for students
-│   ├── attendance/
-│   ├── courses/
-│   ├── sessions/
-│   └── ... (15 more)
-│
-├── shared/                 ← CROSS-FEATURE CODE (used everywhere)
-│   ├── components/ui/      ← Button, Modal, Table, SearchBar...
-│   ├── hooks/              ← useIsTeacher, useDebounce...
-│   ├── types/              ← TypeScript interfaces for all tables
-│   ├── lib/supabase.ts     ← Single Supabase client instance
-│   └── services/           ← Audit logging, auth helpers
-│
-└── main.tsx                ← React entry point (renders <App />)
+TypeScript source (.ts)
+      â†“ tsc (TypeScript Compiler)
+JavaScript (.js)
+      â†“ Browser V8 engine
+Machine code (CPU runs this)
 ```
 
-### Why Features Are Isolated
-
-Each feature folder is **self-contained**. The `students/` folder has everything needed for student management. If you delete `certificates/`, the rest of the app still works.
-
-This matters because:
-- You can find related code quickly (all student code is in one folder)
-- Changes to certificates can't accidentally break attendance
-- New developers can work on one feature without understanding the whole app
-
-### The ONE Rule That Prevents Chaos
-
-> **NEVER import `supabase` in pages or components. Only in services.**
-
-This means your UI code never knows *how* data is fetched. It just calls `studentService.getAll()`. If you switched from Supabase to Firebase tomorrow, you'd only change service files — not a single component.
+TypeScript just adds a **layer of safety checking** on top of JavaScript. It forces you to declare what type of data you're working with. The types are checked at **compile time** (before running) and then erased â€” the browser never sees them.
 
 ---
 
-## 3. TypeScript Fundamentals You Actually Use
+### 1.3 How the Web Works (HTTP)
 
-### Interfaces — Describing Data Shapes
+Every piece of data, every image, every API call uses HTTP:
 
-```typescript
-// This says: "A Student object MUST have these fields with these types"
-export interface Student {
-  student_id: string;           // Always a string (UUID)
-  name: string;                 // Required text
-  phone: string | null;         // Text OR null (optional in database)
-  email: string;                // Required text
-  photo_url: string | null;     // Optional photo
-  created_at: string;           // ISO date string
-}
+```
+Request:
+  POST /rest/v1/attendance
+  Authorization: Bearer <token>
+  Content-Type: application/json
+  Body: { "student_id": "abc", "status": "late", "late_minutes": 4 }
+
+Response:
+  HTTP 200 OK
+  Body: { "attendance_id": "xyz", "created_at": "..." }
 ```
 
-**Why this matters**: TypeScript catches bugs at compile time. If you write `student.nmae` (typo), the editor shows a red squiggly BEFORE you run the code.
-
-### Union Types — "This OR That"
-
-```typescript
-// This field can only be one of these three strings
-learning_method?: 'face_to_face' | 'online' | 'hybrid';
-
-// This can be a string or null
-phone: string | null;
-```
-
-### Generics — Reusable Type Templates
-
-```typescript
-// useState<T> means "this state holds a value of type T"
-const [students, setStudents] = useState<Student[]>([]);
-//                                       ^^^^^^^^^ T = array of Student
-
-const [loading, setLoading] = useState<boolean>(true);
-//                                     ^^^^^^^ T = boolean
-```
-
-### The `{ data, error }` Pattern
-
-Every Supabase call returns this shape:
-
-```typescript
-const { data, error } = await studentService.getAll();
-
-if (error) {
-  // Something went wrong — show message
-  toast.error('Failed to load students');
-  return;
-}
-
-// data is guaranteed to exist here
-setStudents(data);
-```
-
-**This is called "error-first handling"** — always check for failure before using the result.
+When you write `supabase.from('attendance').insert(...)`, the Supabase library translates that into this exact HTTP request. Understanding this means you can **debug in the browser's Network tab**: every failed database operation shows up as a failed HTTP request with a real error message.
 
 ---
 
-## 4. React Patterns Explained With Your Code
+## PART 2 â€” SQL FROM ZERO TO PROFESSIONAL
 
-### Components Are Functions That Return HTML
+SQL is the language that talks to the database. It is the most important thing a developer can know after their primary programming language. Every app you build will use it.
 
-```typescript
-// This is a React component. It's just a function.
-export function StudentForm({ student, onSave }: Props) {
-  // Logic goes here (state, handlers)
-  
-  return (
-    <form onSubmit={handleSubmit}>
-      <input value={name} onChange={(e) => setName(e.target.value)} />
-      <button type="submit">Save</button>
-    </form>
-  );
-}
-```
+### 2.1 The Relational Model (Why Tables)
 
-The JSX (`<form>`, `<input>`) is NOT HTML — it's syntactic sugar that compiles to `React.createElement()` calls. But you can think of it as "HTML with superpowers."
-
-### Props — Passing Data to Components
-
-```typescript
-// Parent (page) passes data DOWN to child (component)
-<StudentForm 
-  student={editingStudent}     // Data prop
-  onSave={() => loadStudents()} // Function prop (callback)
-/>
-
-// Child receives and uses them
-function StudentForm({ student, onSave }: { student?: Student; onSave: () => void }) {
-  // student = the data passed in
-  // onSave = function to call when done
-}
-```
-
-**Props flow DOWN** (parent → child). **Callbacks flow UP** (child calls parent's function).
-
-### State — Data That Changes
-
-```typescript
-const [students, setStudents] = useState<Student[]>([]);
-//     ^^^^^^^^  ^^^^^^^^^^^                        ^^
-//     current   function to                        initial
-//     value     update it                          value
-```
-
-When you call `setStudents(newArray)`, React **re-renders the component** with the new data. This is the core of React: state changes → UI updates automatically.
-
-### useEffect — "Do Something When X Changes"
-
-```typescript
-// "When the component first appears, load students"
-useEffect(() => {
-  loadStudents();
-}, []);  // Empty array = run once on mount
-
-// "When selectedSession changes, reload attendance"
-useEffect(() => {
-  if (selectedSession) {
-    loadAttendance(selectedSession.session_id);
-  }
-}, [selectedSession]);  // Runs when selectedSession changes
-```
-
-**The dependency array `[]`** controls WHEN the effect runs:
-- `[]` → once, on mount
-- `[x]` → whenever `x` changes
-- `[x, y]` → whenever `x` OR `y` changes
-- No array → every render (usually a bug!)
-
-### useMemo — "Cache an Expensive Calculation"
-
-```typescript
-// Don't re-filter 500 students on every render — only when inputs change
-const filteredStudents = useMemo(() => {
-  return students.filter(s => s.name.includes(searchQuery));
-}, [students, searchQuery]);
-```
-
-Without `useMemo`, this filter runs on EVERY render (button clicks, typing, anything). With it, it only runs when `students` or `searchQuery` actually changes.
-
-### useCallback — "Don't Recreate This Function"
-
-```typescript
-const loadStudents = useCallback(async () => {
-  const { data, error } = await studentService.getAll();
-  if (data) setStudents(data);
-}, []);
-```
-
-This prevents React from creating a new `loadStudents` function every render. It matters when the function is passed to child components or used in `useEffect` dependencies.
-
----
-
-## 5. The Service Layer
-
-### What It Is
-
-A service is a **plain TypeScript object with methods** that handle database operations:
-
-```typescript
-// src/features/students/services/studentService.ts
-
-import { supabase } from '@/shared/lib/supabase';
-
-export const studentService = {
-  // READ
-  async getAll() {
-    return await supabase
-      .from('student')
-      .select('*')
-      .order('name', { ascending: true });
-  },
-
-  // CREATE
-  async create(student: CreateStudent) {
-    return await supabase
-      .from('student')
-      .insert(student)
-      .select()
-      .single();
-  },
-
-  // UPDATE
-  async update(id: string, updates: UpdateStudent) {
-    return await supabase
-      .from('student')
-      .update(updates)
-      .eq('student_id', id)
-      .select()
-      .single();
-  },
-
-  // DELETE
-  async delete(id: string) {
-    return await supabase
-      .from('student')
-      .delete()
-      .eq('student_id', id);
-  },
-};
-```
-
-### Why Not Just Call Supabase Directly in Components?
-
-Imagine you have 15 components that fetch students. If you call `supabase.from('student').select(...)` in each one:
-- Change the table name? Edit 15 files.
-- Add audit logging? Edit 15 files.
-- Fix a query? Edit 15 files.
-
-With a service, you edit ONE file. This is called the **DRY principle**: Don't Repeat Yourself.
-
-### The Supabase Query Builder (Reading It Like English)
-
-```typescript
-// "From the student table, select all columns, ordered by name ascending"
-supabase.from('student').select('*').order('name', { ascending: true })
-
-// "From enrollment, select all + joined session data, where student_id = X"
-supabase
-  .from('enrollment')
-  .select(`
-    *,
-    session:session_id(
-      *,
-      course:course_id(course_name, category),
-      teacher:teacher_id(name, email)
-    )
-  `)
-  .eq('student_id', studentId)
-
-// "Insert this object into the student table, return the inserted row"
-supabase.from('student').insert(newStudent).select().single()
-
-// "Update student where student_id = X, set these fields"
-supabase.from('student').update({ name: 'New Name' }).eq('student_id', id)
-```
-
-**Key methods**:
-- `.from('table')` — which table
-- `.select('columns')` — which columns (use `*` for all)
-- `.eq('column', value)` — WHERE column = value
-- `.insert(data)` — INSERT
-- `.update(data)` — UPDATE
-- `.delete()` — DELETE
-- `.single()` — expect exactly one result
-- `.order('column')` — ORDER BY
-
----
-
-## 6. Database & Supabase Patterns
-
-### Tables Are Like Spreadsheets
+A **relational database** stores data in tables. Every row has a unique ID. Relationships between tables are expressed through these IDs:
 
 ```
 student table:
-┌─────────────┬──────────────┬──────────────────────┬────────────┐
-│ student_id   │ name         │ email                │ phone      │
-├─────────────┼──────────────┼──────────────────────┼────────────┤
-│ abc-123      │ Ahmed Ali    │ ahmed@example.com    │ 050123...  │
-│ def-456      │ Sara Hassan  │ sara@example.com     │ 055456...  │
-└─────────────┴──────────────┴──────────────────────┴────────────┘
-```
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚ student_id (PK) â”‚ name         â”‚ email                  â”‚
+â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
+â”‚ abc-111         â”‚ Ahmed Ali    â”‚ ahmed@example.com       â”‚
+â”‚ def-222         â”‚ Sara Hassan  â”‚ sara@example.com        â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 
-### Foreign Keys = Relationships Between Tables
-
-```
 enrollment table:
-┌─────────────────┬─────────────┬─────────────┐
-│ enrollment_id    │ student_id  │ session_id  │
-├─────────────────┼─────────────┼─────────────┤
-│ enr-001          │ abc-123     │ ses-789     │  ← "Ahmed is enrolled in session 789"
-└─────────────────┴─────────────┴─────────────┘
-
-session table:
-┌─────────────┬─────────────┬────────────────┐
-│ session_id   │ course_id   │ teacher_id     │
-├─────────────┼─────────────┼────────────────┤
-│ ses-789      │ crs-456     │ tch-123        │  ← "Session taught by teacher 123"
-└─────────────┴─────────────┴────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚ enrollment_id (PK) â”‚ student_id (FK) â”‚ session_id (FK)  â”‚
+â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
+â”‚ enr-001            â”‚ abc-111         â”‚ ses-789          â”‚ â† Ahmed in session
+â”‚ enr-002            â”‚ def-222         â”‚ ses-789          â”‚ â† Sara in session
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 ```
 
-The `.select()` with nested syntax follows these relationships:
+**PK** = Primary Key: uniquely identifies this row.
+**FK** = Foreign Key: reference to the PK of another table.
 
+This is the core idea. Everything else in SQL is about: reading, filtering, joining, and modifying rows in tables.
+
+---
+
+### 2.2 SELECT â€” Reading Data
+
+```sql
+-- Read all columns from student table
+SELECT * FROM student;
+
+-- Read specific columns
+SELECT student_id, name, email FROM student;
+
+-- Filter with WHERE
+SELECT * FROM student WHERE email = 'ahmed@example.com';
+
+-- Filter multiple conditions
+SELECT * FROM student WHERE email LIKE '%@example.com' AND age > 18;
+
+-- Sort results
+SELECT * FROM student ORDER BY name ASC;
+SELECT * FROM student ORDER BY created_at DESC;
+
+-- Limit results (pagination)
+SELECT * FROM student ORDER BY name LIMIT 10 OFFSET 20;
+-- OFFSET 20 means: skip first 20 rows â†’ page 3 if page size = 10
+```
+
+**Pattern matching with LIKE**:
+- `'%ahmed%'` â†’ contains "ahmed" anywhere
+- `'ahmed%'` â†’ starts with "ahmed"
+- `'%ahmed'` â†’ ends with "ahmed"
+
+---
+
+### 2.3 Aggregate Functions â€” Counting, Summing, Averaging
+
+```sql
+-- How many students?
+SELECT COUNT(*) FROM student;
+
+-- How many late attendance records per session?
+SELECT session_id, COUNT(*) as late_count
+FROM attendance
+WHERE status = 'late'
+GROUP BY session_id;
+
+-- Attendance rate per student
+SELECT 
+  student_id,
+  COUNT(*) as total_days,
+  COUNT(*) FILTER (WHERE status = 'present' OR status = 'on time' OR status = 'late') as attended_days,
+  ROUND(
+    COUNT(*) FILTER (WHERE status IN ('present', 'on time', 'late')) * 100.0 / COUNT(*),
+    1
+  ) as attendance_pct
+FROM attendance
+GROUP BY student_id;
+
+-- Only show students with attendance < 75%
+SELECT student_id, attendance_pct
+FROM (
+  -- the query above as a subquery
+) sub
+WHERE attendance_pct < 75;
+```
+
+**Key functions**:
+- `COUNT(*)` â€” number of rows
+- `SUM(column)` â€” total of a numeric column
+- `AVG(column)` â€” average
+- `MIN(column)` / `MAX(column)` â€” smallest / largest
+- `ROUND(value, decimals)` â€” round a number
+
+---
+
+### 2.4 JOIN â€” Combining Tables
+
+This is the most important SQL concept for your app. Joins let you query related tables together:
+
+```sql
+-- "Give me all attendance records with the student's name"
+SELECT 
+  a.attendance_date,
+  a.status,
+  a.late_minutes,
+  s.name AS student_name,
+  s.email
+FROM attendance a
+JOIN student s ON s.student_id = a.student_id
+WHERE a.session_id = 'ses-789'
+ORDER BY a.attendance_date;
+```
+
+**Types of JOIN**:
+```sql
+-- INNER JOIN: only rows that match in BOTH tables
+SELECT * FROM enrollment e
+INNER JOIN student s ON s.student_id = e.student_id;
+
+-- LEFT JOIN: all rows from left table, NULL for right table when no match
+SELECT s.name, e.enrollment_id
+FROM student s
+LEFT JOIN enrollment e ON e.student_id = s.student_id;
+-- Shows ALL students, even those not enrolled (enrollment_id = NULL)
+
+-- The difference:
+-- INNER JOIN â†’ only enrolled students
+-- LEFT JOIN  â†’ all students (enrolled ones show enrollment, unenrolled show NULL)
+```
+
+**Multi-table join** (what Supabase does under the hood):
+```sql
+SELECT 
+  a.attendance_date,
+  a.status,
+  a.late_minutes,
+  s.name AS student_name,
+  c.course_name,
+  t.name AS teacher_name,
+  ses.time AS session_time
+FROM attendance a
+JOIN student s ON s.student_id = a.student_id
+JOIN session ses ON ses.session_id = a.session_id
+JOIN course c ON c.course_id = ses.course_id
+JOIN teacher t ON t.teacher_id = ses.teacher_id
+WHERE a.session_id = 'ses-789';
+```
+
+In Supabase, this is what happens when you write:
 ```typescript
-// "Get the enrollment, AND the session, AND the session's course and teacher"
-.select(`
-  *,
+supabase.from('attendance').select(`
+  *, 
+  student:student_id(name),
   session:session_id(
-    *,
+    time,
     course:course_id(course_name),
     teacher:teacher_id(name)
   )
 `)
 ```
 
-This returns one object with nested data — no manual joining needed.
+---
 
-### Row-Level Security (RLS)
-
-Supabase uses PostgreSQL policies that run on EVERY query. Even if your frontend code has a bug, the database won't return unauthorized data:
+### 2.5 INSERT, UPDATE, DELETE
 
 ```sql
--- "Teachers can only see students enrolled in their sessions"
-CREATE POLICY teacher_view_students ON student
+-- INSERT: create a new row
+INSERT INTO attendance (enrollment_id, session_id, student_id, attendance_date, status)
+VALUES ('enr-001', 'ses-789', 'abc-111', '2026-04-01', 'on time');
+
+-- INSERT and get back the new row
+INSERT INTO attendance (...) VALUES (...) RETURNING *;
+
+-- UPDATE: modify existing rows
+UPDATE attendance
+SET status = 'late', late_minutes = 4
+WHERE attendance_id = 'att-xyz';
+
+-- UPDATE multiple rows at once
+UPDATE attendance
+SET status = 'excused'
+WHERE session_id = 'ses-789' AND attendance_date = '2026-04-01';
+
+-- DELETE: remove rows
+DELETE FROM attendance WHERE attendance_id = 'att-xyz';
+
+-- UPSERT: INSERT if not exists, UPDATE if exists (your app uses this heavily)
+INSERT INTO session_date_host (session_id, attendance_date, override_time)
+VALUES ('ses-789', '2026-04-01', '15:15')
+ON CONFLICT (session_id, attendance_date) 
+DO UPDATE SET override_time = EXCLUDED.override_time;
+-- EXCLUDED refers to the row you tried to INSERT
+```
+
+---
+
+### 2.6 Constraints â€” Enforcing Data Integrity
+
+Constraints are rules the database enforces so your data can't become corrupted:
+
+```sql
+CREATE TABLE attendance (
+  attendance_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  enrollment_id UUID NOT NULL,
+  student_id    UUID NOT NULL REFERENCES student(student_id),  -- FK constraint
+  session_id    UUID NOT NULL REFERENCES session(session_id),  -- FK constraint
+  status        VARCHAR NOT NULL CHECK (status IN ('on time','late','absent','excused')),
+  late_minutes  INTEGER CHECK (late_minutes IS NULL OR late_minutes >= 0),
+  attendance_date DATE NOT NULL,
+  
+  UNIQUE (enrollment_id, attendance_date)  -- one record per student per date
+);
+```
+
+**Types of constraints**:
+- `NOT NULL` â€” field must have a value
+- `UNIQUE` â€” value must be unique across all rows
+- `PRIMARY KEY` â€” unique identifier for each row (NOT NULL + UNIQUE)
+- `FOREIGN KEY` / `REFERENCES` â€” value must exist in another table's PK
+- `CHECK` â€” value must satisfy a condition
+
+Why do constraints matter? Consider: without `UNIQUE (enrollment_id, attendance_date)`, you could accidentally insert two attendance records for the same student on the same day. The database would happily store both. Your app would show confusing duplicates. The constraint prevents the bug at the data layer, regardless of what your frontend code does.
+
+---
+
+### 2.7 Indexes â€” Making Queries Fast
+
+Without an index, PostgreSQL reads every row to find the ones you want. With an index, it can jump directly to the right rows:
+
+```sql
+-- Without index: PostgreSQL reads all 100,000 attendance rows to find the few for this session
+SELECT * FROM attendance WHERE session_id = 'ses-789';
+
+-- Create an index: now it jumps directly to matching rows
+CREATE INDEX idx_attendance_session ON attendance(session_id);
+
+-- Composite index: for multi-column WHERE clauses
+CREATE INDEX idx_attendance_session_date ON attendance(session_id, attendance_date);
+-- Optimizes: WHERE session_id = X AND attendance_date = Y
+
+-- Partial index: only index rows matching a condition
+CREATE INDEX idx_attendance_late ON attendance(late_minutes) WHERE late_minutes IS NOT NULL;
+-- Optimizes: WHERE late_minutes IS NOT NULL (which is most of your late queries)
+```
+
+Your project's indexes are in `database/indexes.sql`. Look at it â€” every index there exists because a specific query was slow without it.
+
+**Rule of thumb**: Index columns that appear in WHERE, JOIN ON, and ORDER BY clauses for tables with >1000 rows.
+
+---
+
+### 2.8 Transactions â€” All or Nothing
+
+Imagine you're moving $100 from account A to account B:
+```sql
+-- BAD: if the INSERT fails after UPDATE, money disappears
+UPDATE account SET balance = balance - 100 WHERE account_id = 'A';
+INSERT INTO transfer (from_id, to_id, amount) VALUES ('A', 'B', 100);
+UPDATE account SET balance = balance + 100 WHERE account_id = 'B';
+
+-- GOOD: transaction wraps all 3 operations
+BEGIN;
+  UPDATE account SET balance = balance - 100 WHERE account_id = 'A';
+  INSERT INTO transfer (from_id, to_id, amount) VALUES ('A', 'B', 100);
+  UPDATE account SET balance = balance + 100 WHERE account_id = 'B';
+COMMIT; -- if ANY step fails, all changes are rolled back (ROLLBACK happens automatically)
+```
+
+In PostgreSQL (and your migrations), a transaction gives you **atomicity**: either all changes happen, or none do. This prevents your data from getting into an inconsistent half-updated state.
+
+---
+
+### 2.9 Views â€” Named Queries
+
+A view is a saved query you can SELECT from like a table:
+
+```sql
+-- Create a view that computes attendance rate
+CREATE VIEW student_attendance_summary AS
+SELECT 
+  s.student_id,
+  s.name,
+  s.email,
+  ses.session_id,
+  c.course_name,
+  COUNT(a.attendance_id) AS total_days,
+  COUNT(a.attendance_id) FILTER (WHERE a.status IN ('on time','late','present')) AS attended_days,
+  ROUND(attended_days * 100.0 / NULLIF(total_days, 0), 1) AS attendance_rate
+FROM student s
+JOIN enrollment e ON e.student_id = s.student_id
+JOIN session ses ON ses.session_id = e.session_id
+JOIN course c ON c.course_id = ses.course_id
+LEFT JOIN attendance a ON a.enrollment_id = e.enrollment_id
+  AND a.attendance_date BETWEEN ses.start_date AND ses.end_date
+GROUP BY s.student_id, s.name, s.email, ses.session_id, c.course_name;
+
+-- Now you can query it like a table:
+SELECT * FROM student_attendance_summary WHERE attendance_rate < 75;
+```
+
+Views don't store data â€” they run the query every time you SELECT from them. 
+
+---
+
+### 2.10 Row-Level Security (RLS) â€” Your Database's Permission System
+
+This is where Supabase gets powerful. Instead of having your application code check "does this user have permission?", the database itself enforces it:
+
+```sql
+-- Enable RLS on the table (now no one can access it without a policy)
+ALTER TABLE attendance ENABLE ROW LEVEL SECURITY;
+
+-- Policy: teachers can only see attendance for sessions they teach
+CREATE POLICY "teachers_see_own_sessions" ON attendance
+  FOR SELECT
+  TO authenticated
+  USING (
+    session_id IN (
+      SELECT s.session_id 
+      FROM session s
+      JOIN teacher t ON t.teacher_id = s.teacher_id
+      WHERE t.email = (auth.jwt() ->> 'email')  -- current logged-in user's email
+    )
+  );
+
+-- Policy: students can only see their own attendance
+CREATE POLICY "students_see_own" ON attendance
   FOR SELECT
   TO authenticated
   USING (
     student_id IN (
-      SELECT e.student_id FROM enrollment e
-      JOIN session s ON s.session_id = e.session_id
-      JOIN teacher t ON t.teacher_id = s.teacher_id
-      WHERE t.email = auth.jwt() ->> 'email'
+      SELECT student_id FROM student 
+      WHERE email = (auth.jwt() ->> 'email')
     )
   );
 ```
 
-**You don't need to fully understand SQL** to build features, but knowing RLS exists helps you debug "why can't I see this data" issues.
+**Why this matters**: Without RLS, a bug in your frontend code could let any user query any row. With RLS, even if your frontend has a bug, the database rejects unauthorized queries at the server level. This is called **defense in depth** â€” you have security at multiple layers.
+
+`auth.jwt()` â€” PostgreSQL function that Supabase provides to read the JWT token of the currently authenticated user. This is how the database knows who is asking.
+
+The RLS policies for your project are in `database/rls-policies.sql`. Read it. Every policy there is a real security decision.
 
 ---
 
-## 7. State Management
+### 2.11 Functions and Triggers
 
-### Three Types of State in Your App
+**Functions**: reusable SQL logic (like functions in any language):
+```sql
+-- Function: given a late_minutes value, return which scoring bracket it falls in
+CREATE OR REPLACE FUNCTION get_late_score_bracket(p_session_id UUID, p_late_minutes INTEGER)
+RETURNS NUMERIC LANGUAGE plpgsql AS $$
+DECLARE
+  bracket_score NUMERIC;
+BEGIN
+  IF p_late_minutes IS NULL OR p_late_minutes <= 0 THEN
+    RETURN 1.0;  -- on time = full score
+  END IF;
+  
+  SELECT weight INTO bracket_score
+  FROM scoring_config
+  WHERE session_id = p_session_id
+    AND p_late_minutes >= min_minutes
+    AND (max_minutes IS NULL OR p_late_minutes <= max_minutes)
+  LIMIT 1;
+  
+  RETURN COALESCE(bracket_score, 0.5);  -- default 50% if no bracket matches
+END;
+$$;
+```
 
-| Type | Where | Example | Tool |
-|------|-------|---------|------|
-| **Local** | Single component | Modal open/close, form inputs | `useState` |
-| **Page-level** | Shared across components on one page | Selected session, loaded students | `useState` in page, passed as props |
-| **Global** | Entire app | Current user, auth status | React Context (`AuthProvider`) |
+**Triggers**: automatically run a function when a table changes:
+```sql
+-- Automatically update the updated_at timestamp whenever a row is modified
+CREATE TRIGGER set_updated_at
+  BEFORE UPDATE ON attendance
+  FOR EACH ROW
+  EXECUTE FUNCTION trigger_set_timestamp();
+```
 
-### When to Use What
+Your project's functions and triggers are in `database/functions.sql`. Read the function for late scoring brackets â€” it mirrors the client-side `getLateScoreWeight` function in `AttendanceRecords.tsx`.
 
+---
+
+### 2.12 The Migration Pattern â€” How Schema Evolves
+
+Every database change is a migration: a script that transforms the database from state A to state B.
+
+**Why migrations exist**: You can't just edit the database and call it done. Multiple developers use the same codebase. The production database has real data. You need a record of every change.
+
+**Your project's discipline** (the rule you asked about):
+```
+When you need to change the database:
+1. Write a migration file in database/migrations/XXX_name.sql
+2. Update database/schema.sql (the canonical current state)
+3. Update database/rls-policies.sql if new RLS policies added
+4. Update src/shared/types/database.types.ts with new TypeScript interfaces
+5. Update the service layer if new columns need to be queried
+```
+
+**Example**: Adding `override_end_time` to `session_date_host`:
+- Migration `010_session_date_endtime_override.sql` adds the column to the live DB
+- `database/schema.sql` gets the column added in the CREATE TABLE definition
+- `SessionDateHost` interface in `database.types.ts` gets `override_end_time?: string | null`
+- `sessionService.ts` gets the column in its SELECT and upsert calls
+
+Without step 2, the schema.sql becomes outdated. Without step 4, TypeScript doesn't know the column exists and won't catch typos.
+
+---
+
+## PART 3 â€” TYPESCRIPT FROM ZERO TO PROFESSIONAL
+
+### 3.1 Why TypeScript Exists
+
+In plain JavaScript:
+```javascript
+function getUserEmail(user) {
+  return user.email; // What if user is null? What if email doesn't exist?
+}
+getUserEmail(null);  // Crashes at runtime! "Cannot read property 'email' of null"
+```
+
+In TypeScript:
 ```typescript
-// LOCAL: Only this component needs it
-const [isEditing, setIsEditing] = useState(false);
-
-// PAGE-LEVEL: Multiple components on the page need it
-// Defined in page, passed down:
-function AttendancePage() {
-  const [session, setSession] = useState<Session | null>(null);
-  return (
-    <>
-      <SessionSelector onSelect={setSession} />
-      <AttendanceTable session={session} />
-      <AttendanceCharts session={session} />
-    </>
-  );
+interface User {
+  email: string;
+  name: string;
 }
 
-// GLOBAL: The whole app needs it
-// Defined in AuthContext, accessed anywhere:
-const { user, isAdmin } = useAuth();
+function getUserEmail(user: User): string {
+  return user.email;
+}
+
+getUserEmail(null);  // âŒ Compile error BEFORE running. "Argument of type 'null' is not assignable to parameter of type 'User'"
 ```
 
-### State Update Rules
-
-1. **Never mutate state directly**:
-   ```typescript
-   // ❌ WRONG
-   students.push(newStudent);
-   
-   // ✅ RIGHT
-   setStudents([...students, newStudent]);
-   ```
-
-2. **State updates are ASYNC** — the new value isn't available until next render:
-   ```typescript
-   setCount(5);
-   console.log(count); // Still the OLD value! Not 5.
-   ```
-
-3. **Derived state should be computed, not stored**:
-   ```typescript
-   // ❌ WRONG: Storing filtered list separately
-   const [filteredStudents, setFilteredStudents] = useState([]);
-   
-   // ✅ RIGHT: Compute it from existing state
-   const filteredStudents = useMemo(() => 
-     students.filter(s => s.name.includes(query)), 
-     [students, query]
-   );
-   ```
+TypeScript moves bugs from **runtime** (when users see them) to **compile time** (when you're writing the code).
 
 ---
 
-## 8. Component Composition
-
-### Building Blocks (Shared UI)
-
-Your app has reusable building blocks in `src/shared/components/ui/`:
+### 3.2 Types and Interfaces
 
 ```typescript
-// These are like LEGO bricks — used everywhere
-import { Button } from '@/shared/components/ui/Button';
-import { Modal } from '@/shared/components/ui/Modal';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/shared/components/ui/Table';
-import { SearchBar } from '@/shared/components/ui/SearchBar';
+// Primitive types
+const name: string = 'Ahmed';
+const age: number = 25;
+const isEnrolled: boolean = true;
+const maybeNull: string | null = null;   // union type: string OR null
+
+// Arrays
+const names: string[] = ['Ahmed', 'Sara'];
+const ids: string[] = [];
+
+// Interface: describes the shape of an object
+interface Student {
+  student_id: string;
+  name: string;
+  email: string;
+  phone: string | null;     // exists, but may be empty
+  age?: number;             // optional: may not exist at all
+  created_at: string;
+}
+
+// Inline object type (same idea, less reusable)
+const student: { name: string; email: string } = {
+  name: 'Ahmed',
+  email: 'ahmed@ex.com'
+};
+
+// Type alias (another way to name a type)
+type Status = 'pending' | 'on time' | 'late' | 'absent' | 'excused';
+// This means: a Status value can ONLY be one of these 5 strings
+// const s: Status = 'asdf'; â†’ âŒ compile error
 ```
 
-### Feature Components (Domain-Specific)
+Your project's complete type definitions are in `src/shared/types/database.types.ts`. **Read this file** â€” it's the exact contract between your frontend and your database.
+
+---
+
+### 3.3 Generic Types â€” Reusable Type Templates
 
 ```typescript
-// These are specific to one feature
-import { StudentForm } from '@/features/students/components/StudentForm';
-import { CourseList } from '@/features/courses/components/CourseList';
+// Without generics: you'd need separate functions for each type
+function getFirstStudent(arr: Student[]): Student { return arr[0]; }
+function getFirstCourse(arr: Course[]): Course { return arr[0]; }
+
+// With generics: one function for any type
+function getFirst<T>(arr: T[]): T {
+  return arr[0];
+}
+// T is a placeholder. When you call it:
+const first = getFirst<Student>(students); // T = Student
+const first2 = getFirst(courses);          // T inferred as Course automatically
+
+// Generic interfaces:
+interface Result<T> {
+  data: T | null;
+  error: string | null;
+}
+
+// The Supabase return type is like this:
+// { data: Student[] | null, error: PostgrestError | null }
+const { data, error } = await studentService.getAll();
+// data is Student[] | null
+// error is PostgrestError | null
 ```
 
-### The Composition Pattern
+`useState<Student[]>([])` â€” the `<Student[]>` is a generic parameter. It tells React: "this state holds an array of Student objects."
+
+---
+
+### 3.4 Utility Types â€” TypeScript's Built-In Tools
 
 ```typescript
-// A page COMPOSES shared UI + feature components
-export function Students() {
+interface Student {
+  student_id: string;
+  name: string;
+  email: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Omit: remove fields
+type CreateStudent = Omit<Student, 'student_id' | 'created_at' | 'updated_at'>;
+// Result: { name: string; email: string }
+// Useful when inserting â€” the DB generates id and timestamps automatically
+
+// Partial: make all fields optional
+type UpdateStudent = Partial<CreateStudent>;
+// Result: { name?: string; email?: string }
+// Useful for PATCH updates where you only send changed fields
+
+// Required: make all fields required (opposite of Partial)
+type FullStudent = Required<Student>;
+
+// Pick: select only certain fields
+type StudentSummary = Pick<Student, 'student_id' | 'name'>;
+// Result: { student_id: string; name: string }
+
+// Record: create an object type with specific key and value types
+type AttendanceByDate = Record<string, 'on time' | 'late' | 'absent' | 'excused'>;
+// Equivalent to: { [date: string]: 'on time' | 'late' | 'absent' | 'excused' }
+```
+
+Your project uses these patterns constantly:
+```typescript
+// In database.types.ts:
+export type CreateStudent = Omit<Student, 'student_id' | 'created_at' | 'updated_at'>;
+export type UpdateStudent = Partial<CreateStudent>;
+```
+
+---
+
+### 3.5 Async/Await and Promises
+
+JavaScript is **single-threaded** â€” it can only do one thing at a time. But I/O operations (network requests, disk reads) would block everything if done synchronously.
+
+The solution: Promises (a value that will exist eventually) and async/await (syntax that makes Promises readable):
+
+```typescript
+// This is what happens internally:
+function fetchStudents(): Promise<Student[]> {
+  return new Promise((resolve, reject) => {
+    // ... makes HTTP request ...
+    // Eventually calls resolve(data) or reject(error)
+  });
+}
+
+// async/await makes this readable:
+async function loadStudents() {
+  try {
+    const students = await fetchStudents(); // "wait here until Promise resolves"
+    console.log(students); // array of Students
+  } catch (error) {
+    console.error(error);
+  }
+}
+```
+
+**Critical rule**: `await` can only be used inside `async` functions. And `async` functions always return a Promise, whether you want them to or not.
+
+**Why Supabase returns `{ data, error }` instead of throwing**:
+```typescript
+// Option 1: throw on error (common in older code)
+try {
+  const data = await fetchStudents(); // throws if fails
+} catch (error) {
+  // handle error
+}
+
+// Option 2: return error as value (Supabase pattern â€” safer)
+const { data, error } = await supabase.from('student').select('*');
+if (error) { /* handle */ return; }
+// data is definitely valid here â€” no try/catch needed
+```
+
+The `{ data, error }` pattern eliminates accidentally forgetting the `try/catch`.
+
+---
+
+### 3.6 Type Narrowing â€” TypeScript's Safety Checks
+
+TypeScript needs you to prove types before using them:
+
+```typescript
+function getStudentInfo(studentOrId: Student | string) {
+  // We don't know if it's a Student object or just an ID string
+  
+  if (typeof studentOrId === 'string') {
+    // Inside here, TypeScript knows it's a string
+    return `ID: ${studentOrId}`;
+  } else {
+    // Inside here, TypeScript knows it's a Student
+    return `Name: ${studentOrId.name}`;
+  }
+}
+
+// Nullability narrowing:
+function sendEmail(email: string | null) {
+  if (email === null) return; // guard: exit if null
+  
+  // TypeScript now knows email is definitely a string here
+  const domain = email.split('@')[1]; // âœ… safe
+}
+
+// Optional chaining: the safe alternative to null checks
+const domain = email?.split('@')[1]; // returns undefined instead of crashing if email is null
+```
+
+The `?.` (optional chaining) operator is everywhere in your codebase. It's equivalent to `if x is not null, access this property, otherwise return undefined`.
+
+---
+
+### 3.7 Module System â€” imports and exports
+
+```typescript
+// Named export: exported with a specific name
+export function calculate() { ... }
+export interface Student { ... }
+export const MAX_STUDENTS = 50;
+
+// Named import: must use the exact name
+import { calculate, Student } from '@/features/students/services/studentService';
+
+// Default export (your project avoids these â€” use named exports)
+export default function App() { ... }
+import App from './App'; // can be named anything on import = harder to find
+
+// Re-export: forward exports from one module through another
+// src/shared/components/ui/index.ts:
+export { Button } from './Button';
+export { Modal } from './Modal';
+// Now consumers can: import { Button, Modal } from '@/shared/components/ui';
+
+// Path aliases (@/ = src/):
+import { studentService } from '@/features/students/services/studentService';
+// Equivalent to:
+import { studentService } from '../../features/students/services/studentService';
+// Aliases prevent the relative path hell of '../../../'
+```
+
+---
+
+## PART 4 â€” REACT FROM ZERO TO PROFESSIONAL
+
+### 4.1 What React Actually Is
+
+React is a **library for building user interfaces** based on one idea: the UI is a function of state. 
+
+```
+UI = f(state)
+```
+
+When state changes, React calls your function again (re-renders) and updates only the parts of the DOM that changed. You never manually write `document.getElementById(...).innerHTML = ...`. React handles all DOM manipulation.
+
+```typescript
+// A React component is a function that returns JSX
+function Counter() {
+  const [count, setCount] = useState(0);
+  
   return (
     <div>
-      {/* Shared UI */}
-      <SearchBar value={query} onChange={setQuery} />
-      
-      {/* Shared UI + Feature Component inside */}
-      <Modal isOpen={showForm} onClose={() => setShowForm(false)}>
-        <StudentForm onSave={handleSave} />
-      </Modal>
+      <p>Count: {count}</p>
+      <button onClick={() => setCount(count + 1)}>Increment</button>
+    </div>
+  );
+}
+// Every time you click, setCount changes the state.
+// React detects the change and re-renders Counter().
+// The DOM updates from "Count: 0" to "Count: 1" automatically.
+```
 
-      {/* Shared UI (Table) with feature data */}
-      <Table>
-        <TableBody>
-          {students.map(s => (
-            <TableRow key={s.student_id}>
-              <TableCell>{s.name}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+**JSX is not HTML**. It compiles to:
+```typescript
+React.createElement('div', null,
+  React.createElement('p', null, 'Count: ', count),
+  React.createElement('button', { onClick: ... }, 'Increment')
+)
+```
+
+---
+
+### 4.2 The Hook System
+
+Hooks are functions that let you "hook into" React features from inside a function component:
+
+#### `useState` â€” Local Component State
+
+```typescript
+const [value, setValue] = useState<Type>(initialValue);
+//     ^       ^                        ^
+//     current update function          initial value (only used once)
+
+// Examples:
+const [students, setStudents] = useState<Student[]>([]);
+const [loading, setLoading] = useState(true);
+const [error, setError] = useState<string | null>(null);
+const [selectedId, setSelectedId] = useState<string | null>(null);
+
+// State update triggers a re-render:
+setStudents([...students, newStudent]); // React re-renders, UI shows new student
+
+// NEVER mutate state directly:
+students.push(newStudent); // âŒ React won't re-render! It doesn't know state changed.
+```
+
+#### `useEffect` â€” Side Effects
+
+```typescript
+useEffect(() => {
+  // This code runs AFTER the component renders
+  // Use for: data fetching, subscriptions, DOM manipulation
+
+  loadStudents(); // fetch data when component mounts
+
+  // Return a cleanup function (optional):
+  return () => {
+    // Runs when component is unmounted or before next effect
+    // Use for: cancelling requests, removing listeners
+  };
+}, [dependency1, dependency2]); // dependency array
+
+// Dependency array controls WHEN the effect re-runs:
+// []           â†’ run once, on initial mount only
+// [sessionId]  â†’ run when sessionId changes (and on mount)
+// [a, b]       â†’ run when a OR b changes
+// (no array)   â†’ run after every single render (usually a bug)
+```
+
+**Common mistake**: forgetting a dependency
+```typescript
+// Bug: loadStudents changes every render, but empty dep array means it never re-runs
+const loadStudents = async () => { ... };
+useEffect(() => { loadStudents(); }, []); // âš ï¸ stale closure!
+
+// Fix: use useCallback to stabilize the function reference
+const loadStudents = useCallback(async () => { ... }, []); // stable reference
+useEffect(() => { loadStudents(); }, [loadStudents]); // âœ…
+```
+
+#### `useMemo` â€” Memoize Expensive Calculations
+
+```typescript
+// Bad: filters all 500 students on every render (even unrelated ones)
+const filteredStudents = students.filter(s => s.name.includes(query));
+
+// Good: only recalculates when students or query actually change
+const filteredStudents = useMemo(() => {
+  return students.filter(s => s.name.toLowerCase().includes(query.toLowerCase()));
+}, [students, query]);
+```
+
+Think of `useMemo` as: "Remember this computed value until the inputs change."
+
+#### `useCallback` â€” Memoize Function References
+
+```typescript
+// This creates a new function object every render:
+const handleSave = async () => { ... };
+// If passed to a child, the child re-renders every time parent renders
+
+// useCallback keeps the same function reference until dependencies change:
+const handleSave = useCallback(async () => { ... }, [dependency]);
+// Child gets the same function reference (no unnecessary re-renders)
+```
+
+#### `useRef` â€” Mutable Values Without Re-renders
+
+```typescript
+// A ref is a box that holds a value; changing it doesn't trigger re-render
+const chartRef = useRef<HTMLDivElement>(null);
+
+// Use for:
+// 1. Accessing DOM elements directly
+<div ref={chartRef}>...</div>
+const element = chartRef.current; // actual DOM element
+
+// 2. Storing values that don't affect the UI
+const intervalRef = useRef<NodeJS.Timeout | null>(null);
+intervalRef.current = setInterval(() => {}, 1000); // stored without re-rendering
+```
+
+#### `useContext` â€” Global State Without Prop Drilling
+
+```typescript
+// Create a context (in AuthContext.tsx):
+const AuthContext = createContext<AuthContextType | null>(null);
+
+// Provide it high in the tree (in App.tsx):
+<AuthContext.Provider value={{ user, isAdmin, logout }}>
+  <App />
+</AuthContext.Provider>
+
+// Consume anywhere deep in the tree:
+function DeepComponent() {
+  const { user } = useContext(AuthContext)!;
+  return <p>Hello {user.name}</p>;
+}
+// No prop drilling through every intermediate component
+```
+
+---
+
+### 4.3 Props Flow and Re-renders
+
+Understanding when React re-renders is critical for performance:
+
+```typescript
+function Parent() {
+  const [count, setCount] = useState(0);
+  const [name, setName] = useState('Ahmed');
+  
+  return (
+    <div>
+      <ChildA count={count} />
+      <ChildB name={name} />
+      <button onClick={() => setCount(c => c + 1)}>+</button>
     </div>
   );
 }
 ```
 
----
+When you click the button, `count` changes. React re-renders `Parent`. Because `Parent` re-renders, ALL children re-render too â€” even `ChildB` whose `name` prop didn't change!
 
-## 9. How Exports Work
+This is usually fine for small apps. For large tables with 200 rows, it becomes a problem. Solutions:
+- `React.memo(ChildB)` â€” only re-renders if its props actually changed
+- `useMemo` for expensive computations
+- `useCallback` for functions passed as props
 
-Your app exports data to three formats: **PDF** (jsPDF), **Excel** (XLSX), **Word** (docx).
-
-### The Export Pipeline
-
-```
-User clicks "Export" button
-       ↓
-AttendanceRecords.tsx collects data + settings
-       ↓
-Calls export service (e.g., wordExportService.exportAnalyticsToWordDynamic())
-       ↓
-Service builds document in memory
-       ↓
-Triggers browser download
-```
-
-### PDF Export (jsPDF)
-
-```typescript
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-
-const doc = new jsPDF({ orientation: 'landscape' });
-doc.text('Report Title', 14, 25);
-
-autoTable(doc, {
-  head: [['Name', 'Email', 'Attendance %']],
-  body: students.map(s => [s.name, s.email, s.attendanceRate]),
-  startY: 35,
-});
-
-doc.save('report.pdf');
-```
-
-### Chart Capture (html-to-image)
-
-Charts are rendered by React (Recharts library) in the browser. To include them in PDF/Word:
-
-```typescript
-import { toPng } from 'html-to-image';
-
-// 1. Find the chart DOM element
-const chartElement = document.getElementById('attendance-chart');
-
-// 2. Convert it to a PNG image (base64 string)
-const imageDataUrl = await toPng(chartElement, { quality: 0.95 });
-
-// 3. Add to PDF
-doc.addImage(imageDataUrl, 'PNG', x, y, width, height);
-```
-
-### Word Export (docx library)
-
-```typescript
-import { Document, Paragraph, Table, TableRow, TableCell, TextRun, Packer } from 'docx';
-
-const doc = new Document({
-  sections: [{
-    children: [
-      new Paragraph({
-        children: [new TextRun({ text: 'Report Title', bold: true, size: 32 })],
-      }),
-      new Table({
-        rows: [headerRow, ...dataRows],
-      }),
-    ],
-  }],
-});
-
-const blob = await Packer.toBlob(doc);
-// Trigger download...
-```
+Your app's `AttendanceRecords.tsx` (~7000 lines) has 41 `useState` calls. Many re-renders are happening. This is a known architectural debt documented in `docs/architecture.md`.
 
 ---
 
-## 10. Common Patterns to Recognize
-
-### Pattern 1: Load → Display → Error Handle
+### 4.4 Controlled vs Uncontrolled Forms
 
 ```typescript
-const [data, setData] = useState([]);
-const [loading, setLoading] = useState(true);
-const [error, setError] = useState<string | null>(null);
+// CONTROLLED: React controls the value
+function Form() {
+  const [name, setName] = useState('');
+  
+  return (
+    <input
+      value={name}                         // React owns the value
+      onChange={(e) => setName(e.target.value)} // React updates on each keystroke
+    />
+  );
+}
+// Advantage: you always know the current value in React state
+// Disadvantage: re-renders on every keystroke
 
-const load = useCallback(async () => {
-  setLoading(true);
-  const { data, error } = await someService.getAll();
-  if (error) setError('Failed to load');
-  else setData(data);
-  setLoading(false);
-}, []);
-
-useEffect(() => { load(); }, [load]);
-
-// In JSX:
-if (loading) return <Skeleton />;
-if (error) return <div className="text-red-500">{error}</div>;
-return <Table data={data} />;
+// UNCONTROLLED: DOM controls the value, you read it when needed
+function Form() {
+  const inputRef = useRef<HTMLInputElement>(null);
+  
+  const handleSubmit = () => {
+    const value = inputRef.current?.value; // read when needed
+  };
+  
+  return <input ref={inputRef} />;
+}
+// Advantage: no re-renders while typing
+// Disadvantage: value not immediately available in state
 ```
 
-You'll see this in almost every page.
+Your app uses controlled forms (with `useState`) for everything. This is typical for forms where validation needs to happen in real time.
 
-### Pattern 2: Form Submit
+---
+
+### 4.5 Data Flow Architecture
+
+React data flows in ONE direction: top-down through props.
+
+```
+App
+â”œâ”€â”€ AuthProvider (provides user via context)
+â””â”€â”€ Layout
+    â”œâ”€â”€ Sidebar
+    â””â”€â”€ Page (e.g., Students)         â† owns data state
+        â”œâ”€â”€ SearchBar                  â† reads searchQuery, calls onSearch
+        â”œâ”€â”€ Modal
+        â”‚   â””â”€â”€ StudentForm            â† calls onSave when submitted
+        â””â”€â”€ Table
+            â””â”€â”€ StudentRow[Ã—n]         â† reads student data, has action buttons
+```
+
+Data goes down (parent â†’ child via props).
+Events/actions go up (child â†’ parent via callback props).
+Global data (auth, user) goes through context.
+
+**The golden rule**: State should live as close to the components that need it as possible, but no lower than the closest common ancestor of those components.
+
+---
+
+### 4.6 Error Boundaries
 
 ```typescript
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();  // Don't reload the page
+// Class component (required for error boundaries â€” no hook equivalent)
+class ErrorBoundary extends React.Component {
+  state = { hasError: false };
   
-  const { error } = editingId
-    ? await service.update(editingId, formData)
-    : await service.create(formData);
-  
-  if (error) {
-    toast.error('Save failed');
-  } else {
-    toast.success('Saved!');
-    onSave();  // Tell parent to refresh
+  static getDerivedStateFromError() {
+    return { hasError: true };
   }
-};
+  
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('Caught error:', error, info);
+  }
+  
+  render() {
+    if (this.state.hasError) {
+      return <div>Something went wrong. Please refresh.</div>;
+    }
+    return this.props.children;
+  }
+}
+
+// Usage: wraps any component tree
+<ErrorBoundary>
+  <Suspense fallback={<Spinner />}>
+    <LazyLoadedPage />
+  </Suspense>
+</ErrorBoundary>
 ```
 
-### Pattern 3: Conditional Rendering
+Your `src/app/App.tsx` wraps every page in `<SafePage>` which combines `ErrorBoundary` + `Suspense`. This means a crash in one page doesn't take down the whole app.
 
-```typescript
-// Show/hide based on state
-{isAdmin && <Button>Admin Action</Button>}
+---
 
-// Toggle between views
-{isEditing ? (
-  <EditForm onCancel={() => setIsEditing(false)} />
-) : (
-  <DisplayView onEdit={() => setIsEditing(true)} />
-)}
+## PART 5 â€” SYSTEM DESIGN AND ARCHITECTURE
 
-// Render a list
-{students.map(s => <StudentCard key={s.student_id} student={s} />)}
+### 5.1 What Is Software Architecture?
+
+Architecture is **the set of decisions that are hardest to change later**. Good architecture defers details to the last responsible moment and isolates change.
+
+The four questions of architecture:
+1. **Where does data live?** (database schema design)
+2. **How does data flow?** (service â†’ state â†’ UI)
+3. **What are the boundaries?** (modules, packages, feature separation)
+4. **How does it scale?** (performance, maintainability)
+
+---
+
+### 5.2 The Architectural Patterns Your App Uses
+
+#### Pattern 1: Feature-Based Modules (Vertical Slices)
+
+Many early codebases organize by technical role:
+```
+âŒ Technical organization (hard to navigate for business logic):
+src/
+â”œâ”€â”€ components/   â† ALL components from every feature
+â”œâ”€â”€ services/     â† ALL services mixed together
+â””â”€â”€ types/        â† ALL types
 ```
 
-### Pattern 4: Named Exports (Project Convention)
-
-```typescript
-// ✅ CORRECT — your project uses named exports
-export function Students() { ... }
-export const studentService = { ... };
-
-// ❌ WRONG — avoid default exports
-export default function Students() { ... }
+Your app uses **feature modules** (vertical slices):
+```
+âœ… Feature organization (each feature is self-contained):
+src/features/
+â”œâ”€â”€ students/
+â”‚   â”œâ”€â”€ pages/       â† route-level containers
+â”‚   â”œâ”€â”€ components/  â† student-specific UI
+â”‚   â””â”€â”€ services/    â† student data access
+â”œâ”€â”€ attendance/
+â”‚   â”œâ”€â”€ pages/
+â”‚   â”œâ”€â”€ components/
+â”‚   â””â”€â”€ services/
 ```
 
-### Pattern 5: Path Aliases
+**Why this matters**: When a bug is in "attendance", you look in `src/features/attendance/`. You don't scan 200 files. New developers can work on one feature without understanding others. You can delete a feature by deleting one folder.
 
+#### Pattern 2: Service Layer (Repository Pattern)
+
+```
+UI Component
+     â†“ calls
+Service function
+     â†“ calls
+Supabase client
+     â†“ HTTP
+PostgreSQL database
+```
+
+The service is the **only place** that knows about Supabase. If you switched databases tomorrow, you'd only change service files. The UI doesn't know or care.
+
+This is a simplified version of the **Repository Pattern**: UI asks for data through an abstract interface, doesn't know how it's stored.
+
+#### Pattern 3: One-Way Data Flow (Flux/Redux Pattern)
+
+```
+User Action â†’ Event Handler â†’ Update State â†’ React Re-Renders UI
+```
+
+This is what makes React applications predictable. You can always answer "where does this data come from?" by tracing backwards through state.
+
+#### Pattern 4: Supabase as Backend (Backend-as-a-Service)
+
+Traditional web app needs:
+- Your own server (Node.js/Python/Java)
+- Your own auth system
+- Your own file storage
+- Your own real-time websockets
+
+Supabase provides all of these:
+- **PostgreSQL**: full relational database with RLS
+- **Auth**: JWT-based auth with email/password, magic links, OAuth
+- **Storage**: S3-compatible file storage (for photos)
+- **Real-time**: WebSocket connections powered by PostgreSQL LISTEN/NOTIFY
+
+Your app uses Auth + PostgreSQL + Storage (for photos). Real-time isn't used yet â€” it would allow live attendance updates without page refresh.
+
+---
+
+### 5.3 SOLID Principles (Applied to Your Code)
+
+These are guidelines for writing code that's easy to change:
+
+**S â€” Single Responsibility**: Each module does ONE thing.
 ```typescript
-// ✅ Use @/ alias (maps to src/)
-import { studentService } from '@/features/students/services/studentService';
+// âœ… studentService only handles student data
+// âŒ Don't put course queries in studentService
+```
 
-// ❌ Don't use relative paths for cross-feature imports
-import { studentService } from '../../../students/services/studentService';
+**O â€” Open/Closed**: Open for extension, closed for modification.
+```typescript
+// When you need to add a new check-in method, add a new handler
+// Don't change the existing QR handler to also handle face recognition
+```
+
+**L â€” Liskov Substitution**: Subtypes must behave like their parent types.
+```typescript
+// All services follow the same { data, error } return pattern
+// You can use them interchangeably without knowing the implementation
+```
+
+**I â€” Interface Segregation**: Don't force clients to depend on interfaces they don't use.
+```typescript
+// A read-only view doesn't need the service's create/update/delete methods
+// Could use a narrower interface: { getAll: () => ..., getById: () => ... }
+```
+
+**D â€” Dependency Inversion**: Depend on abstractions, not concretions.
+```typescript
+// Components depend on service functions (abstractions)
+// Not on supabase directly (concretion)
+// This is enforced by the no-restricted-imports ESLint rule
 ```
 
 ---
 
-## 11. Debugging Like an Engineer
+### 5.4 Database Design Principles
 
-### When Something Breaks
+#### Normalization â€” Avoiding Duplication
 
-1. **Read the error message** — it usually tells you the file and line number
-2. **Check the browser console** (F12 → Console tab) for runtime errors
-3. **Check the Network tab** (F12 → Network) for failed API calls
-4. **Add `console.log`** to trace data flow:
-   ```typescript
-   console.log('students loaded:', data);
-   console.log('error:', error);
-   ```
+**First Normal Form (1NF)**: Each column has one value (no arrays in a cell).
+**Second Normal Form (2NF)**: Non-key columns depend on the whole primary key.
+**Third Normal Form (3NF)**: Non-key columns depend only on the primary key (not on each other).
 
-### Common Error Types
+```sql
+-- âŒ BAD: student name stored in both student and attendance tables
+attendance (attendance_id, student_name, student_email, status, ...)
+-- If student changes name/email, you must update ALL their attendance rows
 
-| Error | Meaning | Fix |
-|-------|---------|-----|
-| `TypeError: Cannot read property 'x' of undefined` | Data is `null/undefined` | Add `?.` optional chaining: `student?.name` |
-| `RLS policy violation` | Database rejected the query | Check if user has permission (admin vs teacher) |
-| `Type 'X' is not assignable to type 'Y'` | TypeScript type mismatch | Check your interfaces match the data |
-| `Module not found: '@/...'` | Wrong import path | Check file exists, path is correct |
-| `Too many re-renders` | Infinite loop in state/effect | Check `useEffect` dependencies don't cause loops |
+-- âœ… GOOD: normalized â€” student data lives once in student table
+attendance (attendance_id, student_id [FK], status, ...)
+student (student_id, name, email, ...)
+-- Name change? Update ONE row in student table.
+```
 
-### The `npm run build` Check
+Your schema is properly normalized. Student data lives in `student`. Course data lives in `course`. They're connected through foreign keys.
 
-Before deploying, ALWAYS run:
+#### When to Denormalize
+
+Sometimes denormalization (intentional data duplication) is justified for performance:
+```sql
+-- attendance table stores host_address as text, not a FK to session_date_host
+-- Why? Because the session location might change AFTER attendance is recorded
+-- We want to preserve what location was used AT THE TIME of check-in
+```
+
+This is a deliberate choice in your schema. Denormalization for temporal data (data that should reflect the past state) is correct.
+
+#### UUID vs Sequential Integer IDs
+
+Your schema uses UUIDs (`gen_random_uuid()`):
+```sql
+student_id UUID PRIMARY KEY DEFAULT gen_random_uuid()
+-- vs: student_id SERIAL PRIMARY KEY (auto-incrementing integer)
+```
+
+Pros of UUID:
+- Can be generated client-side before writing to DB (no round-trip needed)
+- Globally unique across all tables (prevents accidental cross-table ID confusion)
+- Safer to expose in URLs (can't enumerate: `/students/1`, `/students/2`, `/students/3`)
+
+Cons of UUID:
+- Larger storage (16 bytes vs 4 bytes)
+- Slightly slower index performance on very large tables (billions of rows)
+
+For your scale (hundreds to thousands of rows), UUID is the right choice.
+
+---
+
+### 5.5 The N+1 Problem â€” The Most Common Performance Bug
+
+```typescript
+// âŒ N+1 PROBLEM:
+const { data: sessions } = await supabase.from('session').select('*');
+// That's 1 query.
+
+for (const session of sessions) {
+  const { data: students } = await supabase
+    .from('enrollment')
+    .select('student(*)')
+    .eq('session_id', session.session_id);
+  // That's N more queries (one per session). With 50 sessions = 51 total queries!
+}
+```
+
+```typescript
+// âœ… SOLUTION: Join in one query
+const { data: sessions } = await supabase
+  .from('session')
+  .select(`
+    *,
+    enrollment(
+      student(name, email)
+    )
+  `);
+// 1 query returns everything
+```
+
+Every time you write a loop that makes a database call inside it, ask: "Can this be done in a single query with a JOIN?"
+
+---
+
+### 5.6 Caching â€” Don't Re-Fetch What You Already Have
+
+```typescript
+// Every page load re-fetches all students from DB
+function Students() {
+  useEffect(() => { loadStudents(); }, []); // always fetches
+}
+
+// Better: cache with a short TTL (time-to-live)
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
+let studentCache: { data: Student[]; fetchedAt: number } | null = null;
+
+async function getStudentsCached(): Promise<Student[]> {
+  const now = Date.now();
+  if (studentCache && now - studentCache.fetchedAt < CACHE_TTL) {
+    return studentCache.data; // return cached data
+  }
+  
+  const { data } = await supabase.from('student').select('*');
+  studentCache = { data: data!, fetchedAt: now };
+  return data!;
+}
+```
+
+Your current codebase doesn't do caching (using `useRefreshOnFocus` instead â€” re-fetches on window focus). For a multi-user collaborative app, this is actually safer â€” you always get fresh data.
+
+---
+
+### 5.7 Security in Web Applications
+
+#### The OWASP Top 10 (What Can Go Wrong)
+
+**1. Injection (SQL Injection)**: Attacker inserts malicious SQL in your input.
+```
+Search input: "' OR '1'='1" â†’ breaks your SQL query open
+```
+**Your protection**: Supabase client uses **parameterized queries** automatically. The library never concatenates user input into SQL strings.
+
+**2. Broken Authentication**: Weak session management.
+**Your protection**: Supabase handles JWT tokens. Tokens expire. RLS enforces row-level access even with valid tokens.
+
+**3. Broken Access Control**: User sees data they shouldn't.
+**Your protection**: RLS policies on every table. Even if frontend code has a bug, the database enforces access control.
+
+**4. Security Misconfiguration**: Default credentials, exposed debug info.
+**Your protection**: Environment variables in `.env` (never committed to Git). Supabase anon key is NOT a secret â€” it's designed to be public. The RLS policies are where actual security lives.
+
+**5. XSS (Cross-Site Scripting)**: Injecting malicious scripts via user input.
+**Your protection**: React NEVER renders raw HTML by default. All `{expression}` in JSX is automatically escaped. The one exception is `dangerouslySetInnerHTML` â€” search your codebase for it and ensure it's only used with sanitized input.
+
+```typescript
+// React automatically escapes this â€” safe:
+<div>{userInput}</div>
+
+// This is dangerous â€” only use with sanitized content:
+<div dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
+```
+
+**6. Insecure Direct Object References**: Accessing resources by guessing IDs.
+**Your protection**: RLS. Even if an attacker guesses `student_id = 'abc-111'`, RLS prevents them from reading it without the right session.
+
+---
+
+### 5.8 Error Handling Strategy
+
+```typescript
+// Layer 1: Database errors (Supabase RLS, constraints)
+// â†’ Caught when { error } is returned from Supabase calls
+
+// Layer 2: Application logic errors
+// â†’ Caught with if (error) { toast.error('...'); return; }
+
+// Layer 3: Unexpected JavaScript errors (null access, etc.)
+// â†’ Caught by ErrorBoundary components wrapping each page
+
+// Layer 4: Network errors (user goes offline)
+// â†’ Caught by useOnlineStatus hook, shown in UI
+
+// Best practice: fail fast and fail clearly
+async function createStudent(data: CreateStudent) {
+  // Validate at service boundary (not deeper)
+  if (!data.email || !data.name) {
+    return { data: null, error: { message: 'Name and email are required' } };
+  }
+  
+  return await supabase.from('student').insert(data).select().single();
+}
+```
+
+---
+
+## PART 6 â€” BUILD AND DEPLOYMENT PIPELINE
+
+### 6.1 How Your Build Works
+
+```
+npm run dev    â†’ Vite starts a dev server with Hot Module Replacement (HMR)
+               â†’ Changes save â†’ browser updates without full refresh
+
+npm run build  â†’ 1. tsc -b   (TypeScript checks types, no output files)
+               â†’ 2. vite build (bundles JS/CSS into dist/ folder)
+               
+npm run lint   â†’ ESLint checks code style and architecture rules
+```
+
+**What Vite does at build time**:
+1. **Tree shaking**: removes unused code (if you import a 500KB library but only use 2 functions, only those 2 functions are bundled)
+2. **Code splitting**: breaks the bundle into chunks (each page is a separate chunk, loaded on demand)
+3. **Minification**: removes whitespace, shortens variable names (`studentService` â†’ `a`)
+4. **Hashing**: adds content hash to filenames (`index-CbRd28SZ.js`) for cache invalidation
+
+**Code splitting (lazy loading)**:
+```typescript
+// Without code splitting: ALL pages are bundled into one giant file
+// With lazy loading: each page is loaded only when the user navigates to it
+
+const Students = lazy(() => import('@/features/students/pages/Students').then(m => ({ default: m.Students })));
+// The Students.tsx code is only downloaded when user visits /students
+// This makes the initial page load much faster
+```
+
+---
+
+### 6.2 Environment Variables
 
 ```bash
-npm run build
+# .env (never commit this file with real values!)
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+# In your code:
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+// access with import.meta.env.VITE_* (Vite requirement: must start with VITE_)
 ```
 
-This catches:
-- TypeScript errors (type mismatches)
-- Import errors (missing files)
-- Unused variables (warnings)
-
-If `npm run build` passes, your code is structurally sound.
+**Never put secrets in `VITE_` variables** â€” they're bundled into the JavaScript that ALL users download. For operations that need real secrets (API keys, private keys), use Supabase Edge Functions (server-side).
 
 ---
 
-## 12. What to Learn Next
+### 6.3 Git Workflow for a Team
 
-### Priority 1: Understand What You Have (2 weeks)
+```bash
+# Feature branch workflow:
+git checkout -b feature/add-attendance-export  # create feature branch
+# ... make changes ...
+git add -A                                      # stage all changes
+git commit -m "feat: add Excel export for attendance"
+git push origin feature/add-attendance-export   # push to remote
 
-- [ ] Read through 3 simple services (studentService, courseService, teacherService)
-- [ ] Read through 3 simple pages (Students, Courses, Teachers)
-- [ ] Follow a data flow end-to-end: user clicks "Add Student" → form renders → submit → service.create() → toast
-- [ ] Change a small thing manually (add a field to the student form) without AI help
+# When done: create Pull Request â†’ review â†’ merge to main
 
-### Priority 2: Core React (2 weeks)
+# Your project workflow (currently solo):
+git add -A
+git commit -m "fix: late minutes calculation uses check_in_time not click time"
+git push  # pushes to main directly
+```
 
-- [ ] [React Official Tutorial](https://react.dev/learn) — the "Thinking in React" section
-- [ ] Practice: can you explain what `useState`, `useEffect`, `useMemo`, `useCallback` do from memory?
-- [ ] Practice: can you trace why a component re-renders?
-
-### Priority 3: TypeScript (1 week)
-
-- [ ] [TypeScript Handbook — The Basics](https://www.typescriptlang.org/docs/handbook/2/basic-types.html)
-- [ ] Practice: add a new optional field to the Student interface and update the form
-
-### Priority 4: SQL & Database (1 week)
-
-- [ ] Read `database/schema.sql` — understand how tables relate
-- [ ] Read `database/rls-policies.sql` — understand access control
-- [ ] Practice: write a Supabase query that joins two tables
-
-### Priority 5: Git (Ongoing)
-
-- [ ] Understand: `git status`, `git add`, `git commit`, `git push`, `git pull`
-- [ ] Practice: create a branch, make changes, merge back
-
-### The #1 Rule for Growing as a Developer
-
-> **When AI writes code for you, read it line by line and understand WHY each line exists before moving on.**
-
-Every time you skip understanding, you accumulate "comprehension debt." Eventually the codebase becomes a black box, and you can't debug or extend it. The goal isn't to memorize syntax — it's to understand *patterns* so you can recognize them everywhere.
+**Commit message convention** (Conventional Commits):
+```
+feat:     new feature
+fix:      bug fix
+chore:    maintenance (deps, config)
+refactor: code change (no behavior change)
+docs:     documentation only
+```
 
 ---
 
-## Quick Reference Card
+## PART 7 â€” YOUR PROJECT'S SPECIFIC ARCHITECTURE
 
-| I want to... | Where to look |
-|---|---|
-| Add a new page | `src/features/<feature>/pages/` + add route in `App.tsx` |
-| Add a database query | `src/features/<feature>/services/` |
-| Add a shared button/modal | `src/shared/components/ui/` |
-| Check data types | `src/shared/types/database.types.ts` |
-| Check route names | `src/app/App.tsx` |
-| Check database tables | `database/schema.sql` |
-| Add a database column | Create migration in `database/migrations/` |
-| Check permissions | `database/rls-policies.sql` |
-| Debug a query | Browser → F12 → Network tab → find the Supabase request |
-| Run the app | `npm run dev` |
-| Check for errors | `npm run build` |
-| Run linter | `npm run lint` |
+### 7.1 Data Flow for a Common Operation (Marking Attendance)
+
+```
+1. User selects date in Attendance.tsx
+   â†’ selectedDate state changes
+   â†’ useEffect fires â†’ loadAttendance() called
+
+2. loadAttendance() calls supabase:
+   - FROM enrollment JOIN student WHERE session_id = X
+   - FROM attendance WHERE session_id = X AND attendance_date = Y
+   - FROM session_date_host WHERE session_id = X AND attendance_date = Y (for override)
+   
+3. Results merged into attendance[] state
+   â†’ React re-renders the attendance list
+
+4. User clicks "Late" button for a student
+   â†’ updateAttendance(attendanceId, 'late') called
+   â†’ calculateLateMinutes(record.check_in_time) runs:
+       - reads dateOverrideTime (from override) or session.time (default)
+       - adds grace_period_minutes
+       - computes: referenceTime - graceEnd â†’ rounds to nearest minute
+   â†’ supabase.from('attendance').update({ status: 'late', late_minutes: N })
+   
+5. loadAttendance() called again â†’ UI updates to show new status
+```
+
+### 7.2 The QR Check-In Flow (Complete)
+
+```
+1. Teacher generates QR code in Attendance.tsx
+   â†’ sessionService.generateQRToken(session_id, attendance_date) called
+   â†’ Token stored in Supabase, QR URL = /checkin/{token}
+   
+2. Student scans QR with phone
+   â†’ StudentCheckIn.tsx loads at /checkin/{token}
+   â†’ Fetches session info, validates token
+   â†’ Detects student via face recognition or manual selection
+   
+3. Student confirms check-in
+   â†’ StudentCheckIn checks: session start time vs current time
+   â†’ If current_time > session_time + grace_period â†’ status = 'late'
+   â†’ Calculates late_minutes = Math.round((current_time - grace_end) / 60000)
+   â†’ Upserts attendance record via supabase
+   
+4. Teacher sees update next time they load the attendance page
+```
+
+### 7.3 The Export Pipeline
+
+```
+User choices:
+  - Report type (analytics / cross-tab / raw)
+  - Columns to include
+  - Date range, session filters
+  - Layout settings (font size, chart width, etc.)
+  - Language (Arabic/English)
+  - Format (PDF / Excel / Word)
+         â†“
+AttendanceRecords.tsx collects data from loaded state
+         â†“
+Format-specific service called:
+  PDF â†’ jsPDF + autoTable + html-to-image (for charts)
+  Excel â†’ xlsx library (XLSX.utils.aoa_to_sheet)
+  Word â†’ docx library (Document, Table, Paragraph)
+         â†“
+Blob generated â†’ browser download triggered
+  URL.createObjectURL(blob) + <a download> click
+```
+
+---
+
+## PART 8 â€” HOW TO GROW FROM HERE
+
+### 8.1 The Learning Ladder (Do These in Order)
+
+**Week 1: Read Your Own Code**
+- [ ] Read `database/schema.sql` in full â€” understand every table and its relationships
+- [ ] Read `database/rls-policies.sql` â€” understand who can access what
+- [ ] Read `src/shared/types/database.types.ts` â€” every interface = one DB table
+- [ ] Read `src/features/students/services/studentService.ts` â€” the service pattern
+- [ ] Read `src/features/students/pages/Students.tsx` â€” the page pattern
+
+**Week 2: Make Changes Without AI**
+- [ ] Add a new column to an existing table (write the migration, update schema.sql, update interface, update service)
+- [ ] Add a new field to StudentForm and save it
+- [ ] Create a simple new page with a table and search (copy Students pattern)
+
+**Week 3: SQL Practice**
+- [ ] Write a query that shows students with <75% attendance for a specific session
+- [ ] Write a query that shows the average `late_minutes` per session date
+- [ ] Write a query using a JOIN that you haven't seen in the codebase before
+
+**Week 4: TypeScript Practice**
+- [ ] Can you explain `Omit`, `Partial`, `Record`, `Pick` from memory?
+- [ ] Write a generic function that accepts any array and returns the last N items
+- [ ] Add a discriminated union type to one of the form components
+
+**Month 2: Architecture**
+- [ ] Read Martin Fowler's "Patterns of Enterprise Application Architecture" (patterns.eaa.html)
+- [ ] Read `docs/architecture.md` (the audit document) â€” understand the architectural debt
+- [ ] Plan how you would break `AttendanceRecords.tsx` into smaller components
+
+**Month 3: System Design**
+- [ ] Read "Designing Data-Intensive Applications" by Martin Kleppmann (the best book on this topic)
+- [ ] Plan what the database schema would look like if you had 1000 simultaneous users
+- [ ] Research: what is a connection pool? Why does Supabase use PgBouncer?
+
+---
+
+### 8.2 The Mental Model For Reading Any Codebase
+
+When you encounter unfamiliar code:
+
+1. **Start with the entry point** and follow the flow
+   - Web app: routing â†’ page â†’ components/services
+   - CLI tool: main() â†’ command handlers
+   - Library: public API â†’ implementation
+
+2. **Understand the data shapes** before the logic
+   - What type goes in? What type comes out?
+   - Check the interfaces/types first
+
+3. **Trust the tests** (when they exist)
+   - Tests encode the expected behavior
+   - Read tests before implementation
+
+4. **Ask "what changes?"**
+   - What state can change?
+   - What triggers those changes?
+   - What re-renders or re-fetches result?
+
+5. **Ask "what can fail?"**
+   - Where is error handling?
+   - What happens if the network fails?
+   - What happens if the user has no data?
+
+---
+
+### 8.3 Resources (All Free)
+
+| Topic | Resource |
+|-------|----------|
+| SQL | [PostgreSQL Tutorial](https://www.postgresql.org/docs/current/tutorial.html) |
+| TypeScript | [TypeScript Handbook](https://www.typescriptlang.org/docs/handbook/intro.html) |
+| React | [react.dev/learn](https://react.dev/learn) â€” especially "Thinking in React" |
+| Web fundamentals | [web.dev/learn](https://web.dev/learn) |
+| System design | [System Design Primer](https://github.com/donnemartin/system-design-primer) |
+| Security | [OWASP Top Ten](https://owasp.org/www-project-top-ten/) |
+| Git | [Pro Git Book](https://git-scm.com/book/en/v2) (free online) |
+
+---
+
+### 8.4 The One Rule That Separates Professionals from Vibe Coders
+
+> **When AI writes code for you, read every line and be able to answer: "Why does this line exist, and what would break if I deleted it?"**
+
+If you can't answer that for a line of code in your codebase, you don't own it. You're just hosting it.
+
+The goal is not to memorize syntax. You'll always have documentation and AI for syntax. The goal is to build the **intuition** that lets you:
+- Predict what will break when you change something
+- Debug without guessing
+- Design systems instead of assembling them
+- Write code that communicates intent to other humans
+
+That intuition comes from understanding â€” not from copying working code. Every time you understand ONE concept deeply, you unlock 10 more. The leverage is enormous.
