@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import '@/features/attendance/styles/win2k.css';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/Card';
 import { Button } from '@/shared/components/ui/Button';
 import { Badge } from '@/shared/components/ui/Badge';
@@ -1926,946 +1927,586 @@ export function Attendance() {
   const courseName = sessionInfo?.course_name || 'Unknown Course';
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
-      {/* Breadcrumb Navigation */}
-      <Breadcrumb items={[
-        { label: 'Sessions', path: '/sessions' },
-        { label: courseName },
-        { label: 'Attendance' },
-      ]} />
-      {/* Page Header */}
-      <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 rounded-2xl p-6 shadow-lg">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-3">
-              <span className="text-3xl">📋</span> Mark Attendance
-            </h1>
-            <p className="text-white/80 text-sm mt-1">
-              {courseName} &bull; {session.day || ''} {(dateOverrideTime ?? session.time) ? `@ ${dateOverrideTime ?? session.time}` : ''}
-              {(dateOverrideTime || dateOverrideEndTime) && <span className="ml-2 text-xs bg-white/20 rounded px-1.5 py-0.5">⏱ Time override</span>}
-            </p>
-          </div>
-          {selectedDate && !sessionNotHeld && (
-            <div className="flex gap-2">
-              <Button
-                onClick={() => {
-                  if (!selectedAddress || selectedAddress === '') {
-                    toast.warning('Please select a host address first before generating check-in.');
-                    return;
-                  }
-                  setShowQRModal(true);
-                }}
-                className="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white border border-white/30 flex items-center gap-2"
-              >
-                <span className="text-xl">📱</span>
-                <span className="hidden sm:inline">Check-In</span>
-              </Button>
-            </div>
-          )}
-        </div>
+    <div className="win2k-root win2k-desktop">
+      {/* ── Address bar (breadcrumb) ── */}
+      <div className="win2k-addressbar">
+        <span style={{ fontSize: 12 }}>📁</span>
+        <span style={{ fontSize: 11 }}>Sessions</span>
+        <span style={{ fontSize: 11, color: '#808080' }}> &rsaquo; </span>
+        <span style={{ fontSize: 11 }}>{courseName}</span>
+        <span style={{ fontSize: 11, color: '#808080' }}> &rsaquo; </span>
+        <span style={{ fontSize: 11, fontWeight: 'bold' }}>Attendance</span>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Select Date</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {/* Quick Navigation Buttons */}
-          <div className="flex items-center gap-2 mb-4">
-            <Button
-              onClick={() => {
-                const currentIndex = availableDates.findIndex(d => d.value === selectedDate);
-                if (currentIndex > 0) {
-                  setSelectedDate(availableDates[currentIndex - 1].value);
-                }
-              }}
-              disabled={!selectedDate || availableDates.findIndex(d => d.value === selectedDate) === 0}
-              className="bg-gray-600 hover:bg-gray-700 flex-1 sm:flex-none"
-            >
-              ← Previous
-            </Button>
-            
-            <div className="flex-1 text-center">
-              {selectedDate && (
-                <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {format(new Date(selectedDate), 'EEEE, MMM dd, yyyy')}
-                </div>
-              )}
-            </div>
-            
-            <Button
-              onClick={() => {
-                const currentIndex = availableDates.findIndex(d => d.value === selectedDate);
-                if (currentIndex < availableDates.length - 1) {
-                  setSelectedDate(availableDates[currentIndex + 1].value);
-                }
-              }}
-              disabled={!selectedDate || availableDates.findIndex(d => d.value === selectedDate) === availableDates.length - 1}
-              className="bg-gray-600 hover:bg-gray-700 flex-1 sm:flex-none"
-            >
-              Next →
-            </Button>
+      {/* ── Main Window ── */}
+      <div className="win2k-window">
+        {/* Title bar */}
+        <div className="win2k-titlebar">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span className="win2k-titlebar-icon">📋</span>
+            <span>Mark Attendance — {courseName}</span>
+            {session.day && <span style={{ fontWeight: 'normal', opacity: 0.85 }}>&nbsp;({session.day}{(dateOverrideTime ?? session.time) ? ` @ ${dateOverrideTime ?? session.time}` : ''})</span>}
+            {(dateOverrideTime || dateOverrideEndTime) && (
+              <span className="win2k-badge" style={{ marginLeft: 6 }}>⏱ Override</span>
+            )}
           </div>
-          
-          {/* Dropdown for jumping to specific date */}
-          <details className="mt-3">
-            <summary className="cursor-pointer text-sm text-blue-600 hover:text-blue-800 font-medium">
-              📅 Jump to specific date
-            </summary>
-            <div className="mt-3">
-              <Select
-                value={selectedDate}
-                onChange={(value) => setSelectedDate(value)}
-                options={availableDates}
-                placeholder="Select a date"
-              />
-            </div>
-          </details>
-          
-          {availableDates.length === 0 && (
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-              No attendance dates available. Please check the session schedule.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+          <div className="win2k-titlebar-controls">
+            <button className="win2k-titlebar-btn" aria-label="Minimize">_</button>
+            <button className="win2k-titlebar-btn" aria-label="Maximize">□</button>
+            <button className="win2k-titlebar-btn" style={{ fontWeight: 900 }} aria-label="Close">✕</button>
+          </div>
+        </div>
 
-      {/* Per-date time override panel — visible to all teachers/admins when a date is selected */}
-      {selectedDate && (
-        <Card className="border-amber-200 dark:border-amber-700/50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <span>⏱</span>
-              <span>Session Time for {format(new Date(selectedDate), 'MMM dd, yyyy')}</span>
-              {(dateOverrideTime || dateOverrideEndTime) && (
-                <span className="text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-600 rounded px-2 py-0.5 font-medium">
-                  Override active
+        {/* Toolbar row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 6px', borderBottom: '1px solid #808080', background: '#D4D0C8', flexWrap: 'wrap' }}>
+          {selectedDate && !sessionNotHeld && (
+            <button
+              className="win2k-btn win2k-btn-blue"
+              onClick={() => {
+                if (!selectedAddress || selectedAddress === '') {
+                  toast.warning('Please select a host address first before generating check-in.');
+                  return;
+                }
+                setShowQRModal(true);
+              }}
+            >
+              📱 QR Check-In
+            </button>
+          )}
+          <span style={{ fontSize: 10, color: '#444', marginLeft: 'auto' }}>
+            Session: {courseName}
+          </span>
+        </div>
+
+        <div className="win2k-content" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+
+          {/* ── Date Selector Window ── */}
+          <div className="win2k-groupbox" style={{ position: 'relative' }}>
+            <span className="win2k-groupbox-legend">📅 Select Session Date</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
+              <button
+                className="win2k-btn"
+                onClick={() => {
+                  const currentIndex = availableDates.findIndex(d => d.value === selectedDate);
+                  if (currentIndex > 0) setSelectedDate(availableDates[currentIndex - 1].value);
+                }}
+                disabled={!selectedDate || availableDates.findIndex(d => d.value === selectedDate) === 0}
+              >
+                ◄ Previous
+              </button>
+              <div className="win2k-inset" style={{ flex: 1, minWidth: 160, textAlign: 'center', padding: '3px 8px' }}>
+                <span style={{ fontSize: 11, fontWeight: 'bold' }}>
+                  {selectedDate ? format(new Date(selectedDate), 'EEEE, MMM dd, yyyy') : '— No date selected —'}
                 </span>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {!editingTimeOverride ? (
-              <div className="space-y-3">
-                <div className="flex items-center flex-wrap gap-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Start:</span>
-                    <span className="font-mono font-semibold text-gray-900 dark:text-white">
+              </div>
+              <button
+                className="win2k-btn"
+                onClick={() => {
+                  const currentIndex = availableDates.findIndex(d => d.value === selectedDate);
+                  if (currentIndex < availableDates.length - 1) setSelectedDate(availableDates[currentIndex + 1].value);
+                }}
+                disabled={!selectedDate || availableDates.findIndex(d => d.value === selectedDate) === availableDates.length - 1}
+              >
+                Next ►
+              </button>
+            </div>
+            <details>
+              <summary style={{ cursor: 'pointer', fontSize: 11, color: '#000080', fontWeight: 'bold' }}>
+                📅 Jump to specific date...
+              </summary>
+              <div style={{ marginTop: 6 }}>
+                <Select
+                  value={selectedDate}
+                  onChange={(value) => setSelectedDate(value)}
+                  options={availableDates}
+                  placeholder="Select a date"
+                />
+              </div>
+            </details>
+            {availableDates.length === 0 && (
+              <div className="win2k-warning-box" style={{ marginTop: 4 }}>
+                No attendance dates available. Please check the session schedule.
+              </div>
+            )}
+          </div>
+
+          {/* ── Time Override Panel ── */}
+          {selectedDate && (
+            <div className="win2k-groupbox" style={{ position: 'relative' }}>
+              <span className="win2k-groupbox-legend">
+                ⏱ Session Time — {format(new Date(selectedDate), 'MMM dd, yyyy')}
+                {(dateOverrideTime || dateOverrideEndTime) && (
+                  <span className="win2k-badge" style={{ marginLeft: 6 }}>Override Active</span>
+                )}
+              </span>
+              {!editingTimeOverride ? (
+                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span className="win2k-label">Start:</span>
+                    <span className="win2k-inset" style={{ padding: '1px 8px', display: 'inline-block', minWidth: 60, textAlign: 'center', fontFamily: 'Courier New, monospace', fontWeight: 'bold', fontSize: 12 }}>
                       {dateOverrideTime ?? session?.time ?? '—'}
                     </span>
                     {dateOverrideTime && session?.time && (
-                      <span className="text-xs text-gray-400 dark:text-gray-500">(default: {session.time})</span>
+                      <span className="win2k-subtext">(default: {session.time})</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">End:</span>
-                    <span className="font-mono font-semibold text-gray-900 dark:text-white">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span className="win2k-label">End:</span>
+                    <span className="win2k-inset" style={{ padding: '1px 8px', display: 'inline-block', minWidth: 60, textAlign: 'center', fontFamily: 'Courier New, monospace', fontWeight: 'bold', fontSize: 12 }}>
                       {dateOverrideEndTime ?? '—'}
                     </span>
                   </div>
                   {!(dateOverrideTime || dateOverrideEndTime) && (
-                    <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded px-2 py-0.5">
-                      session default
-                    </span>
+                    <span className="win2k-badge">session default</span>
                   )}
-                  <div className="flex gap-2 ml-auto">
+                  <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
                     <button
+                      className="win2k-btn win2k-btn-amber"
                       onClick={() => {
                         setTimeOverrideInput(dateOverrideTime ?? session?.time ?? '');
                         setEndTimeOverrideInput(dateOverrideEndTime ?? '');
                         setEditingTimeOverride(true);
                       }}
-                      className="text-xs px-3 py-1.5 rounded bg-amber-500 hover:bg-amber-600 text-white font-medium transition-colors"
                     >
-                      ✏️ {(dateOverrideTime || dateOverrideEndTime) ? 'Edit Override' : 'Set Override'}
+                      ✏ {(dateOverrideTime || dateOverrideEndTime) ? 'Edit Override' : 'Set Override'}
                     </button>
                     {(dateOverrideTime || dateOverrideEndTime) && (
                       <button
+                        className="win2k-btn win2k-btn-red"
                         onClick={handleClearTimeOverride}
                         disabled={savingOverride}
-                        className="text-xs px-3 py-1.5 rounded bg-red-500 hover:bg-red-600 text-white font-medium transition-colors disabled:opacity-50"
                       >
                         {savingOverride ? '…' : '🗑 Clear'}
                       </button>
                     )}
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex items-center flex-wrap gap-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">Start:</span>
-                    <input
-                      type="time"
-                      value={timeOverrideInput}
-                      onChange={(e) => setTimeOverrideInput(e.target.value)}
-                      className="text-sm border border-gray-300 dark:border-gray-600 rounded px-3 py-1.5 dark:bg-gray-800 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">End:</span>
-                    <input
-                      type="time"
-                      value={endTimeOverrideInput}
-                      onChange={(e) => setEndTimeOverrideInput(e.target.value)}
-                      className="text-sm border border-gray-300 dark:border-gray-600 rounded px-3 py-1.5 dark:bg-gray-800 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    />
-                    <span className="text-xs text-gray-400">(optional)</span>
-                  </div>
-                  <div className="flex gap-2 ml-auto">
-                    <button
-                      onClick={handleSaveTimeOverride}
-                      disabled={savingOverride}
-                      className="text-xs px-3 py-1.5 rounded bg-green-600 hover:bg-green-700 text-white font-medium transition-colors disabled:opacity-50"
-                    >
-                      {savingOverride ? 'Saving…' : '✓ Save'}
-                    </button>
-                    <button
-                      onClick={() => setEditingTimeOverride(false)}
-                      disabled={savingOverride}
-                      className="text-xs px-3 py-1.5 rounded bg-gray-500 hover:bg-gray-600 text-white font-medium transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-                <div className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded p-2">
-                  💡 <strong>Start time</strong> affects late-arrival calculation. <strong>End time</strong> is informational and helps document the actual session schedule for this date.
-                  Leave a field empty to use the session default.
-                </div>
-              </div>
-            )}
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-              Override affects this date only. To manage all date overrides at once, use the Host Table in Sessions.
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {selectedDate && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Session Status</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <label className="flex items-center gap-3 p-3 border dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700">
-              <input
-                type="checkbox"
-                checked={sessionNotHeld}
-                onChange={handleSessionNotHeld}
-                className="h-5 w-5 text-red-600 focus:ring-red-500 border-gray-300 dark:border-gray-500 rounded"
-              />
-              <div>
-                <span className="font-medium text-gray-900 dark:text-white">Session Not Held</span>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Mark this date if the session was cancelled or did not take place</p>
-              </div>
-            </label>
-          </CardContent>
-        </Card>
-      )}
-
-      {selectedDate && hostAddresses.length > 0 && !sessionNotHeld && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Host Address</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Select
-              value={selectedAddress}
-              onChange={handleHostAddressChange}
-              options={hostAddresses.map(host => ({
-                value: `${host.student_id}|||${host.address}`,
-                label: host.host_date === selectedDate 
-                  ? `📅 ${host.student_name} - ${host.address} (Scheduled Today)`
-                  : `${host.student_name} - ${host.address}`
-              }))}
-              placeholder="Select host address"
-            />
-            {selectedAddress && selectedAddress !== 'SESSION_NOT_HELD' && (
-              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-800">
-                  📍 Selected Address: <span className="font-medium">{selectedAddress.split('|||')[1] || selectedAddress}</span>
-                </p>
-                
-                {/* GPS Coordinates Section */}
-                <div className="mt-4 border-t border-blue-200 pt-4">
-                  <p className="text-sm font-medium text-blue-900 mb-2">🌐 GPS Coordinates (for proximity validation)</p>
-                  
-                  {/* Show current coordinates if set */}
-                  {hostCoordinates ? (
-                    <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded">
-                      <p className="text-sm text-green-800">
-                        ✅ <span className="font-medium">Coordinates set:</span> {hostCoordinates.lat.toFixed(6)}, {hostCoordinates.lon.toFixed(6)}
-                      </p>
-                      <p className="text-xs text-green-600 mt-1">
-                        Proximity validation is active. Students must be within {session?.proximity_radius || '?'}m to check in.
-                      </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span className="win2k-label">Start:</span>
+                      <input type="time" value={timeOverrideInput} onChange={(e) => setTimeOverrideInput(e.target.value)} />
                     </div>
-                  ) : (
-                    <p className="text-xs text-amber-700 mb-3 p-2 bg-amber-50 border border-amber-200 rounded">
-                      ⚠️ No coordinates set. Proximity validation is disabled. Students can check in from anywhere.
-                    </p>
-                  )}
-                  
-                  <button
-                    onClick={async () => {
-                      const currentCoords = hostCoordinates ? `${hostCoordinates.lat},${hostCoordinates.lon}` : '';
-                      const coords = prompt(
-                        'Enter GPS coordinates in format: latitude,longitude\n\n' +
-                        'Example: 33.5138,36.2765\n\n' +
-                        'How to find coordinates:\n' +
-                        '• Right-click a location on Google Maps\n' +
-                        '• Use your phone GPS app\n' +
-                        '• Leave blank to disable proximity validation',
-                        currentCoords
-                      );
-                      
-                      if (coords === null) return; // Cancelled
-                      
-                      // Get selected host info
-                      const addressParts = selectedAddress.split('|||');
-                      const hostId = addressParts[0];
-                      const hostInfo = hostAddresses.find(h => h.student_id === hostId);
-                      const isTeacher = hostInfo?.is_teacher || hostInfo?.student_name?.includes('Teacher');
-                      
-                      if (!hostId || !hostInfo) {
-                        toast.warning('No host selected. Please select a host address first.');
-                        return;
-                      }
-                      
-                      if (coords.trim() === '') {
-                        // Clear coordinates
-                        setConfirmClearGPS({ hostId, isTeacher: !!isTeacher });
-                        return;
-                      }
-                      
-                      // Parse coordinates
-                      const parts = coords.split(',');
-                      if (parts.length !== 2) {
-                        toast.error('Invalid format. Please use: latitude,longitude');
-                        return;
-                      }
-                      
-                      const lat = parseFloat(parts[0].trim());
-                      const lon = parseFloat(parts[1].trim());
-                      
-                      const isValidLat = !isNaN(lat) && lat >= -90 && lat <= 90;
-                      const isValidLon = !isNaN(lon) && lon >= -180 && lon <= 180;
-                      
-                      if (!isValidLat || !isValidLon) {
-                        toast.error('Invalid coordinates. Latitude must be -90 to 90, longitude must be -180 to 180.');
-                        return;
-                      }
-                      
-                      // Save coordinates to student/teacher table (persistent)
-                      const table = isTeacher ? Tables.TEACHER : Tables.STUDENT;
-                      const idField = isTeacher ? 'teacher_id' : 'student_id';
-                      
-                      const { error } = await supabase
-                        .from(table)
-                        .update({ 
-                          address_latitude: lat,
-                          address_longitude: lon 
-                        })
-                        .eq(idField, hostId);
-                      
-                      if (error) {
-                        console.error('Failed to save coordinates:', error);
-                        toast.error('Failed to save coordinates. Please try again.');
-                      } else {
-                        setHostCoordinates({ lat, lon });
-                        // Update local hostAddresses state
-                        setHostAddresses(prev => prev.map(h => 
-                          h.student_id === hostId 
-                            ? { ...h, address_latitude: lat, address_longitude: lon }
-                            : h
-                        ));
-                        toast.success('Coordinates saved! Lat: ' + lat + ', Lon: ' + lon + '. Proximity validation is now enabled.');
-                      }
-                    }}
-                    className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    📍 Set/Update GPS Coordinates
-                  </button>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                    💡 Tip: Proximity radius is {session?.proximity_radius || 'not set'}{session?.proximity_radius ? 'm' : ''}. Update in Sessions page if needed.
-                  </p>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {selectedDate && bookReferences.length > 0 && !sessionNotHeld && (
-        <Card>
-          <CardHeader>
-            <CardTitle>📚 Book Reference</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Select
-              value={selectedBookReference}
-              onChange={handleBookReferenceChange}
-              options={[
-                { value: '', label: 'Select what topic was covered today...' },
-                ...(() => {
-                  const chapters = bookReferences.filter(r => !r.parent_id);
-                  const opts: Array<{ value: string; label: string }> = [];
-                  chapters.forEach(ch => {
-                    opts.push({ value: ch.reference_id, label: `📖 ${ch.topic} (pp. ${ch.start_page}–${ch.end_page})` });
-                    const subs = bookReferences.filter(r => r.parent_id === ch.reference_id);
-                    subs.forEach(sub => {
-                      opts.push({ value: sub.reference_id, label: `    ↳ ${sub.topic} (pp. ${sub.start_page}–${sub.end_page})` });
-                    });
-                  });
-                  // Include any orphans (parent_id set but parent not found) - shouldn't happen but safe
-                  const chapterIds = new Set(chapters.map(c => c.reference_id));
-                  bookReferences.filter(r => r.parent_id && !chapterIds.has(r.parent_id)).forEach(orphan => {
-                    opts.push({ value: orphan.reference_id, label: `${orphan.topic} (pp. ${orphan.start_page}–${orphan.end_page})` });
-                  });
-                  return opts;
-                })()
-              ]}
-              placeholder="Select book reference"
-            />
-            {selectedBookReference && (
-              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                {(() => {
-                  const selected = bookReferences.find(r => r.reference_id === selectedBookReference);
-                  if (selected) {
-                    return (
-                      <div className="flex items-start gap-2">
-                        <span className="text-xl">📚</span>
-                        <div>
-                          <p className="font-semibold text-blue-900">{selected.topic}</p>
-                          <p className="text-sm text-blue-700 mt-1">
-                            Pages {selected.start_page} - {selected.end_page} ({selected.end_page - selected.start_page + 1} pages)
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
-              </div>
-            )}
-            {bookReferences.length > 0 && !selectedBookReference && (
-              <p className="mt-2 text-xs text-gray-500">
-                💡 Tip: Select which topic was covered in today's session for better tracking
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Recording Link (optional per date) */}
-      {selectedDate && !sessionNotHeld && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>🎥 Recording Link</CardTitle>
-              {recordingId && recordingUrl.trim() && (
-                <Badge variant="success" className="text-[10px]">Saved</Badge>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-              Save the replay for this attendance date. Students see it in Sessions under Recordings.
-            </p>
-            {/* Existing recording preview */}
-            {recordingId && recordingUrl.trim() && (() => {
-              const u = recordingUrl.trim().toLowerCase();
-              const providers: Array<{ test: (s: string) => boolean; name: string; icon: string; color: string }> = [
-                { test: s => /youtube\.com|youtu\.be/.test(s), name: 'YouTube', icon: '🔴', color: 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20' },
-                { test: s => /drive\.google\.com/.test(s), name: 'Drive', icon: '🟩', color: 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20' },
-                { test: s => /zoom\.(us|com)/.test(s), name: 'Zoom', icon: '🟦', color: 'border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20' },
-                { test: s => /vimeo\.com/.test(s), name: 'Vimeo', icon: '🟣', color: 'border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20' },
-                { test: s => /loom\.com/.test(s), name: 'Loom', icon: '🟠', color: 'border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20' },
-                { test: s => /teams\.microsoft\.com|teams\.live\.com/.test(s), name: 'Teams', icon: '🟪', color: 'border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-900/20' },
-                { test: s => /meet\.google\.com/.test(s), name: 'Meet', icon: '🟢', color: 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20' },
-                { test: s => /t\.me\/|telegram\.me/.test(s), name: 'Telegram', icon: '✈️', color: 'border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20' },
-                { test: s => /wa\.me|whatsapp/.test(s), name: 'WhatsApp', icon: '💬', color: 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20' },
-                { test: s => /onedrive|1drv\.ms|sharepoint/.test(s), name: 'OneDrive', icon: '☁️', color: 'border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20' },
-                { test: s => /dropbox\.com/.test(s), name: 'Dropbox', icon: '📦', color: 'border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20' },
-                { test: s => /samsungcloud|samsung\.com/.test(s), name: 'Samsung', icon: '📱', color: 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40' },
-                { test: s => /upgone/i.test(s), name: 'Upgone', icon: '🎙️', color: 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20' },
-                { test: s => /soundcloud\.com/.test(s), name: 'SoundCloud', icon: '🎵', color: 'border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20' },
-                { test: s => /\.(mp4|webm|ogg|mov|avi|mkv|m4v|mp3|wav|aac|m4a|flac|3gp)(\?|$)/.test(s), name: 'Media', icon: '🎞️', color: 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40' },
-              ];
-              const match = providers.find(p => p.test(u)) || { name: 'Link', icon: '🔗', color: 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40' };
-              return (
-                <div className={`mb-3 p-3 rounded-lg border ${match.color}`}>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-lg flex-shrink-0">{match.icon}</span>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">{match.name} Recording</p>
-                        <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate max-w-[300px]">{recordingUrl.trim()}</p>
-                      </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span className="win2k-label">End:</span>
+                      <input type="time" value={endTimeOverrideInput} onChange={(e) => setEndTimeOverrideInput(e.target.value)} />
+                      <span className="win2k-subtext">(optional)</span>
                     </div>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      <a href={recordingUrl.trim()} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/40 rounded-md hover:bg-blue-200 dark:hover:bg-blue-800/60 transition-colors">
-                        🔗 Open
-                      </a>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (window.confirm('Remove this recording link? Students will no longer see it.')) {
-                            setRecordingUrl('');
-                            saveRecordingUrl('');
-                          }
-                        }}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 rounded-md hover:bg-red-100 dark:hover:bg-red-800/50 transition-colors"
-                      >
-                        🗑 Remove
+                    <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
+                      <button className="win2k-btn win2k-btn-green" onClick={handleSaveTimeOverride} disabled={savingOverride}>
+                        {savingOverride ? 'Saving…' : '✓ Save'}
+                      </button>
+                      <button className="win2k-btn" onClick={() => setEditingTimeOverride(false)} disabled={savingOverride}>
+                        Cancel
                       </button>
                     </div>
                   </div>
+                  <div className="win2k-info-box">
+                    💡 <strong>Start time</strong> affects late-arrival calculation. <strong>End time</strong> is informational.
+                    Leave a field empty to use the session default.
+                  </div>
                 </div>
-              );
-            })()}
-            <div className="flex gap-2">
-              <div className="flex-1 relative">
+              )}
+              <p className="win2k-subtext" style={{ marginTop: 4 }}>
+                Override affects this date only. To manage all overrides, use the Host Table in Sessions.
+              </p>
+            </div>
+          )}
+
+          {/* ── Session Status ── */}
+          {selectedDate && (
+            <div className="win2k-groupbox" style={{ position: 'relative' }}>
+              <span className="win2k-groupbox-legend">Session Status</span>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 11 }}>
+                <input
+                  type="checkbox"
+                  checked={sessionNotHeld}
+                  onChange={handleSessionNotHeld}
+                />
+                <div>
+                  <span style={{ fontWeight: 'bold', fontSize: 11 }}>Session Not Held</span>
+                  <p className="win2k-subtext">Mark this date if the session was cancelled or did not take place</p>
+                </div>
+              </label>
+            </div>
+          )}
+
+          {selectedDate && hostAddresses.length > 0 && !sessionNotHeld && (
+            <div className="win2k-groupbox" style={{ position: 'relative' }}>
+              <span className="win2k-groupbox-legend">🏠 Host Address</span>
+              <Select
+                value={selectedAddress}
+                onChange={handleHostAddressChange}
+                options={hostAddresses.map(host => ({
+                  value: `${host.student_id}|||${host.address}`,
+                  label: host.host_date === selectedDate 
+                    ? `[Today] ${host.student_name} - ${host.address}`
+                    : `${host.student_name} - ${host.address}`
+                }))}
+                placeholder="Select host address"
+              />
+              {selectedAddress && selectedAddress !== 'SESSION_NOT_HELD' && (
+                <div style={{ marginTop: 8 }}>
+                  <div className="win2k-inset" style={{ padding: '4px 8px', marginBottom: 6 }}>
+                    <span className="win2k-label">📍 Address: </span>
+                    <span style={{ fontSize: 11 }}>{selectedAddress.split('|||')[1] || selectedAddress}</span>
+                  </div>
+                  
+                  {/* GPS Coordinates Section */}
+                  <div className="win2k-groupbox" style={{ position: 'relative', marginTop: 6 }}>
+                    <span className="win2k-groupbox-legend">🌐 GPS Coordinates</span>
+                    {hostCoordinates ? (
+                      <div className="win2k-success-box">
+                        ✅ <strong>Coordinates set:</strong> {hostCoordinates.lat.toFixed(6)}, {hostCoordinates.lon.toFixed(6)}<br />
+                        <span className="win2k-subtext">Proximity validation active — students must be within {session?.proximity_radius || '?'}m</span>
+                      </div>
+                    ) : (
+                      <div className="win2k-warning-box">
+                        ⚠️ No coordinates set. Proximity validation disabled. Students can check in from anywhere.
+                      </div>
+                    )}
+                    <button
+                      className="win2k-btn win2k-btn-blue"
+                      style={{ marginTop: 6 }}
+                      onClick={async () => {
+                        const currentCoords = hostCoordinates ? `${hostCoordinates.lat},${hostCoordinates.lon}` : '';
+                        const coords = prompt(
+                          'Enter GPS coordinates in format: latitude,longitude\n\nExample: 33.5138,36.2765\n\nHow to find coordinates:\n• Right-click a location on Google Maps\n• Use your phone GPS app\n• Leave blank to disable proximity validation',
+                          currentCoords
+                        );
+                        if (coords === null) return;
+                        const addressParts = selectedAddress.split('|||');
+                        const hostId = addressParts[0];
+                        const hostInfo = hostAddresses.find(h => h.student_id === hostId);
+                        const isTeacherHost = hostInfo?.is_teacher || hostInfo?.student_name?.includes('Teacher');
+                        if (!hostId || !hostInfo) { toast.warning('No host selected.'); return; }
+                        if (coords.trim() === '') { setConfirmClearGPS({ hostId, isTeacher: !!isTeacherHost }); return; }
+                        const parts = coords.split(',');
+                        if (parts.length !== 2) { toast.error('Invalid format. Please use: latitude,longitude'); return; }
+                        const lat = parseFloat(parts[0].trim());
+                        const lon = parseFloat(parts[1].trim());
+                        if (isNaN(lat) || lat < -90 || lat > 90 || isNaN(lon) || lon < -180 || lon > 180) {
+                          toast.error('Invalid coordinates range.'); return;
+                        }
+                        const table = isTeacherHost ? Tables.TEACHER : Tables.STUDENT;
+                        const idField = isTeacherHost ? 'teacher_id' : 'student_id';
+                        const { error } = await supabase.from(table).update({ address_latitude: lat, address_longitude: lon }).eq(idField, hostId);
+                        if (error) { toast.error('Failed to save coordinates.'); }
+                        else {
+                          setHostCoordinates({ lat, lon });
+                          setHostAddresses(prev => prev.map(h => h.student_id === hostId ? { ...h, address_latitude: lat, address_longitude: lon } : h));
+                          toast.success('Coordinates saved! Proximity validation enabled.');
+                        }
+                      }}
+                    >
+                      📍 Set/Update GPS Coordinates
+                    </button>
+                    <p className="win2k-subtext" style={{ marginTop: 4 }}>
+                      Proximity radius: {session?.proximity_radius || 'not set'}{session?.proximity_radius ? 'm' : ''}. Update in Sessions page.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+          {/* ── Book Reference ── */}
+          {selectedDate && bookReferences.length > 0 && !sessionNotHeld && (
+            <div className="win2k-groupbox" style={{ position: 'relative' }}>
+              <span className="win2k-groupbox-legend">📚 Book Reference</span>
+              <Select
+                value={selectedBookReference}
+                onChange={handleBookReferenceChange}
+                options={[
+                  { value: '', label: 'Select what topic was covered today...' },
+                  ...(() => {
+                    const chapters = bookReferences.filter(r => !r.parent_id);
+                    const opts: Array<{ value: string; label: string }> = [];
+                    chapters.forEach(ch => {
+                      opts.push({ value: ch.reference_id, label: `📖 ${ch.topic} (pp. ${ch.start_page}–${ch.end_page})` });
+                      bookReferences.filter(r => r.parent_id === ch.reference_id).forEach(sub => {
+                        opts.push({ value: sub.reference_id, label: `  ↳ ${sub.topic} (pp. ${sub.start_page}–${sub.end_page})` });
+                      });
+                    });
+                    const chapterIds = new Set(chapters.map(c => c.reference_id));
+                    bookReferences.filter(r => r.parent_id && !chapterIds.has(r.parent_id)).forEach(orphan => {
+                      opts.push({ value: orphan.reference_id, label: `${orphan.topic} (pp. ${orphan.start_page}–${orphan.end_page})` });
+                    });
+                    return opts;
+                  })()
+                ]}
+                placeholder="Select book reference"
+              />
+              {selectedBookReference && (() => {
+                const selected = bookReferences.find(r => r.reference_id === selectedBookReference);
+                if (selected) return (
+                  <div className="win2k-inset" style={{ marginTop: 6, padding: '4px 8px' }}>
+                    <span className="win2k-label">📚 {selected.topic}</span>
+                    <p className="win2k-subtext">Pages {selected.start_page} - {selected.end_page} ({selected.end_page - selected.start_page + 1} pages)</p>
+                  </div>
+                );
+                return null;
+              })()}
+              {bookReferences.length > 0 && !selectedBookReference && (
+                <p className="win2k-subtext" style={{ marginTop: 4 }}>💡 Select which topic was covered in today&apos;s session for better tracking</p>
+              )}
+            </div>
+          )}
+
+          {/* ── Recording Link ── */}
+          {selectedDate && !sessionNotHeld && (
+            <div className="win2k-groupbox" style={{ position: 'relative' }}>
+              <span className="win2k-groupbox-legend">
+                🎥 Recording Link
+                {recordingId && recordingUrl.trim() && <span className="win2k-badge" style={{ marginLeft: 4 }}>Saved</span>}
+              </span>
+              <p className="win2k-subtext" style={{ marginBottom: 6 }}>Save the replay for this date. Students see it in Sessions under Recordings.</p>
+              {recordingId && recordingUrl.trim() && (() => {
+                const u = recordingUrl.trim().toLowerCase();
+                const prov = [
+                  { test: (s: string) => /youtube\.com|youtu\.be/.test(s), name: 'YouTube', icon: '▶' },
+                  { test: (s: string) => /zoom\.(us|com)/.test(s), name: 'Zoom', icon: '🟦' },
+                  { test: (s: string) => /drive\.google\.com/.test(s), name: 'Google Drive', icon: '🟩' },
+                  { test: (s: string) => /teams\.microsoft\.com/.test(s), name: 'MS Teams', icon: '🟪' },
+                ];
+                const match = prov.find(p => p.test(u)) || { name: 'Link', icon: '🔗' };
+                return (
+                  <div className="win2k-inset" style={{ marginBottom: 6, padding: '4px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4 }}>
+                    <span style={{ fontSize: 11 }}>{match.icon} {match.name}: <span style={{ fontFamily: 'Courier New, monospace', fontSize: 10 }}>{recordingUrl.trim().substring(0, 50)}{recordingUrl.trim().length > 50 ? '…' : ''}</span></span>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <a href={recordingUrl.trim()} target="_blank" rel="noopener noreferrer" className="win2k-btn win2k-btn-blue" style={{ textDecoration: 'none' }}>🔗 Open</a>
+                      <button className="win2k-btn win2k-btn-red" type="button" onClick={() => { if (window.confirm('Remove this recording link?')) { setRecordingUrl(''); saveRecordingUrl(''); } }}>🗑 Remove</button>
+                    </div>
+                  </div>
+                );
+              })()}
+              <div style={{ display: 'flex', gap: 4 }}>
                 <input
                   type="url"
                   value={recordingUrl}
                   onChange={e => setRecordingUrl(e.target.value)}
                   placeholder={recordingId ? 'Update recording link...' : 'Paste recording link (YouTube, Zoom, Drive, etc.)...'}
-                  className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent pr-16"
+                  style={{ flex: 1, fontFamily: 'Courier New, monospace', fontSize: 11 }}
                   onKeyDown={e => { if (e.key === 'Enter') saveRecordingUrl(); }}
                 />
-                {recordingUrl.trim() && !recordingId && (() => {
-                  const u = recordingUrl.trim().toLowerCase();
-                  const providers: Array<{ test: (s: string) => boolean; name: string; icon: string }> = [
-                    { test: s => /youtube\.com|youtu\.be/.test(s), name: 'YouTube', icon: '🔴' },
-                    { test: s => /drive\.google\.com/.test(s), name: 'Drive', icon: '🟩' },
-                    { test: s => /zoom\.(us|com)/.test(s), name: 'Zoom', icon: '🟦' },
-                    { test: s => /vimeo\.com/.test(s), name: 'Vimeo', icon: '🟣' },
-                    { test: s => /loom\.com/.test(s), name: 'Loom', icon: '🟠' },
-                    { test: s => /teams\.microsoft\.com|teams\.live\.com/.test(s), name: 'Teams', icon: '🟪' },
-                    { test: s => /meet\.google\.com/.test(s), name: 'Meet', icon: '🟢' },
-                    { test: s => /t\.me\/|telegram\.me/.test(s), name: 'Telegram', icon: '✈️' },
-                    { test: s => /wa\.me|whatsapp/.test(s), name: 'WhatsApp', icon: '💬' },
-                    { test: s => /onedrive|1drv\.ms|sharepoint/.test(s), name: 'OneDrive', icon: '☁️' },
-                    { test: s => /dropbox\.com/.test(s), name: 'Dropbox', icon: '📦' },
-                    { test: s => /samsungcloud|samsung\.com/.test(s), name: 'Samsung', icon: '📱' },
-                    { test: s => /upgone/i.test(s), name: 'Upgone', icon: '🎙️' },
-                    { test: s => /soundcloud\.com/.test(s), name: 'SoundCloud', icon: '🎵' },
-                    { test: s => /streamable\.com/.test(s), name: 'Streamable', icon: '📹' },
-                    { test: s => /dailymotion\.com|dai\.ly/.test(s), name: 'Dailymotion', icon: '🎬' },
-                    { test: s => /\.(mp4|webm|ogg|mov|avi|mkv|m4v|mp3|wav|aac|m4a|flac|3gp)(\?|$)/.test(s), name: 'Media', icon: '🎞️' },
-                  ];
-                  const match = providers.find(p => p.test(u));
-                  return match ? (
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full pointer-events-none">
-                      {match.icon} {match.name}
-                    </span>
-                  ) : null;
-                })()}
+                <button
+                  className="win2k-btn win2k-btn-blue"
+                  onClick={() => saveRecordingUrl()}
+                  disabled={savingRecording || !recordingUrl.trim()}
+                >
+                  {savingRecording ? '...' : recordingId ? '💾 Update' : '💾 Save'}
+                </button>
               </div>
-              <Button
-                onClick={() => saveRecordingUrl()}
-                disabled={savingRecording || !recordingUrl.trim()}
-                size="sm"
-                variant={recordingId ? 'outline' : 'primary'}
-              >
-                {savingRecording ? '...' : recordingId ? '💾 Update' : '💾 Save'}
-              </Button>
             </div>
-            <details className="mt-3">
-              <summary className="text-[11px] text-gray-400 cursor-pointer hover:text-gray-600 dark:hover:text-gray-300 select-none">
-                ℹ️ Supported formats & tips
-              </summary>
-              <div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400 space-y-1 bg-gray-50 dark:bg-gray-800/40 rounded-lg p-3 border border-gray-100 dark:border-gray-700">
-                <p className="font-medium text-gray-600 dark:text-gray-300 text-xs">Supported recording sources:</p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-0.5">
-                  <span>🔴 YouTube / YouTube Live</span>
-                  <span>🟦 Zoom recordings</span>
-                  <span>🟢 Google Meet</span>
-                  <span>🟩 Google Drive videos</span>
-                  <span>🟣 Vimeo</span>
-                  <span>🟠 Loom</span>
-                  <span>🟪 MS Teams</span>
-                  <span>📱 Samsung Recorder</span>
-                  <span>🎙️ Upgone</span>
-                  <span>☁️ OneDrive / SharePoint</span>
-                  <span>📦 Dropbox</span>
-                  <span>🎵 SoundCloud</span>
-                  <span>📹 Streamable</span>
-                  <span>🎬 Dailymotion</span>
-                  <span>🎞️ Direct MP4/MP3/WAV files</span>
-                </div>
-                <p className="mt-1.5 pt-1.5 border-t border-gray-200 dark:border-gray-600">
-                  <strong>Tip:</strong> For Samsung Recorder or Upgone, upload the file to Google Drive or YouTube first, then paste the share link.
-                  Direct file URLs (MP4, MP3, WAV, etc.) will play inline in the browser.
-                </p>
-              </div>
-            </details>
-          </CardContent>
-        </Card>
-      )}
+          )}
 
-      {/* ─── Feedback Question Management ─── */}
-      {selectedDate && session && (
-        <Card>
-          <CardContent className="pt-6 space-y-4">
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <div>
-                <h3 className="text-base font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                  📋 Feedback Setup
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  This config applies only to {format(new Date(selectedDate), 'MMMM dd, yyyy')}.
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
+          {/* ─── Feedback Question Management ─── */}
+          {selectedDate && session && (
+            <div className="win2k-groupbox" style={{ position: 'relative' }}>
+              <span className="win2k-groupbox-legend">📋 Feedback Setup — {format(new Date(selectedDate), 'MMM dd, yyyy')}</span>
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                <span className="win2k-label">Feedback:</span>
                 <button
                   type="button"
+                  className="win2k-btn"
+                  style={{ background: session?.feedback_enabled ? '#008000' : '#800000', color: '#FFFFFF' }}
                   onClick={async () => {
                     const next = !session?.feedback_enabled;
                     const { error } = await feedbackService.toggleFeedback(sessionId!, next);
                     if (error) { toast.error('Failed to toggle feedback'); return; }
                     setSession(prev => prev ? { ...prev, feedback_enabled: next } : prev);
-                    toast.success(next ? 'Feedback enabled — students will see the form after check-in' : 'Feedback disabled');
+                    toast.success(next ? 'Feedback enabled' : 'Feedback disabled');
                   }}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    session?.feedback_enabled ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600'
-                  }`}
-                  title={session?.feedback_enabled ? 'Feedback is ON for students' : 'Feedback is OFF — students will NOT see the form'}
                 >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    session?.feedback_enabled ? 'translate-x-6' : 'translate-x-1'
-                  }`} />
+                  {session?.feedback_enabled ? '● ON' : '○ OFF'}
                 </button>
-                <span className={`text-xs font-medium ${
-                  session?.feedback_enabled ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400'
-                }`}>
-                  {session?.feedback_enabled ? 'ON' : 'OFF'}
-                </span>
-                <span className="text-xs font-normal bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded-full">
-                  {fbQuestions.length} question{fbQuestions.length === 1 ? '' : 's'}
-                </span>
-                <Button
+                <span className="win2k-badge">{fbQuestions.length} question{fbQuestions.length === 1 ? '' : 's'}</span>
+                <button
+                  className="win2k-btn"
                   type="button"
-                  variant="outline"
-                  onClick={() => {
-                    if (showFeedbackSetup) {
-                      cancelEditQuestion();
-                    }
-                    setShowFeedbackSetup(prev => !prev);
-                  }}
-                  className="text-xs h-9"
+                  onClick={() => { if (showFeedbackSetup) cancelEditQuestion(); setShowFeedbackSetup(prev => !prev); }}
                 >
-                  {showFeedbackSetup ? 'Hide Setup' : 'Open Setup'}
-                </Button>
+                  {showFeedbackSetup ? '▲ Hide Setup' : '▼ Open Setup'}
+                </button>
               </div>
-            </div>
 
-            {!session?.feedback_enabled && fbQuestions.length > 0 && (
-              <div className="rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-700 dark:text-amber-300 flex items-center gap-2">
-                <span className="text-lg">⚠️</span>
-                <span>You have {fbQuestions.length} question{fbQuestions.length === 1 ? '' : 's'} ready but feedback is <strong>OFF</strong>. Turn the toggle ON so students see the form after check-in.</span>
-              </div>
-            )}
+              {!session?.feedback_enabled && fbQuestions.length > 0 && (
+                <div className="win2k-warning-box">⚠️ You have {fbQuestions.length} question{fbQuestions.length === 1 ? '' : 's'} but feedback is <strong>OFF</strong>. Toggle ON so students see the form after check-in.</div>
+              )}
 
-            {!showFeedbackSetup && (
-              <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-800/30 px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
-                Add the exact feedback questions for this attendance date before students scan the check-in code.
-              </div>
-            )}
+              {!showFeedbackSetup && (
+                <div className="win2k-inset" style={{ padding: '4px 8px' }}>
+                  <span className="win2k-subtext">Add feedback questions for this date before students scan the check-in code.</span>
+                </div>
+              )}
 
-            {showFeedbackSetup && (
-              <div className="space-y-4">
-                {fbTemplates.length > 0 && (
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2 p-3 bg-gray-50 dark:bg-gray-800/40 rounded-lg border border-gray-200 dark:border-gray-700">
-                    <div className="flex-1">
-                      <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">Reusable question set for {format(new Date(selectedDate), 'MMM dd, yyyy')} (optional)</label>
+              {showFeedbackSetup && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {fbTemplates.length > 0 && (
+                    <div className="win2k-inset" style={{ padding: '6px 8px' }}>
+                      <label className="win2k-label" style={{ display: 'block', marginBottom: 4 }}>Question template (optional):</label>
                       <select
                         value={fbSelectedTemplateId}
                         onChange={e => void handleTemplateChange(e.target.value)}
-                        className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-white"
+                        style={{ width: '100%' }}
                       >
                         <option value="">Choose template...</option>
                         {fbTemplates.map(t => (
                           <option key={t.id} value={t.id}>{t.name} ({t.questions?.length || 0} questions)</option>
                         ))}
                       </select>
+                      <p className="win2k-subtext" style={{ marginTop: 2 }}>{fbApplyingTemplate ? 'Applying...' : 'Selecting a template applies it immediately.'}</p>
                     </div>
-                    <div className="sm:min-w-[140px] text-xs text-gray-500 dark:text-gray-400 self-center sm:self-auto">
-                      {fbApplyingTemplate ? 'Applying saved question set...' : 'Selecting a saved question set applies it immediately.'}
-                    </div>
-                  </div>
-                )}
+                  )}
 
-                <div className="space-y-3 p-4 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/20 dark:to-purple-950/20 rounded-xl border border-indigo-200 dark:border-indigo-800">
-                  <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
-                    {fbEditingQuestionId ? 'Edit Question' : 'Add Question'}
-                  </p>
-                  <input
-                    type="text"
-                    placeholder="Enter question text"
-                    value={fbQuestionText}
-                    onChange={e => setFbQuestionText(e.target.value)}
-                    className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-white placeholder-gray-400"
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    {(['rating', 'emoji', 'text', 'multiple_choice'] as const).map(t => (
-                      <button
-                        key={t}
-                        type="button"
-                        onClick={() => setFbQuestionType(t)}
-                        className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                          fbQuestionType === t
-                            ? 'bg-indigo-600 text-white border-indigo-600'
-                            : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-indigo-400'
-                        }`}
-                      >
-                        {t === 'rating' ? 'Rating' : t === 'emoji' ? 'Emoji' : t === 'text' ? 'Text' : 'Multiple Choice'}
-                      </button>
-                    ))}
-                  </div>
-                  {fbQuestionType === 'multiple_choice' && (
+                  <div className="win2k-raised" style={{ padding: '6px 8px' }}>
+                    <p className="win2k-label" style={{ marginBottom: 4 }}>{fbEditingQuestionId ? 'Edit Question' : 'Add Question'}</p>
                     <input
                       type="text"
-                      placeholder="Options separated by commas"
-                      value={fbOptionsText}
-                      onChange={e => setFbOptionsText(e.target.value)}
-                      className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-white placeholder-gray-400"
+                      placeholder="Enter question text"
+                      value={fbQuestionText}
+                      onChange={e => setFbQuestionText(e.target.value)}
+                      style={{ width: '100%', marginBottom: 6 }}
                     />
-                  )}
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={fbQuestionRequired}
-                        onChange={e => setFbQuestionRequired(e.target.checked)}
-                        className="rounded border-gray-300 dark:border-gray-600 text-indigo-600"
-                      />
-                      Required answer
-                    </label>
-                    <div className="flex gap-2">
-                      {fbEditingQuestionId && (
-                        <Button
-                          onClick={cancelEditQuestion}
-                          variant="outline"
-                          className="text-xs h-8"
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 6 }}>
+                      {(['rating', 'emoji', 'text', 'multiple_choice'] as const).map(t => (
+                        <button
+                          key={t}
+                          type="button"
+                          className="win2k-btn"
+                          style={fbQuestionType === t ? { background: '#000080', color: '#FFFFFF', borderTopColor: '#808080', borderLeftColor: '#808080', borderRightColor: '#FFFFFF', borderBottomColor: '#FFFFFF' } : {}}
+                          onClick={() => setFbQuestionType(t)}
                         >
-                          Cancel
-                        </Button>
-                      )}
-                      <Button
-                        onClick={handleAddOrUpdateQuestion}
-                        disabled={fbSavingQuestion || !fbQuestionText.trim()}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8"
-                      >
-                        {fbSavingQuestion ? 'Saving...' : fbEditingQuestionId ? 'Update Question' : 'Add Question'}
-                      </Button>
+                          {t === 'rating' ? 'Rating' : t === 'emoji' ? 'Emoji' : t === 'text' ? 'Text' : 'Multi-Choice'}
+                        </button>
+                      ))}
+                    </div>
+                    {fbQuestionType === 'multiple_choice' && (
+                      <input type="text" placeholder="Options separated by commas" value={fbOptionsText} onChange={e => setFbOptionsText(e.target.value)} style={{ width: '100%', marginBottom: 6 }} />
+                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11 }}>
+                        <input type="checkbox" checked={fbQuestionRequired} onChange={e => setFbQuestionRequired(e.target.checked)} />
+                        Required answer
+                      </label>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        {fbEditingQuestionId && <button className="win2k-btn" onClick={cancelEditQuestion}>Cancel</button>}
+                        <button className="win2k-btn win2k-btn-blue" onClick={handleAddOrUpdateQuestion} disabled={fbSavingQuestion || !fbQuestionText.trim()}>
+                          {fbSavingQuestion ? 'Saving...' : fbEditingQuestionId ? 'Update Question' : 'Add Question'}
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {fbQuestions.length > 0 ? (
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold text-gray-600 dark:text-gray-400">
-                      Questions for {format(new Date(selectedDate), 'MMM dd, yyyy')}
-                    </p>
-                    {fbQuestions.map((q, idx) => (
-                      <div
-                        key={q.id}
-                        className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${
-                          fbEditingQuestionId === q.id
-                            ? 'bg-indigo-50 dark:bg-indigo-950/30 border-indigo-300 dark:border-indigo-700'
-                            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
-                        }`}
-                      >
-                        <span className="text-xs font-bold text-gray-400 dark:text-gray-500 mt-0.5 shrink-0 w-5 text-right">
-                          {idx + 1}.
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-gray-800 dark:text-white break-words">{q.question_text}</p>
-                          <div className="flex flex-wrap gap-1.5 mt-1">
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-                              {q.question_type === 'rating' ? 'Rating' : q.question_type === 'emoji' ? 'Emoji' : q.question_type === 'text' ? 'Text' : 'Multiple Choice'}
-                            </span>
-                            {q.is_required && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400">
-                                Required
-                              </span>
-                            )}
+                  {fbQuestions.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <p className="win2k-label">Questions for {format(new Date(selectedDate), 'MMM dd, yyyy')}:</p>
+                      {fbQuestions.map((q, idx) => (
+                        <div key={q.id} className={fbEditingQuestionId === q.id ? 'win2k-raised' : 'win2k-inset'} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, padding: '3px 6px' }}>
+                          <span style={{ fontSize: 10, fontWeight: 'bold', minWidth: 16 }}>{idx + 1}.</span>
+                          <div style={{ flex: 1 }}>
+                            <span style={{ fontSize: 11 }}>{q.question_text}</span>
+                            <span className="win2k-badge" style={{ marginLeft: 4 }}>{q.question_type}</span>
+                            {q.is_required && <span className="win2k-badge" style={{ marginLeft: 2, background: '#FFC0C0', border: '1px solid #800000' }}>Required</span>}
+                          </div>
+                          <div style={{ display: 'flex', gap: 2 }}>
+                            <button className="win2k-btn" style={{ padding: '1px 6px', fontSize: 10 }} type="button" onClick={() => startEditQuestion(q)} title="Edit">✏</button>
+                            <button className="win2k-btn win2k-btn-red" style={{ padding: '1px 6px', fontSize: 10 }} type="button" onClick={() => handleDeleteQuestion(q.id)} title="Delete">✕</button>
                           </div>
                         </div>
-                        <div className="flex gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => startEditQuestion(q)}
-                            className="text-xs p-1.5 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 transition-colors"
-                            title="Edit"
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteQuestion(q.id)}
-                            className="text-xs p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 dark:text-red-400 transition-colors"
-                            title="Delete"
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-center text-sm text-gray-400 dark:text-gray-500 py-4">
-                    No feedback questions for this date yet. Add them above or apply an optional saved question set.
-                  </p>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {selectedDate && (
-        <>
-          <Card className="overflow-hidden">
-            <div className="bg-gradient-to-r from-indigo-500 to-purple-500 px-6 py-4">
-              <div className="flex items-center justify-between flex-wrap gap-3">
-                <div className="text-white">
-                  <h2 className="text-lg font-bold flex items-center gap-2">
-                    📅 Attendance for {format(new Date(selectedDate), 'MMMM dd, yyyy')}
-                  </h2>
-                  <p className="text-white/80 text-sm mt-0.5">
-                    {session.location || 'No location specified'} &bull; {(dateOverrideTime ?? session.time) || 'No time specified'} &bull; {courseName}
-                  </p>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  {selectedStudents.size > 0 ? (
-                    <>
-                      <Button
-                        onClick={() => handleBulkUpdate('on time')}
-                        className="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white border border-white/30 text-xs sm:text-sm"
-                      >
-                        ✅ On Time ({selectedStudents.size})
-                      </Button>
-                      <Button
-                        onClick={() => handleBulkUpdate('absent')}
-                        className="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white border border-white/30 text-xs sm:text-sm"
-                      >
-                        ❌ Absent ({selectedStudents.size})
-                      </Button>
-                      <Button
-                        onClick={() => handleBulkUpdate('late')}
-                        className="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white border border-white/30 text-xs sm:text-sm"
-                      >
-                        ⏰ Late ({selectedStudents.size})
-                      </Button>
-                    </>
+                      ))}
+                    </div>
                   ) : (
-                    <Button
-                      onClick={handleSelectAll}
-                      className="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white border border-white/30 text-xs sm:text-sm"
-                    >
-                      Select All ({attendanceStats.total})
-                    </Button>
+                    <div className="win2k-inset" style={{ padding: '4px 8px', textAlign: 'center' }}>
+                      <span className="win2k-subtext">No feedback questions yet. Add them above or apply a saved question set.</span>
+                    </div>
                   )}
                 </div>
-              </div>
+              )}
             </div>
-            <CardContent>
-              {attendance.length === 0 ? (
-                <p className="text-center text-gray-500 dark:text-gray-400 py-8">
-                  No students enrolled in this session
-                </p>
-              ) : (
-                <div className="space-y-4">
-                  {/* Summary Stats */}
-                  <div className="grid grid-cols-3 sm:grid-cols-7 gap-2 sm:gap-3">
-                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-700 rounded-xl p-3 text-center shadow-sm border border-slate-200 dark:border-slate-600">
-                      <div className="text-2xl sm:text-3xl font-bold text-slate-800 dark:text-white">
-                        {attendanceStats.total}
-                      </div>
-                      <div className="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">👥 Total</div>
-                    </div>
-                    <div className="bg-gradient-to-br from-emerald-50 to-green-100 dark:from-emerald-900/30 dark:to-green-800/30 rounded-xl p-3 text-center shadow-sm border border-emerald-200 dark:border-emerald-700">
-                      <div className="text-2xl sm:text-3xl font-bold text-emerald-600 dark:text-emerald-400">
-                        {attendanceStats.onTime}
-                      </div>
-                      <div className="text-xs font-medium text-emerald-700 dark:text-emerald-400 mt-1">✅ On Time</div>
-                    </div>
-                    <div className="bg-gradient-to-br from-red-50 to-rose-100 dark:from-red-900/30 dark:to-rose-800/30 rounded-xl p-3 text-center shadow-sm border border-red-200 dark:border-red-700">
-                      <div className="text-2xl sm:text-3xl font-bold text-red-600 dark:text-red-400">
-                        {attendanceStats.absent}
-                      </div>
-                      <div className="text-xs font-medium text-red-700 dark:text-red-400 mt-1">❌ Absent</div>
-                    </div>
-                    <div className="bg-gradient-to-br from-amber-50 to-yellow-100 dark:from-amber-900/30 dark:to-yellow-800/30 rounded-xl p-3 text-center shadow-sm border border-amber-200 dark:border-amber-700">
-                      <div className="text-2xl sm:text-3xl font-bold text-amber-600 dark:text-amber-400">
-                        {attendanceStats.late}
-                      </div>
-                      <div className="text-xs font-medium text-amber-700 dark:text-amber-400 mt-1">⏰ Late</div>
-                    </div>
-                    <div className="bg-gradient-to-br from-blue-50 to-sky-100 dark:from-blue-900/30 dark:to-sky-800/30 rounded-xl p-3 text-center shadow-sm border border-blue-200 dark:border-blue-700">
-                      <div className="text-2xl sm:text-3xl font-bold text-blue-600 dark:text-blue-400">
-                        {attendanceStats.excused}
-                      </div>
-                      <div className="text-xs font-medium text-blue-700 dark:text-blue-400 mt-1">📝 Excused</div>
-                    </div>
-                    <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 rounded-xl p-3 text-center shadow-sm border border-gray-200 dark:border-gray-600">
-                      <div className="text-2xl sm:text-3xl font-bold text-gray-400 dark:text-gray-500">
-                        {attendanceStats.pending}
-                      </div>
-                      <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1">⬜ Not Marked</div>
-                    </div>
-                    <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 rounded-xl p-3 text-center shadow-sm border border-gray-200 dark:border-gray-600">
-                      <div className="text-2xl sm:text-3xl font-bold text-gray-500 dark:text-gray-400">
-                        {attendanceStats.notEnrolled}
-                      </div>
-                      <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1">🚫 Not Enrolled</div>
-                    </div>
+          )}
+
+          {selectedDate && (
+            <>
+              {/* ── Main Attendance Window ── */}
+              <div className="win2k-window" style={{ marginTop: 0 }}>
+                {/* Inner title bar for the attendance table */}
+                <div className="win2k-titlebar" style={{ background: 'linear-gradient(to right, #003380, #1060C0)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span className="win2k-titlebar-icon">📅</span>
+                    <span>Attendance — {format(new Date(selectedDate), 'MMMM dd, yyyy')}</span>
+                    <span style={{ fontWeight: 'normal', opacity: 0.85, fontSize: 10 }}>&nbsp;{session.location || ''} {(dateOverrideTime ?? session.time) ? `@ ${dateOverrideTime ?? session.time}` : ''}</span>
                   </div>
+                  {/* Bulk action toolbar */}
+                  <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                    {selectedStudents.size > 0 ? (
+                      <>
+                        <button className="win2k-titlebar-btn" style={{ width: 'auto', padding: '0 6px', fontWeight: 'normal', fontSize: 10 }} onClick={() => handleBulkUpdate('on time')}>✅ On Time ({selectedStudents.size})</button>
+                        <button className="win2k-titlebar-btn" style={{ width: 'auto', padding: '0 6px', fontWeight: 'normal', fontSize: 10 }} onClick={() => handleBulkUpdate('absent')}>❌ Absent ({selectedStudents.size})</button>
+                        <button className="win2k-titlebar-btn" style={{ width: 'auto', padding: '0 6px', fontWeight: 'normal', fontSize: 10 }} onClick={() => handleBulkUpdate('late')}>⏰ Late ({selectedStudents.size})</button>
+                      </>
+                    ) : (
+                      <button className="win2k-titlebar-btn" style={{ width: 'auto', padding: '0 6px', fontWeight: 'normal', fontSize: 10 }} onClick={handleSelectAll}>Select All ({attendanceStats.total})</button>
+                    )}
+                  </div>
+                </div>
+                <div className="win2k-content">
+                  {attendance.length === 0 ? (
+                    <div className="win2k-inset" style={{ padding: 12, textAlign: 'center' }}>
+                      <span className="win2k-subtext">No students enrolled in this session</span>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {/* ── Summary Stats bar ── */}
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', padding: '4px 0' }}>
+                        <div className="win2k-stat-box">
+                          <div className="win2k-stat-number">{attendanceStats.total}</div>
+                          <div className="win2k-stat-label">Total</div>
+                        </div>
+                        <div className="win2k-stat-box" style={{ borderLeft: '3px solid #008000' }}>
+                          <div className="win2k-stat-number" style={{ color: '#008000' }}>{attendanceStats.onTime}</div>
+                          <div className="win2k-stat-label">On Time</div>
+                        </div>
+                        <div className="win2k-stat-box" style={{ borderLeft: '3px solid #800000' }}>
+                          <div className="win2k-stat-number" style={{ color: '#800000' }}>{attendanceStats.absent}</div>
+                          <div className="win2k-stat-label">Absent</div>
+                        </div>
+                        <div className="win2k-stat-box" style={{ borderLeft: '3px solid #808000' }}>
+                          <div className="win2k-stat-number" style={{ color: '#808000' }}>{attendanceStats.late}</div>
+                          <div className="win2k-stat-label">Late</div>
+                        </div>
+                        <div className="win2k-stat-box" style={{ borderLeft: '3px solid #000080' }}>
+                          <div className="win2k-stat-number" style={{ color: '#000080' }}>{attendanceStats.excused}</div>
+                          <div className="win2k-stat-label">Excused</div>
+                        </div>
+                        <div className="win2k-stat-box">
+                          <div className="win2k-stat-number" style={{ color: '#808080' }}>{attendanceStats.pending}</div>
+                          <div className="win2k-stat-label">Not Marked</div>
+                        </div>
+                        <div className="win2k-stat-box">
+                          <div className="win2k-stat-number" style={{ color: '#A0A0A0' }}>{attendanceStats.notEnrolled}</div>
+                          <div className="win2k-stat-label">Not Enrolled</div>
+                        </div>
+                      </div>
+                      <hr className="win2k-separator" />
 
                   {/* Pending Excuse Requests Banner */}
                   {pendingExcuseRequests.length > 0 && (
-                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3 space-y-2">
-                      <div className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-300">
-                        <span>📋</span>
-                        <span>{pendingExcuseRequests.length} Pending Excuse Request{pendingExcuseRequests.length > 1 ? 's' : ''}</span>
-                      </div>
+                    <div className="win2k-warning-box">
+                      <div style={{ fontWeight: 'bold', marginBottom: 4 }}>📋 {pendingExcuseRequests.length} Pending Excuse Request{pendingExcuseRequests.length > 1 ? 's' : ''}</div>
                       {pendingExcuseRequests.map(req => {
                         const reasonObj = SERVICE_EXCUSE_REASONS.find(r => r.value === req.reason);
                         return (
-                          <div key={req.request_id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-white dark:bg-gray-800 rounded-lg p-2.5 border border-amber-100 dark:border-amber-800">
-                            <div className="flex-1 min-w-0">
-                              <span className="text-sm font-medium text-gray-900 dark:text-white">{req.student?.name || 'Unknown'}</span>
-                              <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-                                {reasonObj ? `${reasonObj.icon} ${reasonObj.label}` : req.reason}
-                              </span>
-                              {req.description && (
-                                <p className="text-xs text-gray-400 dark:text-gray-500 truncate mt-0.5">&ldquo;{req.description}&rdquo;</p>
-                              )}
-                              {req.supporting_doc_url && (
-                                <a href={req.supporting_doc_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline">📎 Document</a>
-                              )}
+                          <div key={req.request_id} className="win2k-raised" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 4, padding: '3px 6px', flexWrap: 'wrap' }}>
+                            <div style={{ flex: 1 }}>
+                              <span style={{ fontWeight: 'bold', fontSize: 11 }}>{req.student?.name || 'Unknown'}</span>
+                              <span style={{ fontSize: 10, marginLeft: 6 }}>{reasonObj ? `${reasonObj.label}` : req.reason}</span>
+                              {req.description && <p style={{ fontSize: 10, marginTop: 1 }}>&ldquo;{req.description}&rdquo;</p>}
+                              {req.supporting_doc_url && <a href={req.supporting_doc_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: '#000080' }}>📎 Document</a>}
                             </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <Button
-                                onClick={() => handleExcuseAction(req.request_id, 'approved')}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-xs px-2.5 py-1"
-                                size="sm"
-                              >
-                                ✅ Approve
-                              </Button>
-                              <Button
-                                onClick={() => handleExcuseAction(req.request_id, 'rejected')}
-                                className="bg-red-500 hover:bg-red-600 text-white text-xs px-2.5 py-1"
-                                size="sm"
-                              >
-                                ❌ Reject
-                              </Button>
+                            <div style={{ display: 'flex', gap: 3 }}>
+                              <button className="win2k-btn win2k-btn-green" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => handleExcuseAction(req.request_id, 'approved')}>✓ Approve</button>
+                              <button className="win2k-btn win2k-btn-red" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => handleExcuseAction(req.request_id, 'rejected')}>✕ Reject</button>
                             </div>
                           </div>
                         );
@@ -2873,29 +2514,34 @@ export function Attendance() {
                     </div>
                   )}
 
-                  <div className="space-y-2">
-                  <div className="flex items-center gap-2 mb-4">
+                  {/* Search + Select all toolbar */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                     <input
                       type="checkbox"
-                      checked={
-                        attendanceStats.total > 0 &&
-                        selectedStudents.size === attendanceStats.total
-                      }
+                      checked={attendanceStats.total > 0 && selectedStudents.size === attendanceStats.total}
                       onChange={handleSelectAll}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-500 rounded"
                     />
-                    <span className="text-sm font-medium dark:text-gray-300">Select All</span>
-                  </div>
-                  {/* Search input for students */}
-                  <div className="mb-2">
+                    <label style={{ fontSize: 11, cursor: 'pointer' }} onClick={handleSelectAll}>Select All</label>
                     <input
                       type="text"
-                      placeholder="Search student by name or email..."
+                      placeholder="Search by name or email..."
                       value={searchTerm}
                       onChange={e => setSearchTerm(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-800 bg-white dark:bg-gray-700 dark:text-white dark:placeholder-gray-400"
+                      style={{ flex: 1, fontSize: 11 }}
                     />
                   </div>
+
+                  {/* ── Student rows (list-view style) ── */}
+                  <div className="win2k-inset" style={{ padding: 0, overflow: 'hidden' }}>
+                    {/* List-view header */}
+                    <div style={{ display: 'flex', background: '#D4D0C8', borderBottom: '2px solid #808080', padding: '2px 4px', gap: 4, fontSize: 10, fontWeight: 'bold', userSelect: 'none' }}>
+                      <span style={{ width: 18 }}></span>
+                      <span style={{ flex: 2, minWidth: 120 }}>Name</span>
+                      <span style={{ flex: 2, minWidth: 120 }}>Email</span>
+                      <span style={{ width: 80 }}>Check-in</span>
+                      <span style={{ width: 70 }}>Status</span>
+                      <span style={{ flex: 1 }}>Actions</span>
+                    </div>
                   {attendance
                     .filter(record => {
                       const term = searchTerm.trim().toLowerCase();
@@ -2905,58 +2551,44 @@ export function Attendance() {
                         record.student.email.toLowerCase().includes(term)
                       );
                     })
-                    .map((record) => {
+                    .map((record, rowIdx) => {
                       const isNotEnrolled = record.status === 'not enrolled';
                       const studentExcuseReq = pendingExcuseRequests.find(r => r.student_id === record.student_id);
+                      const rowBg = isNotEnrolled ? '#E8E8E8' : rowIdx % 2 === 0 ? '#FFFFFF' : '#EEF0F8';
+                      const leftBorderColor = record.status === 'on time' ? '#008000' : record.status === 'absent' ? '#800000' : record.status === 'late' ? '#808000' : record.status === 'excused' ? '#000080' : '#C0C0C0';
                       return (
                     <div
                       key={record.attendance_id}
-                      className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border-l-4 shadow-sm transition-all gap-3 ${
-                        isNotEnrolled
-                          ? 'bg-gray-50 dark:bg-gray-800/50 border-l-gray-300 dark:border-l-gray-600 opacity-50'
-                          : record.status === 'on time'
-                            ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-l-emerald-500 hover:shadow-md'
-                            : record.status === 'absent'
-                              ? 'bg-red-50/50 dark:bg-red-900/10 border-l-red-500 hover:shadow-md'
-                              : record.status === 'late'
-                                ? 'bg-amber-50/50 dark:bg-amber-900/10 border-l-amber-500 hover:shadow-md'
-                                : record.status === 'excused'
-                                  ? 'bg-blue-50/50 dark:bg-blue-900/10 border-l-blue-500 hover:shadow-md'
-                                  : 'bg-white dark:bg-gray-800 border-l-gray-300 dark:border-l-gray-600 hover:shadow-md'
-                      }`}
+                      style={{ display: 'flex', alignItems: 'flex-start', gap: 4, padding: '3px 4px', borderBottom: '1px solid #DFDFDF', background: rowBg, borderLeft: `3px solid ${leftBorderColor}`, flexWrap: 'wrap', opacity: isNotEnrolled ? 0.5 : 1 }}
                     >
-                      <div className="flex items-center gap-4 flex-1">
+                      {/* Checkbox */}
+                      <div style={{ width: 18, paddingTop: 2 }}>
                         <input
                           type="checkbox"
                           checked={selectedStudents.has(record.attendance_id)}
                           onChange={() => handleSelectStudent(record.attendance_id)}
                           disabled={isNotEnrolled}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-500 rounded disabled:opacity-30 disabled:cursor-not-allowed"
                         />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-medium truncate dark:text-white">{record.student.name}</h3>
-                            {studentExcuseReq && (
-                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 animate-pulse" title={`Pending excuse: ${studentExcuseReq.reason}`}>
-                                📋 Excuse Pending
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{record.student.email}</p>
-                          {record.check_in_time && (
-                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                              Checked in: {format(new Date(record.check_in_time), 'HH:mm:ss')}
-                            </p>
+                      </div>
+                      <div style={{ flex: 2, minWidth: 100 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 11, fontWeight: 'bold' }}>{record.student.name}</span>
+                          {studentExcuseReq && (
+                            <span className="win2k-badge" style={{ background: '#FFFFC0', border: '1px solid #808000' }} title={`Pending: ${studentExcuseReq.reason}`}>📋 Excuse?</span>
                           )}
+                        </div>
+                        <div style={{ flex: 2, minWidth: 100, fontSize: 10, color: '#444' }}>{record.student.email}</div>
+                        {record.check_in_time && (
+                          <span style={{ fontSize: 9, color: '#444', fontFamily: 'Courier New, monospace' }}>
+                            In: {format(new Date(record.check_in_time), 'HH:mm:ss')}
+                          </span>
+                        )}
                           {/* Inline late_minutes editor */}
                           {record.status === 'late' && !record.attendance_id.startsWith('temp-') && (
-                            <div className="mt-1.5 flex items-center gap-1.5">
-                              <span className="text-xs text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                Late:
-                              </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                              <span style={{ fontSize: 10, color: '#808000' }}>⏰ Late:</span>
                               {editingLateMinutes === record.attendance_id ? (
-                                <span className="flex items-center gap-1">
+                                <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                                   <input
                                     type="number"
                                     min="0"
@@ -2968,143 +2600,74 @@ export function Attendance() {
                                       if (e.key === 'Enter') saveLateMinutes(record.attendance_id);
                                       if (e.key === 'Escape') { setEditingLateMinutes(null); setLateMinutesInput(''); }
                                     }}
-                                    className="w-14 px-1.5 py-0.5 text-xs border border-yellow-400 dark:border-yellow-600 rounded bg-yellow-50 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 focus:outline-none focus:ring-1 focus:ring-yellow-500"
+                                    style={{ width: 40, fontSize: 10, fontFamily: 'Courier New, monospace' }}
                                   />
-                                  <span className="text-xs text-gray-500 dark:text-gray-400">min</span>
-                                  <button
-                                    onClick={() => saveLateMinutes(record.attendance_id)}
-                                    className="p-0.5 rounded hover:bg-green-100 dark:hover:bg-green-900/40 text-green-600 dark:text-green-400"
-                                    title="Save"
-                                  >
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
-                                  </button>
-                                  <button
-                                    onClick={() => { setEditingLateMinutes(null); setLateMinutesInput(''); }}
-                                    className="p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/40 text-red-500 dark:text-red-400"
-                                    title="Cancel"
-                                  >
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                                  </button>
+                                  <span style={{ fontSize: 9 }}>min</span>
+                                  <button className="win2k-btn win2k-btn-green" style={{ padding: '0 4px', fontSize: 9, minHeight: 0 }} onClick={() => saveLateMinutes(record.attendance_id)} title="Save">✓</button>
+                                  <button className="win2k-btn" style={{ padding: '0 4px', fontSize: 9, minHeight: 0 }} onClick={() => { setEditingLateMinutes(null); setLateMinutesInput(''); }} title="Cancel">✕</button>
                                 </span>
                               ) : (
                                 <button
-                                  onClick={() => {
-                                    setEditingLateMinutes(record.attendance_id);
-                                    setLateMinutesInput(String(record.late_minutes ?? ''));
-                                  }}
-                                  className="group flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-800/50 transition-colors"
-                                  title="Click to edit late duration"
+                                  className="win2k-btn win2k-btn-amber"
+                                  style={{ padding: '0 6px', fontSize: 9, minHeight: 0 }}
+                                  onClick={() => { setEditingLateMinutes(record.attendance_id); setLateMinutesInput(String(record.late_minutes ?? '')); }}
+                                  title="Edit late minutes"
                                 >
                                   {record.late_minutes != null ? `${record.late_minutes} min` : '—'}
-                                  <svg className="w-3 h-3 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                 </button>
                               )}
                             </div>
                           )}
                           {isNotEnrolled && record.enrollment_date && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">
-                              Enrolled on: {format(new Date(record.enrollment_date), 'MMM dd, yyyy')}
-                            </p>
+                            <span style={{ fontSize: 9, color: '#666', fontStyle: 'italic' }}>Enrolled: {format(new Date(record.enrollment_date), 'MMM dd, yyyy')}</span>
                           )}
-                        </div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                      {/* Status + Action buttons */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap', flex: 1, justifyContent: 'flex-end' }}>
                         {getStatusBadge(record.status)}
                         {!isNotEnrolled && (
                           <>
-                        <Button
-                          onClick={() => updateAttendance(record.attendance_id, 'on time')}
-                          className="bg-emerald-500 hover:bg-emerald-600 text-xs sm:text-sm px-3 sm:px-4 rounded-full shadow-sm"
-                        >
-                          ✅ On Time
-                        </Button>
-                        <Button
-                          onClick={() => updateAttendance(record.attendance_id, 'absent')}
-                          className="bg-red-500 hover:bg-red-600 text-xs sm:text-sm px-3 sm:px-4 rounded-full shadow-sm"
-                        >
-                          ❌ Absent
-                        </Button>
-                        <Button
-                          onClick={() => updateAttendance(record.attendance_id, 'late')}
-                          className="bg-amber-500 hover:bg-amber-600 text-xs sm:text-sm px-3 sm:px-4 rounded-full shadow-sm"
-                        >
-                          ⏰ Late
-                        </Button>
-                        <div className="flex items-center gap-1">
-                          {excuseDropdownOpen === record.attendance_id ? (
-                            <>
-                              <select
-                                autoFocus
-                                value={excuseReason[record.attendance_id] || ''}
-                                onChange={(e) => setExcuseReason(prev => ({ ...prev, [record.attendance_id]: e.target.value }))}
-                                className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs sm:text-sm font-medium bg-white dark:bg-gray-700 dark:text-white"
-                              >
-                                <option value="">Select reason...</option>
-                                {SERVICE_EXCUSE_REASONS.map(reason => (
-                                  <option key={reason.value} value={reason.value}>{reason.icon} {reason.label}</option>
-                                ))}
-                              </select>
-                              <Button
-                                onClick={() => {
-                                  if (!excuseReason[record.attendance_id]) {
-                                    toast.warning('Please select an excuse reason');
-                                  } else {
-                                    updateAttendance(record.attendance_id, 'excused');
-                                    setExcuseDropdownOpen(null);
-                                  }
-                                }}
-                                className="bg-blue-600 hover:bg-blue-700 text-xs sm:text-sm px-2 sm:px-4"
-                                size="sm"
-                              >
-                                Confirm
-                              </Button>
-                              <Button
-                                onClick={() => {
-                                  setExcuseDropdownOpen(null);
-                                  setExcuseReason(prev => {
-                                    const updated = { ...prev };
-                                    delete updated[record.attendance_id];
-                                    return updated;
-                                  });
-                                }}
-                                className="bg-gray-400 hover:bg-gray-500 text-xs sm:text-sm px-2 sm:px-4 text-white"
-                                size="sm"
-                              >
-                                Cancel
-                              </Button>
-                            </>
-                          ) : (
-                            <Button
-                              onClick={() => setExcuseDropdownOpen(record.attendance_id)}
-                              className="bg-blue-600 hover:bg-blue-700 text-xs sm:text-sm px-2 sm:px-4"
-                              size="sm"
-                            >
-                              Excused
-                            </Button>
-                          )}
-                        </div>
-                        <Button
-                          onClick={() => clearAttendance(record.attendance_id)}
-                          className="bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-xs sm:text-sm px-2 sm:px-4 text-gray-700 dark:text-gray-200"
-                          size="sm"
-                        >
-                          Clear
-                        </Button>
+                            <button className="win2k-btn win2k-btn-green" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => updateAttendance(record.attendance_id, 'on time')}>✓ On Time</button>
+                            <button className="win2k-btn win2k-btn-red" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => updateAttendance(record.attendance_id, 'absent')}>✕ Absent</button>
+                            <button className="win2k-btn win2k-btn-amber" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => updateAttendance(record.attendance_id, 'late')}>⏰ Late</button>
+                            {excuseDropdownOpen === record.attendance_id ? (
+                              <>
+                                <select
+                                  autoFocus
+                                  value={excuseReason[record.attendance_id] || ''}
+                                  onChange={(e) => setExcuseReason(prev => ({ ...prev, [record.attendance_id]: e.target.value }))}
+                                  style={{ fontSize: 10 }}
+                                >
+                                  <option value="">Reason...</option>
+                                  {SERVICE_EXCUSE_REASONS.map(reason => (
+                                    <option key={reason.value} value={reason.value}>{reason.label}</option>
+                                  ))}
+                                </select>
+                                <button className="win2k-btn win2k-btn-blue" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => { if (!excuseReason[record.attendance_id]) { toast.warning('Select reason'); } else { updateAttendance(record.attendance_id, 'excused'); setExcuseDropdownOpen(null); } }}>OK</button>
+                                <button className="win2k-btn" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => { setExcuseDropdownOpen(null); setExcuseReason(prev => { const u = {...prev}; delete u[record.attendance_id]; return u; }); }}>Cancel</button>
+                              </>
+                            ) : (
+                              <button className="win2k-btn win2k-btn-blue" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => setExcuseDropdownOpen(record.attendance_id)}>Excused</button>
+                            )}
+                            <button className="win2k-btn" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => clearAttendance(record.attendance_id)}>Clear</button>
                           </>
                         )}
                       </div>
                     </div>
                     );
                   })}
-                  </div>
+                  </div>{/* end list-view inset */}
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </>
-      )}
+            </div>
+          </div>{/* end win2k-content */}
+        </div>{/* end win2k-window (attendance) */}
+            </>
+          )}
 
-      {/* QR Code Modal (includes Face Check-In toggle) */}
+        </div>{/* end win2k-content (main) */}
+      </div>{/* end win2k-window (main) */}
+      {/* QR Code Modal */}
       {showQRModal && sessionId && selectedDate && (
         <QRCodeModal
           sessionId={sessionId}
@@ -3113,7 +2676,6 @@ export function Attendance() {
           onClose={() => setShowQRModal(false)}
         />
       )}
-
       {/* Confirm: Clear Attendance */}
       <ConfirmDialog
         isOpen={confirmClearAttendance !== null}
@@ -3122,13 +2684,9 @@ export function Attendance() {
         confirmText="Clear"
         cancelText="Cancel"
         type="danger"
-        onConfirm={() => {
-          if (confirmClearAttendance) doClearAttendance(confirmClearAttendance);
-          setConfirmClearAttendance(null);
-        }}
+        onConfirm={() => { if (confirmClearAttendance) doClearAttendance(confirmClearAttendance); setConfirmClearAttendance(null); }}
         onCancel={() => setConfirmClearAttendance(null)}
       />
-
       {/* Confirm: Mark Session Not Held */}
       <ConfirmDialog
         isOpen={confirmSessionNotHeld}
@@ -3137,13 +2695,9 @@ export function Attendance() {
         confirmText="Mark Not Held"
         cancelText="Cancel"
         type="warning"
-        onConfirm={() => {
-          setConfirmSessionNotHeld(false);
-          doMarkSessionNotHeld();
-        }}
+        onConfirm={() => { setConfirmSessionNotHeld(false); doMarkSessionNotHeld(); }}
         onCancel={() => setConfirmSessionNotHeld(false)}
       />
-
       {/* Confirm: Unmark Session Not Held */}
       <ConfirmDialog
         isOpen={confirmUnmarkSessionNotHeld}
@@ -3152,13 +2706,9 @@ export function Attendance() {
         confirmText="Unmark"
         cancelText="Cancel"
         type="danger"
-        onConfirm={() => {
-          setConfirmUnmarkSessionNotHeld(false);
-          doUnmarkSessionNotHeld();
-        }}
+        onConfirm={() => { setConfirmUnmarkSessionNotHeld(false); doUnmarkSessionNotHeld(); }}
         onCancel={() => setConfirmUnmarkSessionNotHeld(false)}
       />
-
       {/* Confirm: Clear GPS Coordinates */}
       <ConfirmDialog
         isOpen={confirmClearGPS !== null}
@@ -3178,9 +2728,7 @@ export function Attendance() {
             if (!clearError) {
               setHostCoordinates(null);
               setHostAddresses(prev => prev.map(h =>
-                h.student_id === confirmClearGPS.hostId
-                  ? { ...h, address_latitude: null, address_longitude: null }
-                  : h
+                h.student_id === confirmClearGPS.hostId ? { ...h, address_latitude: null, address_longitude: null } : h
               ));
               toast.success('Coordinates cleared. Proximity validation disabled.');
             } else {
@@ -3191,6 +2739,6 @@ export function Attendance() {
         }}
         onCancel={() => setConfirmClearGPS(null)}
       />
-    </div>
+    </div>{/* end win2k-root desktop */}
   );
 }

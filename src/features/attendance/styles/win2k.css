@@ -1,0 +1,580 @@
+/* ═══════════════════════════════════════════════════════════════
+   Windows 2000 / Classic Windows UI Theme
+   Applied to .win2k-root and all descendants
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── System fonts ─────────────────────────────────────────────── */
+.win2k-root,
+.win2k-root * {
+  font-family: 'Tahoma', 'MS Sans Serif', 'Arial', sans-serif !important;
+  transition: none !important;
+  -webkit-font-smoothing: none !important;
+  -moz-osx-font-smoothing: auto !important;
+}
+
+/* ── Page background ──────────────────────────────────────────── */
+.win2k-root {
+  background-color: #D4D0C8 !important;
+  color: #000000 !important;
+  padding: 8px !important;
+}
+
+/* ── Window / Card ────────────────────────────────────────────── */
+.win2k-window {
+  background: #D4D0C8 !important;
+  border-top: 2px solid #FFFFFF !important;
+  border-left: 2px solid #FFFFFF !important;
+  border-right: 2px solid #808080 !important;
+  border-bottom: 2px solid #808080 !important;
+  box-shadow: 1px 1px 0 #000000, -1px -1px 0 #DFDFDF inset !important;
+  border-radius: 0 !important;
+  margin-bottom: 8px !important;
+  padding: 0 !important;
+}
+
+/* ── Title Bar ────────────────────────────────────────────────── */
+.win2k-titlebar {
+  background: linear-gradient(to right, #000080, #1084D0) !important;
+  color: #FFFFFF !important;
+  font-weight: bold !important;
+  font-size: 11px !important;
+  padding: 3px 6px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  user-select: none !important;
+  border-radius: 0 !important;
+  letter-spacing: 0 !important;
+}
+
+.win2k-titlebar-icon {
+  font-size: 14px !important;
+  margin-right: 4px !important;
+  line-height: 1 !important;
+}
+
+.win2k-titlebar-controls {
+  display: flex !important;
+  gap: 2px !important;
+}
+
+.win2k-titlebar-btn {
+  width: 16px !important;
+  height: 14px !important;
+  font-size: 9px !important;
+  line-height: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: #D4D0C8 !important;
+  border-top: 1px solid #FFFFFF !important;
+  border-left: 1px solid #FFFFFF !important;
+  border-right: 1px solid #808080 !important;
+  border-bottom: 1px solid #808080 !important;
+  color: #000000 !important;
+  cursor: pointer !important;
+  padding: 0 !important;
+  font-weight: bold !important;
+  min-height: 0 !important;
+}
+
+.win2k-titlebar-btn:hover {
+  background: #C0C0C0 !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* ── Window content area ──────────────────────────────────────── */
+.win2k-content {
+  padding: 8px !important;
+  background: #D4D0C8 !important;
+}
+
+/* ── Inset / Sunken panel ─────────────────────────────────────── */
+.win2k-inset {
+  background: #FFFFFF !important;
+  border-top: 1px solid #808080 !important;
+  border-left: 1px solid #808080 !important;
+  border-right: 1px solid #DFDFDF !important;
+  border-bottom: 1px solid #DFDFDF !important;
+  padding: 4px !important;
+  border-radius: 0 !important;
+}
+
+/* ── Raised / Outset panel ────────────────────────────────────── */
+.win2k-raised {
+  background: #D4D0C8 !important;
+  border-top: 1px solid #FFFFFF !important;
+  border-left: 1px solid #FFFFFF !important;
+  border-right: 1px solid #808080 !important;
+  border-bottom: 1px solid #808080 !important;
+  padding: 4px !important;
+  border-radius: 0 !important;
+}
+
+/* ── Buttons ──────────────────────────────────────────────────── */
+.win2k-btn {
+  background: #D4D0C8 !important;
+  color: #000000 !important;
+  border-top: 2px solid #FFFFFF !important;
+  border-left: 2px solid #FFFFFF !important;
+  border-right: 2px solid #808080 !important;
+  border-bottom: 2px solid #808080 !important;
+  padding: 3px 12px !important;
+  font-size: 11px !important;
+  font-family: 'Tahoma', sans-serif !important;
+  cursor: pointer !important;
+  border-radius: 0 !important;
+  font-weight: normal !important;
+  min-height: 0 !important;
+  box-shadow: none !important;
+  text-decoration: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 3px !important;
+  white-space: nowrap !important;
+  line-height: 1.4 !important;
+}
+
+.win2k-btn:hover:not(:disabled) {
+  background: #D4D0C8 !important;
+  border-top: 2px solid #FFFFFF !important;
+  border-left: 2px solid #FFFFFF !important;
+  border-right: 2px solid #808080 !important;
+  border-bottom: 2px solid #808080 !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.win2k-btn:active:not(:disabled) {
+  border-top: 2px solid #808080 !important;
+  border-left: 2px solid #808080 !important;
+  border-right: 2px solid #FFFFFF !important;
+  border-bottom: 2px solid #FFFFFF !important;
+  padding-top: 4px !important;
+  padding-left: 13px !important;
+  transform: none !important;
+}
+
+.win2k-btn:disabled {
+  color: #808080 !important;
+  cursor: default !important;
+  opacity: 1 !important;
+}
+
+/* ── Button color variants ────────────────────────────────────── */
+.win2k-btn-green {
+  background: #008000 !important;
+  color: #FFFFFF !important;
+}
+.win2k-btn-green:hover:not(:disabled) {
+  background: #006600 !important;
+}
+
+.win2k-btn-red {
+  background: #800000 !important;
+  color: #FFFFFF !important;
+}
+.win2k-btn-red:hover:not(:disabled) {
+  background: #660000 !important;
+}
+
+.win2k-btn-amber {
+  background: #808000 !important;
+  color: #FFFFFF !important;
+}
+.win2k-btn-amber:hover:not(:disabled) {
+  background: #666600 !important;
+}
+
+.win2k-btn-blue {
+  background: #000080 !important;
+  color: #FFFFFF !important;
+}
+.win2k-btn-blue:hover:not(:disabled) {
+  background: #000066 !important;
+}
+
+/* ── Input / Select / Textarea ────────────────────────────────── */
+.win2k-root input[type="text"],
+.win2k-root input[type="email"],
+.win2k-root input[type="number"],
+.win2k-root input[type="time"],
+.win2k-root input[type="password"],
+.win2k-root select,
+.win2k-root textarea {
+  background: #FFFFFF !important;
+  color: #000000 !important;
+  border-top: 1px solid #808080 !important;
+  border-left: 1px solid #808080 !important;
+  border-right: 1px solid #DFDFDF !important;
+  border-bottom: 1px solid #DFDFDF !important;
+  border-radius: 0 !important;
+  padding: 2px 4px !important;
+  font-size: 11px !important;
+  font-family: 'Tahoma', sans-serif !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.win2k-root input:focus,
+.win2k-root select:focus,
+.win2k-root textarea:focus {
+  border-color: #808080 !important;
+  box-shadow: none !important;
+  outline: 1px dotted #000000 !important;
+}
+
+/* ── Checkbox ─────────────────────────────────────────────────── */
+.win2k-root input[type="checkbox"] {
+  width: 13px !important;
+  height: 13px !important;
+  border: 1px solid #808080 !important;
+  background: #FFFFFF !important;
+  appearance: auto !important;
+  -webkit-appearance: checkbox !important;
+  accent-color: #000080 !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  cursor: pointer !important;
+}
+
+/* ── Status badge pills → flat rectangular ────────────────────── */
+.win2k-root [class*="Badge"],
+.win2k-root [class*="badge"] {
+  border-radius: 0 !important;
+  font-size: 10px !important;
+  font-weight: bold !important;
+  padding: 1px 5px !important;
+  letter-spacing: 0 !important;
+  border: 1px solid currentColor !important;
+}
+
+/* ── Separator ────────────────────────────────────────────────── */
+.win2k-separator {
+  border: none !important;
+  border-top: 1px solid #808080 !important;
+  border-bottom: 1px solid #FFFFFF !important;
+  margin: 4px 0 !important;
+}
+
+/* ── Status bar ───────────────────────────────────────────────── */
+.win2k-statusbar {
+  background: #D4D0C8 !important;
+  border-top: 1px solid #808080 !important;
+  padding: 2px 6px !important;
+  font-size: 10px !important;
+  display: flex !important;
+  gap: 8px !important;
+}
+
+.win2k-statusbar-pane {
+  border-top: 1px solid #808080 !important;
+  border-left: 1px solid #808080 !important;
+  border-right: 1px solid #FFFFFF !important;
+  border-bottom: 1px solid #FFFFFF !important;
+  padding: 1px 6px !important;
+}
+
+/* ── Section group box ────────────────────────────────────────── */
+.win2k-groupbox {
+  border: 1px solid #808080 !important;
+  border-radius: 0 !important;
+  padding: 12px 8px 8px 8px !important;
+  position: relative !important;
+  margin-bottom: 8px !important;
+  background: #D4D0C8 !important;
+}
+
+.win2k-groupbox-legend {
+  position: absolute !important;
+  top: -9px !important;
+  left: 8px !important;
+  background: #D4D0C8 !important;
+  padding: 0 4px !important;
+  font-size: 11px !important;
+  font-weight: bold !important;
+  color: #000000 !important;
+}
+
+/* ── Tab bar ──────────────────────────────────────────────────── */
+.win2k-tabs {
+  display: flex !important;
+  gap: 2px !important;
+  border-bottom: 2px solid #808080 !important;
+  padding-bottom: 0 !important;
+  flex-wrap: wrap !important;
+}
+
+.win2k-tab {
+  background: #D4D0C8 !important;
+  color: #000000 !important;
+  border-top: 2px solid #FFFFFF !important;
+  border-left: 2px solid #FFFFFF !important;
+  border-right: 2px solid #808080 !important;
+  border-bottom: none !important;
+  padding: 3px 10px !important;
+  font-size: 11px !important;
+  cursor: pointer !important;
+  margin-bottom: -2px !important;
+  font-family: 'Tahoma', sans-serif !important;
+  border-radius: 0 !important;
+  min-height: 0 !important;
+  font-weight: normal !important;
+  box-shadow: none !important;
+}
+
+.win2k-tab:hover {
+  background: #D4D0C8 !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.win2k-tab-active {
+  background: #D4D0C8 !important;
+  font-weight: bold !important;
+  border-bottom: 2px solid #D4D0C8 !important;
+  z-index: 1 !important;
+  margin-top: -1px !important;
+}
+
+/* ── Student row ──────────────────────────────────────────────── */
+.win2k-student-row {
+  background: #D4D0C8 !important;
+  border-top: 1px solid #FFFFFF !important;
+  border-left: 1px solid #FFFFFF !important;
+  border-right: 1px solid #808080 !important;
+  border-bottom: 1px solid #808080 !important;
+  padding: 4px 8px !important;
+  margin-bottom: 2px !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  flex-wrap: wrap !important;
+  gap: 4px !important;
+  border-radius: 0 !important;
+}
+
+.win2k-student-row-ontme {
+  border-left: 3px solid #008000 !important;
+}
+.win2k-student-row-absent {
+  border-left: 3px solid #800000 !important;
+}
+.win2k-student-row-late {
+  border-left: 3px solid #808000 !important;
+}
+.win2k-student-row-excused {
+  border-left: 3px solid #000080 !important;
+}
+
+/* ── Stats box ────────────────────────────────────────────────── */
+.win2k-stat-box {
+  background: #FFFFFF !important;
+  border-top: 1px solid #808080 !important;
+  border-left: 1px solid #808080 !important;
+  border-right: 1px solid #DFDFDF !important;
+  border-bottom: 1px solid #DFDFDF !important;
+  padding: 6px 8px !important;
+  text-align: center !important;
+  border-radius: 0 !important;
+  min-width: 60px !important;
+}
+
+.win2k-stat-number {
+  font-size: 20px !important;
+  font-weight: bold !important;
+  line-height: 1 !important;
+  font-family: 'Tahoma', sans-serif !important;
+}
+
+.win2k-stat-label {
+  font-size: 9px !important;
+  margin-top: 2px !important;
+  color: #444444 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+}
+
+/* ── Banner / notice boxes ────────────────────────────────────── */
+.win2k-info-box {
+  background: #FFFFC0 !important;
+  border: 1px solid #808000 !important;
+  padding: 6px 8px !important;
+  font-size: 11px !important;
+  color: #000000 !important;
+  border-radius: 0 !important;
+  margin-bottom: 4px !important;
+}
+
+.win2k-warning-box {
+  background: #FFC0C0 !important;
+  border: 1px solid #800000 !important;
+  padding: 6px 8px !important;
+  font-size: 11px !important;
+  color: #000000 !important;
+  border-radius: 0 !important;
+  margin-bottom: 4px !important;
+}
+
+.win2k-success-box {
+  background: #C0FFC0 !important;
+  border: 1px solid #008000 !important;
+  padding: 6px 8px !important;
+  font-size: 11px !important;
+  color: #000000 !important;
+  border-radius: 0 !important;
+  margin-bottom: 4px !important;
+}
+
+/* ── Text ─────────────────────────────────────────────────────── */
+.win2k-root h1,
+.win2k-root h2,
+.win2k-root h3 {
+  font-size: 11px !important;
+  font-weight: bold !important;
+  color: #000000 !important;
+  margin: 0 !important;
+}
+
+.win2k-root p,
+.win2k-root span,
+.win2k-root label,
+.win2k-root div {
+  color: #000000 !important;
+}
+
+.win2k-label {
+  font-size: 11px !important;
+  font-weight: bold !important;
+  color: #000000 !important;
+}
+
+.win2k-subtext {
+  font-size: 10px !important;
+  color: #444444 !important;
+}
+
+/* ── List-view style table ────────────────────────────────────── */
+.win2k-listview {
+  background: #FFFFFF !important;
+  border-top: 1px solid #808080 !important;
+  border-left: 1px solid #808080 !important;
+  border-right: 1px solid #DFDFDF !important;
+  border-bottom: 1px solid #DFDFDF !important;
+  width: 100% !important;
+  border-collapse: collapse !important;
+  font-size: 11px !important;
+}
+
+.win2k-listview th {
+  background: #D4D0C8 !important;
+  border-right: 1px solid #808080 !important;
+  border-bottom: 2px solid #808080 !important;
+  padding: 2px 6px !important;
+  font-weight: bold !important;
+  text-align: left !important;
+  font-size: 11px !important;
+  color: #000000 !important;
+}
+
+.win2k-listview td {
+  border-bottom: 1px solid #DFDFDF !important;
+  padding: 2px 6px !important;
+  color: #000000 !important;
+}
+
+.win2k-listview tr:nth-child(even) td {
+  background: #EEF0F8 !important;
+}
+
+/* ── Scrollbar (classic Win2K look) ───────────────────────────── */
+.win2k-root ::-webkit-scrollbar {
+  width: 16px !important;
+  height: 16px !important;
+}
+
+.win2k-root ::-webkit-scrollbar-track {
+  background: #D4D0C8 !important;
+  border: 1px solid #808080 !important;
+}
+
+.win2k-root ::-webkit-scrollbar-thumb {
+  background: #D4D0C8 !important;
+  border-top: 1px solid #FFFFFF !important;
+  border-left: 1px solid #FFFFFF !important;
+  border-right: 1px solid #808080 !important;
+  border-bottom: 1px solid #808080 !important;
+}
+
+.win2k-root ::-webkit-scrollbar-button {
+  background: #D4D0C8 !important;
+  border-top: 1px solid #FFFFFF !important;
+  border-left: 1px solid #FFFFFF !important;
+  border-right: 1px solid #808080 !important;
+  border-bottom: 1px solid #808080 !important;
+}
+
+/* ── Progress bar ─────────────────────────────────────────────── */
+.win2k-progress-wrap {
+  background: #FFFFFF !important;
+  border-top: 1px solid #808080 !important;
+  border-left: 1px solid #808080 !important;
+  border-right: 1px solid #DFDFDF !important;
+  border-bottom: 1px solid #DFDFDF !important;
+  height: 14px !important;
+  width: 100% !important;
+  overflow: hidden !important;
+}
+
+.win2k-progress-fill {
+  height: 100% !important;
+  background: repeating-linear-gradient(
+    90deg,
+    #000080 0px,
+    #000080 10px,
+    #4060C0 10px,
+    #4060C0 14px
+  ) !important;
+  transition: width 0.3s !important;
+}
+
+/* ── Breadcrumb / address bar style ──────────────────────────── */
+.win2k-addressbar {
+  background: #FFFFFF !important;
+  border-top: 1px solid #808080 !important;
+  border-left: 1px solid #808080 !important;
+  border-right: 1px solid #DFDFDF !important;
+  border-bottom: 1px solid #DFDFDF !important;
+  padding: 2px 6px !important;
+  font-size: 11px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  margin-bottom: 6px !important;
+}
+
+/* ── Tooltip-style time badge ─────────────────────────────────── */
+.win2k-badge {
+  background: #FFFFC0 !important;
+  border: 1px solid #808000 !important;
+  padding: 0px 4px !important;
+  font-size: 9px !important;
+  font-weight: bold !important;
+  color: #000000 !important;
+  border-radius: 0 !important;
+}
+
+/* ── Override any Tailwind dark: classes that may bleed through ── */
+.win2k-root .dark\:text-white,
+.win2k-root .dark\:bg-gray-800,
+.win2k-root .dark\:border-gray-700,
+.win2k-root [class*="dark:"] {
+  /* Reset happens via !important on element-level overrides above */
+}
+
+/* ── Desktop wallpaper texture for the outermost wrapper ─────── */
+.win2k-desktop {
+  background-color: #3A6EA5 !important; /* classic Win2K blue desktop */
+  min-height: 100vh !important;
+  padding: 16px !important;
+}
