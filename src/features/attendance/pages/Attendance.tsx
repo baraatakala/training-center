@@ -221,8 +221,9 @@ export function Attendance() {
           });
         },
         (error) => {
-          console.error('Error getting location:', error.message);
-          toast.error('Failed to capture GPS location');
+          // GPS is optional for teacher-side attendance. Timeout on desktop (no GPS hardware)
+          // is expected — log silently, do not interrupt the teacher's workflow.
+          console.warn('GPS location unavailable (non-blocking):', error.message);
           resolve(null);
         },
         {
