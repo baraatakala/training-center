@@ -102,6 +102,7 @@ CREATE TABLE IF NOT EXISTS public.session (
   feedback_anonymous_allowed BOOLEAN DEFAULT true,
   teacher_can_host BOOLEAN DEFAULT true,
   CONSTRAINT session_pkey PRIMARY KEY (session_id),
+  CONSTRAINT session_dates_ordered CHECK (end_date >= start_date),
   CONSTRAINT session_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.course(course_id),
   CONSTRAINT session_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES public.teacher(teacher_id)
 );
@@ -117,6 +118,7 @@ CREATE TABLE IF NOT EXISTS public.enrollment (
   can_host BOOLEAN NOT NULL DEFAULT false,
   host_date DATE,
   CONSTRAINT enrollment_pkey PRIMARY KEY (enrollment_id),
+  CONSTRAINT enrollment_student_session_unique UNIQUE (student_id, session_id),
   CONSTRAINT enrollment_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.student(student_id),
   CONSTRAINT enrollment_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
 );
@@ -171,6 +173,10 @@ CREATE TABLE IF NOT EXISTS public.qr_sessions (
   CONSTRAINT qr_sessions_pkey PRIMARY KEY (qr_session_id),
   CONSTRAINT qr_sessions_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
 );
+-- At most one active QR token per session/date/mode (inactive tokens kept for audit history)
+CREATE UNIQUE INDEX IF NOT EXISTS qr_sessions_active_unique
+  ON public.qr_sessions (session_id, attendance_date, check_in_mode)
+  WHERE is_valid = true;
 
 CREATE TABLE IF NOT EXISTS public.photo_checkin_sessions (
   id UUID NOT NULL DEFAULT gen_random_uuid(),
@@ -205,6 +211,7 @@ CREATE TABLE IF NOT EXISTS public.session_date_host (
   override_end_time TIME DEFAULT NULL,                     -- per-date session end-time override (migration 010)
   CONSTRAINT session_date_host_pkey PRIMARY KEY (id),
   CONSTRAINT session_date_host_session_date_unique UNIQUE (session_id, attendance_date),
+  CONSTRAINT session_date_host_type_check CHECK (host_type IS NULL OR host_type IN ('student', 'teacher')),
   CONSTRAINT session_date_host_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
 );
 
@@ -218,6 +225,7 @@ CREATE TABLE IF NOT EXISTS public.session_day_change (
   changed_by TEXT,
   created_at TIMESTAMPTZ DEFAULT now(),
   CONSTRAINT session_day_change_pkey PRIMARY KEY (change_id),
+  CONSTRAINT session_day_change_session_date_unique UNIQUE (session_id, effective_date),
   CONSTRAINT session_day_change_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id) ON DELETE CASCADE
 );
 
@@ -229,6 +237,7 @@ CREATE TABLE IF NOT EXISTS public.teacher_host_schedule (
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
   CONSTRAINT teacher_host_schedule_pkey PRIMARY KEY (id),
+  CONSTRAINT teacher_host_schedule_session_date_unique UNIQUE (session_id, host_date),
   CONSTRAINT teacher_host_schedule_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES public.teacher(teacher_id),
   CONSTRAINT teacher_host_schedule_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
 );
@@ -341,6 +350,7 @@ CREATE TABLE IF NOT EXISTS public.excuse_request (
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
   CONSTRAINT excuse_request_pkey PRIMARY KEY (request_id),
+  CONSTRAINT excuse_request_student_session_date_unique UNIQUE (student_id, session_id, attendance_date),
   CONSTRAINT excuse_request_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.student(student_id),
   CONSTRAINT excuse_request_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
 );

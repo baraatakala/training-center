@@ -164,6 +164,20 @@ export function Enrollments() {
     }
   };
 
+  const handleReactivateEnrollment = async (
+    enrollmentId: string,
+    updates: { status: 'active'; enrollment_date: string; can_host: boolean }
+  ) => {
+    const { error } = await enrollmentService.update(enrollmentId, updates);
+    if (error) {
+      toast.error('Error reactivating enrollment: ' + error.message);
+    } else {
+      toast.success('Student re-enrolled successfully');
+      setIsModalOpen(false);
+      loadEnrollments();
+    }
+  };
+
   const handleUpdateStatus = async (enrollmentId: string, newStatus: string) => {
     const statusValue = newStatus as 'active' | 'completed' | 'dropped' | 'pending';
     const { error } = await enrollmentService.updateStatusWithCanHost(enrollmentId, statusValue);
@@ -574,6 +588,7 @@ export function Enrollments() {
       >
         <EnrollmentForm
           onSubmit={editingEnrollment ? handleUpdateEnrollment : handleAddEnrollment}
+          onReactivate={!editingEnrollment ? handleReactivateEnrollment : undefined}
           onCancel={() => {
             setIsModalOpen(false);
             setEditingEnrollment(null);

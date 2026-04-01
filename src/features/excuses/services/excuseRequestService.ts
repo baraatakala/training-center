@@ -284,6 +284,22 @@ class ExcuseRequestService {
       return { data: null, error: scheduleValidation.error };
     }
 
+    // 0. Verify the student has an active (or pending) enrollment in this session
+    const { data: activeEnrollment } = await supabase
+      .from('enrollment')
+      .select('enrollment_id')
+      .eq('student_id', request.student_id)
+      .eq('session_id', request.session_id)
+      .in('status', ['active', 'pending'])
+      .maybeSingle();
+
+    if (!activeEnrollment) {
+      return {
+        data: null,
+        error: { message: 'You must be enrolled in this session to submit an excuse request.' } as unknown as Error,
+      };
+    }
+
     // 1. Check for duplicate request (same student + session + date)
     const { data: existing } = await supabase
       .from('excuse_request')

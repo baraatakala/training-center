@@ -26,11 +26,12 @@ interface Session {
 interface EnrollmentFormProps {
   onSubmit: (data: CreateEnrollment) => Promise<void>;
   onCancel: () => void;
+  onReactivate?: (enrollmentId: string, updates: { status: 'active'; enrollment_date: string; can_host: boolean }) => Promise<void>;
   // Optional initial data for editing an existing enrollment
   initialData?: Partial<CreateEnrollment> | null;
 }
 
-export function EnrollmentForm({ onSubmit, onCancel, initialData = null }: EnrollmentFormProps) {
+export function EnrollmentForm({ onSubmit, onCancel, onReactivate, initialData = null }: EnrollmentFormProps) {
   const [formData, setFormData] = useState<CreateEnrollment>({
     student_id: initialData?.student_id || '',
     session_id: initialData?.session_id || '',
@@ -44,6 +45,7 @@ export function EnrollmentForm({ onSubmit, onCancel, initialData = null }: Enrol
   const [filteredSessions, setFilteredSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [reactivationTarget, setReactivationTarget] = useState<{ enrollment_id: string; status: string } | null>(null);
   const [studentEnrollments, setStudentEnrollments] = useState<Array<{
     enrollment_id: string;
     status: string;
@@ -141,12 +143,19 @@ export function EnrollmentForm({ onSubmit, onCancel, initialData = null }: Enrol
 
     try {
       // Check if student is already enrolled in this session
-      const { data: isAlreadyEnrolled } = await enrollmentService.checkEnrollment(
+      const { data: existingEnrollment } = await enrollmentService.checkEnrollment(
         formData.student_id,
         formData.session_id
       );
-      
-      if (isAlreadyEnrolled && !initialData) {
+
+      if (existingEnrollment && !initialData) {
+        const isInactive = existingEnrollment.status === 'dropped' || existingEnrollment.status === 'completed';
+        if (isInactive && onReactivate) {
+          // Offer to reactivate rather than blocking
+          setReactivationTarget(existingEnrollment);
+          setLoading(false);
+          return;
+        }
         setError('This student is already enrolled in this session.');
         setLoading(false);
         return;
@@ -167,11 +176,62 @@ export function EnrollmentForm({ onSubmit, onCancel, initialData = null }: Enrol
     }
   };
 
+  const handleReactivate = async () => {
+    if (!reactivationTarget || !onReactivate) return;
+    setLoading(true);
+    try {
+      await onReactivate(reactivationTarget.enrollment_id, {
+        status: 'active',
+        enrollment_date: formData.enrollment_date,
+        can_host: formData.can_host ?? false,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reactivate enrollment.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded">
           {error}
+        </div>
+      )}
+
+      {/* Reactivation prompt for previously dropped/completed enrollments */}
+      {reactivationTarget && !error && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <span className="text-amber-600 dark:text-amber-400 text-lg leading-none">⚠</span>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                Student was previously {reactivationTarget.status} from this session
+              </p>
+              <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                Re-enrolling will restore their active status. Existing attendance records are preserved.
+              </p>
+              <div className="flex gap-2 mt-3">
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={handleReactivate}
+                  disabled={loading}
+                >
+                  {loading ? 'Reactivating...' : 'Reactivate Enrollment'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setReactivationTarget(null)}
+                  disabled={loading}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

@@ -89,6 +89,17 @@ export const enrollmentService = {
       .select()
       .single();
 
+    // Translate DB unique constraint violation into a user-friendly error.
+    // Code 23505 = unique_violation (PostgreSQL)
+    if (result.error?.code === '23505') {
+      return {
+        data: null,
+        error: Object.assign({}, result.error, {
+          message: 'This student is already enrolled in this session.',
+        }),
+      };
+    }
+
     if (result.data) {
       try { await logInsert('enrollment', result.data.enrollment_id, result.data as Record<string, unknown>); } catch { /* audit non-critical */ }
     }
@@ -153,16 +164,15 @@ export const enrollmentService = {
       .eq('enrollment_id', id);
   },
 
-  // Check if student is already enrolled in session
+  // Check if student is already enrolled in session.
+  // Returns the existing enrollment row (with enrollment_id and status) or null.
   async checkEnrollment(studentId: string, sessionId: string) {
-    const { data, error } = await supabase
+    return await supabase
       .from(Tables.ENROLLMENT)
       .select('enrollment_id, status')
       .eq('student_id', studentId)
       .eq('session_id', sessionId)
       .maybeSingle();
-
-    return { data: !!data, error };
   },
 
   // Get session capacity and current enrollment count

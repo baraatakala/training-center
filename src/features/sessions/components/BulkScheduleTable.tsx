@@ -1309,6 +1309,19 @@ export const BulkScheduleTable: React.FC<BulkScheduleTableProps> = ({ sessionId,
                             setCancelledDateAssign({ enrollmentId: e.enrollment_id, date: newDate });
                             return;
                           }
+                          // Block: date already assigned to another host (student)
+                          if (newDate) {
+                            const clash = Object.entries(hostDateMap).find(
+                              ([eid, d]) => eid !== e.enrollment_id && d === newDate && !eid.startsWith('teacher-')
+                            );
+                            if (clash) {
+                              const clashing = enrollments.find((en) => en.enrollment_id === clash[0]);
+                              toast.error(
+                                `${format(new Date(newDate), 'MMM dd, yyyy')} is already assigned to ${clashing?.student?.name ?? 'another host'}. Pick a different date or use Quick Fix.`
+                              );
+                              return;
+                            }
+                          }
                           setHostDateMap((prev) => ({ ...prev, [e.enrollment_id]: newDate }));
                           saveHostDate(e.enrollment_id, newDate);
                         }}
@@ -1402,6 +1415,19 @@ export const BulkScheduleTable: React.FC<BulkScheduleTableProps> = ({ sessionId,
                     if (newDate && cancelledDates.has(newDate)) {
                       setCancelledDateAssign({ enrollmentId: e.enrollment_id, date: newDate });
                       return;
+                    }
+                    // Block: date already assigned to another host (student)
+                    if (newDate) {
+                      const clash = Object.entries(hostDateMap).find(
+                        ([eid, d]) => eid !== e.enrollment_id && d === newDate && !eid.startsWith('teacher-')
+                      );
+                      if (clash) {
+                        const clashing = enrollments.find((en) => en.enrollment_id === clash[0]);
+                        toast.error(
+                          `${format(new Date(newDate), 'MMM dd, yyyy')} is already assigned to ${clashing?.student?.name ?? 'another host'}. Pick a different date or use Quick Fix.`
+                        );
+                        return;
+                      }
                     }
                     setHostDateMap((prev) => ({ ...prev, [e.enrollment_id]: newDate }));
                     saveHostDate(e.enrollment_id, newDate);

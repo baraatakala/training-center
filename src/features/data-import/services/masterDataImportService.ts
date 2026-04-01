@@ -568,6 +568,24 @@ async function importSessions(rows: ImportRow[]): Promise<MasterImportResult> {
 
       const startDate = parseRequiredDate(row.start_date, 'start_date', rowIndex);
       const endDate = parseRequiredDate(row.end_date, 'end_date', rowIndex);
+
+      // ── Date ordering validation ────────────────────────────────────────────
+      if (new Date(endDate) < new Date(startDate)) {
+        throw new Error(`Row ${rowIndex}: end_date (${endDate}) cannot be before start_date (${startDate}).`);
+      }
+
+      // ── Day name validation ─────────────────────────────────────────────────
+      const rawDay = normalizeText(row.day) || null;
+      if (rawDay) {
+        const KNOWN_DAYS = new Set(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']);
+        const dayParts = rawDay.split(',').map((d) => d.trim().toLowerCase()).filter(Boolean);
+        const invalid = dayParts.filter((d) => !KNOWN_DAYS.has(d));
+        if (invalid.length > 0) {
+          throw new Error(
+            `Row ${rowIndex}: day contains unrecognised value(s): "${invalid.join('", "')}". Use Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, or Sunday.`
+          );
+        }
+      }
       const learningMethod = normalizeText(row.learning_method) || 'face_to_face';
       if (!LEARNING_METHODS.has(learningMethod)) {
         throw new Error(`Row ${rowIndex}: learning_method must be face_to_face, online, or hybrid.`);
@@ -584,13 +602,14 @@ async function importSessions(rows: ImportRow[]): Promise<MasterImportResult> {
       }
 
       const gracePeriod = parseOptionalNumber(row.grace_period_minutes);
+      const sessionTime = normalizeText(row.time) || null;
       const payload = {
         course_id: courseId,
         teacher_id: teacherId,
         start_date: startDate,
         end_date: endDate,
-        day: normalizeText(row.day) || null,
-        time: normalizeText(row.time) || null,
+        day: rawDay,
+        time: sessionTime,
         location: normalizeText(row.location) || null,
         grace_period_minutes: gracePeriod ?? 15,
         learning_method: learningMethod as 'face_to_face' | 'online' | 'hybrid',
@@ -601,6 +620,25 @@ async function importSessions(rows: ImportRow[]): Promise<MasterImportResult> {
       };
 
       const existing = sessionByKey.get(`${courseId}|${teacherId}|${startDate}|${endDate}`);
+
+      // ── Schedule conflict check (new sessions only) ─────────────────────────
+      if (!existing) {
+        const { data: conflicts } = await sessionService.checkScheduleConflicts({
+          teacherId,
+          startDate,
+          endDate,
+          day: rawDay,
+          time: sessionTime,
+        });
+        if (conflicts && conflicts.length > 0) {
+          const first = conflicts[0];
+          throw new Error(
+            `Row ${rowIndex}: teacher schedule conflict with "${first.courseName}" on ${first.conflictDate}` +
+            (first.existingTime ? ` (${first.existingTime})` : '') + '.'
+          );
+        }
+      }
+
       const response = existing
         ? await sessionService.update(existing.session_id, payload)
         : await sessionService.create(payload);
@@ -668,6 +706,22 @@ async function importEnrollments(rows: ImportRow[]): Promise<MasterImportResult>
         can_host: parseBoolean(row.can_host),
         host_date: normalizeText(row.host_date) ? parseRequiredDate(row.host_date, 'host_date', rowIndex) : null,
       };
+
+      // ── enrollment_date range validation ────────────────────────────────────
+      if (payload.enrollment_date > sessionEndDate) {
+        throw new Error(
+          `Row ${rowIndex}: enrollment_date (${payload.enrollment_date}) is after the session end date (${sessionEndDate}).`
+        );
+      }
+
+      // ── host_date range validation ──────────────────────────────────────────
+      if (payload.host_date) {
+        if (payload.host_date < sessionStartDate || payload.host_date > sessionEndDate) {
+          throw new Error(
+            `Row ${rowIndex}: host_date (${payload.host_date}) is outside the session date range (${sessionStartDate} – ${sessionEndDate}).`
+          );
+        }
+      }
 
       const existing = enrollmentByKey.get(`${studentId}|${sessionId}`);
       const response = existing
