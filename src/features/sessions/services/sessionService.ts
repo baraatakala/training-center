@@ -474,20 +474,22 @@ export const sessionService = {
     sessionId: string,
     date: string,
     overrideTime: string | null,
-    reason?: string
+    reason?: string,
+    overrideEndTime?: string | null
   ): Promise<{ error: { message: string } | null }> {
     try {
+      const upsertData: Record<string, unknown> = {
+        session_id: sessionId,
+        attendance_date: date,
+        override_time: overrideTime,
+        override_reason: reason ?? null,
+      };
+      if (overrideEndTime !== undefined) {
+        upsertData.override_end_time = overrideEndTime;
+      }
       const { error } = await supabase
         .from(Tables.SESSION_DATE_HOST)
-        .upsert(
-          {
-            session_id: sessionId,
-            attendance_date: date,
-            override_time: overrideTime,
-            override_reason: reason ?? null,
-          },
-          { onConflict: 'session_id,attendance_date' }
-        );
+        .upsert(upsertData, { onConflict: 'session_id,attendance_date' });
       if (error) return { error: { message: error.message } };
       return { error: null };
     } catch (e) {
@@ -499,9 +501,9 @@ export const sessionService = {
   async getSessionDateOverrides(sessionId: string) {
     return supabase
       .from(Tables.SESSION_DATE_HOST)
-      .select('attendance_date, override_time, override_reason')
+      .select('attendance_date, override_time, override_end_time, override_reason')
       .eq('session_id', sessionId)
-      .not('override_time', 'is', null)
+      .or('override_time.not.is.null,override_end_time.not.is.null')
       .order('attendance_date', { ascending: true });
   },
 
@@ -510,9 +512,9 @@ export const sessionService = {
     try {
       const { error } = await supabase
         .from(Tables.SESSION_DATE_HOST)
-        .update({ override_time: null, override_reason: null })
+        .update({ override_time: null, override_end_time: null, override_reason: null })
         .eq('session_id', sessionId)
-        .not('override_time', 'is', null);
+        .or('override_time.not.is.null,override_end_time.not.is.null');
       if (error) return { error: { message: error.message } };
       return { error: null };
     } catch (e) {

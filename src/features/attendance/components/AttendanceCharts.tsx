@@ -448,30 +448,52 @@ const AttendanceCharts = forwardRef<ChartCaptureHandle, Props>(function Attendan
   });
 
   // Capture charts as PNG images using html-to-image
+  // Captures directly from off-screen rendered charts — no visible tab switching
   const captureCharts = useCallback(async (tabs: ChartTab[]): Promise<Map<ChartTab, string>> => {
     const { toPng } = await import('html-to-image');
     const result = new Map<ChartTab, string>();
-    const originalTab = activeTab;
+
     for (const tab of tabs) {
-      // Switch to this tab so it is fully visible and laid out (not offscreen)
-      setActiveTab(tab);
-      // Wait two frames for React to commit + browser to paint
-      await new Promise(resolve => setTimeout(resolve, 250));
       const el = chartRefs.current[tab];
       if (!el) continue;
+
+      // Check if this chart is currently off-screen (inactive tab)
+      const isOffscreen = el.style.position === 'absolute';
+
+      if (isOffscreen) {
+        // Move to a fixed position with proper layout but invisible to the user
+        el.style.position = 'fixed';
+        el.style.left = '0';
+        el.style.top = '0';
+        el.style.opacity = '0';
+        el.style.pointerEvents = 'none';
+        el.style.zIndex = '-9999';
+        // width remains 800px from the original style
+        await new Promise(resolve => setTimeout(resolve, 250));
+      }
+
       try {
         const dataUrl = await toPng(el, {
           backgroundColor: '#ffffff',
           pixelRatio: 2,
-          style: { padding: '16px' },
+          style: { padding: '16px', opacity: '1' },
         });
         result.set(tab, dataUrl);
       } catch { /* skip failed chart */ }
+
+      if (isOffscreen) {
+        // Restore original off-screen positioning
+        el.style.position = 'absolute';
+        el.style.left = '-9999px';
+        el.style.top = '';
+        el.style.opacity = '';
+        el.style.pointerEvents = '';
+        el.style.zIndex = '';
+      }
     }
-    // Restore original active tab
-    setActiveTab(originalTab);
+
     return result;
-  }, [activeTab]);
+  }, []);
 
   useImperativeHandle(ref, () => ({ captureCharts }), [captureCharts]);
 

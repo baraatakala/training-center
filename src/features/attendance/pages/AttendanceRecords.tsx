@@ -9,7 +9,7 @@ import { useToast } from '@/shared/hooks/useToast';
 import { ToastContainer } from '@/shared/components/ui/ToastContainer';
 import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
 import { loadConfigSync, calcLateScore as calcLateScoreFromConfig, calcCoverageFactor as calcCoverageFromConfig } from '@/features/scoring/services/scoringConfigService';
-import { parseCoordinates, calculateDistance, formatDistance } from '@/shared/services/geocodingService';
+import { parseCoordinates, formatDistance } from '@/shared/services/geocodingService';
 import { loadAttendanceRecordsPageData } from '@/features/attendance/services/attendanceRecordsPageService';
 import { useRefreshOnFocus } from '@/shared/hooks/useRefreshOnFocus';
 import { ATTENDANCE_STATUS } from '@/shared/constants/attendance';
@@ -877,7 +877,7 @@ export const AttendanceRecords = () => {
     hostTable: 'المضيفين',
     specTable: 'التخصصات',
     crosstabTable: 'المصفوفة',
-    includeCharts: 'تضمين الرسوم البيانية',
+    includeCharts: 'تضمين الرسوم البيانية في التقرير',
     chartTrend: 'المسار',
     chartSpec: 'التخصصات',
     chartDist: 'التوزيع',
@@ -995,7 +995,7 @@ export const AttendanceRecords = () => {
     hostTable: 'Hosts',
     specTable: 'Specializations',
     crosstabTable: 'Matrix',
-    includeCharts: 'Include Charts',
+    includeCharts: 'Export Charts',
     chartTrend: 'Trend',
     chartSpec: 'Specializations',
     chartDist: 'Distribution',
@@ -2903,7 +2903,7 @@ export const AttendanceRecords = () => {
         doc.addPage();
         currentY = 14;
         doc.setFontSize(12);
-        doc.text(`📊 ${chartLabels[tabId] || tabId}`, 14, currentY);
+        doc.text(chartLabels[tabId] || tabId, 14, currentY);
         currentY += 6;
 
         try {
@@ -5642,7 +5642,6 @@ export const AttendanceRecords = () => {
                       studentAnalytics={studentAnalytics}
                       dateAnalytics={dateAnalytics}
                       arabicMode={arabicMode}
-                      visibleTabs={selectedChartsForExport}
                     />
                   </Suspense>
                 </div>
@@ -6217,25 +6216,6 @@ export const AttendanceRecords = () => {
 
               if (locationPoints.length === 0) return null;
 
-              // Calculate pairwise distances
-              const distances: { from: string; to: string; distance: number }[] = [];
-              for (let i = 0; i < locationPoints.length; i++) {
-                for (let j = i + 1; j < locationPoints.length; j++) {
-                  distances.push({
-                    from: locationPoints[i].label,
-                    to: locationPoints[j].label,
-                    distance: calculateDistance(
-                      locationPoints[i].lat, locationPoints[i].lon,
-                      locationPoints[j].lat, locationPoints[j].lon
-                    ),
-                  });
-                }
-              }
-              distances.sort((a, b) => a.distance - b.distance);
-
-              const avgDist = distances.length > 0
-                ? distances.reduce((s, d) => s + d.distance, 0) / distances.length
-                : 0;
               const totalSessions = locationPoints.reduce((s, p) => s + p.count, 0);
 
               return (
@@ -6260,11 +6240,6 @@ export const AttendanceRecords = () => {
                         <span className="px-2 py-0.5 bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300 rounded text-[10px] font-medium">
                           {totalSessions} {t.totalSessions}
                         </span>
-                        {avgDist > 0 && (
-                          <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded text-[10px] font-medium">
-                            {t.avgDistance}: {formatDistance(avgDist)}
-                          </span>
-                        )}
                       </div>
                       <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -6273,17 +6248,13 @@ export const AttendanceRecords = () => {
                   </button>
 
                   <div id="location-map-body">
-                    {/* Location Map Embed — includes location selector, map, details, Google Maps & Directions links */}
                     <Suspense fallback={<div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 px-4 py-8 text-sm text-gray-500 dark:text-gray-400 text-center">Loading map...</div>}>
                       <LocationMap
                         locations={locationPoints}
                         showEmbed={true}
-                        showDistanceMatrix={locationPoints.length > 1}
                         zoom={13}
                       />
                     </Suspense>
-
-                      {/* Distance is shown inside LocationMap's built-in distance matrix toggle */}
                     </div>
                 </>
               );

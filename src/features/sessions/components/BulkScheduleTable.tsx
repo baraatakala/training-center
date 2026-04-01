@@ -37,10 +37,11 @@ export const BulkScheduleTable: React.FC<BulkScheduleTableProps> = ({ sessionId,
   const [showRosterDetails, setShowRosterDetails] = useState(true);
   // Date time overrides panel
   const [showOverridePanel, setShowOverridePanel] = useState(false);
-  const [dateOverrides, setDateOverrides] = useState<Array<{ attendance_date: string; override_time: string; override_reason: string | null }>>([]);
+  const [dateOverrides, setDateOverrides] = useState<Array<{ attendance_date: string; override_time: string | null; override_end_time: string | null; override_reason: string | null }>>([]);
   const [loadingOverrides, setLoadingOverrides] = useState(false);
   const [editingOverrideDate, setEditingOverrideDate] = useState<string | null>(null);
   const [overrideInput, setOverrideInput] = useState('');
+  const [endTimeInput, setEndTimeInput] = useState('');
   const [savingOverride, setSavingOverride] = useState(false);
   const [showClearAllOverridesConfirm, setShowClearAllOverridesConfirm] = useState(false);
 
@@ -109,31 +110,33 @@ export const BulkScheduleTable: React.FC<BulkScheduleTableProps> = ({ sessionId,
     try {
       const { data, error } = await supabase
         .from(Tables.SESSION_DATE_HOST)
-        .select('attendance_date, override_time, override_reason')
+        .select('attendance_date, override_time, override_end_time, override_reason')
         .eq('session_id', sessionId)
-        .not('override_time', 'is', null)
+        .or('override_time.not.is.null,override_end_time.not.is.null')
         .order('attendance_date', { ascending: true });
       if (!error && data) {
-        setDateOverrides(data as Array<{ attendance_date: string; override_time: string; override_reason: string | null }>);
+        setDateOverrides(data as Array<{ attendance_date: string; override_time: string | null; override_end_time: string | null; override_reason: string | null }>);
       }
     } catch { /* non-critical */ }
     setLoadingOverrides(false);
   }, [sessionId]);
 
   // Save or clear a per-date time override
-  const saveDateOverride = async (date: string, overrideTime: string | null) => {
+  const saveDateOverride = async (date: string, overrideTime: string | null, overrideEndTime?: string | null) => {
     setSavingOverride(true);
     try {
+      const upsertData: Record<string, unknown> = {
+        session_id: sessionId, attendance_date: date,
+        override_time: overrideTime, override_reason: null,
+      };
+      if (overrideEndTime !== undefined) upsertData.override_end_time = overrideEndTime;
       const { error } = await supabase
         .from(Tables.SESSION_DATE_HOST)
-        .upsert(
-          { session_id: sessionId, attendance_date: date, override_time: overrideTime, override_reason: null },
-          { onConflict: 'session_id,attendance_date' }
-        );
+        .upsert(upsertData, { onConflict: 'session_id,attendance_date' });
       if (error) {
         toast.error('Failed to save override: ' + error.message);
       } else {
-        toast.success(overrideTime ? `Override set for ${format(new Date(date), 'MMM dd, yyyy')}` : 'Override cleared');
+        toast.success(overrideTime || overrideEndTime ? `Override set for ${format(new Date(date), 'MMM dd, yyyy')}` : 'Override cleared');
         setEditingOverrideDate(null);
         await loadDateOverrides();
       }
@@ -150,9 +153,9 @@ export const BulkScheduleTable: React.FC<BulkScheduleTableProps> = ({ sessionId,
     try {
       const { error } = await supabase
         .from(Tables.SESSION_DATE_HOST)
-        .update({ override_time: null, override_reason: null })
+        .update({ override_time: null, override_end_time: null, override_reason: null })
         .eq('session_id', sessionId)
-        .not('override_time', 'is', null);
+        .or('override_time.not.is.null,override_end_time.not.is.null');
       if (error) {
         toast.error('Failed to clear overrides: ' + error.message);
       } else {
@@ -924,8 +927,8 @@ export const BulkScheduleTable: React.FC<BulkScheduleTableProps> = ({ sessionId,
           {showOverridePanel && (
             <div className="p-4 bg-white dark:bg-gray-800">
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                Per-date time overrides allow specific session dates to use a different start time than the session default.
-                Changing the time here only affects late-arrival calculations — it does not reschedule students.
+                Per-date time overrides let specific dates use different start/end times.
+                <strong> Start time</strong> affects late-arrival calculations. <strong>End time</strong> is informational (session schedule documentation).
               </p>
 
               {loadingOverrides ? (
@@ -955,7 +958,8 @@ export const BulkScheduleTable: React.FC<BulkScheduleTableProps> = ({ sessionId,
                           <thead className="bg-gray-50 dark:bg-gray-700">
                             <tr>
                               <th className="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">Date</th>
-                              <th className="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">Override Time</th>
+                              <th className="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">Start</th>
+                              <th className="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">End</th>
                               <th className="px-3 py-2 text-right font-semibold text-gray-700 dark:text-gray-300">Actions</th>
                             </tr>
                           </thead>
@@ -967,15 +971,37 @@ export const BulkScheduleTable: React.FC<BulkScheduleTableProps> = ({ sessionId,
                                 </td>
                                 <td className="px-3 py-2">
                                   {editingOverrideDate === row.attendance_date ? (
-                                    <div className="flex items-center gap-2">
-                                      <input
-                                        type="time"
-                                        value={overrideInput}
-                                        onChange={(e) => setOverrideInput(e.target.value)}
-                                        className="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 dark:bg-gray-800 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-amber-400"
-                                      />
+                                    <input
+                                      type="time"
+                                      value={overrideInput}
+                                      onChange={(e) => setOverrideInput(e.target.value)}
+                                      className="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 dark:bg-gray-800 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-amber-400 w-28"
+                                    />
+                                  ) : (
+                                    <span className="font-mono font-semibold text-amber-700 dark:text-amber-400">
+                                      {row.override_time ?? '—'}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {editingOverrideDate === row.attendance_date ? (
+                                    <input
+                                      type="time"
+                                      value={endTimeInput}
+                                      onChange={(e) => setEndTimeInput(e.target.value)}
+                                      className="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 dark:bg-gray-800 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-amber-400 w-28"
+                                    />
+                                  ) : (
+                                    <span className="font-mono text-gray-600 dark:text-gray-400">
+                                      {row.override_end_time ?? '—'}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  {editingOverrideDate === row.attendance_date ? (
+                                    <div className="flex items-center justify-end gap-2">
                                       <button
-                                        onClick={() => saveDateOverride(row.attendance_date, overrideInput.trim() || null)}
+                                        onClick={() => saveDateOverride(row.attendance_date, overrideInput.trim() || null, endTimeInput.trim() || null)}
                                         disabled={savingOverride}
                                         className="text-xs px-2 py-1 rounded bg-green-600 hover:bg-green-700 text-white transition-colors disabled:opacity-50"
                                       >
@@ -989,27 +1015,22 @@ export const BulkScheduleTable: React.FC<BulkScheduleTableProps> = ({ sessionId,
                                       </button>
                                     </div>
                                   ) : (
-                                    <span className="font-mono font-semibold text-amber-700 dark:text-amber-400">
-                                      {row.override_time}
-                                    </span>
+                                    <div className="flex items-center justify-end gap-2">
+                                      <button
+                                        onClick={() => { setEditingOverrideDate(row.attendance_date); setOverrideInput(row.override_time ?? ''); setEndTimeInput(row.override_end_time ?? ''); }}
+                                        className="text-xs px-2 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white transition-colors"
+                                      >
+                                        ✏️
+                                      </button>
+                                      <button
+                                        onClick={() => saveDateOverride(row.attendance_date, null, null)}
+                                        disabled={savingOverride}
+                                        className="text-xs px-2 py-1 rounded bg-red-500 hover:bg-red-600 text-white transition-colors disabled:opacity-50"
+                                      >
+                                        🗑
+                                      </button>
+                                    </div>
                                   )}
-                                </td>
-                                <td className="px-3 py-2 text-right">
-                                  <div className="flex items-center justify-end gap-2">
-                                    <button
-                                      onClick={() => { setEditingOverrideDate(row.attendance_date); setOverrideInput(row.override_time); }}
-                                      className="text-xs px-2 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white transition-colors"
-                                    >
-                                      ✏️
-                                    </button>
-                                    <button
-                                      onClick={() => saveDateOverride(row.attendance_date, null)}
-                                      disabled={savingOverride}
-                                      className="text-xs px-2 py-1 rounded bg-red-500 hover:bg-red-600 text-white transition-colors disabled:opacity-50"
-                                    >
-                                      🗑
-                                    </button>
-                                  </div>
                                 </td>
                               </tr>
                             ))}
@@ -1029,6 +1050,7 @@ export const BulkScheduleTable: React.FC<BulkScheduleTableProps> = ({ sessionId,
                           const d = e.target.value;
                           setEditingOverrideDate(d || null);
                           setOverrideInput('');
+                          setEndTimeInput('');
                         }}
                         className="text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-400"
                       >
@@ -1042,16 +1064,27 @@ export const BulkScheduleTable: React.FC<BulkScheduleTableProps> = ({ sessionId,
                       </select>
                       {editingOverrideDate && !dateOverrides.find(r => r.attendance_date === editingOverrideDate) && (
                         <>
-                          <input
-                            type="time"
-                            value={overrideInput}
-                            onChange={(e) => setOverrideInput(e.target.value)}
-                            placeholder="HH:MM"
-                            className="text-sm border border-gray-300 dark:border-gray-600 rounded px-3 py-1.5 dark:bg-gray-800 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-amber-400"
-                          />
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-gray-500">Start:</span>
+                            <input
+                              type="time"
+                              value={overrideInput}
+                              onChange={(e) => setOverrideInput(e.target.value)}
+                              className="text-sm border border-gray-300 dark:border-gray-600 rounded px-3 py-1.5 dark:bg-gray-800 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-amber-400 w-28"
+                            />
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-gray-500">End:</span>
+                            <input
+                              type="time"
+                              value={endTimeInput}
+                              onChange={(e) => setEndTimeInput(e.target.value)}
+                              className="text-sm border border-gray-300 dark:border-gray-600 rounded px-3 py-1.5 dark:bg-gray-800 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-amber-400 w-28"
+                            />
+                          </div>
                           <button
-                            onClick={() => overrideInput.trim() && saveDateOverride(editingOverrideDate, overrideInput.trim())}
-                            disabled={savingOverride || !overrideInput.trim()}
+                            onClick={() => (overrideInput.trim() || endTimeInput.trim()) && saveDateOverride(editingOverrideDate, overrideInput.trim() || null, endTimeInput.trim() || null)}
+                            disabled={savingOverride || (!overrideInput.trim() && !endTimeInput.trim())}
                             className="text-sm px-3 py-1.5 rounded bg-amber-500 hover:bg-amber-600 text-white font-medium transition-colors disabled:opacity-50"
                           >
                             {savingOverride ? 'Saving…' : 'Set Override'}

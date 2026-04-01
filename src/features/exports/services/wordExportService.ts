@@ -922,9 +922,12 @@ export class WordExportService {
     rows: string[][],
     isArabic: boolean = false,
     theme?: DocumentTheme,
-    colorColumns?: number[]  // Column indices to apply percentage coloring
+    colorColumns?: number[],  // Column indices to apply percentage coloring
+    tableFontSize?: number    // Font size in pt (default: header 11, body 10)
   ): Table {
     const activeTheme = theme || this.defaultTheme;
+    const headerSizeHp = tableFontSize ? tableFontSize * 2 + 2 : 22; // half-points, header slightly larger
+    const bodySizeHp = tableFontSize ? tableFontSize * 2 : 20;       // half-points
     const borderStyle = {
       style: BorderStyle.SINGLE,
       size: 1,
@@ -945,7 +948,7 @@ export class WordExportService {
                     text: header,
                     bold: true,
                     font: isArabic ? 'Arial' : 'Calibri',
-                    size: 22,
+                    size: headerSizeHp,
                     color: 'FFFFFF',
                   }),
                 ],
@@ -1002,7 +1005,7 @@ export class WordExportService {
                     new TextRun({
                       text: cell,
                       font: isArabic ? 'Arial' : 'Calibri',
-                      size: 20,
+                      size: bodySizeHp,
                       color: textColor,
                       bold: colorColumns && colorColumns.includes(cellIndex) && cell.includes('%'),
                     }),
@@ -1740,6 +1743,7 @@ export class WordExportService {
     // Layout settings from user controls
     const sectionGap = Math.round((options?.layoutSettings?.sectionSpacing ?? 10) * 20); // mm → twips approx
     const shouldPageBreak = options?.layoutSettings?.pageBreakBetweenTables ?? false;
+    const fontSize = options?.layoutSettings?.tableFontSize;  // pt, passed to createTable
     const sections: (Paragraph | Table)[] = [];
 
     // Title and Date Info
@@ -1805,7 +1809,7 @@ export class WordExportService {
       ['Median Rate by Date', `${summaryStats.medianRateByDate.toFixed(1)}%`],
     ];
 
-    sections.push(this.createTable(summaryTableHeaders, summaryRows, isArabic, theme));
+    sections.push(this.createTable(summaryTableHeaders, summaryRows, isArabic, theme, undefined, fontSize));
     sections.push(new Paragraph({ text: '', spacing: { after: sectionGap } }));
     }
 
@@ -1861,7 +1865,7 @@ export class WordExportService {
         })
       );
 
-      sections.push(this.createTable(studentHeaders, studentRows, isArabic, theme, studentColorColumns));
+      sections.push(this.createTable(studentHeaders, studentRows, isArabic, theme, studentColorColumns, fontSize));
       sections.push(new Paragraph({ text: '', spacing: { after: sectionGap } }));
     }
 
@@ -1898,7 +1902,7 @@ export class WordExportService {
         })
       );
 
-      sections.push(this.createTable(dateHeaders, dateRows, isArabic, theme, dateColorColumns));
+      sections.push(this.createTable(dateHeaders, dateRows, isArabic, theme, dateColorColumns, fontSize));
       sections.push(new Paragraph({ text: '', spacing: { after: sectionGap } }));
     }
 
@@ -1935,7 +1939,7 @@ export class WordExportService {
         })
       );
 
-      sections.push(this.createTable(hostHeaders, hostRows, isArabic, theme, hostColorColumns));
+      sections.push(this.createTable(hostHeaders, hostRows, isArabic, theme, hostColorColumns, fontSize));
     }
 
     // Specialization Analytics Section (dynamic headers with conditional coloring)
@@ -1971,7 +1975,7 @@ export class WordExportService {
         })
       );
 
-      sections.push(this.createTable(specHeaders, specRows, isArabic, theme, specColorColumns));
+      sections.push(this.createTable(specHeaders, specRows, isArabic, theme, specColorColumns, fontSize));
       sections.push(new Paragraph({ text: '', spacing: { after: sectionGap } }));
     }
 
