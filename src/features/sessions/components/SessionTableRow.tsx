@@ -16,6 +16,7 @@ export function SessionTableRow({
   onClone,
   onEdit,
   onDelete,
+  onMerge,
 }: {
   session: SessionWithDetails;
   enrollmentCount: number;
@@ -26,6 +27,7 @@ export function SessionTableRow({
   onClone: (session: SessionWithDetails) => void;
   onEdit: (session: SessionWithDetails) => void;
   onDelete: (session: SessionWithDetails) => void;
+  onMerge: (session: SessionWithDetails) => void;
 }) {
   const navigate = useNavigate();
 
@@ -130,6 +132,9 @@ export function SessionTableRow({
             <>
               <Button size="sm" variant="outline" onClick={() => onClone(session)} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Clone">
                 📋
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => onMerge(session)} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Merge attendance from another session into this one">
+                ⇄
               </Button>
               <Button size="sm" variant="outline" onClick={() => onEdit(session)} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Edit">
                 ✏️

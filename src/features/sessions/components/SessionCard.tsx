@@ -15,6 +15,7 @@ export function SessionCard({
   onClone,
   onEdit,
   onDelete,
+  onMerge,
 }: {
   session: SessionWithDetails;
   enrollmentCount: number;
@@ -25,6 +26,7 @@ export function SessionCard({
   onClone: (session: SessionWithDetails) => void;
   onEdit: (session: SessionWithDetails) => void;
   onDelete: (session: SessionWithDetails) => void;
+  onMerge: (session: SessionWithDetails) => void;
 }) {
   const navigate = useNavigate();
 
@@ -193,6 +195,15 @@ export function SessionCard({
               className="w-full min-h-[36px] justify-center"
             >
               📋 Clone
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onMerge(session)}
+              title="Merge attendance from another session into this one"
+              className="w-full min-h-[36px] justify-center"
+            >
+              ⇄ Merge From
             </Button>
             <Button
               size="sm"

@@ -13,6 +13,7 @@ import { SessionSummaryCards } from '@/features/sessions/components/SessionSumma
 import { SessionCard } from '@/features/sessions/components/SessionCard';
 import { SessionTableRow } from '@/features/sessions/components/SessionTableRow';
 import { CloneSessionModal } from '@/features/sessions/components/CloneSessionModal';
+import { SessionMergeModal } from '@/features/sessions/components/SessionMergeModal';
 import { DayChangeStrategyDialog } from '@/features/sessions/components/DayChangeStrategyDialog';
 import { TimeChangeStrategyDialog } from '@/features/sessions/components/TimeChangeStrategyDialog';
 import { sessionService } from '@/features/sessions/services/sessionService';
@@ -54,6 +55,9 @@ export function Sessions() {
 
   // Clone session state
   const [cloneSource, setCloneSource] = useState<SessionWithDetails | null>(null);
+
+  // Merge session state — mergeTarget is the session receiving attendance FROM another
+  const [mergeTarget, setMergeTarget] = useState<SessionWithDetails | null>(null);
   const [cloneForm, setCloneForm] = useState({
     start_date: '',
     end_date: '',
@@ -682,6 +686,7 @@ export function Sessions() {
                       onClone={openCloneModal}
                       onEdit={openEditModal}
                       onDelete={setDeletingSession}
+                      onMerge={setMergeTarget}
                     />
                   ))}
               </div>
@@ -749,6 +754,7 @@ export function Sessions() {
                       onClone={openCloneModal}
                       onEdit={openEditModal}
                       onDelete={setDeletingSession}
+                      onMerge={setMergeTarget}
                     />
                   ))
               )}
@@ -915,6 +921,23 @@ export function Sessions() {
             enrollmentCount={enrollmentCounts[cloneSource.session_id] || 0}
             onClone={handleCloneSession}
             onClose={() => setCloneSource(null)}
+          />
+        )}
+      </Modal>
+
+      {/* Merge Session Modal */}
+      <Modal
+        isOpen={!!mergeTarget}
+        onClose={() => setMergeTarget(null)}
+        title={`Merge Attendance Into — ${mergeTarget?.course?.course_name || ''}`}
+        size="xl"
+      >
+        {mergeTarget && (
+          <SessionMergeModal
+            targetSession={mergeTarget}
+            allSessions={sessions}
+            onClose={() => setMergeTarget(null)}
+            onSuccess={loadSessions}
           />
         )}
       </Modal>
