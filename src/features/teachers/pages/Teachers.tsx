@@ -225,23 +225,23 @@ export function Teachers() {
           <p className="text-sm md:text-base text-gray-500 dark:text-gray-400 mt-1">{teachers.length} total teachers</p>
         </div>
         {isTeacher && (
-          <div className="flex gap-2 w-full sm:w-auto">
-            <Button onClick={handleDownloadTemplate} variant="outline" className="flex-1 sm:flex-initial gap-2 text-xs sm:text-sm" title="Download import template">
+          <div className="grid grid-cols-2 sm:flex gap-2 w-full sm:w-auto">
+            <Button onClick={handleDownloadTemplate} variant="outline" className="w-full min-w-0 gap-2 text-xs sm:text-sm" title="Download import template">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-              Template
+              <span className="truncate">Template</span>
             </Button>
-            <Button onClick={() => fileInputRef.current?.click()} disabled={importing} variant="outline" className="flex-1 sm:flex-initial gap-2 text-xs sm:text-sm" title="Import from CSV/Excel">
+            <Button onClick={() => fileInputRef.current?.click()} disabled={importing} variant="outline" className="w-full min-w-0 gap-2 text-xs sm:text-sm" title="Import from CSV/Excel">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-              {importing ? 'Importing...' : 'Import'}
+              <span className="truncate">{importing ? 'Importing...' : 'Import'}</span>
             </Button>
             <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImportFile} />
-            <Button onClick={exportToCSV} variant="outline" className="flex-1 sm:flex-initial gap-2 text-xs sm:text-sm" title="Export to CSV">
+            <Button onClick={exportToCSV} variant="outline" className="w-full min-w-0 gap-2 text-xs sm:text-sm" title="Export to CSV">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-              Export
+              <span className="truncate">Export</span>
             </Button>
-            <Button onClick={openAddModal} variant="primary" className="flex-1 sm:flex-initial gap-2 text-xs sm:text-sm">
+            <Button onClick={openAddModal} variant="primary" className="w-full min-w-0 gap-2 text-xs sm:text-sm">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-              Add Teacher
+              <span className="truncate">Add Teacher</span>
             </Button>
           </div>
         )}

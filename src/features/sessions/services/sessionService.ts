@@ -470,9 +470,6 @@ export const sessionService = {
 
   // Set or clear the time override for a specific session date.
   // Creates the session_date_host row if it does not already exist.
-  // Enforces:
-  //   1. override_end_time must be after override_time (if both are set)
-  //   2. The teacher must not already have another session at the override time on this date
   async setDateTimeOverride(
     sessionId: string,
     date: string,
@@ -481,72 +478,6 @@ export const sessionService = {
     overrideEndTime?: string | null
   ): Promise<{ error: { message: string } | null }> {
     try {
-      // --- Constraint 1: end time must follow start time ---
-      if (overrideTime && overrideEndTime) {
-        const toMinutes = (t: string) => {
-          const [h, m] = t.split(':').map(Number);
-          return (h ?? 0) * 60 + (m ?? 0);
-        };
-        if (toMinutes(overrideEndTime) <= toMinutes(overrideTime)) {
-          return { error: { message: 'Override end time must be after the override start time.' } };
-        }
-      }
-
-      // --- Constraint 2: teacher must not have another session at the override time on this date ---
-      if (overrideTime) {
-        // Fetch this session's teacher and its default time
-        const { data: thisSession } = await supabase
-          .from(Tables.SESSION)
-          .select('teacher_id, day, time')
-          .eq('session_id', sessionId)
-          .single();
-
-        if (thisSession?.teacher_id) {
-          // Get all other sessions by the same teacher that cover this date
-          const dateObj = new Date(date);
-          const dayName = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][dateObj.getDay()];
-
-          const { data: otherSessions } = await supabase
-            .from(Tables.SESSION)
-            .select('session_id, course:course_id(course_name), day, time')
-            .eq('teacher_id', thisSession.teacher_id)
-            .neq('session_id', sessionId)
-            .lte('start_date', date)
-            .gte('end_date', date);
-
-          if (otherSessions) {
-            const toMinutes = (t: string) => {
-              const [h, m] = t.split(':').map(Number);
-              return (h ?? 0) * 60 + (m ?? 0);
-            };
-            const overrideStart = toMinutes(overrideTime);
-            // Default duration 60 min if no end time supplied
-            const overrideEnd = overrideEndTime ? toMinutes(overrideEndTime) : overrideStart + 60;
-
-            for (const s of otherSessions) {
-              const sessionDays = (s.day || '').split(',').map((d: string) => d.trim());
-              if (!sessionDays.includes(dayName)) continue;
-
-              // Check if this other session's time overlaps with the override window
-              if (s.time) {
-                const otherStart = toMinutes(s.time);
-                const otherEnd = otherStart + 60; // assume 60 min if no end time
-                if (overrideStart < otherEnd && otherStart < overrideEnd) {
-                  const courseName = (s as Record<string, unknown>).course
-                    ? ((s as Record<string, unknown>).course as Record<string, string>).course_name
-                    : 'another session';
-                  return {
-                    error: {
-                      message: `Teacher conflict: the teacher already has "${courseName}" at ${s.time} on ${dayName} (${date}). Choose a different override time.`,
-                    },
-                  };
-                }
-              }
-            }
-          }
-        }
-      }
-
       const upsertData: Record<string, unknown> = {
         session_id: sessionId,
         attendance_date: date,
