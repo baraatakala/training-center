@@ -147,6 +147,11 @@ CREATE POLICY "Teachers can update enrollment" ON enrollment
   USING (is_teacher() AND NOT is_admin())
   WITH CHECK (is_teacher() AND NOT is_admin());
 
+DROP POLICY IF EXISTS "Teachers can delete enrollment" ON enrollment;
+CREATE POLICY "Teachers can delete enrollment" ON enrollment
+  FOR DELETE TO authenticated
+  USING (is_teacher() AND NOT is_admin());
+
 -- ============================================================================
 -- 3. ATTENDANCE
 -- ============================================================================
@@ -187,6 +192,11 @@ CREATE POLICY "Teachers can update" ON attendance
   USING (is_teacher() AND NOT is_admin())
   WITH CHECK (is_teacher() AND NOT is_admin());
 
+DROP POLICY IF EXISTS "Teachers can delete attendance" ON attendance;
+CREATE POLICY "Teachers can delete attendance" ON attendance
+  FOR DELETE TO authenticated
+  USING (is_teacher() AND NOT is_admin());
+
 -- ============================================================================
 -- 4. SESSION MANAGEMENT
 -- ============================================================================
@@ -211,6 +221,11 @@ CREATE POLICY "Teachers can update" ON session_date_host
   FOR UPDATE TO authenticated
   USING (is_teacher() AND NOT is_admin())
   WITH CHECK (is_teacher() AND NOT is_admin());
+
+DROP POLICY IF EXISTS "Teachers can delete" ON session_date_host;
+CREATE POLICY "Teachers can delete" ON session_date_host
+  FOR DELETE TO authenticated
+  USING (is_teacher() AND NOT is_admin());
 
 DROP POLICY IF EXISTS "Students can read session hosts" ON session_date_host;
 CREATE POLICY "Students can read session hosts" ON session_date_host
@@ -325,6 +340,17 @@ DROP POLICY IF EXISTS "Teachers can insert" ON qr_sessions;
 CREATE POLICY "Teachers can insert" ON qr_sessions
   FOR INSERT TO authenticated WITH CHECK (is_teacher() AND NOT is_admin());
 
+DROP POLICY IF EXISTS "Teachers can update qr sessions" ON qr_sessions;
+CREATE POLICY "Teachers can update qr sessions" ON qr_sessions
+  FOR UPDATE TO authenticated
+  USING (is_teacher() AND NOT is_admin())
+  WITH CHECK (is_teacher() AND NOT is_admin());
+
+DROP POLICY IF EXISTS "Teachers can delete qr sessions" ON qr_sessions;
+CREATE POLICY "Teachers can delete qr sessions" ON qr_sessions
+  FOR DELETE TO authenticated
+  USING (is_teacher() AND NOT is_admin());
+
 DROP POLICY IF EXISTS "Students can read QR sessions" ON qr_sessions;
 CREATE POLICY "Students can read QR sessions" ON qr_sessions
   FOR SELECT TO authenticated USING (NOT is_teacher() AND NOT is_admin());
@@ -343,6 +369,17 @@ CREATE POLICY "Teachers can read" ON photo_checkin_sessions
 DROP POLICY IF EXISTS "Teachers can insert" ON photo_checkin_sessions;
 CREATE POLICY "Teachers can insert" ON photo_checkin_sessions
   FOR INSERT TO authenticated WITH CHECK (is_teacher() AND NOT is_admin());
+
+DROP POLICY IF EXISTS "Teachers can update photo sessions" ON photo_checkin_sessions;
+CREATE POLICY "Teachers can update photo sessions" ON photo_checkin_sessions
+  FOR UPDATE TO authenticated
+  USING (is_teacher() AND NOT is_admin())
+  WITH CHECK (is_teacher() AND NOT is_admin());
+
+DROP POLICY IF EXISTS "Teachers can delete photo sessions" ON photo_checkin_sessions;
+CREATE POLICY "Teachers can delete photo sessions" ON photo_checkin_sessions
+  FOR DELETE TO authenticated
+  USING (is_teacher() AND NOT is_admin());
 
 DROP POLICY IF EXISTS "Students can read photo sessions" ON photo_checkin_sessions;
 CREATE POLICY "Students can read photo sessions" ON photo_checkin_sessions
@@ -494,6 +531,18 @@ CREATE POLICY "Teachers can review excuse requests" ON excuse_request
     status IN ('approved', 'rejected')
   );
 
+DROP POLICY IF EXISTS "Teachers can delete excuse requests" ON excuse_request;
+CREATE POLICY "Teachers can delete excuse requests" ON excuse_request
+  FOR DELETE TO authenticated
+  USING (
+    is_teacher() AND NOT is_admin()
+    AND session_id IN (
+      SELECT s.session_id FROM session s
+      JOIN teacher t ON s.teacher_id = t.teacher_id
+      WHERE LOWER(t.email) = LOWER(auth.jwt() ->> 'email')
+    )
+  );
+
 -- ============================================================================
 -- 9. FEEDBACK
 -- ============================================================================
@@ -514,6 +563,11 @@ CREATE POLICY "Teachers and admins can manage feedback questions" ON feedback_qu
 -- session_feedback ------------------------------------------------------
 ALTER TABLE session_feedback ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Admin has full access" ON session_feedback;
+CREATE POLICY "Admin has full access" ON session_feedback
+  FOR ALL TO authenticated
+  USING (is_admin()) WITH CHECK (is_admin());
+
 DROP POLICY IF EXISTS "Students can submit feedback" ON session_feedback;
 CREATE POLICY "Students can submit feedback" ON session_feedback
   FOR INSERT TO authenticated
@@ -533,6 +587,21 @@ CREATE POLICY "Students can read own feedback" ON session_feedback
     OR is_admin()
     OR student_id = get_my_student_id()
     OR student_id IS NULL
+  );
+
+-- Teacher DELETE: merge delete chain removes session_feedback by enrollment_id
+-- before deleting source session enrollments. Scoped to teacher's own sessions.
+DROP POLICY IF EXISTS "Teachers can delete session feedback" ON session_feedback;
+CREATE POLICY "Teachers can delete session feedback" ON session_feedback
+  FOR DELETE TO authenticated
+  USING (
+    is_teacher() AND NOT is_admin()
+    AND enrollment_id IN (
+      SELECT e.enrollment_id FROM enrollment e
+      JOIN session s ON e.session_id = s.session_id
+      JOIN teacher t ON s.teacher_id = t.teacher_id
+      WHERE LOWER(t.email) = LOWER(auth.jwt() ->> 'email')
+    )
   );
 
 -- feedback_template -----------------------------------------------------
