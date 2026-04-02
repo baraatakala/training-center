@@ -520,9 +520,18 @@ export const sessionMergeService = {
 
           let hostTransferOk = false;
           if (existingRow) {
+            // Update host fields AND clear any time overrides on this date.
+            // Time overrides are NOT part of the host transfer — the target session
+            // should use its own default time. Any bled overrides from previous
+            // merges are also cleaned up by this.
             const { error: updateErr } = await supabase
               .from(Tables.SESSION_DATE_HOST)
-              .update(hostPayload)
+              .update({
+                ...hostPayload,
+                override_time: null,
+                override_end_time: null,
+                override_reason: null,
+              })
               .eq('id', existingRow.id);
             hostTransferOk = !updateErr;
             if (updateErr) result.errors.push(`Host update failed for ${override.attendance_date}: ${updateErr.message}`);
