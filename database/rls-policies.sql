@@ -51,6 +51,12 @@ DROP POLICY IF EXISTS "Teachers can insert" ON teacher;
 CREATE POLICY "Teachers can insert" ON teacher
   FOR INSERT TO authenticated WITH CHECK (is_teacher() AND NOT is_admin());
 
+DROP POLICY IF EXISTS "Teachers can update" ON teacher;
+CREATE POLICY "Teachers can update" ON teacher
+  FOR UPDATE TO authenticated
+  USING (is_teacher() AND NOT is_admin())
+  WITH CHECK (is_teacher() AND NOT is_admin());
+
 DROP POLICY IF EXISTS "Students can read teachers" ON teacher;
 CREATE POLICY "Students can read teachers" ON teacher
   FOR SELECT TO authenticated USING (NOT is_teacher() AND NOT is_admin());
@@ -70,6 +76,12 @@ DROP POLICY IF EXISTS "Teachers can insert" ON student;
 CREATE POLICY "Teachers can insert" ON student
   FOR INSERT TO authenticated WITH CHECK (is_teacher() AND NOT is_admin());
 
+DROP POLICY IF EXISTS "Teachers can update" ON student;
+CREATE POLICY "Teachers can update" ON student
+  FOR UPDATE TO authenticated
+  USING (is_teacher() AND NOT is_admin())
+  WITH CHECK (is_teacher() AND NOT is_admin());
+
 DROP POLICY IF EXISTS "Students can read students" ON student;
 CREATE POLICY "Students can read students" ON student
   FOR SELECT TO authenticated USING (NOT is_teacher() AND NOT is_admin());
@@ -88,6 +100,12 @@ CREATE POLICY "Teachers can read" ON course
 DROP POLICY IF EXISTS "Teachers can insert" ON course;
 CREATE POLICY "Teachers can insert" ON course
   FOR INSERT TO authenticated WITH CHECK (is_teacher() AND NOT is_admin());
+
+DROP POLICY IF EXISTS "Teachers can update" ON course;
+CREATE POLICY "Teachers can update" ON course
+  FOR UPDATE TO authenticated
+  USING (is_teacher() AND NOT is_admin())
+  WITH CHECK (is_teacher() AND NOT is_admin());
 
 DROP POLICY IF EXISTS "Students can read courses" ON course;
 CREATE POLICY "Students can read courses" ON course

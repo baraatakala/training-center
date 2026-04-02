@@ -154,6 +154,7 @@ export function Attendance() {
   const [editingLateMinutes, setEditingLateMinutes] = useState<string | null>(null);
   const [lateMinutesInput, setLateMinutesInput] = useState<string>('');
   const [confirmClearAttendance, setConfirmClearAttendance] = useState<string | null>(null);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [confirmSessionNotHeld, setConfirmSessionNotHeld] = useState<boolean>(false);
   const [confirmUnmarkSessionNotHeld, setConfirmUnmarkSessionNotHeld] = useState<boolean>(false);
   const [confirmClearGPS, setConfirmClearGPS] = useState<{ hostId: string; isTeacher: boolean } | null>(null);
@@ -1673,6 +1674,51 @@ export function Attendance() {
     loadAttendance();
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedStudents.size === 0) return;
+
+    const attendanceIds = Array.from(selectedStudents);
+    const tempIds = attendanceIds.filter(id => id.startsWith('temp-'));
+    const realIds = attendanceIds.filter(id => !id.startsWith('temp-'));
+
+    // Reset temp (unsaved) records locally
+    if (tempIds.length > 0) {
+      setAttendance(prev => prev.map(a =>
+        tempIds.includes(a.attendance_id) ? { ...a, status: 'pending', check_in_time: null } : a
+      ));
+    }
+
+    // Delete real records from DB
+    if (realIds.length > 0) {
+      // Audit log each deletion
+      try {
+        const { data: toAudit } = await supabase
+          .from(Tables.ATTENDANCE)
+          .select('*')
+          .in('attendance_id', realIds);
+        if (toAudit) {
+          for (const rec of toAudit) {
+            await logDelete(Tables.ATTENDANCE, rec.attendance_id, rec as Record<string, unknown>, 'Bulk delete from Attendance page');
+          }
+        }
+      } catch { /* audit non-critical */ }
+
+      const { error } = await supabase
+        .from(Tables.ATTENDANCE)
+        .delete()
+        .in('attendance_id', realIds);
+
+      if (error) {
+        console.error('Error bulk deleting attendance:', error);
+        toast.error(error.message);
+        return;
+      }
+    }
+
+    setSelectedStudents(new Set());
+    loadAttendance();
+  };
+
   const handleSelectAll = () => {
     // Filter out 'not enrolled' records from selection
     const selectableAttendance = attendance.filter(a => a.status !== 'not enrolled');
@@ -2762,6 +2808,12 @@ export function Attendance() {
                       >
                         ⏰ Late ({selectedStudents.size})
                       </Button>
+                      <Button
+                        onClick={() => setConfirmBulkDelete(true)}
+                        className="bg-red-600/80 backdrop-blur-sm hover:bg-red-700/90 text-white border border-red-400/50 text-xs sm:text-sm"
+                      >
+                        🗑 Delete ({selectedStudents.size})
+                      </Button>
                     </>
                   ) : (
                     <Button
@@ -3112,6 +3164,18 @@ export function Attendance() {
           onClose={() => setShowQRModal(false)}
         />
       )}
+
+      {/* Confirm: Bulk Delete Attendance */}
+      <ConfirmDialog
+        isOpen={confirmBulkDelete}
+        title="Delete Selected Attendance Records"
+        message={`Delete attendance records for ${selectedStudents.size} selected student(s)? Unsaved records will be reset to pending. This cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="danger"
+        onConfirm={() => { setConfirmBulkDelete(false); handleBulkDelete(); }}
+        onCancel={() => setConfirmBulkDelete(false)}
+      />
 
       {/* Confirm: Clear Attendance */}
       <ConfirmDialog
