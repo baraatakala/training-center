@@ -496,36 +496,76 @@ export const sessionMergeService = {
           .eq('session_id', sourceSessionId);
 
         for (const override of (sourceOverrides || [])) {
-          // Strip identity/timestamp columns.
-          // IMPORTANT: also null out the source session's time override fields so they
-          // don't bleed into the target session's schedule. We want the HOST identity
-          // and address to carry over, but the source's timing context is irrelevant
-          // (and misleading) for the target session which has its own default time.
-          const {
-            id: _id,
-            created_at: _ca,
-            updated_at: _ua,
-            session_id: _sid,
-            override_time: _ot,       // source time override — NOT transferred
-            override_end_time: _oet,  // source end-time override — NOT transferred
-            override_reason: _or,     // source override reason — NOT transferred
-            ...hostRest               // host_id, host_type, host_address, host_lat/lng
-          } = override;
+          // Transfer ONLY host identity + address + GPS.
+          // Time overrides (override_time, override_end_time, override_reason) are
+          // NOT transferred — they belong to the source session's schedule and would
+          // corrupt the target session's own timing configuration.
+          const hostPayload = {
+            host_id: override.host_id ?? null,
+            host_type: override.host_type ?? null,
+            host_address: override.host_address ?? null,
+            host_latitude: override.host_latitude ?? null,
+            host_longitude: override.host_longitude ?? null,
+          };
 
-          const { error: upsertErr } = await supabase
+          // Check whether the target already has a row for this date.
+          // If YES → update ONLY the host fields (preserve target's own time override).
+          // If NO  → insert a fresh row (time fields left null = use session default).
+          const { data: existingRow } = await supabase
             .from(Tables.SESSION_DATE_HOST)
-            .upsert(
-              {
-                ...hostRest,
+            .select('id')
+            .eq('session_id', targetSessionId)
+            .eq('attendance_date', override.attendance_date)
+            .maybeSingle();
+
+          let hostTransferOk = false;
+          if (existingRow) {
+            const { error: updateErr } = await supabase
+              .from(Tables.SESSION_DATE_HOST)
+              .update(hostPayload)
+              .eq('id', existingRow.id);
+            hostTransferOk = !updateErr;
+            if (updateErr) result.errors.push(`Host update failed for ${override.attendance_date}: ${updateErr.message}`);
+          } else {
+            const { error: insertErr } = await supabase
+              .from(Tables.SESSION_DATE_HOST)
+              .insert({
                 session_id: targetSessionId,
+                attendance_date: override.attendance_date,
+                ...hostPayload,
                 override_time: null,
                 override_end_time: null,
                 override_reason: null,
-              },
-              { onConflict: 'session_id,attendance_date', ignoreDuplicates: true },
-            );
+              });
+            hostTransferOk = !insertErr;
+            if (insertErr) result.errors.push(`Host insert failed for ${override.attendance_date}: ${insertErr.message}`);
+          }
 
-          if (!upsertErr) result.date_host_overrides_transferred++;
+          if (hostTransferOk) {
+            result.date_host_overrides_transferred++;
+
+            // If the host is a student, ensure can_host=true on their target enrollment
+            // so they appear in the host address dropdown on the Attendance page.
+            if (override.host_id && override.host_type === 'student') {
+              const { data: hostEnroll } = await supabase
+                .from(Tables.ENROLLMENT)
+                .select('enrollment_id, can_host, host_date')
+                .eq('session_id', targetSessionId)
+                .eq('student_id', override.host_id)
+                .maybeSingle();
+
+              if (hostEnroll && !hostEnroll.can_host) {
+                await supabase
+                  .from(Tables.ENROLLMENT)
+                  .update({
+                    can_host: true,
+                    // Only set host_date when not already set to preserve any existing schedule
+                    ...(!hostEnroll.host_date ? { host_date: override.attendance_date } : {}),
+                  })
+                  .eq('enrollment_id', hostEnroll.enrollment_id);
+              }
+            }
+          }
         }
 
         // Also transfer teacher host schedule rows
@@ -591,20 +631,34 @@ export const sessionMergeService = {
             .eq('session_id', sourceSessionId);
 
           for (const cov of (sourceBookCoverage || [])) {
-            const {
-              coverage_id: _cid,
-              created_at: _ca,
-              updated_at: _ua,
-              session_id: _sid,
-              ...covRest
-            } = cov;
-
-            const { error: covErr } = await supabase
+            // Explicit check-then-update-or-insert to avoid upsert constraint conflicts
+            const { data: existingCov } = await supabase
               .from(Tables.SESSION_BOOK_COVERAGE)
-              .upsert(
-                { ...covRest, session_id: targetSessionId },
-                { onConflict: 'session_id,attendance_date' },
-              );
+              .select('coverage_id')
+              .eq('session_id', targetSessionId)
+              .eq('attendance_date', cov.attendance_date)
+              .maybeSingle();
+
+            let covErr;
+            if (existingCov) {
+              // Update existing: swap the reference to match the source
+              ({ error: covErr } = await supabase
+                .from(Tables.SESSION_BOOK_COVERAGE)
+                .update({ reference_id: cov.reference_id })
+                .eq('coverage_id', existingCov.coverage_id));
+            } else {
+              // Insert fresh row
+              const {
+                coverage_id: _cid,
+                created_at: _ca,
+                updated_at: _ua,
+                session_id: _sid,
+                ...covRest
+              } = cov;
+              ({ error: covErr } = await supabase
+                .from(Tables.SESSION_BOOK_COVERAGE)
+                .insert({ ...covRest, session_id: targetSessionId }));
+            }
 
             if (!covErr) result.book_coverages_transferred++;
             else result.errors.push(`Book coverage transfer failed (${cov.attendance_date}): ${covErr.message}`);
