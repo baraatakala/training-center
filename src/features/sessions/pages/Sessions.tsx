@@ -70,6 +70,13 @@ export function Sessions() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
 
+  // Schedule conflict confirmation state
+  const [conflictConfirm, setConflictConfirm] = useState<{
+    message: string;
+    pendingData: CreateSession;
+    action: 'add' | 'edit';
+  } | null>(null);
+
   // Unified schedule-change dialog (replaces the old separate day/time dialogs)
   const [scheduleChangeDialog, setScheduleChangeDialog] = useState<{
     data: CreateSession;
@@ -113,21 +120,22 @@ export function Sessions() {
     setLoading(false);
   }, []);
 
-  const ensureNoScheduleConflicts = useCallback(async (input: {
+  const checkScheduleConflicts = useCallback(async (input: {
     teacherId: string;
     startDate: string;
     endDate: string;
     day: string | null;
     time?: string | null;
     excludeSessionId?: string;
-  }) => {
+  }): Promise<string | null> => {
     const { data, error } = await sessionService.checkScheduleConflicts(input);
     if (error) {
       throw new Error(error.message || 'Unable to validate schedule conflicts right now.');
     }
     if (data.length > 0) {
-      throw new Error(buildConflictMessage(data));
+      return buildConflictMessage(data);
     }
+    return null;
   }, []);
 
   useRefreshOnFocus(loadSessions);
@@ -208,7 +216,7 @@ export function Sessions() {
   // Removed unused toggleSort function - sorting is handled by dropdown and toggle button
 
   const handleAddSession = async (data: CreateSession) => {
-    await ensureNoScheduleConflicts({
+    const conflictMsg = await checkScheduleConflicts({
       teacherId: data.teacher_id,
       startDate: data.start_date,
       endDate: data.end_date,
@@ -216,6 +224,15 @@ export function Sessions() {
       time: data.time,
     });
 
+    if (conflictMsg) {
+      setConflictConfirm({ message: conflictMsg, pendingData: data, action: 'add' });
+      return;
+    }
+
+    await executeAddSession(data);
+  };
+
+  const executeAddSession = async (data: CreateSession) => {
     const { error } = await sessionService.create(data);
 
     if (error) {
@@ -231,7 +248,7 @@ export function Sessions() {
   const handleUpdateSession = async (data: CreateSession) => {
     if (!editingSession) return;
 
-    await ensureNoScheduleConflicts({
+    const conflictMsg = await checkScheduleConflicts({
       teacherId: data.teacher_id,
       startDate: data.start_date,
       endDate: data.end_date,
@@ -239,6 +256,17 @@ export function Sessions() {
       time: data.time,
       excludeSessionId: editingSession.session_id,
     });
+
+    if (conflictMsg) {
+      setConflictConfirm({ message: conflictMsg, pendingData: data, action: 'edit' });
+      return;
+    }
+
+    await executeUpdateSession(data);
+  };
+
+  const executeUpdateSession = async (data: CreateSession) => {
+    if (!editingSession) return;
 
     // If the day changed, ask user how to handle the schedule transition
     const dayChanged = data.day !== editingSession.day;
@@ -303,6 +331,17 @@ export function Sessions() {
     }
   };
 
+  const handleConflictProceed = async () => {
+    if (!conflictConfirm) return;
+    const { pendingData, action } = conflictConfirm;
+    setConflictConfirm(null);
+    if (action === 'add') {
+      await executeAddSession(pendingData);
+    } else {
+      await executeUpdateSession(pendingData);
+    }
+  };
+
   const openAddModal = () => {
     setEditingSession(null);
     setIsModalOpen(true);
@@ -360,13 +399,24 @@ export function Sessions() {
     }
     setCloning(true);
     try {
-      await ensureNoScheduleConflicts({
+      const conflictMsg = await checkScheduleConflicts({
         teacherId: cloneSource.teacher_id,
         startDate: cloneForm.start_date,
         endDate: cloneForm.end_date,
         day: selectedCloneDays.join(', ') || null,
         time: cloneForm.time || null,
       });
+
+      if (conflictMsg) {
+        // For clone, show toast warning but let them decide
+        const proceed = window.confirm(
+          `${conflictMsg}\n\nDo you want to proceed anyway?`
+        );
+        if (!proceed) {
+          setCloning(false);
+          return;
+        }
+      }
 
       const { error, copied } = await sessionService.cloneSession(
         cloneSource.session_id,
@@ -808,6 +858,20 @@ export function Sessions() {
         type="danger"
         onConfirm={handleDeleteSession}
         onCancel={() => setDeletingSession(null)}
+      />
+
+      {/* Schedule Conflict Warning */}
+      <ConfirmDialog
+        isOpen={!!conflictConfirm}
+        title="Schedule Conflict Detected"
+        message={conflictConfirm
+          ? `${conflictConfirm.message}\n\nDo you want to proceed anyway? The teacher will have overlapping sessions on these dates.`
+          : ''}
+        confirmText="Proceed Anyway"
+        cancelText="Go Back"
+        type="warning"
+        onConfirm={handleConflictProceed}
+        onCancel={() => setConflictConfirm(null)}
       />
 
       {/* Clone Session Modal */}

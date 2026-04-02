@@ -490,16 +490,21 @@ export const sessionMergeService = {
 
       // ── 5. Transfer date/time overrides ──────────────────────────────────
       if (options.transfer_date_host_overrides) {
+        // Fetch source session default time AND target session default time
+        // so we can compute whether a time override is needed on the target.
+        const [{ data: srcSessTime }, { data: tgtSessTime }] = await Promise.all([
+          supabase.from(Tables.SESSION).select('time').eq('session_id', sourceSessionId).single(),
+          supabase.from(Tables.SESSION).select('time').eq('session_id', targetSessionId).single(),
+        ]);
+        const sourceDefaultTime = srcSessTime?.time as string | null; // e.g. "16:15-18:30"
+        const targetDefaultTime = tgtSessTime?.time as string | null; // e.g. "13:15-15:30"
+
         const { data: sourceOverrides } = await supabase
           .from(Tables.SESSION_DATE_HOST)
           .select('*')
           .eq('session_id', sourceSessionId);
 
         for (const override of (sourceOverrides || [])) {
-          // Transfer ONLY host identity + address + GPS.
-          // Time overrides (override_time, override_end_time, override_reason) are
-          // NOT transferred — they belong to the source session's schedule and would
-          // corrupt the target session's own timing configuration.
           const hostPayload = {
             host_id: override.host_id ?? null,
             host_type: override.host_type ?? null,
@@ -508,9 +513,38 @@ export const sessionMergeService = {
             host_longitude: override.host_longitude ?? null,
           };
 
-          // Check whether the target already has a row for this date.
-          // If YES → update ONLY the host fields (preserve target's own time override).
-          // If NO  → insert a fresh row (time fields left null = use session default).
+          // Compute the EFFECTIVE time for this date in the source session:
+          // If source has a per-date override → use that override
+          // Otherwise → use the source session's default time
+          const srcOverrideTime = override.override_time as string | null;
+          const srcOverrideEndTime = override.override_end_time as string | null;
+
+          // Parse the source session's default time into start/end parts ("16:15-18:30" → "16:15", "18:30")
+          const [srcDefaultStart, srcDefaultEnd] = (sourceDefaultTime || '').split('-').map(s => s.trim());
+          const [tgtDefaultStart, tgtDefaultEnd] = (targetDefaultTime || '').split('-').map(s => s.trim());
+
+          // The effective start/end time from the source for this date:
+          const effectiveStart = srcOverrideTime || srcDefaultStart || null;
+          const effectiveEnd = srcOverrideEndTime || srcDefaultEnd || null;
+
+          // Only set an override on the target if the time actually differs from the target's default
+          let timePayload: { override_time: string | null; override_end_time: string | null; override_reason: string | null };
+          if (effectiveStart !== tgtDefaultStart || effectiveEnd !== tgtDefaultEnd) {
+            // Source time differs from target default → apply as override
+            timePayload = {
+              override_time: effectiveStart,
+              override_end_time: effectiveEnd,
+              override_reason: 'Transferred from merged session',
+            };
+          } else {
+            // Same time → no override needed, clear any stale one
+            timePayload = {
+              override_time: null,
+              override_end_time: null,
+              override_reason: null,
+            };
+          }
+
           const { data: existingRow } = await supabase
             .from(Tables.SESSION_DATE_HOST)
             .select('id')
@@ -520,18 +554,9 @@ export const sessionMergeService = {
 
           let hostTransferOk = false;
           if (existingRow) {
-            // Update host fields AND clear any time overrides on this date.
-            // Time overrides are NOT part of the host transfer — the target session
-            // should use its own default time. Any bled overrides from previous
-            // merges are also cleaned up by this.
             const { error: updateErr } = await supabase
               .from(Tables.SESSION_DATE_HOST)
-              .update({
-                ...hostPayload,
-                override_time: null,
-                override_end_time: null,
-                override_reason: null,
-              })
+              .update({ ...hostPayload, ...timePayload })
               .eq('id', existingRow.id);
             hostTransferOk = !updateErr;
             if (updateErr) result.errors.push(`Host update failed for ${override.attendance_date}: ${updateErr.message}`);
@@ -542,9 +567,7 @@ export const sessionMergeService = {
                 session_id: targetSessionId,
                 attendance_date: override.attendance_date,
                 ...hostPayload,
-                override_time: null,
-                override_end_time: null,
-                override_reason: null,
+                ...timePayload,
               });
             hostTransferOk = !insertErr;
             if (insertErr) result.errors.push(`Host insert failed for ${override.attendance_date}: ${insertErr.message}`);
