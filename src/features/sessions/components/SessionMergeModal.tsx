@@ -404,6 +404,16 @@ export function SessionMergeModal({
                         {student.transferable_dates.length} ready
                       </span>
                     )}
+                    {student.target_enrollment_id && (() => {
+                      const excusedCount = student.transferable_dates.filter(
+                        (d) => student.statuses[d] === 'excused',
+                      ).length;
+                      return excusedCount > 0 ? (
+                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400 font-medium">
+                          {excusedCount} excused
+                        </span>
+                      ) : null;
+                    })()}
                     {student.conflict_dates.length > 0 && (
                       <span className="text-xs px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400 font-medium">
                         {student.conflict_dates.length} conflict
@@ -591,7 +601,7 @@ export function SessionMergeModal({
   // ════════════════════════════════════════════════════════════════════════════
   if (step === 'done' && result) {
     const total =
-      result.transferred + result.overwritten + result.skipped + result.enrolled;
+      result.transferred + result.overwritten + result.skipped + result.failed + result.enrolled;
 
     return (
       <div className="space-y-4">
@@ -632,6 +642,9 @@ export function SessionMergeModal({
           )}
           {result.skipped > 0 && (
             <StatCard value={result.skipped} label="Records skipped" color="gray" />
+          )}
+          {result.failed > 0 && (
+            <StatCard value={result.failed} label="Records failed" color="orange" />
           )}
           {result.date_host_overrides_transferred > 0 && (
             <StatCard

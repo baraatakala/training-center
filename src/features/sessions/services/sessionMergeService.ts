@@ -44,7 +44,10 @@ export type MergeResult = {
   enrolled: number;
   transferred: number;
   overwritten: number;
+  /** Records intentionally skipped (conflict_resolution=skip, or auto_enroll=false) */
   skipped: number;
+  /** Records that failed due to DB errors (constraint violations, network, etc.) */
+  failed: number;
   date_host_overrides_transferred: number;
   source_deleted: boolean;
   errors: string[];
@@ -251,6 +254,7 @@ export const sessionMergeService = {
       transferred: 0,
       overwritten: 0,
       skipped: 0,
+      failed: 0,
       date_host_overrides_transferred: 0,
       source_deleted: false,
       errors: [],
@@ -327,7 +331,7 @@ export const sessionMergeService = {
                 result.errors.push(
                   `Could not reactivate enrollment (${att.student_id}): ${reactivateErr.message}`,
                 );
-                result.skipped++;
+                result.failed++;
                 continue;
               }
             }
@@ -351,7 +355,7 @@ export const sessionMergeService = {
               result.errors.push(
                 `Could not enroll student (${att.student_id}): ${enrollErr?.message || 'unknown error'}`,
               );
-              result.skipped++;
+              result.failed++;
               continue;
             }
 
@@ -376,6 +380,7 @@ export const sessionMergeService = {
             .from(Tables.ATTENDANCE)
             .update({
               status: att.status,
+              excuse_reason: att.excuse_reason ?? null,
               check_in_time: att.check_in_time,
               notes: att.notes,
               host_address: att.host_address,
@@ -384,6 +389,11 @@ export const sessionMergeService = {
               distance_from_host: att.distance_from_host,
               early_minutes: att.early_minutes,
               marked_at: att.marked_at,
+              marked_by: att.marked_by ?? null,
+              gps_latitude: att.gps_latitude ?? null,
+              gps_longitude: att.gps_longitude ?? null,
+              gps_accuracy: att.gps_accuracy ?? null,
+              gps_timestamp: att.gps_timestamp ?? null,
             })
             .eq('attendance_id', existingAttId);
 
@@ -391,7 +401,7 @@ export const sessionMergeService = {
             result.errors.push(
               `Overwrite failed for ${att.attendance_date}: ${updateErr.message}`,
             );
-            result.skipped++;
+            result.failed++;
           } else {
             result.overwritten++;
           }
@@ -407,6 +417,7 @@ export const sessionMergeService = {
             session_id: targetSessionId,
             attendance_date: att.attendance_date,
             status: att.status,
+            excuse_reason: att.excuse_reason ?? null,
             check_in_time: att.check_in_time,
             notes: att.notes,
             host_address: att.host_address,
@@ -415,13 +426,18 @@ export const sessionMergeService = {
             distance_from_host: att.distance_from_host,
             early_minutes: att.early_minutes,
             marked_at: att.marked_at,
+            marked_by: att.marked_by ?? null,
+            gps_latitude: att.gps_latitude ?? null,
+            gps_longitude: att.gps_longitude ?? null,
+            gps_accuracy: att.gps_accuracy ?? null,
+            gps_timestamp: att.gps_timestamp ?? null,
           });
 
         if (insertErr) {
           result.errors.push(
             `Insert failed for ${att.attendance_date}: ${insertErr.message}`,
           );
-          result.skipped++;
+          result.failed++;
         } else {
           result.transferred++;
         }
