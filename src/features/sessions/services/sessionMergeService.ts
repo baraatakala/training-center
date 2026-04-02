@@ -24,6 +24,11 @@ export type MergePreview = {
   students: StudentMergePreview[];
   date_host_override_count: number;
   teacher_host_schedule_count: number;
+  recording_count: number;
+  book_coverage_count: number;
+  feedback_question_count: number;
+  /** true when source and target belong to the same course — required for book coverage transfer */
+  same_course: boolean;
   summary: {
     students_count: number;
     total_transferable: number;
@@ -37,6 +42,8 @@ export type MergeOptions = {
   conflict_resolution: 'skip' | 'overwrite';
   auto_enroll: boolean;
   transfer_date_host_overrides: boolean;
+  /** Transfer per-date content: recording links, book coverage, feedback questions */
+  transfer_per_date_content: boolean;
   delete_source_after: boolean;
 };
 
@@ -49,6 +56,9 @@ export type MergeResult = {
   /** Records that failed due to DB errors (constraint violations, network, etc.) */
   failed: number;
   date_host_overrides_transferred: number;
+  recordings_transferred: number;
+  book_coverages_transferred: number;
+  feedback_questions_transferred: number;
   source_deleted: boolean;
   errors: string[];
 };
@@ -76,19 +86,32 @@ export const sessionMergeService = {
       if (sourceErr) return { data: null, error: { message: sourceErr.message } };
 
       if (!sourceAttendance || sourceAttendance.length === 0) {
-        const { count: earlyOverrideCount } = await supabase
-          .from(Tables.SESSION_DATE_HOST)
-          .select('id', { count: 'exact', head: true })
-          .eq('session_id', sourceSessionId);
-        const { count: earlyScheduleCount } = await supabase
-          .from(Tables.TEACHER_HOST_SCHEDULE)
-          .select('id', { count: 'exact', head: true })
-          .eq('session_id', sourceSessionId);
+        const [
+          { count: earlyOverrideCount },
+          { count: earlyScheduleCount },
+          { count: earlyRecordingCount },
+          { count: earlyBookCount },
+          { count: earlyFeedbackCount },
+          { data: srcSess },
+          { data: tgtSess },
+        ] = await Promise.all([
+          supabase.from(Tables.SESSION_DATE_HOST).select('id', { count: 'exact', head: true }).eq('session_id', sourceSessionId),
+          supabase.from(Tables.TEACHER_HOST_SCHEDULE).select('id', { count: 'exact', head: true }).eq('session_id', sourceSessionId),
+          supabase.from(Tables.SESSION_RECORDING).select('recording_id', { count: 'exact', head: true }).eq('session_id', sourceSessionId).is('deleted_at', null),
+          supabase.from(Tables.SESSION_BOOK_COVERAGE).select('coverage_id', { count: 'exact', head: true }).eq('session_id', sourceSessionId),
+          supabase.from(Tables.FEEDBACK_QUESTION).select('id', { count: 'exact', head: true }).eq('session_id', sourceSessionId),
+          supabase.from(Tables.SESSION).select('course_id').eq('session_id', sourceSessionId).single(),
+          supabase.from(Tables.SESSION).select('course_id').eq('session_id', targetSessionId).single(),
+        ]);
         return {
           data: {
             students: [],
             date_host_override_count: earlyOverrideCount || 0,
             teacher_host_schedule_count: earlyScheduleCount || 0,
+            recording_count: earlyRecordingCount || 0,
+            book_coverage_count: earlyBookCount || 0,
+            feedback_question_count: earlyFeedbackCount || 0,
+            same_course: srcSess?.course_id === tgtSess?.course_id,
             summary: {
               students_count: 0,
               total_transferable: 0,
@@ -221,11 +244,30 @@ export const sessionMergeService = {
         .select('id', { count: 'exact', head: true })
         .eq('session_id', sourceSessionId);
 
+      // 8. Count recordings, book coverage, feedback questions
+      const [
+        { count: recordingCount },
+        { count: bookCoverageCount },
+        { count: feedbackQuestionCount },
+        { data: srcSession },
+        { data: tgtSession },
+      ] = await Promise.all([
+        supabase.from(Tables.SESSION_RECORDING).select('recording_id', { count: 'exact', head: true }).eq('session_id', sourceSessionId).is('deleted_at', null),
+        supabase.from(Tables.SESSION_BOOK_COVERAGE).select('coverage_id', { count: 'exact', head: true }).eq('session_id', sourceSessionId),
+        supabase.from(Tables.FEEDBACK_QUESTION).select('id', { count: 'exact', head: true }).eq('session_id', sourceSessionId),
+        supabase.from(Tables.SESSION).select('course_id').eq('session_id', sourceSessionId).single(),
+        supabase.from(Tables.SESSION).select('course_id').eq('session_id', targetSessionId).single(),
+      ]);
+
       return {
         data: {
           students: studentStatuses,
           date_host_override_count: overrideCount || 0,
           teacher_host_schedule_count: scheduleCount || 0,
+          recording_count: recordingCount || 0,
+          book_coverage_count: bookCoverageCount || 0,
+          feedback_question_count: feedbackQuestionCount || 0,
+          same_course: srcSession?.course_id === tgtSession?.course_id,
           summary: {
             students_count: studentStatuses.length,
             total_transferable: totalTransferable,
@@ -256,6 +298,9 @@ export const sessionMergeService = {
       skipped: 0,
       failed: 0,
       date_host_overrides_transferred: 0,
+      recordings_transferred: 0,
+      book_coverages_transferred: 0,
+      feedback_questions_transferred: 0,
       source_deleted: false,
       errors: [],
     };
@@ -493,7 +538,97 @@ export const sessionMergeService = {
         }
       }
 
-      // ── 6. Delete source session (optional) ──────────────────────────────
+      // ── 6. Transfer per-date content: recordings, book coverage, feedback questions ──
+      if (options.transfer_per_date_content) {
+        // 6a. Recording links — insert each non-deleted source recording into target
+        const { data: sourceRecordings } = await supabase
+          .from(Tables.SESSION_RECORDING)
+          .select('*')
+          .eq('session_id', sourceSessionId)
+          .is('deleted_at', null);
+
+        for (const rec of (sourceRecordings || [])) {
+          const {
+            recording_id: _rid,
+            created_at: _ca,
+            updated_at: _ua,
+            deleted_at: _da,
+            session_id: _sid,
+            ...recRest
+          } = rec;
+
+          const { error: recErr } = await supabase
+            .from(Tables.SESSION_RECORDING)
+            .insert({ ...recRest, session_id: targetSessionId });
+
+          if (!recErr) result.recordings_transferred++;
+          else result.errors.push(`Recording transfer failed (${rec.attendance_date}): ${recErr.message}`);
+        }
+
+        // 6b. Book coverage — only valid when both sessions share the same course
+        const [{ data: srcSess }, { data: tgtSess }] = await Promise.all([
+          supabase.from(Tables.SESSION).select('course_id').eq('session_id', sourceSessionId).single(),
+          supabase.from(Tables.SESSION).select('course_id').eq('session_id', targetSessionId).single(),
+        ]);
+
+        if (srcSess?.course_id === tgtSess?.course_id) {
+          const { data: sourceBookCoverage } = await supabase
+            .from(Tables.SESSION_BOOK_COVERAGE)
+            .select('*')
+            .eq('session_id', sourceSessionId);
+
+          for (const cov of (sourceBookCoverage || [])) {
+            const {
+              coverage_id: _cid,
+              created_at: _ca,
+              updated_at: _ua,
+              session_id: _sid,
+              ...covRest
+            } = cov;
+
+            const { error: covErr } = await supabase
+              .from(Tables.SESSION_BOOK_COVERAGE)
+              .insert({ ...covRest, session_id: targetSessionId });
+
+            if (!covErr) result.book_coverages_transferred++;
+            else result.errors.push(`Book coverage transfer failed (${cov.attendance_date}): ${covErr.message}`);
+          }
+        } else if (srcSess?.course_id !== tgtSess?.course_id) {
+          const { count: bookCount } = await supabase
+            .from(Tables.SESSION_BOOK_COVERAGE)
+            .select('coverage_id', { count: 'exact', head: true })
+            .eq('session_id', sourceSessionId);
+          if ((bookCount || 0) > 0) {
+            result.errors.push(
+              `Book coverage skipped: source and target belong to different courses. Book references are course-specific and cannot be transferred across courses.`,
+            );
+          }
+        }
+
+        // 6c. Feedback questions — copy question templates per date (not student responses)
+        const { data: sourceFeedback } = await supabase
+          .from(Tables.FEEDBACK_QUESTION)
+          .select('*')
+          .eq('session_id', sourceSessionId);
+
+        for (const q of (sourceFeedback || [])) {
+          const {
+            id: _qid,
+            created_at: _ca,
+            session_id: _sid,
+            ...qRest
+          } = q;
+
+          const { error: qErr } = await supabase
+            .from(Tables.FEEDBACK_QUESTION)
+            .insert({ ...qRest, session_id: targetSessionId });
+
+          if (!qErr) result.feedback_questions_transferred++;
+          else result.errors.push(`Feedback question transfer failed: ${qErr.message}`);
+        }
+      }
+
+      // ── 7. Delete source session (optional) ──────────────────────────────
       if (options.delete_source_after) {
         try {
           // Delete in FK dependency order so constraints are satisfied

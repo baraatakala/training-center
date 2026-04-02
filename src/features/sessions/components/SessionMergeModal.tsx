@@ -65,6 +65,7 @@ export function SessionMergeModal({
     conflict_resolution: 'skip',
     auto_enroll: true,
     transfer_date_host_overrides: true,
+    transfer_per_date_content: true,
     delete_source_after: false,
   });
 
@@ -274,6 +275,27 @@ export function SessionMergeModal({
                           color="gray"
                         />
                       )}
+                      {preview.recording_count > 0 && (
+                        <StatCard
+                          value={preview.recording_count}
+                          label="Recordings"
+                          color="purple"
+                        />
+                      )}
+                      {preview.book_coverage_count > 0 && (
+                        <StatCard
+                          value={preview.book_coverage_count}
+                          label="Book refs"
+                          color="gray"
+                        />
+                      )}
+                      {preview.feedback_question_count > 0 && (
+                        <StatCard
+                          value={preview.feedback_question_count}
+                          label="Feedback Qs"
+                          color="gray"
+                        />
+                      )}
                     </div>
                   </>
                 )}
@@ -373,6 +395,27 @@ export function SessionMergeModal({
             <StatCard
               value={preview.teacher_host_schedule_count}
               label="Teacher schedule"
+              color="gray"
+            />
+          )}
+          {preview.recording_count > 0 && (
+            <StatCard
+              value={preview.recording_count}
+              label="Recordings"
+              color="purple"
+            />
+          )}
+          {preview.book_coverage_count > 0 && (
+            <StatCard
+              value={preview.book_coverage_count}
+              label="Book refs"
+              color="gray"
+            />
+          )}
+          {preview.feedback_question_count > 0 && (
+            <StatCard
+              value={preview.feedback_question_count}
+              label="Feedback Qs"
               color="gray"
             />
           )}
@@ -526,6 +569,33 @@ export function SessionMergeModal({
             </div>
           )}
 
+          {/* Transfer per-date content: recordings, book coverage, feedback questions */}
+          {(preview.recording_count > 0 || preview.book_coverage_count > 0 || preview.feedback_question_count > 0) && (
+            <div className="px-4 py-3">
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={options.transfer_per_date_content}
+                  onChange={(e) =>
+                    setOptions((o) => ({ ...o, transfer_per_date_content: e.target.checked }))
+                  }
+                  className="mt-0.5 text-blue-600 focus:ring-blue-500 rounded"
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  <span className="font-medium">Transfer per-date content</span> — copy recording
+                  links ({preview.recording_count}),
+                  book references ({preview.book_coverage_count}{!preview.same_course && preview.book_coverage_count > 0 ? ' — skipped, different courses' : ''}),
+                  and feedback questions ({preview.feedback_question_count})
+                </span>
+              </label>
+              {preview.book_coverage_count > 0 && !preview.same_course && (
+                <p className="mt-1.5 ml-7 text-xs text-amber-700 dark:text-amber-400">
+                  ⚠️ Book references cannot be transferred — source and target belong to different courses.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Delete source — always shown, danger zone */}
           <div className="px-4 py-3 bg-red-50/60 dark:bg-red-900/10">
             <label className="flex items-start gap-2.5 cursor-pointer">
@@ -602,6 +672,8 @@ export function SessionMergeModal({
   if (step === 'done' && result) {
     const total =
       result.transferred + result.overwritten + result.skipped + result.failed + result.enrolled;
+    const contentTotal =
+      result.recordings_transferred + result.book_coverages_transferred + result.feedback_questions_transferred;
 
     return (
       <div className="space-y-4">
@@ -625,6 +697,7 @@ export function SessionMergeModal({
           <h3 className="text-xl font-bold text-gray-900 dark:text-white">Merge Complete!</h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             {total} attendance record{total !== 1 ? 's' : ''} processed
+            {contentTotal > 0 ? ` · ${contentTotal} content item${contentTotal !== 1 ? 's' : ''} copied` : ''}
             {result.source_deleted ? ' — source session deleted' : ''}
           </p>
         </div>
@@ -651,6 +724,27 @@ export function SessionMergeModal({
               value={result.date_host_overrides_transferred}
               label="Overrides transferred"
               color="purple"
+            />
+          )}
+          {result.recordings_transferred > 0 && (
+            <StatCard
+              value={result.recordings_transferred}
+              label="Recordings copied"
+              color="purple"
+            />
+          )}
+          {result.book_coverages_transferred > 0 && (
+            <StatCard
+              value={result.book_coverages_transferred}
+              label="Book refs copied"
+              color="gray"
+            />
+          )}
+          {result.feedback_questions_transferred > 0 && (
+            <StatCard
+              value={result.feedback_questions_transferred}
+              label="Feedback Qs copied"
+              color="gray"
             />
           )}
         </div>
