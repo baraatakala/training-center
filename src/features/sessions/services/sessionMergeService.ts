@@ -746,19 +746,11 @@ export const sessionMergeService = {
           await supabase.from('excuse_request').delete().eq('session_id', sourceSessionId);
           await supabase.from(Tables.TEACHER_HOST_SCHEDULE).delete().eq('session_id', sourceSessionId);
 
-          // Delete session_feedback which references enrollment_id (not session_id directly)
-          const { data: srcEnrollments } = await supabase
-            .from(Tables.ENROLLMENT)
-            .select('enrollment_id')
+          // Delete session_feedback by session_id (it has session_id FK, not enrollment_id)
+          await supabase
+            .from(Tables.SESSION_FEEDBACK)
+            .delete()
             .eq('session_id', sourceSessionId);
-
-          const srcEnrollmentIds = (srcEnrollments || []).map((e) => e.enrollment_id);
-          if (srcEnrollmentIds.length > 0) {
-            await supabase
-              .from(Tables.SESSION_FEEDBACK)
-              .delete()
-              .in('enrollment_id', srcEnrollmentIds);
-          }
 
           // Delete enrollments
           await supabase.from(Tables.ENROLLMENT).delete().eq('session_id', sourceSessionId);

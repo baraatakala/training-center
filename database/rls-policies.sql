@@ -607,16 +607,15 @@ CREATE POLICY "Students can read own feedback" ON session_feedback
     OR student_id IS NULL
   );
 
--- Teacher DELETE: merge delete chain removes session_feedback by enrollment_id
--- before deleting source session enrollments. Scoped to teacher's own sessions.
+-- Teacher DELETE: merge delete chain removes session_feedback by session_id.
+-- Scoped to teacher's own sessions.
 DROP POLICY IF EXISTS "Teachers can delete session feedback" ON session_feedback;
 CREATE POLICY "Teachers can delete session feedback" ON session_feedback
   FOR DELETE TO authenticated
   USING (
     is_teacher() AND NOT is_admin()
-    AND enrollment_id IN (
-      SELECT e.enrollment_id FROM enrollment e
-      JOIN session s ON e.session_id = s.session_id
+    AND session_id IN (
+      SELECT s.session_id FROM session s
       JOIN teacher t ON s.teacher_id = t.teacher_id
       WHERE LOWER(t.email) = LOWER(auth.jwt() ->> 'email')
     )
@@ -762,11 +761,15 @@ CREATE POLICY "Enable read for authenticated users" ON announcement_reaction
 
 DROP POLICY IF EXISTS "Enable insert for authenticated users" ON announcement_reaction;
 CREATE POLICY "Enable insert for authenticated users" ON announcement_reaction
-  FOR INSERT TO authenticated WITH CHECK (true);
+  FOR INSERT TO authenticated WITH CHECK (
+    student_id = get_my_student_id()
+  );
 
 DROP POLICY IF EXISTS "Enable delete for own reactions" ON announcement_reaction;
 CREATE POLICY "Enable delete for own reactions" ON announcement_reaction
-  FOR DELETE TO authenticated USING (true);
+  FOR DELETE TO authenticated USING (
+    student_id = get_my_student_id()
+  );
 
 -- announcement_comment --------------------------------------------------
 ALTER TABLE announcement_comment ENABLE ROW LEVEL SECURITY;
@@ -781,15 +784,33 @@ CREATE POLICY "Enable read for authenticated users" ON announcement_comment
 
 DROP POLICY IF EXISTS "Enable insert for authenticated users" ON announcement_comment;
 CREATE POLICY "Enable insert for authenticated users" ON announcement_comment
-  FOR INSERT TO authenticated WITH CHECK (true);
+  FOR INSERT TO authenticated WITH CHECK (
+    (commenter_type = 'teacher' AND EXISTS (
+      SELECT 1 FROM teacher WHERE teacher.teacher_id = announcement_comment.commenter_id
+        AND LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email')
+    ))
+    OR (commenter_type = 'student' AND commenter_id = get_my_student_id())
+  );
 
 DROP POLICY IF EXISTS "Enable update for own comments" ON announcement_comment;
 CREATE POLICY "Enable update for own comments" ON announcement_comment
-  FOR UPDATE TO authenticated USING (true);
+  FOR UPDATE TO authenticated USING (
+    (commenter_type = 'teacher' AND EXISTS (
+      SELECT 1 FROM teacher WHERE teacher.teacher_id = announcement_comment.commenter_id
+        AND LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email')
+    ))
+    OR (commenter_type = 'student' AND commenter_id = get_my_student_id())
+  );
 
 DROP POLICY IF EXISTS "Enable delete for own comments" ON announcement_comment;
 CREATE POLICY "Enable delete for own comments" ON announcement_comment
-  FOR DELETE TO authenticated USING (true);
+  FOR DELETE TO authenticated USING (
+    (commenter_type = 'teacher' AND EXISTS (
+      SELECT 1 FROM teacher WHERE teacher.teacher_id = announcement_comment.commenter_id
+        AND LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email')
+    ))
+    OR (commenter_type = 'student' AND commenter_id = get_my_student_id())
+  );
 
 -- message ---------------------------------------------------------------
 ALTER TABLE message ENABLE ROW LEVEL SECURITY;
@@ -887,11 +908,29 @@ CREATE POLICY "Enable read for authenticated users" ON message_reaction
 
 DROP POLICY IF EXISTS "Enable insert for authenticated users" ON message_reaction;
 CREATE POLICY "Enable insert for authenticated users" ON message_reaction
-  FOR INSERT TO authenticated WITH CHECK (true);
+  FOR INSERT TO authenticated WITH CHECK (
+    (reactor_type = 'teacher' AND EXISTS (
+      SELECT 1 FROM teacher WHERE teacher.teacher_id = message_reaction.reactor_id
+        AND LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email')
+    ))
+    OR (reactor_type = 'student' AND reactor_id = get_my_student_id())
+    OR (reactor_type = 'admin' AND EXISTS (
+      SELECT 1 FROM admin WHERE LOWER(admin.email) = LOWER(auth.jwt() ->> 'email')
+    ))
+  );
 
 DROP POLICY IF EXISTS "Enable delete for own reactions" ON message_reaction;
 CREATE POLICY "Enable delete for own reactions" ON message_reaction
-  FOR DELETE TO authenticated USING (true);
+  FOR DELETE TO authenticated USING (
+    (reactor_type = 'teacher' AND EXISTS (
+      SELECT 1 FROM teacher WHERE teacher.teacher_id = message_reaction.reactor_id
+        AND LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email')
+    ))
+    OR (reactor_type = 'student' AND reactor_id = get_my_student_id())
+    OR (reactor_type = 'admin' AND EXISTS (
+      SELECT 1 FROM admin WHERE LOWER(admin.email) = LOWER(auth.jwt() ->> 'email')
+    ))
+  );
 
 -- message_starred -------------------------------------------------------
 ALTER TABLE message_starred ENABLE ROW LEVEL SECURITY;
@@ -906,11 +945,29 @@ CREATE POLICY "Enable read for authenticated users" ON message_starred
 
 DROP POLICY IF EXISTS "Enable insert for authenticated users" ON message_starred;
 CREATE POLICY "Enable insert for authenticated users" ON message_starred
-  FOR INSERT TO authenticated WITH CHECK (true);
+  FOR INSERT TO authenticated WITH CHECK (
+    (user_type = 'teacher' AND EXISTS (
+      SELECT 1 FROM teacher WHERE teacher.teacher_id = message_starred.user_id
+        AND LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email')
+    ))
+    OR (user_type = 'student' AND user_id = get_my_student_id())
+    OR (user_type = 'admin' AND EXISTS (
+      SELECT 1 FROM admin WHERE LOWER(admin.email) = LOWER(auth.jwt() ->> 'email')
+    ))
+  );
 
 DROP POLICY IF EXISTS "Enable delete for own stars" ON message_starred;
 CREATE POLICY "Enable delete for own stars" ON message_starred
-  FOR DELETE TO authenticated USING (true);
+  FOR DELETE TO authenticated USING (
+    (user_type = 'teacher' AND EXISTS (
+      SELECT 1 FROM teacher WHERE teacher.teacher_id = message_starred.user_id
+        AND LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email')
+    ))
+    OR (user_type = 'student' AND user_id = get_my_student_id())
+    OR (user_type = 'admin' AND EXISTS (
+      SELECT 1 FROM admin WHERE LOWER(admin.email) = LOWER(auth.jwt() ->> 'email')
+    ))
+  );
 
 -- notification_preference -----------------------------------------------
 ALTER TABLE notification_preference ENABLE ROW LEVEL SECURITY;

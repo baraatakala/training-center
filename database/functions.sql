@@ -140,7 +140,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Late scoring weight lookup
+-- Late scoring weight lookup (reads from scoring_config.late_brackets JSONB)
 CREATE OR REPLACE FUNCTION get_late_score_weight(
   p_late_minutes INTEGER,
   p_session_id UUID DEFAULT NULL
@@ -148,36 +148,42 @@ CREATE OR REPLACE FUNCTION get_late_score_weight(
 RETURNS DECIMAL(3,2) AS $$
 DECLARE
   v_weight DECIMAL(3,2);
+  v_teacher_id UUID;
+  v_brackets JSONB;
+  v_bracket JSONB;
 BEGIN
   IF p_late_minutes IS NULL OR p_late_minutes <= 0 THEN
     RETURN 1.00;
   END IF;
 
-  -- Try session-specific brackets first
-  SELECT score_weight INTO v_weight
-  FROM late_brackets
-  WHERE session_id = p_session_id
-    AND p_late_minutes >= min_minutes
-    AND (max_minutes IS NULL OR p_late_minutes <= max_minutes)
-  ORDER BY min_minutes DESC
-  LIMIT 1;
-
-  -- Fall back to global defaults
-  IF v_weight IS NULL THEN
-    SELECT score_weight INTO v_weight
-    FROM late_brackets
-    WHERE session_id IS NULL
-      AND p_late_minutes >= min_minutes
-      AND (max_minutes IS NULL OR p_late_minutes <= max_minutes)
-    ORDER BY min_minutes DESC
-    LIMIT 1;
+  -- Look up the teacher's scoring config via the session
+  IF p_session_id IS NOT NULL THEN
+    SELECT s.teacher_id INTO v_teacher_id
+    FROM session s WHERE s.session_id = p_session_id;
   END IF;
 
-  RETURN COALESCE(v_weight, 0.50);
+  SELECT sc.late_brackets INTO v_brackets
+  FROM scoring_config sc
+  WHERE (v_teacher_id IS NOT NULL AND sc.teacher_id = v_teacher_id)
+  ORDER BY sc.is_default DESC
+  LIMIT 1;
+
+  IF v_brackets IS NOT NULL THEN
+    FOR v_bracket IN SELECT * FROM jsonb_array_elements(v_brackets)
+    LOOP
+      IF p_late_minutes >= (v_bracket->>'min')::INT
+         AND (v_bracket->>'max' IS NULL OR p_late_minutes <= (v_bracket->>'max')::INT) THEN
+        v_weight := COALESCE((v_bracket->>'score_weight')::DECIMAL(3,2), 0.50);
+        RETURN v_weight;
+      END IF;
+    END LOOP;
+  END IF;
+
+  RETURN 0.50;
 END;
 $$ LANGUAGE plpgsql STABLE;
 
--- Late bracket info lookup (returns table)
+-- Late bracket info lookup (reads from scoring_config.late_brackets JSONB)
 CREATE OR REPLACE FUNCTION get_late_bracket_info(
   p_late_minutes INTEGER,
   p_session_id UUID DEFAULT NULL
@@ -188,6 +194,10 @@ RETURNS TABLE (
   score_weight DECIMAL(3,2),
   display_color VARCHAR(20)
 ) AS $$
+DECLARE
+  v_teacher_id UUID;
+  v_brackets JSONB;
+  v_bracket JSONB;
 BEGIN
   IF p_late_minutes IS NULL OR p_late_minutes <= 0 THEN
     RETURN QUERY SELECT
@@ -198,14 +208,39 @@ BEGIN
     RETURN;
   END IF;
 
-  RETURN QUERY
-  SELECT lb.bracket_name, lb.bracket_name_ar, lb.score_weight, lb.display_color
-  FROM late_brackets lb
-  WHERE (lb.session_id = p_session_id OR lb.session_id IS NULL)
-    AND p_late_minutes >= lb.min_minutes
-    AND (lb.max_minutes IS NULL OR p_late_minutes <= lb.max_minutes)
-  ORDER BY lb.session_id NULLS LAST, lb.min_minutes DESC
+  -- Look up the teacher's scoring config via the session
+  IF p_session_id IS NOT NULL THEN
+    SELECT s.teacher_id INTO v_teacher_id
+    FROM session s WHERE s.session_id = p_session_id;
+  END IF;
+
+  SELECT sc.late_brackets INTO v_brackets
+  FROM scoring_config sc
+  WHERE (v_teacher_id IS NOT NULL AND sc.teacher_id = v_teacher_id)
+  ORDER BY sc.is_default DESC
   LIMIT 1;
+
+  IF v_brackets IS NOT NULL THEN
+    FOR v_bracket IN SELECT * FROM jsonb_array_elements(v_brackets)
+    LOOP
+      IF p_late_minutes >= (v_bracket->>'min')::INT
+         AND (v_bracket->>'max' IS NULL OR p_late_minutes <= (v_bracket->>'max')::INT) THEN
+        RETURN QUERY SELECT
+          COALESCE((v_bracket->>'name')::VARCHAR(50), 'Late'::VARCHAR(50)),
+          COALESCE((v_bracket->>'name_ar')::VARCHAR(50), 'متأخر'::VARCHAR(50)),
+          COALESCE((v_bracket->>'score_weight')::DECIMAL(3,2), 0.50::DECIMAL(3,2)),
+          COALESCE((v_bracket->>'color')::VARCHAR(20), '#ef4444'::VARCHAR(20));
+        RETURN;
+      END IF;
+    END LOOP;
+  END IF;
+
+  -- Fallback if no bracket matched
+  RETURN QUERY SELECT
+    'Late'::VARCHAR(50),
+    'متأخر'::VARCHAR(50),
+    0.50::DECIMAL(3,2),
+    '#ef4444'::VARCHAR(20);
 END;
 $$ LANGUAGE plpgsql STABLE;
 

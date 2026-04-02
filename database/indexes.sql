@@ -98,7 +98,9 @@ CREATE INDEX IF NOT EXISTS idx_book_ref_parent              ON public.course_boo
 -- ============================================================================
 
 CREATE INDEX IF NOT EXISTS idx_scoring_config_teacher  ON public.scoring_config(teacher_id);
-CREATE INDEX IF NOT EXISTS idx_late_brackets_session   ON public.late_brackets(session_id);
+
+-- NOTE: late_brackets is a JSONB column in scoring_config, not a separate table.
+-- No standalone index needed.
 
 -- ============================================================================
 -- 6. EXCUSES
@@ -166,8 +168,8 @@ CREATE INDEX IF NOT EXISTS idx_message_unread          ON public.message(is_read
 CREATE INDEX IF NOT EXISTS idx_message_recipient_sorted ON public.message(recipient_type, recipient_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_message_sender_sorted    ON public.message(sender_type, sender_id, created_at DESC);
 
--- message_attachment / reaction / starred
-CREATE INDEX IF NOT EXISTS idx_attachment_message       ON public.message_attachment(message_id);
+-- message_reaction / starred
+-- NOTE: message_attachment table does not exist; attachments use Supabase Storage.
 CREATE INDEX IF NOT EXISTS idx_message_reaction_message ON public.message_reaction(message_id);
 CREATE INDEX IF NOT EXISTS idx_message_starred_message  ON public.message_starred(message_id);
 

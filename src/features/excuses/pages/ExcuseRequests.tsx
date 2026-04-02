@@ -5,6 +5,7 @@ import { Select } from '@/shared/components/ui/Select';
 import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
 import { toast } from '@/shared/components/ui/toastUtils';
 import { TableSkeleton } from '@/shared/components/ui/Skeleton';
+import { Pagination } from '@/shared/components/ui/Pagination';
 import { useIsTeacher } from '@/shared/hooks/useIsTeacher';
 import { useAuth } from '@/features/auth/AuthContext';
 import {
@@ -35,6 +36,10 @@ export function ExcuseRequests() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [dateRange, setDateRange] = useState<'all' | '7d' | '30d' | '90d'>('all');
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
 
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -113,6 +118,16 @@ export function ExcuseRequests() {
 
     return list;
   }, [requests, searchTerm, dateRange]);
+
+  const paginatedRequests = useMemo(
+    () => filteredRequests.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage),
+    [filteredRequests, currentPage, itemsPerPage]
+  );
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, dateRange]);
 
   // =====================================================
   // HANDLERS
@@ -247,7 +262,7 @@ export function ExcuseRequests() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {filteredRequests.map(req => (
+          {paginatedRequests.map(req => (
             <RequestCard
               key={req.request_id}
               request={req}
@@ -260,9 +275,19 @@ export function ExcuseRequests() {
               onQuickReject={() => handleReview(req.request_id, 'rejected')}
             />
           ))}
-          <p className="text-xs text-gray-400 dark:text-gray-500 text-center pt-2">
-            Showing {filteredRequests.length} of {requests.length} requests
-          </p>
+          {filteredRequests.length > 0 && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(filteredRequests.length / itemsPerPage)}
+              totalItems={filteredRequests.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={(page) => setCurrentPage(page)}
+              onItemsPerPageChange={(items) => {
+                setItemsPerPage(items);
+                setCurrentPage(1);
+              }}
+            />
+          )}
         </div>
       )}
 

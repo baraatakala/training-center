@@ -270,7 +270,7 @@ export function Attendance() {
       
       if (referenceTime > graceEnd) {
         const lateMs = referenceTime.getTime() - graceEnd.getTime();
-        const lateMinutes = Math.round(lateMs / (1000 * 60)); // round, not ceil
+        const lateMinutes = Math.ceil(lateMs / (1000 * 60)); // ceil to match StudentCheckIn
         return Math.max(1, lateMinutes);
       }
       return forceLate ? 1 : null;

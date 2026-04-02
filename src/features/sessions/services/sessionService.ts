@@ -548,6 +548,21 @@ export const sessionService = {
       try { await logDelete('session', id, session as Record<string, unknown>); } catch { /* audit non-critical */ }
     }
 
+    // Delete dependent records in FK order (most tables lack ON DELETE CASCADE)
+    await supabase.from(Tables.ATTENDANCE).delete().eq('session_id', id);
+    await supabase.from('qr_sessions').delete().eq('session_id', id);
+    await supabase.from('photo_checkin_sessions').delete().eq('session_id', id);
+    await supabase.from(Tables.SESSION_RECORDING).delete().eq('session_id', id);
+    await supabase.from(Tables.SESSION_DATE_HOST).delete().eq('session_id', id);
+    await supabase.from(Tables.SESSION_BOOK_COVERAGE).delete().eq('session_id', id);
+    await supabase.from(Tables.FEEDBACK_QUESTION).delete().eq('session_id', id);
+    await supabase.from(Tables.SESSION_FEEDBACK).delete().eq('session_id', id);
+    await supabase.from('excuse_request').delete().eq('session_id', id);
+    await supabase.from(Tables.TEACHER_HOST_SCHEDULE).delete().eq('session_id', id);
+    // session_day_change has ON DELETE CASCADE, but explicit delete is safe
+    await supabase.from('session_day_change').delete().eq('session_id', id);
+    await supabase.from(Tables.ENROLLMENT).delete().eq('session_id', id);
+
     return await supabase
       .from(Tables.SESSION)
       .delete()

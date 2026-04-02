@@ -154,7 +154,8 @@ CREATE TABLE IF NOT EXISTS public.attendance (
   CONSTRAINT attendance_enrollment_date_unique UNIQUE (enrollment_id, attendance_date),
   CONSTRAINT attendance_enrollment_id_fkey FOREIGN KEY (enrollment_id) REFERENCES public.enrollment(enrollment_id),
   CONSTRAINT attendance_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.student(student_id),
-  CONSTRAINT attendance_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
+  CONSTRAINT attendance_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id),
+  CONSTRAINT attendance_not_both_late_and_early CHECK (NOT (late_minutes IS NOT NULL AND early_minutes IS NOT NULL))
 );
 
 CREATE TABLE IF NOT EXISTS public.qr_sessions (
@@ -352,7 +353,11 @@ CREATE TABLE IF NOT EXISTS public.excuse_request (
   CONSTRAINT excuse_request_pkey PRIMARY KEY (request_id),
   CONSTRAINT excuse_request_student_session_date_unique UNIQUE (student_id, session_id, attendance_date),
   CONSTRAINT excuse_request_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.student(student_id),
-  CONSTRAINT excuse_request_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
+  CONSTRAINT excuse_request_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id),
+  CONSTRAINT excuse_request_review_fields CHECK (
+    (status IN ('pending', 'cancelled'))
+    OR (status IN ('approved', 'rejected') AND reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)
+  )
 );
 
 -- ============================================================================
