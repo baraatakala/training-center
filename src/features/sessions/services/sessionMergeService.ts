@@ -496,19 +496,32 @@ export const sessionMergeService = {
           .eq('session_id', sourceSessionId);
 
         for (const override of (sourceOverrides || [])) {
-          // Strip identity/timestamp columns before upserting into target
+          // Strip identity/timestamp columns.
+          // IMPORTANT: also null out the source session's time override fields so they
+          // don't bleed into the target session's schedule. We want the HOST identity
+          // and address to carry over, but the source's timing context is irrelevant
+          // (and misleading) for the target session which has its own default time.
           const {
             id: _id,
             created_at: _ca,
             updated_at: _ua,
             session_id: _sid,
-            ...rest
+            override_time: _ot,       // source time override — NOT transferred
+            override_end_time: _oet,  // source end-time override — NOT transferred
+            override_reason: _or,     // source override reason — NOT transferred
+            ...hostRest               // host_id, host_type, host_address, host_lat/lng
           } = override;
 
           const { error: upsertErr } = await supabase
             .from(Tables.SESSION_DATE_HOST)
             .upsert(
-              { ...rest, session_id: targetSessionId },
+              {
+                ...hostRest,
+                session_id: targetSessionId,
+                override_time: null,
+                override_end_time: null,
+                override_reason: null,
+              },
               { onConflict: 'session_id,attendance_date', ignoreDuplicates: true },
             );
 
@@ -588,7 +601,10 @@ export const sessionMergeService = {
 
             const { error: covErr } = await supabase
               .from(Tables.SESSION_BOOK_COVERAGE)
-              .insert({ ...covRest, session_id: targetSessionId });
+              .upsert(
+                { ...covRest, session_id: targetSessionId },
+                { onConflict: 'session_id,attendance_date' },
+              );
 
             if (!covErr) result.book_coverages_transferred++;
             else result.errors.push(`Book coverage transfer failed (${cov.attendance_date}): ${covErr.message}`);

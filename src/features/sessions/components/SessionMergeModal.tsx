@@ -562,8 +562,8 @@ export function SessionMergeModal({
                 />
                 <span className="text-sm text-gray-700 dark:text-gray-300">
                   <span className="font-medium">Transfer scheduling data</span> — copy per-date
-                  overrides ({preview.date_host_override_count}) and teacher host schedule
-                  ({preview.teacher_host_schedule_count} entries)
+                  host address &amp; identity ({preview.date_host_override_count} date{preview.date_host_override_count !== 1 ? 's' : ''}) and teacher host schedule
+                  ({preview.teacher_host_schedule_count} entries). Session time overrides from the source are not applied to the target.
                 </span>
               </label>
             </div>

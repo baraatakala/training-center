@@ -375,13 +375,15 @@ CREATE TABLE public.session_date_host (
   session_id uuid NOT NULL,
   attendance_date date NOT NULL,
   host_id uuid,
-  host_type character varying DEFAULT 'student'::character varying,
-  host_address text NOT NULL,
+  host_type character varying DEFAULT 'student'::character varying CHECK (host_type IS NULL OR (host_type::text = ANY (ARRAY['student'::character varying, 'teacher'::character varying]::text[]))),
+  host_address text,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
   host_latitude numeric CHECK (host_latitude IS NULL OR host_latitude >= '-90'::integer::numeric AND host_latitude <= 90::numeric),
   host_longitude numeric CHECK (host_longitude IS NULL OR host_longitude >= '-180'::integer::numeric AND host_longitude <= 180::numeric),
   override_time text,
+  override_reason text,
+  override_end_time time without time zone,
   CONSTRAINT session_date_host_pkey PRIMARY KEY (id),
   CONSTRAINT session_date_host_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
 );
