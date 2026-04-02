@@ -244,12 +244,19 @@ $$ LANGUAGE plpgsql STABLE;
 -- ============================================================================
 
 -- Prevent contradictory late_minutes + early_minutes on attendance
-ALTER TABLE attendance
-  ADD CONSTRAINT IF NOT EXISTS attendance_not_both_late_and_early
-  CHECK (NOT (late_minutes IS NOT NULL AND early_minutes IS NOT NULL));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE table_name = 'attendance' AND constraint_name = 'attendance_not_both_late_and_early'
+  ) THEN
+    ALTER TABLE attendance
+      ADD CONSTRAINT attendance_not_both_late_and_early
+      CHECK (NOT (late_minutes IS NOT NULL AND early_minutes IS NOT NULL));
+  END IF;
+END$$;
 
 -- Ensure excuse_request has reviewer info when approved/rejected
--- (use DO block because ADD CONSTRAINT IF NOT EXISTS is PG16+ only)
 DO $$
 BEGIN
   IF NOT EXISTS (
