@@ -811,30 +811,6 @@ export function Sessions() {
       />
 
       {/* Clone Session Modal */}
-
-      {/* Schedule Change Dialog */}
-      <Modal
-        isOpen={!!scheduleChangeDialog}
-        onClose={() => { if (!scheduleChanging) setScheduleChangeDialog(null); }}
-        title="Schedule Change"
-      >
-        {scheduleChangeDialog && (
-          <ScheduleChangeCutoffPicker
-            dayChanged={scheduleChangeDialog.dayChanged}
-            timeChanged={scheduleChangeDialog.timeChanged}
-            oldDay={scheduleChangeDialog.oldDay}
-            newDay={scheduleChangeDialog.newDay}
-            oldTime={scheduleChangeDialog.oldTime}
-            newTime={scheduleChangeDialog.newTime}
-            sessionStartDate={editingSession?.start_date ?? null}
-            lastAttendedDate={scheduleChangeDialog.lastAttendedDate}
-            onApply={executeScheduleChange}
-            onCancel={() => setScheduleChangeDialog(null)}
-            executing={scheduleChanging}
-          />
-        )}
-      </Modal>
-
       <Modal
         isOpen={!!cloneSource}
         onClose={() => setCloneSource(null)}

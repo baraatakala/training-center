@@ -267,6 +267,13 @@ export function SessionMergeModal({
                         label="Date overrides"
                         color="purple"
                       />
+                      {preview.teacher_host_schedule_count > 0 && (
+                        <StatCard
+                          value={preview.teacher_host_schedule_count}
+                          label="Teacher schedule"
+                          color="gray"
+                        />
+                      )}
                     </div>
                   </>
                 )}
@@ -362,6 +369,13 @@ export function SessionMergeModal({
             label="Date overrides"
             color="purple"
           />
+          {preview.teacher_host_schedule_count > 0 && (
+            <StatCard
+              value={preview.teacher_host_schedule_count}
+              label="Teacher schedule"
+              color="gray"
+            />
+          )}
         </div>
 
         {/* Student preview table */}
@@ -470,11 +484,16 @@ export function SessionMergeModal({
                   enroll students in the target session so their records can be transferred
                 </span>
               </label>
+              {!options.auto_enroll && (
+                <div className="mt-2 ml-7 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
+                  ⚠️ {summary.total_unenrolled_records} attendance record{summary.total_unenrolled_records !== 1 ? 's' : ''} will be <strong>skipped</strong> — those students are not enrolled in the target session.
+                </div>
+              )}
             </div>
           )}
 
-          {/* Transfer date/time overrides — only shown when overrides exist */}
-          {preview.date_host_override_count > 0 && (
+          {/* Transfer date/time overrides — shown when overrides or teacher schedule exist */}
+          {(preview.date_host_override_count > 0 || preview.teacher_host_schedule_count > 0) && (
             <div className="px-4 py-3">
               <label className="flex items-start gap-2.5 cursor-pointer">
                 <input
@@ -489,8 +508,9 @@ export function SessionMergeModal({
                   className="mt-0.5 text-blue-600 focus:ring-blue-500 rounded"
                 />
                 <span className="text-sm text-gray-700 dark:text-gray-300">
-                  <span className="font-medium">Transfer date/time overrides</span> — copy per-date
-                  host assignments and time overrides ({preview.date_host_override_count})
+                  <span className="font-medium">Transfer scheduling data</span> — copy per-date
+                  overrides ({preview.date_host_override_count}) and teacher host schedule
+                  ({preview.teacher_host_schedule_count} entries)
                 </span>
               </label>
             </div>

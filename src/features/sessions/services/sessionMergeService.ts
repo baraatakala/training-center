@@ -23,6 +23,7 @@ export type StudentMergePreview = {
 export type MergePreview = {
   students: StudentMergePreview[];
   date_host_override_count: number;
+  teacher_host_schedule_count: number;
   summary: {
     students_count: number;
     total_transferable: number;
@@ -72,10 +73,19 @@ export const sessionMergeService = {
       if (sourceErr) return { data: null, error: { message: sourceErr.message } };
 
       if (!sourceAttendance || sourceAttendance.length === 0) {
+        const { count: earlyOverrideCount } = await supabase
+          .from(Tables.SESSION_DATE_HOST)
+          .select('id', { count: 'exact', head: true })
+          .eq('session_id', sourceSessionId);
+        const { count: earlyScheduleCount } = await supabase
+          .from(Tables.TEACHER_HOST_SCHEDULE)
+          .select('id', { count: 'exact', head: true })
+          .eq('session_id', sourceSessionId);
         return {
           data: {
             students: [],
-            date_host_override_count: 0,
+            date_host_override_count: earlyOverrideCount || 0,
+            teacher_host_schedule_count: earlyScheduleCount || 0,
             summary: {
               students_count: 0,
               total_transferable: 0,
@@ -202,10 +212,17 @@ export const sessionMergeService = {
         .select('id', { count: 'exact', head: true })
         .eq('session_id', sourceSessionId);
 
+      // 7. Count teacher host schedule rows in source
+      const { count: scheduleCount } = await supabase
+        .from(Tables.TEACHER_HOST_SCHEDULE)
+        .select('id', { count: 'exact', head: true })
+        .eq('session_id', sourceSessionId);
+
       return {
         data: {
           students: studentStatuses,
           date_host_override_count: overrideCount || 0,
+          teacher_host_schedule_count: scheduleCount || 0,
           summary: {
             students_count: studentStatuses.length,
             total_transferable: totalTransferable,
@@ -290,29 +307,58 @@ export const sessionMergeService = {
             continue;
           }
 
-          const { data: newEnroll, error: enrollErr } = await supabase
+          // Check for existing enrollment first — UNIQUE(student_id, session_id) means a raw
+          // INSERT would throw 23505 if the student was previously dropped or completed.
+          const { data: existingEnroll } = await supabase
             .from(Tables.ENROLLMENT)
-            .insert({
-              student_id: att.student_id,
-              session_id: targetSessionId,
-              status: 'active',
-              can_host: false,
-              enrollment_date: new Date().toISOString().split('T')[0],
-            })
-            .select('enrollment_id')
-            .single();
+            .select('enrollment_id, status')
+            .eq('student_id', att.student_id)
+            .eq('session_id', targetSessionId)
+            .maybeSingle();
 
-          if (enrollErr || !newEnroll) {
-            result.errors.push(
-              `Could not enroll student (${att.student_id}): ${enrollErr?.message || 'unknown error'}`,
-            );
-            result.skipped++;
-            continue;
+          if (existingEnroll) {
+            // Reactivate if not already active
+            if (existingEnroll.status !== 'active') {
+              const { error: reactivateErr } = await supabase
+                .from(Tables.ENROLLMENT)
+                .update({ status: 'active' })
+                .eq('enrollment_id', existingEnroll.enrollment_id);
+              if (reactivateErr) {
+                result.errors.push(
+                  `Could not reactivate enrollment (${att.student_id}): ${reactivateErr.message}`,
+                );
+                result.skipped++;
+                continue;
+              }
+            }
+            targetEnrollmentId = existingEnroll.enrollment_id;
+            targetEnrollmentMap.set(att.student_id, existingEnroll.enrollment_id);
+            result.enrolled++;
+          } else {
+            const { data: newEnroll, error: enrollErr } = await supabase
+              .from(Tables.ENROLLMENT)
+              .insert({
+                student_id: att.student_id,
+                session_id: targetSessionId,
+                status: 'active',
+                can_host: false,
+                enrollment_date: new Date().toISOString().split('T')[0],
+              })
+              .select('enrollment_id')
+              .single();
+
+            if (enrollErr || !newEnroll) {
+              result.errors.push(
+                `Could not enroll student (${att.student_id}): ${enrollErr?.message || 'unknown error'}`,
+              );
+              result.skipped++;
+              continue;
+            }
+
+            targetEnrollmentId = newEnroll.enrollment_id;
+            targetEnrollmentMap.set(att.student_id, newEnroll.enrollment_id);
+            result.enrolled++;
           }
-
-          targetEnrollmentId = newEnroll.enrollment_id;
-          targetEnrollmentMap.set(att.student_id, newEnroll.enrollment_id);
-          result.enrolled++;
         }
 
         const conflictKey = `${targetEnrollmentId}|${att.attendance_date}`;
@@ -407,6 +453,28 @@ export const sessionMergeService = {
 
           if (!upsertErr) result.date_host_overrides_transferred++;
         }
+
+        // Also transfer teacher host schedule rows
+        const { data: sourceSchedule } = await supabase
+          .from(Tables.TEACHER_HOST_SCHEDULE)
+          .select('*')
+          .eq('session_id', sourceSessionId);
+
+        for (const row of (sourceSchedule || [])) {
+          const {
+            id: _sid2,
+            created_at: _ca2,
+            session_id: _sesid,
+            ...schedRest
+          } = row;
+
+          await supabase
+            .from(Tables.TEACHER_HOST_SCHEDULE)
+            .upsert(
+              { ...schedRest, session_id: targetSessionId },
+              { onConflict: 'session_id,host_date', ignoreDuplicates: true },
+            );
+        }
       }
 
       // ── 6. Delete source session (optional) ──────────────────────────────
@@ -420,6 +488,10 @@ export const sessionMergeService = {
           await supabase.from(Tables.SESSION_DATE_HOST).delete().eq('session_id', sourceSessionId);
           await supabase.from('session_day_change').delete().eq('session_id', sourceSessionId);
           await supabase.from(Tables.SESSION_BOOK_COVERAGE).delete().eq('session_id', sourceSessionId);
+          // These tables have FK → session_id and must be deleted before the session row
+          await supabase.from(Tables.FEEDBACK_QUESTION).delete().eq('session_id', sourceSessionId);
+          await supabase.from('excuse_request').delete().eq('session_id', sourceSessionId);
+          await supabase.from(Tables.TEACHER_HOST_SCHEDULE).delete().eq('session_id', sourceSessionId);
 
           // Delete session_feedback which references enrollment_id (not session_id directly)
           const { data: srcEnrollments } = await supabase
