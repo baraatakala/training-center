@@ -381,9 +381,6 @@ CREATE TABLE public.session_date_host (
   updated_at timestamp with time zone DEFAULT now(),
   host_latitude numeric CHECK (host_latitude IS NULL OR host_latitude >= '-90'::integer::numeric AND host_latitude <= 90::numeric),
   host_longitude numeric CHECK (host_longitude IS NULL OR host_longitude >= '-180'::integer::numeric AND host_longitude <= 180::numeric),
-  override_time text,
-  override_reason text,
-  override_end_time time without time zone,
   CONSTRAINT session_date_host_pkey PRIMARY KEY (id),
   CONSTRAINT session_date_host_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
 );
@@ -438,6 +435,18 @@ CREATE TABLE public.session_recording (
   CONSTRAINT session_recording_pkey PRIMARY KEY (recording_id),
   CONSTRAINT session_recording_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id),
   CONSTRAINT session_recording_recording_uploaded_by_fkey FOREIGN KEY (recording_uploaded_by) REFERENCES auth.users(id)
+);
+CREATE TABLE public.session_time_change (
+  change_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  session_id uuid NOT NULL,
+  old_time text,
+  new_time text NOT NULL,
+  effective_date date NOT NULL,
+  reason text,
+  changed_by text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT session_time_change_pkey PRIMARY KEY (change_id),
+  CONSTRAINT session_time_change_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
 );
 CREATE TABLE public.specialization (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

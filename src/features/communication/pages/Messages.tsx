@@ -731,8 +731,6 @@ export function Messages() {
                   <div className="absolute bottom-2 right-3 flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
                     {message.is_read ? (
                       <span className="text-blue-500" title={`Read ${message.read_at ? formatTimeAgo(message.read_at) : ''}`}>✓✓</span>
-                    ) : (message as Message & { delivered_at?: string }).delivered_at ? (
-                      <span title="Delivered">✓✓</span>
                     ) : (
                       <span title="Sent">✓</span>
                     )}

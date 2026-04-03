@@ -125,16 +125,6 @@ export const attendanceService = {
       .order('attendance_date', { ascending: true });
   },
 
-  // Get attendance statistics for a session
-  async getSessionStats(sessionId: string) {
-    const { data, error } = await supabase
-      .rpc('get_session_attendance_stats', { session_id_param: sessionId });
-    
-    if (error) return { data: null, error };
-    
-    return { data, error: null };
-  },
-
   // Create or update attendance record (upsert to prevent duplicate key errors)
   async create(attendance: CreateAttendance) {
     const result = await supabase

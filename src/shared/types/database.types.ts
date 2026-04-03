@@ -81,8 +81,6 @@ export interface SessionRecording {
   duration_seconds: number | null;
   file_size_bytes: number | null;
   mime_type: string | null;
-  provider_name: string | null;
-  provider_recording_id: string | null;
   is_primary: boolean;
   created_at: string;
   updated_at: string;

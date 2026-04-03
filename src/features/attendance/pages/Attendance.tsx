@@ -1004,29 +1004,12 @@ export function Attendance() {
       // Auto-select the planned host
       const value = `${plannedHost.student_id}|||${plannedHost.address}`;
       
-      // Save to session_date_host table immediately
+      // Save to session_date_host table immediately (with GPS from profile)
       const hostType = plannedHost.is_teacher ? 'teacher' : 'student';
-      supabase
-        .from(Tables.SESSION_DATE_HOST)
-        .upsert({
-          session_id: sessionId,
-          attendance_date: selectedDate,
-          host_id: plannedHost.student_id,
-          host_type: hostType,
-          host_address: plannedHost.address,
-        }, {
-          onConflict: 'session_id,attendance_date'
-        })
-        .then(({ error }) => {
-          if (error) {
-            console.error('Error auto-saving suggested host:', error);
-          }
-        });
-      
       setSelectedAddress(value);
-      
-      // Fetch fresh coordinates from student/teacher table
+
       (async () => {
+        // Fetch fresh coordinates from student/teacher table
         const table = plannedHost.is_teacher ? Tables.TEACHER : Tables.STUDENT;
         const idField = plannedHost.is_teacher ? 'teacher_id' : 'student_id';
         const { data: coordData } = await supabase
@@ -1034,9 +1017,27 @@ export function Attendance() {
           .select('address_latitude, address_longitude')
           .eq(idField, plannedHost.student_id)
           .single();
-        if (coordData?.address_latitude && coordData?.address_longitude) {
-          const lat = Number(coordData.address_latitude);
-          const lon = Number(coordData.address_longitude);
+        const lat = coordData?.address_latitude ? Number(coordData.address_latitude) : null;
+        const lon = coordData?.address_longitude ? Number(coordData.address_longitude) : null;
+
+        const { error } = await supabase
+          .from(Tables.SESSION_DATE_HOST)
+          .upsert({
+            session_id: sessionId,
+            attendance_date: selectedDate,
+            host_id: plannedHost.student_id,
+            host_type: hostType,
+            host_address: plannedHost.address,
+            host_latitude: lat,
+            host_longitude: lon,
+          }, {
+            onConflict: 'session_id,attendance_date'
+          });
+        if (error) {
+          console.error('Error auto-saving suggested host:', error);
+        }
+
+        if (lat && lon) {
           setHostCoordinates({ lat, lon });
           setHostAddresses(prev => prev.map(h =>
             h.student_id === plannedHost.student_id ? { ...h, address_latitude: lat, address_longitude: lon } : h
@@ -1116,6 +1117,14 @@ export function Attendance() {
   const saveRecordingUrl = async (urlOverride?: string) => {
     if (!sessionId || !selectedDate) return;
     const url = (urlOverride !== undefined ? urlOverride : recordingUrl).trim();
+
+    // Validate URL scheme (allow only http/https)
+    if (url && !/^https?:\/\//i.test(url)) {
+      toast.error('Recording URL must start with http:// or https://');
+      setSavingRecording(false);
+      return;
+    }
+
     setSavingRecording(true);
     const { data: { user } } = await supabase.auth.getUser();
     const showRecordingError = (fallback: string, error?: { message?: string } | null) => {
@@ -1148,8 +1157,6 @@ export function Attendance() {
         duration_seconds: null,
         file_size_bytes: null,
         mime_type: null,
-        provider_name: null,
-        provider_recording_id: null,
         is_primary: false,
       });
       if (result.error) {
@@ -1178,6 +1185,8 @@ export function Attendance() {
     const hostType = hostInfo?.student_name?.includes('Teacher') ? 'teacher' : 'student';
     
     // Always fetch fresh coordinates from student/teacher table (not cached hostAddresses state)
+    let hostLat: number | null = null;
+    let hostLon: number | null = null;
     if (hostId) {
       const isTeacher = hostType === 'teacher';
       const table = isTeacher ? Tables.TEACHER : Tables.STUDENT;
@@ -1188,12 +1197,12 @@ export function Attendance() {
         .eq(idField, hostId)
         .single();
       if (coordData?.address_latitude && coordData?.address_longitude) {
-        const lat = Number(coordData.address_latitude);
-        const lon = Number(coordData.address_longitude);
-        setHostCoordinates({ lat, lon });
+        hostLat = Number(coordData.address_latitude);
+        hostLon = Number(coordData.address_longitude);
+        setHostCoordinates({ lat: hostLat, lon: hostLon });
         // Sync local hostAddresses state
         setHostAddresses(prev => prev.map(h =>
-          h.student_id === hostId ? { ...h, address_latitude: lat, address_longitude: lon } : h
+          h.student_id === hostId ? { ...h, address_latitude: hostLat!, address_longitude: hostLon! } : h
         ));
       } else {
         setHostCoordinates(null);
@@ -1212,6 +1221,8 @@ export function Attendance() {
           host_id: hostId,
           host_type: hostType,
           host_address: hostAddress,
+          host_latitude: hostLat,
+          host_longitude: hostLon,
         }, {
           onConflict: 'session_id,attendance_date'
         });

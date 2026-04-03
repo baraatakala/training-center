@@ -126,19 +126,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Unread message count
-CREATE OR REPLACE FUNCTION get_unread_message_count(p_user_type VARCHAR, p_user_id UUID)
-RETURNS INTEGER AS $$
-BEGIN
-  RETURN (
-    SELECT COUNT(*)::INTEGER
-    FROM message
-    WHERE recipient_type = p_user_type
-      AND recipient_id = p_user_id
-      AND is_read = false
-  );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+-- NOTE: get_unread_message_count was removed in migration 017 (never called).
 
 -- Late scoring weight lookup (reads from scoring_config.late_brackets JSONB)
 CREATE OR REPLACE FUNCTION get_late_score_weight(

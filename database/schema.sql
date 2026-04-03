@@ -269,8 +269,6 @@ CREATE TABLE IF NOT EXISTS public.session_recording (
   duration_seconds INTEGER CHECK (duration_seconds IS NULL OR duration_seconds >= 0),
   file_size_bytes BIGINT CHECK (file_size_bytes IS NULL OR file_size_bytes >= 0),
   mime_type VARCHAR,
-  provider_name TEXT,
-  provider_recording_id TEXT,
   is_primary BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
@@ -540,8 +538,6 @@ CREATE TABLE IF NOT EXISTS public.message (
   read_at TIMESTAMPTZ,
   parent_message_id UUID,
   created_at TIMESTAMPTZ DEFAULT now(),
-  delivered_at TIMESTAMPTZ,
-  is_starred BOOLEAN DEFAULT false,
   CONSTRAINT message_pkey PRIMARY KEY (message_id),
   CONSTRAINT message_parent_message_id_fkey FOREIGN KEY (parent_message_id) REFERENCES public.message(message_id)
 );
@@ -570,18 +566,8 @@ CREATE TABLE IF NOT EXISTS public.message_starred (
   CONSTRAINT message_starred_message_id_fkey FOREIGN KEY (message_id) REFERENCES public.message(message_id)
 );
 
-CREATE TABLE IF NOT EXISTS public.notification_preference (
-  preference_id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_type VARCHAR(10) NOT NULL CHECK (user_type IN ('teacher', 'student')),
-  user_id UUID NOT NULL,
-  email_announcements BOOLEAN DEFAULT true,
-  email_messages BOOLEAN DEFAULT true,
-  push_announcements BOOLEAN DEFAULT true,
-  push_messages BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(user_type, user_id)
-);
+-- NOTE: notification_preference table was removed in migration 017.
+-- It had zero frontend integration (scaffolded for future email/push system).
 
 -- ============================================================================
 -- 11. AUDIT LOG
@@ -599,7 +585,5 @@ CREATE TABLE IF NOT EXISTS public.audit_log (
   reason TEXT,
   changed_at TIMESTAMPTZ DEFAULT now(),
   changed_by UUID,
-  ip_address TEXT,
-  user_agent TEXT,
   CONSTRAINT audit_log_pkey PRIMARY KEY (audit_id)
 );

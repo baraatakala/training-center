@@ -32,6 +32,16 @@ export function useIsTeacher() {
           const admin = !!adminRecord;
           if (!cancelled) setIsAdmin(admin);
 
+          // Ensure admin.auth_user_id is populated (may be null from initial setup)
+          if (admin && adminRecord?.admin_id && user.id) {
+            supabase
+              .from('admin')
+              .update({ auth_user_id: user.id })
+              .eq('admin_id', adminRecord.admin_id)
+              .is('auth_user_id', null)
+              .then(() => { /* non-critical */ });
+          }
+
           // Check teacher table
           const { data: teacher } = await supabase
             .from('teacher')
