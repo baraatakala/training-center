@@ -1,15 +1,16 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/shared/components/ui/Button';
 import {
   sessionMergeService,
   type MergePreview,
+  type MergeDatePreview,
   type MergeOptions,
   type MergeResult,
 } from '@/features/sessions/services/sessionMergeService';
 import type { SessionWithDetails } from '@/features/sessions/constants/sessionConstants';
 import { formatDate } from '@/shared/utils/formatDate';
 
-type Step = 'select' | 'options' | 'done';
+type Step = 'select' | 'dates' | 'options' | 'done';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Small helper to render a coloured stat card
@@ -61,6 +62,10 @@ export function SessionMergeModal({
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
+  // Date-picker step state
+  const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set());
+  const headerCheckboxRef = useRef<HTMLInputElement>(null);
+
   const [options, setOptions] = useState<MergeOptions>({
     conflict_resolution: 'skip',
     auto_enroll: true,
@@ -68,6 +73,30 @@ export function SessionMergeModal({
     transfer_per_date_content: true,
     delete_source_after: false,
   });
+
+  // ── Sync indeterminate state on header checkbox ──────────────────────────
+  useEffect(() => {
+    if (headerCheckboxRef.current && preview) {
+      const total = preview.dates.length;
+      const selected = selectedDates.size;
+      headerCheckboxRef.current.indeterminate = selected > 0 && selected < total;
+    }
+  }, [selectedDates, preview]);
+
+  // ── Filtered summary — recomputed when date selection changes ───────────
+  const filteredSummary = useMemo(() => {
+    if (!preview || preview.dates.length === 0) return null;
+    const activeDates = preview.dates.filter((d) => selectedDates.has(d.date));
+    return {
+      students_count: preview.summary.students_count,
+      total_transferable: activeDates.reduce((s, d) => s + d.transferable_count, 0),
+      total_conflicts: activeDates.reduce((s, d) => s + d.conflict_count, 0),
+      total_unenrolled_records: activeDates.reduce((s, d) => s + d.unenrolled_count, 0),
+      date_host_override_count: activeDates.filter((d) => d.has_host_override).length,
+      recording_count: activeDates.filter((d) => d.has_recording).length,
+      book_coverage_count: activeDates.filter((d) => d.has_book_coverage).length,
+    };
+  }, [preview, selectedDates]);
 
   const [executing, setExecuting] = useState(false);
   const [executeError, setExecuteError] = useState<string | null>(null);
@@ -118,6 +147,13 @@ export function SessionMergeModal({
     };
   }, [selectedSourceId, targetSession.session_id]);
 
+  // ── Init selectedDates when preview loads (select all by default) ────────
+  useEffect(() => {
+    if (preview?.dates) {
+      setSelectedDates(new Set(preview.dates.map((d) => d.date)));
+    }
+  }, [preview]);
+
   const selectedSession = allSessions.find((s) => s.session_id === selectedSourceId);
 
   // ── Execute merge ────────────────────────────────────────────────────────
@@ -129,7 +165,7 @@ export function SessionMergeModal({
     const { data, error } = await sessionMergeService.mergeSession(
       selectedSourceId,
       targetSession.session_id,
-      options,
+      { ...options, selected_dates: selectedDates.size > 0 ? [...selectedDates] : undefined },
     );
 
     setExecuting(false);
@@ -312,6 +348,253 @@ export function SessionMergeModal({
           <Button
             variant="primary"
             disabled={!selectedSourceId || previewLoading || !preview}
+            onClick={() => setStep(preview && preview.dates.length > 0 ? 'dates' : 'options')}
+          >
+            Review Options &rarr;
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // STEP 1.5 — Date picker: choose which dates to merge
+  // ════════════════════════════════════════════════════════════════════════════
+  if (step === 'dates' && preview) {
+    const allDates = preview.dates;
+    const totalDates = allDates.length;
+    const selectedCount = selectedDates.size;
+    const affectedRecords = allDates
+      .filter((d) => selectedDates.has(d.date))
+      .reduce((s, d) => s + d.transferable_count + d.unenrolled_count, 0);
+    const sourceName = selectedSession?.course?.course_name || 'Source';
+
+    const toggleDate = (date: string) => {
+      setSelectedDates((prev) => {
+        const next = new Set(prev);
+        if (next.has(date)) next.delete(date);
+        else next.add(date);
+        return next;
+      });
+    };
+
+    const statusColors: Record<string, string> = {
+      present: 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400',
+      'on time': 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400',
+      absent: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400',
+      late: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400',
+      excused: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400',
+    };
+
+    return (
+      <div className="space-y-4">
+        {/* Header */}
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+            Select Dates to Merge
+          </h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            Choose which attendance dates to copy from{' '}
+            <span className="font-medium text-gray-700 dark:text-gray-300">{sourceName}</span>.
+          </p>
+        </div>
+
+        {/* Date list */}
+        <div className="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
+          {/* Column header */}
+          <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-700 px-3 py-2 border-b border-gray-200 dark:border-gray-600">
+            <input
+              ref={headerCheckboxRef}
+              type="checkbox"
+              checked={selectedCount === totalDates && totalDates > 0}
+              onChange={(e) => {
+                if (e.target.checked) {
+                  setSelectedDates(new Set(allDates.map((d) => d.date)));
+                } else {
+                  setSelectedDates(new Set());
+                }
+              }}
+              className="text-blue-600 focus:ring-blue-500 rounded flex-shrink-0"
+            />
+            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide flex-1">
+              Date
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {selectedCount} / {totalDates} selected
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedDates(new Set(allDates.map((d) => d.date)))}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                All
+              </button>
+              <span className="text-gray-300 dark:text-gray-600">|</span>
+              <button
+                type="button"
+                onClick={() => setSelectedDates(new Set())}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                None
+              </button>
+            </div>
+          </div>
+
+          {/* Scrollable date rows */}
+          <div className="max-h-72 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700/50">
+            {allDates.map((d: MergeDatePreview) => {
+              const isSelected = selectedDates.has(d.date);
+              const hasContent =
+                d.has_host_override ||
+                d.has_time_change ||
+                d.has_day_change ||
+                d.has_recording ||
+                d.has_book_coverage;
+
+              return (
+                <div
+                  key={d.date}
+                  onClick={() => toggleDate(d.date)}
+                  className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors ${
+                    isSelected
+                      ? 'bg-blue-50/60 dark:bg-blue-900/10'
+                      : 'hover:bg-gray-50 dark:hover:bg-gray-700/40'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => toggleDate(d.date)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-blue-600 focus:ring-blue-500 rounded flex-shrink-0"
+                  />
+
+                  {/* Date */}
+                  <span className="text-sm font-medium text-gray-800 dark:text-gray-200 tabular-nums w-24 flex-shrink-0">
+                    {new Date(d.date + 'T00:00:00').toLocaleDateString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </span>
+
+                  {/* Content icons */}
+                  {hasContent && (
+                    <div className="flex gap-1 flex-shrink-0">
+                      {d.has_host_override && (
+                        <span
+                          title="Host address override"
+                          className="text-xs px-1 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
+                        >
+                          📍
+                        </span>
+                      )}
+                      {d.has_time_change && (
+                        <span
+                          title="Time change"
+                          className="text-xs px-1 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                        >
+                          ⏰
+                        </span>
+                      )}
+                      {d.has_day_change && (
+                        <span
+                          title="Day change"
+                          className="text-xs px-1 rounded bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400"
+                        >
+                          📅
+                        </span>
+                      )}
+                      {d.has_recording && (
+                        <span
+                          title="Recording"
+                          className="text-xs px-1 rounded bg-pink-100 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400"
+                        >
+                          🎬
+                        </span>
+                      )}
+                      {d.has_book_coverage && (
+                        <span
+                          title="Book coverage"
+                          className="text-xs px-1 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400"
+                        >
+                          📖
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Status summary pills */}
+                  <div className="flex gap-1 flex-wrap flex-1 min-w-0">
+                    {Object.entries(d.status_summary)
+                      .filter(([, count]) => count > 0)
+                      .map(([status, count]) => (
+                        <span
+                          key={status}
+                          className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                            statusColors[status] ??
+                            'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                          }`}
+                        >
+                          {count} {status}
+                        </span>
+                      ))}
+                  </div>
+
+                  {/* Conflict / unenrolled badges */}
+                  <div className="flex gap-1 flex-shrink-0">
+                    {d.conflict_count > 0 && (
+                      <span
+                        title="Records that already exist in the target"
+                        className="text-xs px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400 font-medium"
+                      >
+                        {d.conflict_count} conflict
+                      </span>
+                    )}
+                    {d.unenrolled_count > 0 && (
+                      <span
+                        title="Records for students not enrolled in the target"
+                        className="text-xs px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 font-medium"
+                      >
+                        {d.unenrolled_count} unenrolled
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Summary strip */}
+        {selectedCount > 0 && (
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg px-4 py-2.5 flex items-center justify-between gap-2">
+            <span className="text-sm text-green-800 dark:text-green-300">
+              <span className="font-semibold">{selectedCount}</span> date
+              {selectedCount !== 1 ? 's' : ''} selected
+            </span>
+            <span className="text-sm text-green-700 dark:text-green-400">
+              <span className="font-semibold">{affectedRecords}</span> attendance record
+              {affectedRecords !== 1 ? 's' : ''} to transfer
+            </span>
+          </div>
+        )}
+
+        {selectedCount === 0 && (
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-600 rounded-lg px-4 py-2.5 text-sm text-amber-700 dark:text-amber-300">
+            ⚠️ Select at least one date to proceed.
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className="flex justify-between gap-2 pt-1">
+          <Button variant="secondary" onClick={() => setStep('select')}>
+            &larr; Back
+          </Button>
+          <Button
+            variant="primary"
+            disabled={selectedCount === 0}
             onClick={() => setStep('options')}
           >
             Review Options &rarr;
@@ -325,7 +608,12 @@ export function SessionMergeModal({
   // STEP 2 — Options + full preview table
   // ════════════════════════════════════════════════════════════════════════════
   if (step === 'options' && preview) {
-    const { summary } = preview;
+    // filteredSummary reflects only selected dates; fall back to total if dates not used
+    const summary = filteredSummary ?? preview.summary;
+    const dateHostOverrideCount =
+      filteredSummary?.date_host_override_count ?? preview.date_host_override_count;
+    const recordingCount = filteredSummary?.recording_count ?? preview.recording_count;
+    const bookCoverageCount = filteredSummary?.book_coverage_count ?? preview.book_coverage_count;
     const sourceName = selectedSession?.course?.course_name || 'Source session';
 
     return (
@@ -387,7 +675,7 @@ export function SessionMergeModal({
             color="blue"
           />
           <StatCard
-            value={preview.date_host_override_count}
+            value={dateHostOverrideCount}
             label="Host assignments"
             color="purple"
           />
@@ -398,16 +686,16 @@ export function SessionMergeModal({
               color="gray"
             />
           )}
-          {preview.recording_count > 0 && (
+          {recordingCount > 0 && (
             <StatCard
-              value={preview.recording_count}
+              value={recordingCount}
               label="Recordings"
               color="purple"
             />
           )}
-          {preview.book_coverage_count > 0 && (
+          {bookCoverageCount > 0 && (
             <StatCard
-              value={preview.book_coverage_count}
+              value={bookCoverageCount}
               label="Book refs"
               color="gray"
             />
@@ -441,34 +729,44 @@ export function SessionMergeModal({
                     <p className="text-xs text-gray-400 truncate">{student.student_email}</p>
                   </div>
 
-                  <div className="flex gap-1 flex-shrink-0">
-                    {student.target_enrollment_id && student.transferable_dates.length > 0 && (
-                      <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 font-medium">
-                        {student.transferable_dates.length} ready
-                      </span>
-                    )}
-                    {student.target_enrollment_id && (() => {
-                      const excusedCount = student.transferable_dates.filter(
-                        (d) => student.statuses[d] === 'excused',
-                      ).length;
-                      return excusedCount > 0 ? (
-                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400 font-medium">
-                          {excusedCount} excused
-                        </span>
-                      ) : null;
-                    })()}
-                    {student.conflict_dates.length > 0 && (
-                      <span className="text-xs px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400 font-medium">
-                        {student.conflict_dates.length} conflict
-                      </span>
-                    )}
-                    {!student.target_enrollment_id && (
-                      <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 font-medium">
-                        not enrolled &middot;{' '}
-                        {student.transferable_dates.length + student.conflict_dates.length} records
-                      </span>
-                    )}
-                  </div>
+                  {/* Pill counts are filtered to only the dates the user selected */}
+                  {(() => {
+                    const filtered = preview.dates.length > 0;
+                    const visibleTransferable = filtered
+                      ? student.transferable_dates.filter((d) => selectedDates.has(d))
+                      : student.transferable_dates;
+                    const visibleConflicts = filtered
+                      ? student.conflict_dates.filter((d) => selectedDates.has(d))
+                      : student.conflict_dates;
+                    const excusedCount = visibleTransferable.filter(
+                      (d) => student.statuses[d] === 'excused',
+                    ).length;
+                    return (
+                      <div className="flex gap-1 flex-shrink-0">
+                        {student.target_enrollment_id && visibleTransferable.length > 0 && (
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 font-medium">
+                            {visibleTransferable.length} ready
+                          </span>
+                        )}
+                        {student.target_enrollment_id && excusedCount > 0 && (
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400 font-medium">
+                            {excusedCount} excused
+                          </span>
+                        )}
+                        {visibleConflicts.length > 0 && (
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400 font-medium">
+                            {visibleConflicts.length} conflict
+                          </span>
+                        )}
+                        {!student.target_enrollment_id && (visibleTransferable.length + visibleConflicts.length) > 0 && (
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 font-medium">
+                            not enrolled &middot;{' '}
+                            {visibleTransferable.length + visibleConflicts.length} records
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               ))}
             </div>
@@ -546,7 +844,7 @@ export function SessionMergeModal({
           )}
 
           {/* Transfer date/time overrides — shown when overrides or teacher schedule exist */}
-          {(preview.date_host_override_count > 0 || preview.teacher_host_schedule_count > 0) && (
+          {(dateHostOverrideCount > 0 || preview.teacher_host_schedule_count > 0) && (
             <div className="px-4 py-3">
               <label className="flex items-start gap-2.5 cursor-pointer">
                 <input
@@ -562,7 +860,7 @@ export function SessionMergeModal({
                 />
                 <span className="text-sm text-gray-700 dark:text-gray-300">
                   <span className="font-medium">Transfer scheduling data</span> — copy per-date
-                  host address &amp; identity ({preview.date_host_override_count} date{preview.date_host_override_count !== 1 ? 's' : ''}), teacher host schedule
+                  host address &amp; identity ({dateHostOverrideCount} date{dateHostOverrideCount !== 1 ? 's' : ''}), teacher host schedule
                   ({preview.teacher_host_schedule_count} entries), and any time-change records from the source session.
                 </span>
               </label>
@@ -570,7 +868,7 @@ export function SessionMergeModal({
           )}
 
           {/* Transfer per-date content: recordings, book coverage, feedback questions */}
-          {(preview.recording_count > 0 || preview.book_coverage_count > 0 || preview.feedback_question_count > 0) && (
+          {(recordingCount > 0 || bookCoverageCount > 0 || preview.feedback_question_count > 0) && (
             <div className="px-4 py-3">
               <label className="flex items-start gap-2.5 cursor-pointer">
                 <input
@@ -583,8 +881,8 @@ export function SessionMergeModal({
                 />
                 <span className="text-sm text-gray-700 dark:text-gray-300">
                   <span className="font-medium">Transfer per-date content</span> — copy recording
-                  links ({preview.recording_count}),
-                  book references ({preview.book_coverage_count}{!preview.same_course && preview.book_coverage_count > 0 ? ' — skipped, different courses' : ''}),
+                  links ({recordingCount}),
+                  book references ({bookCoverageCount}{!preview.same_course && bookCoverageCount > 0 ? ' — skipped, different courses' : ''}),
                   and feedback questions ({preview.feedback_question_count})
                 </span>
               </label>
@@ -641,7 +939,7 @@ export function SessionMergeModal({
 
         {/* Footer */}
         <div className="flex justify-between gap-2 pt-1">
-          <Button variant="secondary" onClick={() => setStep('select')} disabled={executing}>
+          <Button variant="secondary" onClick={() => setStep(preview.dates.length > 0 ? 'dates' : 'select')} disabled={executing}>
             &larr; Back
           </Button>
 

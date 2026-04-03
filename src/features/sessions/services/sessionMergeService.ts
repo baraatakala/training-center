@@ -20,8 +20,24 @@ export type StudentMergePreview = {
   statuses: Record<string, string>;
 };
 
+/** Per-date breakdown used for the date-picker step in the merge modal. */
+export type MergeDatePreview = {
+  date: string;                           // YYYY-MM-DD
+  transferable_count: number;             // students with no conflict on this date
+  conflict_count: number;                 // students whose target record already exists
+  unenrolled_count: number;              // students not enrolled in target session
+  status_summary: Record<string, number>; // { present: 2, absent: 1, late: 0, excused: 1 }
+  has_host_override: boolean;             // session_date_host row exists for this date
+  has_time_change: boolean;              // session_time_change row with this effective_date
+  has_day_change: boolean;               // session_day_change row with this effective_date
+  has_recording: boolean;                // non-deleted session_recording for this date
+  has_book_coverage: boolean;            // session_book_coverage row for this date
+};
+
 export type MergePreview = {
   students: StudentMergePreview[];
+  /** Per-date breakdown for the date-picker step. Sorted ascending by date. */
+  dates: MergeDatePreview[];
   date_host_override_count: number;
   teacher_host_schedule_count: number;
   recording_count: number;
@@ -45,6 +61,11 @@ export type MergeOptions = {
   /** Transfer per-date content: recording links, book coverage, feedback questions */
   transfer_per_date_content: boolean;
   delete_source_after: boolean;
+  /**
+   * When set, only attendance records / per-date content for these dates are merged.
+   * All dates are merged when undefined or empty.
+   */
+  selected_dates?: string[];
 };
 
 export type MergeResult = {
@@ -109,6 +130,7 @@ export const sessionMergeService = {
         return {
           data: {
             students: [],
+            dates: [],
             date_host_override_count: earlyOverrideCount || 0,
             teacher_host_schedule_count: earlyScheduleCount || 0,
             recording_count: earlyRecordingCount || 0,
@@ -235,40 +257,83 @@ export const sessionMergeService = {
         });
       }
 
-      // 6. Count date/time overrides in source
-      const { count: overrideCount } = await supabase
-        .from(Tables.SESSION_DATE_HOST)
-        .select('id', { count: 'exact', head: true })
-        .eq('session_id', sourceSessionId);
+      // ── Build per-date breakdown ──────────────────────────────────────────
+      // Group source attendance by date to compute per-date stats.
+      // We reuse `targetEnrollmentMap` and `targetAttendanceSet` already computed above.
+      const dateGroupMap = new Map<
+        string,
+        { transferable: number; conflicts: number; unenrolled: number; statuses: Record<string, number> }
+      >();
+      for (const att of (sourceAttendance || [])) {
+        if (!dateGroupMap.has(att.attendance_date)) {
+          dateGroupMap.set(att.attendance_date, { transferable: 0, conflicts: 0, unenrolled: 0, statuses: {} });
+        }
+        const dg = dateGroupMap.get(att.attendance_date)!;
+        dg.statuses[att.status] = (dg.statuses[att.status] || 0) + 1;
+        const tEnrollId = targetEnrollmentMap.get(att.student_id);
+        if (!tEnrollId) {
+          dg.unenrolled++;
+        } else if (targetAttendanceSet.has(`${tEnrollId}|${att.attendance_date}`)) {
+          dg.conflicts++;
+        } else {
+          dg.transferable++;
+        }
+      }
 
-      // 7. Count teacher host schedule rows in source
-      const { count: scheduleCount } = await supabase
-        .from(Tables.TEACHER_HOST_SCHEDULE)
-        .select('id', { count: 'exact', head: true })
-        .eq('session_id', sourceSessionId);
-
-      // 8. Count recordings, book coverage, feedback questions
+      // Fetch per-date content metadata in one parallel batch.
+      // We only need the date field — not full rows — so queries stay lightweight.
       const [
-        { count: recordingCount },
-        { count: bookCoverageCount },
+        { data: hostDateRows },
+        { count: scheduleCount },
+        { data: recordingDateRows },
+        { data: bookCoverageDateRows },
         { count: feedbackQuestionCount },
+        { data: timeChangeDateRows },
+        { data: dayChangeDateRows },
         { data: srcSession },
         { data: tgtSession },
       ] = await Promise.all([
-        supabase.from(Tables.SESSION_RECORDING).select('recording_id', { count: 'exact', head: true }).eq('session_id', sourceSessionId).is('deleted_at', null),
-        supabase.from(Tables.SESSION_BOOK_COVERAGE).select('coverage_id', { count: 'exact', head: true }).eq('session_id', sourceSessionId),
+        supabase.from(Tables.SESSION_DATE_HOST).select('attendance_date').eq('session_id', sourceSessionId),
+        supabase.from(Tables.TEACHER_HOST_SCHEDULE).select('id', { count: 'exact', head: true }).eq('session_id', sourceSessionId),
+        supabase.from(Tables.SESSION_RECORDING).select('attendance_date').eq('session_id', sourceSessionId).is('deleted_at', null),
+        supabase.from(Tables.SESSION_BOOK_COVERAGE).select('attendance_date').eq('session_id', sourceSessionId),
         supabase.from(Tables.FEEDBACK_QUESTION).select('id', { count: 'exact', head: true }).eq('session_id', sourceSessionId),
+        supabase.from(Tables.SESSION_TIME_CHANGE).select('effective_date').eq('session_id', sourceSessionId),
+        supabase.from('session_day_change').select('effective_date').eq('session_id', sourceSessionId),
         supabase.from(Tables.SESSION).select('course_id').eq('session_id', sourceSessionId).single(),
         supabase.from(Tables.SESSION).select('course_id').eq('session_id', targetSessionId).single(),
       ]);
 
+      const hostDateSet = new Set((hostDateRows || []).map((r) => r.attendance_date as string));
+      const timeChangeDateSet = new Set((timeChangeDateRows || []).map((r) => r.effective_date as string));
+      const dayChangeDateSet = new Set((dayChangeDateRows || []).map((r) => r.effective_date as string));
+      const recordingDateSet = new Set((recordingDateRows || []).map((r) => r.attendance_date as string));
+      const bookCoverageDateSet = new Set((bookCoverageDateRows || []).map((r) => r.attendance_date as string));
+
+      const datePreviews: MergeDatePreview[] = [...dateGroupMap.keys()].sort().map((date) => {
+        const dg = dateGroupMap.get(date)!;
+        return {
+          date,
+          transferable_count: dg.transferable,
+          conflict_count: dg.conflicts,
+          unenrolled_count: dg.unenrolled,
+          status_summary: dg.statuses,
+          has_host_override: hostDateSet.has(date),
+          has_time_change: timeChangeDateSet.has(date),
+          has_day_change: dayChangeDateSet.has(date),
+          has_recording: recordingDateSet.has(date),
+          has_book_coverage: bookCoverageDateSet.has(date),
+        };
+      });
+
       return {
         data: {
           students: studentStatuses,
-          date_host_override_count: overrideCount || 0,
+          dates: datePreviews,
+          date_host_override_count: (hostDateRows || []).length,
           teacher_host_schedule_count: scheduleCount || 0,
-          recording_count: recordingCount || 0,
-          book_coverage_count: bookCoverageCount || 0,
+          recording_count: (recordingDateRows || []).length,
+          book_coverage_count: (bookCoverageDateRows || []).length,
           feedback_question_count: feedbackQuestionCount || 0,
           same_course: srcSession?.course_id === tgtSession?.course_id,
           summary: {
@@ -352,7 +417,17 @@ export const sessionMergeService = {
       }
 
       // ── 4. Process each source attendance record ──────────────────────────
+      // When selected_dates is provided, restrict to only those dates.
+      const dateFilter = options.selected_dates && options.selected_dates.length > 0
+        ? new Set(options.selected_dates)
+        : null;
+
       for (const att of (sourceAttendance || [])) {
+        // Skip dates not in the teacher's selection
+        if (dateFilter && !dateFilter.has(att.attendance_date)) {
+          continue;
+        }
+
         let targetEnrollmentId = targetEnrollmentMap.get(att.student_id) || null;
 
         // Auto-enroll student in target session if not yet enrolled
@@ -497,12 +572,16 @@ export const sessionMergeService = {
       // ── 5. Transfer date-host data & time changes ──────────────────────
       if (options.transfer_date_host_overrides) {
         // 5a. Transfer host assignments from session_date_host (host identity & address only)
-        const { data: sourceHostRows } = await supabase
+        const { data: allSourceHostRows } = await supabase
           .from(Tables.SESSION_DATE_HOST)
           .select('*')
           .eq('session_id', sourceSessionId);
 
-        for (const row of (sourceHostRows || [])) {
+        const sourceHostRows = dateFilter
+          ? (allSourceHostRows || []).filter((r) => dateFilter.has(r.attendance_date))
+          : (allSourceHostRows || []);
+
+        for (const row of sourceHostRows) {
           const hostPayload = {
             host_id: row.host_id ?? null,
             host_type: row.host_type ?? null,
@@ -564,13 +643,17 @@ export const sessionMergeService = {
         }
 
         // 5b. Transfer session_time_change records from source to target
-        const { data: sourceTimeChanges } = await supabase
+        const { data: allSourceTimeChanges } = await supabase
           .from(Tables.SESSION_TIME_CHANGE)
           .select('*')
           .eq('session_id', sourceSessionId)
           .order('effective_date', { ascending: true });
 
-        for (const tc of (sourceTimeChanges || [])) {
+        const sourceTimeChanges = dateFilter
+          ? (allSourceTimeChanges || []).filter((tc) => dateFilter.has(tc.effective_date))
+          : (allSourceTimeChanges || []);
+
+        for (const tc of sourceTimeChanges) {
           // Delete any existing time-change on the same effective_date in target
           await supabase
             .from(Tables.SESSION_TIME_CHANGE)
@@ -594,13 +677,17 @@ export const sessionMergeService = {
         }
 
         // 5c. Transfer session_day_change records from source to target
-        const { data: sourceDayChanges } = await supabase
+        const { data: allSourceDayChanges } = await supabase
           .from('session_day_change')
           .select('*')
           .eq('session_id', sourceSessionId)
           .order('effective_date', { ascending: true });
 
-        for (const dc of (sourceDayChanges || [])) {
+        const sourceDayChanges = dateFilter
+          ? (allSourceDayChanges || []).filter((dc) => dateFilter.has(dc.effective_date))
+          : (allSourceDayChanges || []);
+
+        for (const dc of sourceDayChanges) {
           await supabase
             .from('session_day_change')
             .delete()
@@ -648,13 +735,17 @@ export const sessionMergeService = {
       // ── 6. Transfer per-date content: recordings, book coverage, feedback questions ──
       if (options.transfer_per_date_content) {
         // 6a. Recording links — insert each non-deleted source recording into target
-        const { data: sourceRecordings } = await supabase
+        const { data: allSourceRecordings } = await supabase
           .from(Tables.SESSION_RECORDING)
           .select('*')
           .eq('session_id', sourceSessionId)
           .is('deleted_at', null);
 
-        for (const rec of (sourceRecordings || [])) {
+        const sourceRecordings = dateFilter
+          ? (allSourceRecordings || []).filter((r) => dateFilter.has(r.attendance_date))
+          : (allSourceRecordings || []);
+
+        for (const rec of sourceRecordings) {
           const {
             recording_id: _rid,
             created_at: _ca,
@@ -679,12 +770,16 @@ export const sessionMergeService = {
         ]);
 
         if (srcSess?.course_id === tgtSess?.course_id) {
-          const { data: sourceBookCoverage } = await supabase
+          const { data: allSourceBookCoverage } = await supabase
             .from(Tables.SESSION_BOOK_COVERAGE)
             .select('*')
             .eq('session_id', sourceSessionId);
 
-          for (const cov of (sourceBookCoverage || [])) {
+          const sourceBookCoverage = dateFilter
+            ? (allSourceBookCoverage || []).filter((c) => dateFilter.has(c.attendance_date))
+            : (allSourceBookCoverage || []);
+
+          for (const cov of sourceBookCoverage) {
             // Explicit check-then-update-or-insert to avoid upsert constraint conflicts
             const { data: existingCov } = await supabase
               .from(Tables.SESSION_BOOK_COVERAGE)
@@ -729,13 +824,21 @@ export const sessionMergeService = {
           }
         }
 
-        // 6c. Feedback questions — copy question templates per date (not student responses)
-        const { data: sourceFeedback } = await supabase
+        // 6c. Feedback questions — copy question templates per date (not student responses).
+        // Global questions (attendance_date IS NULL) are always included.
+        // Date-specific questions are filtered to selected dates when dateFilter is active.
+        const { data: allSourceFeedback } = await supabase
           .from(Tables.FEEDBACK_QUESTION)
           .select('*')
           .eq('session_id', sourceSessionId);
 
-        for (const q of (sourceFeedback || [])) {
+        const sourceFeedback = dateFilter
+          ? (allSourceFeedback || []).filter(
+              (q) => q.attendance_date === null || dateFilter.has(q.attendance_date),
+            )
+          : (allSourceFeedback || []);
+
+        for (const q of sourceFeedback) {
           const {
             id: _qid,
             created_at: _ca,
