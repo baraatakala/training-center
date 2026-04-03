@@ -75,6 +75,10 @@ CREATE INDEX IF NOT EXISTS idx_session_date_host_date         ON public.session_
 CREATE INDEX IF NOT EXISTS idx_session_day_change_session   ON public.session_day_change(session_id);
 CREATE INDEX IF NOT EXISTS idx_session_day_change_effective ON public.session_day_change(effective_date);
 
+-- session_time_change
+CREATE INDEX IF NOT EXISTS idx_session_time_change_session   ON public.session_time_change(session_id);
+CREATE INDEX IF NOT EXISTS idx_session_time_change_effective ON public.session_time_change(effective_date);
+
 -- teacher_host_schedule
 CREATE INDEX IF NOT EXISTS idx_teacher_host_schedule_teacher_id ON public.teacher_host_schedule(teacher_id);
 CREATE INDEX IF NOT EXISTS idx_teacher_host_schedule_session_id ON public.teacher_host_schedule(session_id);

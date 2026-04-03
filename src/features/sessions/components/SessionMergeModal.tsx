@@ -265,7 +265,7 @@ export function SessionMergeModal({
                       />
                       <StatCard
                         value={preview.date_host_override_count}
-                        label="Date overrides"
+                        label="Host assignments"
                         color="purple"
                       />
                       {preview.teacher_host_schedule_count > 0 && (
@@ -388,7 +388,7 @@ export function SessionMergeModal({
           />
           <StatCard
             value={preview.date_host_override_count}
-            label="Date overrides"
+            label="Host assignments"
             color="purple"
           />
           {preview.teacher_host_schedule_count > 0 && (
@@ -562,8 +562,8 @@ export function SessionMergeModal({
                 />
                 <span className="text-sm text-gray-700 dark:text-gray-300">
                   <span className="font-medium">Transfer scheduling data</span> — copy per-date
-                  host address &amp; identity ({preview.date_host_override_count} date{preview.date_host_override_count !== 1 ? 's' : ''}) and teacher host schedule
-                  ({preview.teacher_host_schedule_count} entries). If the source session has a different time than the target, the source&apos;s effective time will be applied as a per-date override.
+                  host address &amp; identity ({preview.date_host_override_count} date{preview.date_host_override_count !== 1 ? 's' : ''}), teacher host schedule
+                  ({preview.teacher_host_schedule_count} entries), and any time-change records from the source session.
                 </span>
               </label>
             </div>

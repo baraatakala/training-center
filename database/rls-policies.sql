@@ -272,6 +272,29 @@ DROP POLICY IF EXISTS "Students can read day changes" ON session_day_change;
 CREATE POLICY "Students can read day changes" ON session_day_change
   FOR SELECT TO authenticated USING (NOT is_teacher() AND NOT is_admin());
 
+-- session_time_change (mirrors session_day_change) ----------------------
+ALTER TABLE session_time_change ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Admin has full access" ON session_time_change;
+CREATE POLICY "Admin has full access" ON session_time_change
+  FOR ALL TO authenticated USING (is_admin()) WITH CHECK (is_admin());
+
+DROP POLICY IF EXISTS "Teachers can read" ON session_time_change;
+CREATE POLICY "Teachers can read" ON session_time_change
+  FOR SELECT TO authenticated USING (is_teacher() AND NOT is_admin());
+
+DROP POLICY IF EXISTS "Teachers can insert" ON session_time_change;
+CREATE POLICY "Teachers can insert" ON session_time_change
+  FOR INSERT TO authenticated WITH CHECK (is_teacher() AND NOT is_admin());
+
+DROP POLICY IF EXISTS "Teachers can delete time changes" ON session_time_change;
+CREATE POLICY "Teachers can delete time changes" ON session_time_change
+  FOR DELETE TO authenticated USING (is_teacher() AND NOT is_admin());
+
+DROP POLICY IF EXISTS "Students can read time changes" ON session_time_change;
+CREATE POLICY "Students can read time changes" ON session_time_change
+  FOR SELECT TO authenticated USING (NOT is_teacher() AND NOT is_admin());
+
 -- teacher_host_schedule -------------------------------------------------
 ALTER TABLE teacher_host_schedule ENABLE ROW LEVEL SECURITY;
 

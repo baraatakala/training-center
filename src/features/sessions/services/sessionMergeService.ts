@@ -488,102 +488,60 @@ export const sessionMergeService = {
         }
       }
 
-      // ── 5. Transfer date/time overrides ──────────────────────────────────
+      // ── 5. Transfer date-host data & time changes ──────────────────────
       if (options.transfer_date_host_overrides) {
-        // Fetch source session default time AND target session default time
-        // so we can compute whether a time override is needed on the target.
-        const [{ data: srcSessTime }, { data: tgtSessTime }] = await Promise.all([
-          supabase.from(Tables.SESSION).select('time').eq('session_id', sourceSessionId).single(),
-          supabase.from(Tables.SESSION).select('time').eq('session_id', targetSessionId).single(),
-        ]);
-        const sourceDefaultTime = srcSessTime?.time as string | null; // e.g. "16:15-18:30"
-        const targetDefaultTime = tgtSessTime?.time as string | null; // e.g. "13:15-15:30"
-
-        const { data: sourceOverrides } = await supabase
+        // 5a. Transfer host assignments from session_date_host (host identity & address only)
+        const { data: sourceHostRows } = await supabase
           .from(Tables.SESSION_DATE_HOST)
           .select('*')
           .eq('session_id', sourceSessionId);
 
-        for (const override of (sourceOverrides || [])) {
+        for (const row of (sourceHostRows || [])) {
           const hostPayload = {
-            host_id: override.host_id ?? null,
-            host_type: override.host_type ?? null,
-            host_address: override.host_address ?? null,
-            host_latitude: override.host_latitude ?? null,
-            host_longitude: override.host_longitude ?? null,
+            host_id: row.host_id ?? null,
+            host_type: row.host_type ?? null,
+            host_address: row.host_address ?? null,
+            host_latitude: row.host_latitude ?? null,
+            host_longitude: row.host_longitude ?? null,
           };
-
-          // Compute the EFFECTIVE time for this date in the source session:
-          // If source has a per-date override → use that override
-          // Otherwise → use the source session's default time
-          const srcOverrideTime = override.override_time as string | null;
-          const srcOverrideEndTime = override.override_end_time as string | null;
-
-          // Parse the source session's default time into start/end parts ("16:15-18:30" → "16:15", "18:30")
-          const [srcDefaultStart, srcDefaultEnd] = (sourceDefaultTime || '').split('-').map(s => s.trim());
-          const [tgtDefaultStart, tgtDefaultEnd] = (targetDefaultTime || '').split('-').map(s => s.trim());
-
-          // The effective start/end time from the source for this date:
-          const effectiveStart = srcOverrideTime || srcDefaultStart || null;
-          const effectiveEnd = srcOverrideEndTime || srcDefaultEnd || null;
-
-          // Only set an override on the target if the time actually differs from the target's default
-          let timePayload: { override_time: string | null; override_end_time: string | null; override_reason: string | null };
-          if (effectiveStart !== tgtDefaultStart || effectiveEnd !== tgtDefaultEnd) {
-            // Source time differs from target default → apply as override
-            timePayload = {
-              override_time: effectiveStart,
-              override_end_time: effectiveEnd,
-              override_reason: 'Transferred from merged session',
-            };
-          } else {
-            // Same time → no override needed, clear any stale one
-            timePayload = {
-              override_time: null,
-              override_end_time: null,
-              override_reason: null,
-            };
-          }
 
           const { data: existingRow } = await supabase
             .from(Tables.SESSION_DATE_HOST)
             .select('id')
             .eq('session_id', targetSessionId)
-            .eq('attendance_date', override.attendance_date)
+            .eq('attendance_date', row.attendance_date)
             .maybeSingle();
 
           let hostTransferOk = false;
           if (existingRow) {
             const { error: updateErr } = await supabase
               .from(Tables.SESSION_DATE_HOST)
-              .update({ ...hostPayload, ...timePayload })
+              .update(hostPayload)
               .eq('id', existingRow.id);
             hostTransferOk = !updateErr;
-            if (updateErr) result.errors.push(`Host update failed for ${override.attendance_date}: ${updateErr.message}`);
+            if (updateErr) result.errors.push(`Host update failed for ${row.attendance_date}: ${updateErr.message}`);
           } else {
             const { error: insertErr } = await supabase
               .from(Tables.SESSION_DATE_HOST)
               .insert({
                 session_id: targetSessionId,
-                attendance_date: override.attendance_date,
+                attendance_date: row.attendance_date,
                 ...hostPayload,
-                ...timePayload,
               });
             hostTransferOk = !insertErr;
-            if (insertErr) result.errors.push(`Host insert failed for ${override.attendance_date}: ${insertErr.message}`);
+            if (insertErr) result.errors.push(`Host insert failed for ${row.attendance_date}: ${insertErr.message}`);
           }
 
           if (hostTransferOk) {
             result.date_host_overrides_transferred++;
 
             // If the host is a student, ensure can_host=true on their target enrollment
-            // so they appear in the host address dropdown on the Attendance page.
-            if (override.host_id && override.host_type === 'student') {
+            if (row.host_id && row.host_type === 'student') {
               const { data: hostEnroll } = await supabase
                 .from(Tables.ENROLLMENT)
                 .select('enrollment_id, can_host, host_date')
                 .eq('session_id', targetSessionId)
-                .eq('student_id', override.host_id)
+                .eq('student_id', row.host_id)
                 .maybeSingle();
 
               if (hostEnroll && !hostEnroll.can_host) {
@@ -591,12 +549,41 @@ export const sessionMergeService = {
                   .from(Tables.ENROLLMENT)
                   .update({
                     can_host: true,
-                    // Only set host_date when not already set to preserve any existing schedule
-                    ...(!hostEnroll.host_date ? { host_date: override.attendance_date } : {}),
+                    ...(!hostEnroll.host_date ? { host_date: row.attendance_date } : {}),
                   })
                   .eq('enrollment_id', hostEnroll.enrollment_id);
               }
             }
+          }
+        }
+
+        // 5b. Transfer session_time_change records from source to target
+        const { data: sourceTimeChanges } = await supabase
+          .from(Tables.SESSION_TIME_CHANGE)
+          .select('*')
+          .eq('session_id', sourceSessionId)
+          .order('effective_date', { ascending: true });
+
+        for (const tc of (sourceTimeChanges || [])) {
+          // Delete any existing time-change on the same effective_date in target
+          await supabase
+            .from(Tables.SESSION_TIME_CHANGE)
+            .delete()
+            .eq('session_id', targetSessionId)
+            .eq('effective_date', tc.effective_date);
+
+          const { error: tcErr } = await supabase
+            .from(Tables.SESSION_TIME_CHANGE)
+            .insert({
+              session_id: targetSessionId,
+              old_time: tc.old_time,
+              new_time: tc.new_time,
+              effective_date: tc.effective_date,
+              reason: tc.reason ? `${tc.reason} (merged)` : 'Transferred from merged session',
+              changed_by: tc.changed_by,
+            });
+          if (tcErr) {
+            result.errors.push(`Time change transfer failed for ${tc.effective_date}: ${tcErr.message}`);
           }
         }
 

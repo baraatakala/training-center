@@ -207,9 +207,6 @@ CREATE TABLE IF NOT EXISTS public.session_date_host (
   updated_at TIMESTAMPTZ DEFAULT now(),
   host_latitude NUMERIC CHECK (host_latitude IS NULL OR (host_latitude >= -90 AND host_latitude <= 90)),
   host_longitude NUMERIC CHECK (host_longitude IS NULL OR (host_longitude >= -180 AND host_longitude <= 180)),
-  override_time TEXT DEFAULT NULL,                         -- per-date session start-time override (migration 007)
-  override_reason TEXT DEFAULT NULL,                       -- admin note for why time differs (migration 009)
-  override_end_time TIME DEFAULT NULL,                     -- per-date session end-time override (migration 010)
   CONSTRAINT session_date_host_pkey PRIMARY KEY (id),
   CONSTRAINT session_date_host_session_date_unique UNIQUE (session_id, attendance_date),
   CONSTRAINT session_date_host_type_check CHECK (host_type IS NULL OR host_type IN ('student', 'teacher')),
@@ -228,6 +225,20 @@ CREATE TABLE IF NOT EXISTS public.session_day_change (
   CONSTRAINT session_day_change_pkey PRIMARY KEY (change_id),
   CONSTRAINT session_day_change_session_date_unique UNIQUE (session_id, effective_date),
   CONSTRAINT session_day_change_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS public.session_time_change (
+  change_id UUID NOT NULL DEFAULT gen_random_uuid(),
+  session_id UUID NOT NULL,
+  old_time TEXT,
+  new_time TEXT NOT NULL,
+  effective_date DATE NOT NULL,
+  reason TEXT,
+  changed_by TEXT,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  CONSTRAINT session_time_change_pkey PRIMARY KEY (change_id),
+  CONSTRAINT session_time_change_session_date_unique UNIQUE (session_id, effective_date),
+  CONSTRAINT session_time_change_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS public.teacher_host_schedule (

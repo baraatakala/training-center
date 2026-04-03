@@ -159,14 +159,8 @@ export function Attendance() {
   const [confirmUnmarkSessionNotHeld, setConfirmUnmarkSessionNotHeld] = useState<boolean>(false);
   const [confirmClearGPS, setConfirmClearGPS] = useState<{ hostId: string; isTeacher: boolean } | null>(null);
 
-  // Per-date time override loaded from session_date_host.override_time / override_end_time
-  const [dateOverrideTime, setDateOverrideTime] = useState<string | null>(null);
-  const [dateOverrideEndTime, setDateOverrideEndTime] = useState<string | null>(null);
-  // Inline editor state for per-date time override
-  const [editingTimeOverride, setEditingTimeOverride] = useState(false);
-  const [timeOverrideInput, setTimeOverrideInput] = useState('');
-  const [endTimeOverrideInput, setEndTimeOverrideInput] = useState('');
-  const [savingOverride, setSavingOverride] = useState(false);
+  // Effective session time for the selected date (resolved from session_time_change)
+  const [effectiveTimeForDate, setEffectiveTimeForDate] = useState<string | null>(null);
   const [pendingExcuseRequests, setPendingExcuseRequests] = useState<ExcuseRequest[]>([]);
 
   // Recording URL for this attendance date
@@ -239,7 +233,7 @@ export function Attendance() {
   // Uses the student's actual check_in_time when available (from QR/photo/prior check-in).
   // Falls back to the current time only for fresh manual entries with no prior check-in.
   const calculateLateMinutes = (checkInTime?: string | null, forceLate: boolean = true): number | null => {
-    const effectiveTime = dateOverrideTime ?? session?.time ?? null;
+    const effectiveTime = effectiveTimeForDate ?? session?.time ?? null;
     if (!effectiveTime || !selectedDate) {
       return forceLate ? 1 : null;
     }
@@ -471,11 +465,11 @@ export function Attendance() {
     if (!sessionId || !selectedDate) return;
 
     try {
-      // Load host data and attendance records in parallel (independent queries)
-      const [hostResult, attendanceResult] = await Promise.all([
+      // Load host data, attendance records, and effective time in parallel
+      const [hostResult, attendanceResult, effectiveTime] = await Promise.all([
         supabase
           .from(Tables.SESSION_DATE_HOST)
-          .select('host_id, host_type, host_address, override_time, override_end_time')
+          .select('host_id, host_type, host_address')
           .eq('session_id', sessionId)
           .eq('attendance_date', selectedDate)
           .maybeSingle(),
@@ -498,16 +492,14 @@ export function Attendance() {
           `)
           .eq('session_id', sessionId)
           .eq('attendance_date', selectedDate),
+        sessionService.getEffectiveTimeForDate(sessionId, selectedDate),
       ]);
 
       const hostData = hostResult.data;
       const existingAttendance = attendanceResult.data;
 
-      // Store per-date time override (null means use session.time)
-      setDateOverrideTime((hostData as { override_time?: string | null } | null)?.override_time ?? null);
-      setDateOverrideEndTime((hostData as { override_end_time?: string | null } | null)?.override_end_time ?? null);
-      // Reset the inline override editor when navigating to a new date
-      setEditingTimeOverride(false);
+      // Store effective time for this date (null means use session.time)
+      setEffectiveTimeForDate(effectiveTime);
 
       if (attendanceResult.error) {
         console.error('Error loading attendance:', attendanceResult.error);
@@ -1453,50 +1445,6 @@ export function Attendance() {
     setConfirmClearAttendance(attendanceId);
   };
 
-  // Save a per-date time override for the currently selected date
-  const handleSaveTimeOverride = async () => {
-    if (!sessionId || !selectedDate) return;
-    setSavingOverride(true);
-    try {
-      const { error } = await sessionService.setDateTimeOverride(
-        sessionId,
-        selectedDate,
-        timeOverrideInput.trim() || null,
-        undefined,
-        endTimeOverrideInput.trim() || null
-      );
-      if (error) {
-        toast.error('Failed to save time override: ' + error.message);
-      } else {
-        setDateOverrideTime(timeOverrideInput.trim() || null);
-        setDateOverrideEndTime(endTimeOverrideInput.trim() || null);
-        setEditingTimeOverride(false);
-        toast.success('Time override saved for this date');
-      }
-    } finally {
-      setSavingOverride(false);
-    }
-  };
-
-  // Clear the time override for the currently selected date
-  const handleClearTimeOverride = async () => {
-    if (!sessionId || !selectedDate) return;
-    setSavingOverride(true);
-    try {
-      const { error } = await sessionService.setDateTimeOverride(sessionId, selectedDate, null, undefined, null);
-      if (error) {
-        toast.error('Failed to clear time override: ' + error.message);
-      } else {
-        setDateOverrideTime(null);
-        setDateOverrideEndTime(null);
-        setEditingTimeOverride(false);
-        toast.success('Time override cleared — using session default time');
-      }
-    } finally {
-      setSavingOverride(false);
-    }
-  };
-
   const doClearAttendance = async (attendanceId: string) => {
     // If this is a temp (not-yet-saved) record, just reset locally
     if (attendanceId.startsWith('temp-')) {
@@ -1986,8 +1934,8 @@ export function Attendance() {
               <span className="text-3xl">📋</span> Mark Attendance
             </h1>
             <p className="text-white/80 text-sm mt-1">
-              {courseName} &bull; {session.day || ''} {(dateOverrideTime ?? session.time) ? `@ ${dateOverrideTime ?? session.time}` : ''}
-              {(dateOverrideTime || dateOverrideEndTime) && <span className="ml-2 text-xs bg-white/20 rounded px-1.5 py-0.5">⏱ Time override</span>}
+              {courseName} &bull; {session.day || ''} {(effectiveTimeForDate ?? session.time) ? `@ ${effectiveTimeForDate ?? session.time}` : ''}
+              {effectiveTimeForDate && effectiveTimeForDate !== session.time && <span className="ml-2 text-xs bg-white/20 rounded px-1.5 py-0.5">⏱ Time change active</span>}
             </p>
           </div>
           {selectedDate && !sessionNotHeld && (
@@ -2075,115 +2023,18 @@ export function Attendance() {
         </CardContent>
       </Card>
 
-      {/* Per-date time override panel — visible to all teachers/admins when a date is selected */}
-      {selectedDate && (
-        <Card className="border-amber-200 dark:border-amber-700/50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <span>⏱</span>
-              <span>Session Time for {format(new Date(selectedDate), 'MMM dd, yyyy')}</span>
-              {(dateOverrideTime || dateOverrideEndTime) && (
-                <span className="text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-600 rounded px-2 py-0.5 font-medium">
-                  Override active
-                </span>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {!editingTimeOverride ? (
-              <div className="space-y-3">
-                <div className="flex items-center flex-wrap gap-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Start:</span>
-                    <span className="font-mono font-semibold text-gray-900 dark:text-white">
-                      {dateOverrideTime ?? session?.time ?? '—'}
-                    </span>
-                    {dateOverrideTime && session?.time && (
-                      <span className="text-xs text-gray-400 dark:text-gray-500">(default: {session.time})</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">End:</span>
-                    <span className="font-mono font-semibold text-gray-900 dark:text-white">
-                      {dateOverrideEndTime ?? '—'}
-                    </span>
-                  </div>
-                  {!(dateOverrideTime || dateOverrideEndTime) && (
-                    <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded px-2 py-0.5">
-                      session default
-                    </span>
-                  )}
-                  <div className="flex gap-2 ml-auto">
-                    <button
-                      onClick={() => {
-                        setTimeOverrideInput(dateOverrideTime ?? session?.time ?? '');
-                        setEndTimeOverrideInput(dateOverrideEndTime ?? '');
-                        setEditingTimeOverride(true);
-                      }}
-                      className="text-xs px-3 py-1.5 rounded bg-amber-500 hover:bg-amber-600 text-white font-medium transition-colors"
-                    >
-                      ✏️ {(dateOverrideTime || dateOverrideEndTime) ? 'Edit Override' : 'Set Override'}
-                    </button>
-                    {(dateOverrideTime || dateOverrideEndTime) && (
-                      <button
-                        onClick={handleClearTimeOverride}
-                        disabled={savingOverride}
-                        className="text-xs px-3 py-1.5 rounded bg-red-500 hover:bg-red-600 text-white font-medium transition-colors disabled:opacity-50"
-                      >
-                        {savingOverride ? '…' : '🗑 Clear'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex items-center flex-wrap gap-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">Start:</span>
-                    <input
-                      type="time"
-                      value={timeOverrideInput}
-                      onChange={(e) => setTimeOverrideInput(e.target.value)}
-                      className="text-sm border border-gray-300 dark:border-gray-600 rounded px-3 py-1.5 dark:bg-gray-800 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">End:</span>
-                    <input
-                      type="time"
-                      value={endTimeOverrideInput}
-                      onChange={(e) => setEndTimeOverrideInput(e.target.value)}
-                      className="text-sm border border-gray-300 dark:border-gray-600 rounded px-3 py-1.5 dark:bg-gray-800 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    />
-                    <span className="text-xs text-gray-400">(optional)</span>
-                  </div>
-                  <div className="flex gap-2 ml-auto">
-                    <button
-                      onClick={handleSaveTimeOverride}
-                      disabled={savingOverride}
-                      className="text-xs px-3 py-1.5 rounded bg-green-600 hover:bg-green-700 text-white font-medium transition-colors disabled:opacity-50"
-                    >
-                      {savingOverride ? 'Saving…' : '✓ Save'}
-                    </button>
-                    <button
-                      onClick={() => setEditingTimeOverride(false)}
-                      disabled={savingOverride}
-                      className="text-xs px-3 py-1.5 rounded bg-gray-500 hover:bg-gray-600 text-white font-medium transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-                <div className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded p-2">
-                  💡 <strong>Start time</strong> affects late-arrival calculation. <strong>End time</strong> is informational and helps document the actual session schedule for this date.
-                  Leave a field empty to use the session default.
-                </div>
-              </div>
-            )}
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-              Override affects this date only. To manage all date overrides at once, use the Host Table in Sessions.
-            </p>
+      {/* Session time info — shows effective time for this date */}
+      {selectedDate && effectiveTimeForDate && effectiveTimeForDate !== session.time && (
+        <Card className="border-blue-200 dark:border-blue-700/50">
+          <CardContent className="py-3">
+            <div className="flex items-center gap-3">
+              <span className="text-lg">⏱</span>
+              <span className="text-sm text-gray-700 dark:text-gray-300">
+                <strong>Effective time for {format(new Date(selectedDate), 'MMM dd')}:</strong>{' '}
+                <span className="font-mono font-semibold text-blue-700 dark:text-blue-300">{effectiveTimeForDate}</span>
+                <span className="text-xs text-gray-400 dark:text-gray-500 ml-2">(session default: {session.time})</span>
+              </span>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -2784,7 +2635,7 @@ export function Attendance() {
                     📅 Attendance for {format(new Date(selectedDate), 'MMMM dd, yyyy')}
                   </h2>
                   <p className="text-white/80 text-sm mt-0.5">
-                    {session.location || 'No location specified'} &bull; {(dateOverrideTime ?? session.time) || 'No time specified'} &bull; {courseName}
+                    {session.location || 'No location specified'} &bull; {(effectiveTimeForDate ?? session.time) || 'No time specified'} &bull; {courseName}
                   </p>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2">

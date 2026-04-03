@@ -245,15 +245,23 @@ export interface SessionDateHost {
   host_address: string | null;          // nullable: NULL when row exists only for a time override (migration 009)
   host_latitude?: number | null;
   host_longitude?: number | null;
-  override_time?: string | null;        // per-date session start-time override (migration 007)
-  override_reason?: string | null;     // admin note explaining time override (migration 009)
-  override_end_time?: string | null;   // per-date session end-time override (migration 010)
   created_at: string;
   updated_at: string;
 }
 
 export type CreateSessionDateHost = Omit<SessionDateHost, 'id' | 'created_at' | 'updated_at'>;
 export type UpdateSessionDateHost = Partial<CreateSessionDateHost>;
+
+export interface SessionTimeChange {
+  change_id: string;
+  session_id: string;
+  old_time: string | null;
+  new_time: string;
+  effective_date: string;
+  reason: string | null;
+  changed_by: string | null;
+  created_at: string;
+}
 
 // Database table names
 export const Tables = {
@@ -263,6 +271,7 @@ export const Tables = {
   COURSE_BOOK_REFERENCE: 'course_book_reference',
   SESSION_BOOK_COVERAGE: 'session_book_coverage',
   SESSION_DATE_HOST: 'session_date_host',
+  SESSION_TIME_CHANGE: 'session_time_change',
   SESSION_RECORDING: 'session_recording',
   COURSE: 'course',
   SESSION: 'session',

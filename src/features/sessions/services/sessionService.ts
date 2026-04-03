@@ -234,10 +234,10 @@ export const sessionService = {
   //   'after_last_attended' – new day starts after the last date with attendance records
   //   'from_today'        – effective from today (default / legacy)
   //   undefined           – auto (from_today when day changes)
-  // timeChangeStrategy controls which session_date_host rows get override_time = oldTime:
-  //   'from_start'          – clear all overrides; new time applies to all dates (session.time updated)
-  //   'after_last_attended' – rows up to last attended keep oldTime override; later rows use new session.time
-  //   'from_today'          – rows before today keep oldTime override; today and future use new session.time
+  // timeChangeStrategy controls how session_time_change records are created:
+  //   'from_start'          – clear all time-change records; new time applies to all dates (session.time updated)
+  //   'after_last_attended' – insert time-change record from last attended + 1; earlier dates keep old time
+  //   'from_today'          – insert time-change record from today; earlier dates keep old time
   //   undefined             – prompt handled by caller (Sessions.tsx shows TimeChangeStrategyDialog)
   async update(
     id: string,
@@ -422,123 +422,160 @@ export const sessionService = {
         } catch { /* cleanup non-critical */ }
       }
 
-      // Handle time changes: stamp override_time on session_date_host rows
-      // so the Attendance page can show the correct time for each date.
+      // Handle time changes: insert session_time_change records
+      // (mirrors session_day_change logic exactly)
       if (timeChangeStrategy && updates.time !== undefined && oldData.time !== updates.time) {
         const oldTime = oldData.time as string | null;
+        const timeStrategy = timeChangeStrategy;
+
+        // Helper: delete all time-change records for this session
+        const deleteAllTimeChanges = async () => {
+          const { error: delErr } = await supabase
+            .from(Tables.SESSION_TIME_CHANGE)
+            .delete()
+            .eq('session_id', id);
+          if (delErr) console.warn('session_time_change delete failed (check RLS):', delErr.message);
+          return !delErr;
+        };
+
+        // Helper: delete time changes at or after a given date
+        const deleteFutureTimeChanges = async (fromDate: string) => {
+          const { error: delErr } = await supabase
+            .from(Tables.SESSION_TIME_CHANGE)
+            .delete()
+            .eq('session_id', id)
+            .gte('effective_date', fromDate);
+          if (delErr) console.warn('session_time_change future delete failed (check RLS):', delErr.message);
+          return !delErr;
+        };
+
         try {
-          if (timeChangeStrategy === 'from_start') {
-            // Clear all overrides — every date falls back to the new session.time
-            await supabase
-              .from(Tables.SESSION_DATE_HOST)
-              .update({ override_time: null })
-              .eq('session_id', id);
-          } else if (timeChangeStrategy === 'date_range' && timeChangeCutoffDate && timeChangeCutoffEndDate) {
-            // Dates before fromDate: stamp oldTime override (keep old time)
-            await supabase
-              .from(Tables.SESSION_DATE_HOST)
-              .update({ override_time: oldTime })
-              .eq('session_id', id)
-              .lt('attendance_date', timeChangeCutoffDate);
-            // Dates within range: clear override (use new session.time)
-            await supabase
-              .from(Tables.SESSION_DATE_HOST)
-              .update({ override_time: null })
-              .eq('session_id', id)
-              .gte('attendance_date', timeChangeCutoffDate)
-              .lte('attendance_date', timeChangeCutoffEndDate);
-            // Dates after range: stamp oldTime override (revert to old time)
-            await supabase
-              .from(Tables.SESSION_DATE_HOST)
-              .update({ override_time: oldTime })
-              .eq('session_id', id)
-              .gt('attendance_date', timeChangeCutoffEndDate);
+          if (timeStrategy === 'from_start') {
+            // Wipe ALL time-change history — new time covers the entire session range
+            await deleteAllTimeChanges();
           } else {
-            // Compute cutoff date
-            let cutoffDate = new Date().toISOString().split('T')[0]; // default: today
+            let effectiveDate = new Date().toISOString().split('T')[0]; // default: today
 
-            if (timeChangeStrategy === 'from_date' && timeChangeCutoffDate) {
-              cutoffDate = timeChangeCutoffDate;
-            } else if (timeChangeStrategy === 'after_last_attended') {
-              const { data: lastAtt } = await supabase
-                .from(Tables.ATTENDANCE)
-                .select('attendance_date')
+            if (timeStrategy === 'date_range' && timeChangeCutoffDate && timeChangeCutoffEndDate) {
+              // Bounded date range: insert TWO records (start + revert)
+              const [ey, em, ed] = timeChangeCutoffEndDate.split('-').map(Number);
+              const revertDate = new Date(ey, (em || 1) - 1, (ed || 1) + 1);
+              const revertDateStr = revertDate.toISOString().split('T')[0];
+
+              let rangePrevTime = oldTime;
+              try {
+                const { data: earliest } = await supabase
+                  .from(Tables.SESSION_TIME_CHANGE)
+                  .select('old_time')
+                  .eq('session_id', id)
+                  .gte('effective_date', timeChangeCutoffDate)
+                  .order('effective_date', { ascending: true })
+                  .limit(1)
+                  .maybeSingle();
+                if (earliest?.old_time) rangePrevTime = earliest.old_time;
+              } catch { /* fallback */ }
+
+              await supabase.from(Tables.SESSION_TIME_CHANGE)
+                .delete()
                 .eq('session_id', id)
-                .neq('status', 'absent')
-                .neq('host_address', 'SESSION_NOT_HELD')
-                .order('attendance_date', { ascending: false })
-                .limit(1)
-                .maybeSingle();
-              if (lastAtt?.attendance_date) {
-                cutoffDate = lastAtt.attendance_date;
+                .gte('effective_date', timeChangeCutoffDate)
+                .lte('effective_date', revertDateStr);
+
+              const { data: { user } } = await supabase.auth.getUser();
+              await supabase.from(Tables.SESSION_TIME_CHANGE).insert({
+                session_id: id,
+                old_time: rangePrevTime,
+                new_time: updates.time,
+                effective_date: timeChangeCutoffDate,
+                changed_by: user?.email || null,
+                reason: 'Date range start',
+              });
+              await supabase.from(Tables.SESSION_TIME_CHANGE).insert({
+                session_id: id,
+                old_time: updates.time,
+                new_time: rangePrevTime,
+                effective_date: revertDateStr,
+                changed_by: user?.email || null,
+                reason: 'Date range end (revert)',
+              });
+            } else {
+              // from_date, from_today, after_last_attended: single-record insert
+              if (timeStrategy === 'from_date' && timeChangeCutoffDate) {
+                effectiveDate = timeChangeCutoffDate;
+              } else if (timeStrategy === 'after_last_attended') {
+                const { data: lastAtt } = await supabase
+                  .from(Tables.ATTENDANCE)
+                  .select('attendance_date')
+                  .eq('session_id', id)
+                  .neq('status', 'absent')
+                  .neq('host_address', 'SESSION_NOT_HELD')
+                  .order('attendance_date', { ascending: false })
+                  .limit(1)
+                  .maybeSingle();
+                if (lastAtt?.attendance_date) {
+                  const d = new Date(lastAtt.attendance_date);
+                  d.setDate(d.getDate() + 1);
+                  effectiveDate = d.toISOString().split('T')[0];
+                }
               }
+
+              let preservedOldTime = oldTime;
+              try {
+                const { data: earliest } = await supabase
+                  .from(Tables.SESSION_TIME_CHANGE)
+                  .select('old_time')
+                  .eq('session_id', id)
+                  .gte('effective_date', effectiveDate)
+                  .order('effective_date', { ascending: true })
+                  .limit(1)
+                  .maybeSingle();
+                if (earliest?.old_time) preservedOldTime = earliest.old_time;
+              } catch { /* fallback */ }
+
+              await deleteFutureTimeChanges(effectiveDate);
+
+              const { data: { user } } = await supabase.auth.getUser();
+              await supabase.from(Tables.SESSION_TIME_CHANGE).insert({
+                session_id: id,
+                old_time: preservedOldTime,
+                new_time: updates.time,
+                effective_date: effectiveDate,
+                changed_by: user?.email || null,
+                reason: timeStrategy === 'after_last_attended' ? 'After last attended date' : 'From today',
+              });
             }
-
-            // Dates up to cutoffDate keep oldTime as override
-            await supabase
-              .from(Tables.SESSION_DATE_HOST)
-              .update({ override_time: oldTime })
-              .eq('session_id', id)
-              .lte('attendance_date', cutoffDate);
-
-            // Dates after cutoffDate clear override → fall back to new session.time
-            await supabase
-              .from(Tables.SESSION_DATE_HOST)
-              .update({ override_time: null })
-              .eq('session_id', id)
-              .gt('attendance_date', cutoffDate);
           }
-        } catch { /* time override non-critical */ }
+        } catch { /* time change log non-critical */ }
       }
     }
     return result;
   },
 
-  // Apply time overrides to session_date_host rows without re-saving the session row.
-  // Used when time change is chained after a day change (session row already saved).
-  async applyTimeOverride(
-    sessionId: string,
-    oldTime: string | null,
-    strategy: 'from_start' | 'after_last_attended' | 'from_today'
-  ): Promise<{ error: { message: string } | null }> {
+  // Get the effective session time for a specific date by checking session_time_change records.
+  // Returns the most recent new_time where effective_date <= date, or null (use session.time).
+  async getEffectiveTimeForDate(sessionId: string, date: string): Promise<string | null> {
     try {
-      if (strategy === 'from_start') {
-        await supabase
-          .from(Tables.SESSION_DATE_HOST)
-          .update({ override_time: null })
-          .eq('session_id', sessionId);
-      } else {
-        let cutoffDate = new Date().toISOString().split('T')[0];
-
-        if (strategy === 'after_last_attended') {
-          const { data: lastAtt } = await supabase
-            .from(Tables.ATTENDANCE)
-            .select('attendance_date')
-            .eq('session_id', sessionId)
-            .neq('status', 'absent')
-            .neq('host_address', 'SESSION_NOT_HELD')
-            .order('attendance_date', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          if (lastAtt?.attendance_date) cutoffDate = lastAtt.attendance_date;
-        }
-
-        await supabase
-          .from(Tables.SESSION_DATE_HOST)
-          .update({ override_time: oldTime })
-          .eq('session_id', sessionId)
-          .lte('attendance_date', cutoffDate);
-
-        await supabase
-          .from(Tables.SESSION_DATE_HOST)
-          .update({ override_time: null })
-          .eq('session_id', sessionId)
-          .gt('attendance_date', cutoffDate);
-      }
-      return { error: null };
-    } catch (e) {
-      return { error: { message: String(e) } };
+      const { data } = await supabase
+        .from(Tables.SESSION_TIME_CHANGE)
+        .select('new_time')
+        .eq('session_id', sessionId)
+        .lte('effective_date', date)
+        .order('effective_date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data?.new_time ?? null;
+    } catch {
+      return null;
     }
+  },
+
+  // Get all time-change records for a session (for BulkScheduleTable display).
+  async getTimeChanges(sessionId: string) {
+    return supabase
+      .from(Tables.SESSION_TIME_CHANGE)
+      .select('change_id, old_time, new_time, effective_date, reason, changed_by, created_at')
+      .eq('session_id', sessionId)
+      .order('effective_date', { ascending: true });
   },
 
   // Get the last attendance date with actual records for a session
@@ -553,60 +590,6 @@ export const sessionService = {
       .limit(1)
       .maybeSingle();
     return data?.attendance_date || null;
-  },
-
-  // Set or clear the time override for a specific session date.
-  // Creates the session_date_host row if it does not already exist.
-  async setDateTimeOverride(
-    sessionId: string,
-    date: string,
-    overrideTime: string | null,
-    reason?: string,
-    overrideEndTime?: string | null
-  ): Promise<{ error: { message: string } | null }> {
-    try {
-      const upsertData: Record<string, unknown> = {
-        session_id: sessionId,
-        attendance_date: date,
-        override_time: overrideTime,
-        override_reason: reason ?? null,
-      };
-      if (overrideEndTime !== undefined) {
-        upsertData.override_end_time = overrideEndTime;
-      }
-      const { error } = await supabase
-        .from(Tables.SESSION_DATE_HOST)
-        .upsert(upsertData, { onConflict: 'session_id,attendance_date' });
-      if (error) return { error: { message: error.message } };
-      return { error: null };
-    } catch (e) {
-      return { error: { message: String(e) } };
-    }
-  },
-
-  // Get all dates with an active time override for a session.
-  async getSessionDateOverrides(sessionId: string) {
-    return supabase
-      .from(Tables.SESSION_DATE_HOST)
-      .select('attendance_date, override_time, override_end_time, override_reason')
-      .eq('session_id', sessionId)
-      .or('override_time.not.is.null,override_end_time.not.is.null')
-      .order('attendance_date', { ascending: true });
-  },
-
-  // Clear all time overrides for a session (bulk reset to session.time).
-  async clearAllDateTimeOverrides(sessionId: string): Promise<{ error: { message: string } | null }> {
-    try {
-      const { error } = await supabase
-        .from(Tables.SESSION_DATE_HOST)
-        .update({ override_time: null, override_end_time: null, override_reason: null })
-        .eq('session_id', sessionId)
-        .or('override_time.not.is.null,override_end_time.not.is.null');
-      if (error) return { error: { message: error.message } };
-      return { error: null };
-    } catch (e) {
-      return { error: { message: String(e) } };
-    }
   },
 
   // Delete session
