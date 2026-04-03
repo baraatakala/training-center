@@ -381,15 +381,15 @@ export const feedbackService = {
       return { error: normalizeFeedbackError(templateError) };
     }
 
+    const questions = Array.isArray(template.questions) ? template.questions : [];
+    if (questions.length === 0) {
+      return { error: { message: 'This template has no questions. Add questions to the template before applying.' } };
+    }
+
     const { error: deleteError } = await deleteQuery;
 
     if (deleteError) {
       return { error: normalizeFeedbackError(deleteError) };
-    }
-
-    const questions = Array.isArray(template.questions) ? template.questions : [];
-    if (questions.length === 0) {
-      return { error: null };
     }
 
     const { error } = await supabase

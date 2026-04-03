@@ -301,20 +301,20 @@ class ExcuseRequestService {
     }
 
     // 1. Check for duplicate request (same student + session + date)
+    //    Only block if pending or approved — rejected/cancelled can be re-submitted.
     const { data: existing } = await supabase
       .from('excuse_request')
       .select('request_id, status')
       .eq('student_id', request.student_id)
       .eq('session_id', request.session_id)
       .eq('attendance_date', request.attendance_date)
+      .in('status', ['pending', 'approved'])
       .maybeSingle();
 
     if (existing) {
       const msg = existing.status === 'pending'
         ? 'You already have a pending excuse request for this session and date'
-        : existing.status === 'approved'
-          ? 'An excuse request for this session and date was already approved'
-          : `A ${existing.status} excuse request already exists for this session and date`;
+        : 'An excuse request for this session and date was already approved';
       return { data: null, error: { message: msg } as unknown as Error };
     }
 

@@ -3,7 +3,7 @@
 -- ============================================================================
 -- Run order: 1 of 6
 -- This file creates all tables in dependency order.
--- Based on the live Supabase schema (2026-03-23) plus supplementary tables.
+-- Synced with live Supabase as of 2026-04-03.
 -- ============================================================================
 
 -- Required extensions

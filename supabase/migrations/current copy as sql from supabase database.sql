@@ -102,8 +102,6 @@ CREATE TABLE public.audit_log (
   reason text,
   changed_at timestamp with time zone DEFAULT now(),
   changed_by uuid,
-  ip_address text,
-  user_agent text,
   CONSTRAINT audit_log_pkey PRIMARY KEY (audit_id)
 );
 CREATE TABLE public.certificate_template (
@@ -247,8 +245,6 @@ CREATE TABLE public.message (
   read_at timestamp with time zone,
   parent_message_id uuid,
   created_at timestamp with time zone DEFAULT now(),
-  delivered_at timestamp with time zone,
-  is_starred boolean DEFAULT false,
   CONSTRAINT message_pkey PRIMARY KEY (message_id),
   CONSTRAINT message_parent_message_id_fkey FOREIGN KEY (parent_message_id) REFERENCES public.message(message_id)
 );
@@ -270,18 +266,6 @@ CREATE TABLE public.message_starred (
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT message_starred_pkey PRIMARY KEY (id),
   CONSTRAINT message_starred_message_id_fkey FOREIGN KEY (message_id) REFERENCES public.message(message_id)
-);
-CREATE TABLE public.notification_preference (
-  preference_id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_type character varying NOT NULL CHECK (user_type::text = ANY (ARRAY['teacher'::character varying, 'student'::character varying]::text[])),
-  user_id uuid NOT NULL,
-  email_announcements boolean DEFAULT true,
-  email_messages boolean DEFAULT true,
-  push_announcements boolean DEFAULT true,
-  push_messages boolean DEFAULT true,
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT notification_preference_pkey PRIMARY KEY (preference_id)
 );
 CREATE TABLE public.photo_checkin_sessions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -426,8 +410,6 @@ CREATE TABLE public.session_recording (
   duration_seconds integer CHECK (duration_seconds IS NULL OR duration_seconds >= 0),
   file_size_bytes bigint CHECK (file_size_bytes IS NULL OR file_size_bytes >= 0),
   mime_type character varying,
-  provider_name text,
-  provider_recording_id text,
   is_primary boolean NOT NULL DEFAULT false,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),

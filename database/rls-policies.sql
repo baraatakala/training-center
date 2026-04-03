@@ -1,11 +1,12 @@
 -- ============================================================================
 -- Training Center — Row Level Security Policies
+-- Synced with live Supabase as of 2026-04-03
 -- ============================================================================
 -- Run order: 4 of 6 (after indexes.sql)
 -- Requires: functions.sql (is_admin, is_teacher, get_my_student_id)
 --
 -- Convention:
---   Admin  → full access (ALL) on every table
+--   Admin  → full access (ALL) on every table (except session_feedback)
 --   Teacher → SELECT + INSERT (not admin) on most tables
 --   Student → SELECT only, scoped to own data where appropriate
 -- ============================================================================
@@ -165,11 +166,6 @@ CREATE POLICY "Teachers can update enrollment" ON enrollment
   USING (is_teacher() AND NOT is_admin())
   WITH CHECK (is_teacher() AND NOT is_admin());
 
-DROP POLICY IF EXISTS "Teachers can delete enrollment" ON enrollment;
-CREATE POLICY "Teachers can delete enrollment" ON enrollment
-  FOR DELETE TO authenticated
-  USING (is_teacher() AND NOT is_admin());
-
 -- ============================================================================
 -- 3. ATTENDANCE
 -- ============================================================================
@@ -210,11 +206,6 @@ CREATE POLICY "Teachers can update" ON attendance
   USING (is_teacher() AND NOT is_admin())
   WITH CHECK (is_teacher() AND NOT is_admin());
 
-DROP POLICY IF EXISTS "Teachers can delete attendance" ON attendance;
-CREATE POLICY "Teachers can delete attendance" ON attendance
-  FOR DELETE TO authenticated
-  USING (is_teacher() AND NOT is_admin());
-
 -- ============================================================================
 -- 4. SESSION MANAGEMENT
 -- ============================================================================
@@ -239,11 +230,6 @@ CREATE POLICY "Teachers can update" ON session_date_host
   FOR UPDATE TO authenticated
   USING (is_teacher() AND NOT is_admin())
   WITH CHECK (is_teacher() AND NOT is_admin());
-
-DROP POLICY IF EXISTS "Teachers can delete" ON session_date_host;
-CREATE POLICY "Teachers can delete" ON session_date_host
-  FOR DELETE TO authenticated
-  USING (is_teacher() AND NOT is_admin());
 
 DROP POLICY IF EXISTS "Students can read session hosts" ON session_date_host;
 CREATE POLICY "Students can read session hosts" ON session_date_host
@@ -381,17 +367,6 @@ DROP POLICY IF EXISTS "Teachers can insert" ON qr_sessions;
 CREATE POLICY "Teachers can insert" ON qr_sessions
   FOR INSERT TO authenticated WITH CHECK (is_teacher() AND NOT is_admin());
 
-DROP POLICY IF EXISTS "Teachers can update qr sessions" ON qr_sessions;
-CREATE POLICY "Teachers can update qr sessions" ON qr_sessions
-  FOR UPDATE TO authenticated
-  USING (is_teacher() AND NOT is_admin())
-  WITH CHECK (is_teacher() AND NOT is_admin());
-
-DROP POLICY IF EXISTS "Teachers can delete qr sessions" ON qr_sessions;
-CREATE POLICY "Teachers can delete qr sessions" ON qr_sessions
-  FOR DELETE TO authenticated
-  USING (is_teacher() AND NOT is_admin());
-
 DROP POLICY IF EXISTS "Students can read QR sessions" ON qr_sessions;
 CREATE POLICY "Students can read QR sessions" ON qr_sessions
   FOR SELECT TO authenticated USING (NOT is_teacher() AND NOT is_admin());
@@ -410,17 +385,6 @@ CREATE POLICY "Teachers can read" ON photo_checkin_sessions
 DROP POLICY IF EXISTS "Teachers can insert" ON photo_checkin_sessions;
 CREATE POLICY "Teachers can insert" ON photo_checkin_sessions
   FOR INSERT TO authenticated WITH CHECK (is_teacher() AND NOT is_admin());
-
-DROP POLICY IF EXISTS "Teachers can update photo sessions" ON photo_checkin_sessions;
-CREATE POLICY "Teachers can update photo sessions" ON photo_checkin_sessions
-  FOR UPDATE TO authenticated
-  USING (is_teacher() AND NOT is_admin())
-  WITH CHECK (is_teacher() AND NOT is_admin());
-
-DROP POLICY IF EXISTS "Teachers can delete photo sessions" ON photo_checkin_sessions;
-CREATE POLICY "Teachers can delete photo sessions" ON photo_checkin_sessions
-  FOR DELETE TO authenticated
-  USING (is_teacher() AND NOT is_admin());
 
 DROP POLICY IF EXISTS "Students can read photo sessions" ON photo_checkin_sessions;
 CREATE POLICY "Students can read photo sessions" ON photo_checkin_sessions
@@ -572,18 +536,6 @@ CREATE POLICY "Teachers can review excuse requests" ON excuse_request
     status IN ('approved', 'rejected')
   );
 
-DROP POLICY IF EXISTS "Teachers can delete excuse requests" ON excuse_request;
-CREATE POLICY "Teachers can delete excuse requests" ON excuse_request
-  FOR DELETE TO authenticated
-  USING (
-    is_teacher() AND NOT is_admin()
-    AND session_id IN (
-      SELECT s.session_id FROM session s
-      JOIN teacher t ON s.teacher_id = t.teacher_id
-      WHERE LOWER(t.email) = LOWER(auth.jwt() ->> 'email')
-    )
-  );
-
 -- ============================================================================
 -- 9. FEEDBACK
 -- ============================================================================
@@ -601,13 +553,28 @@ CREATE POLICY "Teachers and admins can manage feedback questions" ON feedback_qu
   USING (is_teacher() OR is_admin())
   WITH CHECK (is_teacher() OR is_admin());
 
+DROP POLICY IF EXISTS "Teachers can manage own session feedback questions" ON feedback_question;
+CREATE POLICY "Teachers can manage own session feedback questions" ON feedback_question
+  FOR ALL TO authenticated
+  USING (
+    is_teacher() AND NOT is_admin()
+    AND session_id IN (
+      SELECT s.session_id FROM session s
+      JOIN teacher t ON s.teacher_id = t.teacher_id
+      WHERE LOWER(t.email) = LOWER(auth.jwt() ->> 'email')
+    )
+  )
+  WITH CHECK (
+    is_teacher() AND NOT is_admin()
+    AND session_id IN (
+      SELECT s.session_id FROM session s
+      JOIN teacher t ON s.teacher_id = t.teacher_id
+      WHERE LOWER(t.email) = LOWER(auth.jwt() ->> 'email')
+    )
+  );
+
 -- session_feedback ------------------------------------------------------
 ALTER TABLE session_feedback ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Admin has full access" ON session_feedback;
-CREATE POLICY "Admin has full access" ON session_feedback
-  FOR ALL TO authenticated
-  USING (is_admin()) WITH CHECK (is_admin());
 
 DROP POLICY IF EXISTS "Students can submit feedback" ON session_feedback;
 CREATE POLICY "Students can submit feedback" ON session_feedback
@@ -624,10 +591,23 @@ DROP POLICY IF EXISTS "Students can read own feedback" ON session_feedback;
 CREATE POLICY "Students can read own feedback" ON session_feedback
   FOR SELECT TO authenticated
   USING (
-    is_teacher()
-    OR is_admin()
-    OR student_id = get_my_student_id()
-    OR student_id IS NULL
+    NOT is_teacher() AND NOT is_admin()
+    AND (
+      student_id = get_my_student_id()
+      OR student_id IS NULL
+    )
+  );
+
+DROP POLICY IF EXISTS "Teachers can read own session feedback analytics" ON session_feedback;
+CREATE POLICY "Teachers can read own session feedback analytics" ON session_feedback
+  FOR SELECT TO authenticated
+  USING (
+    is_teacher() AND NOT is_admin()
+    AND session_id IN (
+      SELECT s.session_id FROM session s
+      JOIN teacher t ON s.teacher_id = t.teacher_id
+      WHERE LOWER(t.email) = LOWER(auth.jwt() ->> 'email')
+    )
   );
 
 -- Teacher DELETE: merge delete chain removes session_feedback by session_id.
@@ -989,26 +969,6 @@ CREATE POLICY "Enable delete for own stars" ON message_starred
     OR (user_type = 'student' AND user_id = get_my_student_id())
     OR (user_type = 'admin' AND EXISTS (
       SELECT 1 FROM admin WHERE LOWER(admin.email) = LOWER(auth.jwt() ->> 'email')
-    ))
-  );
-
--- notification_preference -----------------------------------------------
-ALTER TABLE notification_preference ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Admin has full access" ON notification_preference;
-CREATE POLICY "Admin has full access" ON notification_preference
-  FOR ALL TO authenticated USING (is_admin()) WITH CHECK (is_admin());
-
-DROP POLICY IF EXISTS "Users can manage their notification preferences" ON notification_preference;
-CREATE POLICY "Users can manage their notification preferences" ON notification_preference
-  FOR ALL TO authenticated USING (
-    (user_type = 'teacher' AND EXISTS (
-      SELECT 1 FROM teacher WHERE teacher.teacher_id = notification_preference.user_id
-        AND LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email')
-    ))
-    OR (user_type = 'student' AND EXISTS (
-      SELECT 1 FROM student WHERE student.student_id = notification_preference.user_id
-        AND LOWER(student.email) = LOWER(auth.jwt() ->> 'email')
     ))
   );
 

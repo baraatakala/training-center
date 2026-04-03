@@ -1574,6 +1574,10 @@ export function Attendance() {
     if (realIds.length > 0) {
       const addressOnly = selectedAddress ? selectedAddress.split('|||')[1] || selectedAddress : null;
       const lateMinutes = status === 'late' ? calculateLateMinutes() : null;
+
+      // For 'late' bulk: preserve original check_in_time if the record already has one (e.g. QR scan)
+      const preserveCheckInTime = status === 'late';
+
       const updates: {
         status: string;
         check_in_time?: string | null;
@@ -1601,11 +1605,13 @@ export function Attendance() {
         marked_at: new Date().toISOString()
       };
       
-      if (status === 'on time' || status === 'late') {
+      if (status === 'on time' || (status === 'late' && !preserveCheckInTime)) {
         updates.check_in_time = new Date().toISOString();
-      } else {
+      } else if (status !== 'late') {
         updates.check_in_time = null;
       }
+      // When status === 'late' && preserveCheckInTime, omit check_in_time from updates
+      // so existing QR-scanned check_in_time is preserved
 
       const { error: updateError } = await supabase
         .from(Tables.ATTENDANCE)

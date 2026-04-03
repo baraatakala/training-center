@@ -76,6 +76,9 @@ export const sessionMergeService = {
     sourceSessionId: string,
     targetSessionId: string,
   ): Promise<{ data: MergePreview | null; error: { message: string } | null }> {
+    if (sourceSessionId === targetSessionId) {
+      return { data: null, error: { message: 'Cannot merge a session into itself.' } };
+    }
     try {
       // 1. Source attendance records (lightweight - only metadata needed)
       const { data: sourceAttendance, error: sourceErr } = await supabase
@@ -291,6 +294,9 @@ export const sessionMergeService = {
     targetSessionId: string,
     options: MergeOptions,
   ): Promise<{ data: MergeResult | null; error: { message: string } | null }> {
+    if (sourceSessionId === targetSessionId) {
+      return { data: null, error: { message: 'Cannot merge a session into itself.' } };
+    }
     const result: MergeResult = {
       enrolled: 0,
       transferred: 0,
@@ -587,6 +593,35 @@ export const sessionMergeService = {
           }
         }
 
+        // 5c. Transfer session_day_change records from source to target
+        const { data: sourceDayChanges } = await supabase
+          .from('session_day_change')
+          .select('*')
+          .eq('session_id', sourceSessionId)
+          .order('effective_date', { ascending: true });
+
+        for (const dc of (sourceDayChanges || [])) {
+          await supabase
+            .from('session_day_change')
+            .delete()
+            .eq('session_id', targetSessionId)
+            .eq('effective_date', dc.effective_date);
+
+          const { error: dcErr } = await supabase
+            .from('session_day_change')
+            .insert({
+              session_id: targetSessionId,
+              old_day: dc.old_day,
+              new_day: dc.new_day,
+              effective_date: dc.effective_date,
+              reason: dc.reason ? `${dc.reason} (merged)` : 'Transferred from merged session',
+              changed_by: dc.changed_by,
+            });
+          if (dcErr) {
+            result.errors.push(`Day change transfer failed for ${dc.effective_date}: ${dcErr.message}`);
+          }
+        }
+
         // Also transfer teacher host schedule rows
         const { data: sourceSchedule } = await supabase
           .from(Tables.TEACHER_HOST_SCHEDULE)
@@ -732,12 +767,16 @@ export const sessionMergeService = {
           await supabase.from(Tables.FEEDBACK_QUESTION).delete().eq('session_id', sourceSessionId);
           await supabase.from('excuse_request').delete().eq('session_id', sourceSessionId);
           await supabase.from(Tables.TEACHER_HOST_SCHEDULE).delete().eq('session_id', sourceSessionId);
+          await supabase.from(Tables.SESSION_TIME_CHANGE).delete().eq('session_id', sourceSessionId);
 
           // Delete session_feedback by session_id (it has session_id FK, not enrollment_id)
           await supabase
             .from(Tables.SESSION_FEEDBACK)
             .delete()
             .eq('session_id', sourceSessionId);
+
+          // Delete issued certificates referencing the source session
+          await supabase.from('issued_certificate').delete().eq('session_id', sourceSessionId);
 
           // Delete enrollments
           await supabase.from(Tables.ENROLLMENT).delete().eq('session_id', sourceSessionId);

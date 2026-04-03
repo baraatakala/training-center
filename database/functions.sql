@@ -3,6 +3,7 @@
 -- ============================================================================
 -- Run order: 2 of 6 (after schema.sql)
 -- All database functions, trigger functions, and trigger bindings.
+-- Synced with live Supabase as of 2026-04-03.
 -- ============================================================================
 
 -- ============================================================================
@@ -331,7 +332,207 @@ END;
 $$;
 
 -- ============================================================================
--- 4. TRIGGER BINDINGS
+-- 4. QR / CHECK-IN FUNCTIONS
+-- ============================================================================
+
+-- GPS distance calculation (Haversine formula)
+CREATE OR REPLACE FUNCTION public.calculate_gps_distance(
+  lat1 DOUBLE PRECISION,
+  lon1 DOUBLE PRECISION,
+  lat2 DOUBLE PRECISION,
+  lon2 DOUBLE PRECISION
+)
+RETURNS DOUBLE PRECISION
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  R CONSTANT DOUBLE PRECISION := 6371000; -- Earth radius in metres
+  dlat DOUBLE PRECISION;
+  dlon DOUBLE PRECISION;
+  a DOUBLE PRECISION;
+  c DOUBLE PRECISION;
+BEGIN
+  dlat := radians(lat2 - lat1);
+  dlon := radians(lon2 - lon1);
+  a := sin(dlat / 2) ^ 2
+     + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ^ 2;
+  c := 2 * atan2(sqrt(a), sqrt(1 - a));
+  RETURN R * c;
+END;
+$$;
+
+-- Generate a QR check-in session (called by frontend via .rpc)
+CREATE OR REPLACE FUNCTION public.generate_qr_session(
+  p_session_id UUID,
+  p_attendance_date DATE,
+  p_created_by TEXT DEFAULT NULL,
+  p_check_in_mode TEXT DEFAULT 'qr_code',
+  p_linked_photo_token TEXT DEFAULT NULL,
+  p_expires_at TIMESTAMPTZ DEFAULT NULL
+)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_token UUID;
+  v_qr_session_id UUID;
+  v_session_time_str VARCHAR;
+  v_session_time TIME;
+  v_grace_period INTEGER;
+  v_expires_at TIMESTAMPTZ;
+  v_mode TEXT;
+  v_linked_photo_token TEXT;
+BEGIN
+  v_mode := COALESCE(NULLIF(trim(p_check_in_mode), ''), 'qr_code');
+  v_linked_photo_token := NULLIF(trim(COALESCE(p_linked_photo_token, '')), '');
+
+  IF v_mode NOT IN ('qr_code', 'photo') THEN
+    RAISE EXCEPTION 'Unsupported check-in mode: %', v_mode;
+  END IF;
+
+  IF v_mode = 'photo' AND v_linked_photo_token IS NULL THEN
+    RAISE EXCEPTION 'Photo mode QR sessions require a linked photo token';
+  END IF;
+
+  IF v_mode = 'qr_code' THEN
+    v_linked_photo_token := NULL;
+  END IF;
+
+  IF p_expires_at IS NOT NULL THEN
+    v_expires_at := p_expires_at;
+  ELSE
+    SELECT time, grace_period_minutes
+    INTO v_session_time_str, v_grace_period
+    FROM session
+    WHERE session_id = p_session_id;
+
+    IF v_session_time_str IS NULL OR v_session_time_str = '' THEN
+      v_expires_at := now() + interval '2 hours';
+    ELSE
+      v_session_time := split_part(v_session_time_str, '-', 1)::TIME;
+      v_expires_at := (p_attendance_date + v_session_time)::TIMESTAMPTZ
+                      + (COALESCE(v_grace_period, 15) + 30) * interval '1 minute';
+      IF v_expires_at < now() THEN
+        v_expires_at := now() + interval '2 hours';
+      END IF;
+    END IF;
+  END IF;
+
+  v_token := uuid_generate_v4();
+
+  INSERT INTO public.qr_sessions (
+    token, session_id, attendance_date, expires_at,
+    created_by, check_in_mode, linked_photo_token
+  )
+  VALUES (
+    v_token, p_session_id, p_attendance_date, v_expires_at,
+    p_created_by, v_mode, v_linked_photo_token
+  )
+  RETURNING qr_session_id INTO v_qr_session_id;
+
+  RETURN json_build_object(
+    'qr_session_id', v_qr_session_id,
+    'token', v_token,
+    'expires_at', v_expires_at,
+    'check_in_mode', v_mode,
+    'linked_photo_token', v_linked_photo_token
+  );
+END;
+$$;
+
+-- Validate a QR token during student check-in (called by frontend via .rpc)
+CREATE OR REPLACE FUNCTION public.validate_qr_token(
+  p_token UUID,
+  p_session_id UUID,
+  p_attendance_date DATE
+)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_qr_session public.qr_sessions%ROWTYPE;
+BEGIN
+  SELECT * INTO v_qr_session
+  FROM public.qr_sessions
+  WHERE token = p_token
+    AND session_id = p_session_id
+    AND attendance_date = p_attendance_date;
+
+  IF NOT FOUND THEN
+    RETURN json_build_object('valid', false, 'message', 'Invalid QR code');
+  END IF;
+
+  IF v_qr_session.expires_at < now() THEN
+    RETURN json_build_object('valid', false, 'message', 'QR code has expired', 'expired_at', v_qr_session.expires_at);
+  END IF;
+
+  IF NOT v_qr_session.is_valid THEN
+    RETURN json_build_object('valid', false, 'message', 'QR code is no longer valid');
+  END IF;
+
+  UPDATE public.qr_sessions
+  SET used_count = used_count + 1, last_used_at = now()
+  WHERE token = p_token;
+
+  RETURN json_build_object(
+    'valid', true,
+    'message', 'QR code is valid',
+    'qr_session_id', v_qr_session.qr_session_id,
+    'expires_at', v_qr_session.expires_at,
+    'check_in_mode', v_qr_session.check_in_mode,
+    'linked_photo_token', v_qr_session.linked_photo_token
+  );
+END;
+$$;
+
+-- Invalidate a QR session (called by frontend via .rpc)
+CREATE OR REPLACE FUNCTION public.invalidate_qr_session(p_token UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  UPDATE qr_sessions SET is_valid = false WHERE token = p_token;
+  RETURN FOUND;
+END;
+$$;
+
+-- Cleanup expired QR sessions (cron / manual)
+CREATE OR REPLACE FUNCTION public.cleanup_expired_qr_sessions()
+RETURNS INTEGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_deleted_count INTEGER;
+BEGIN
+  DELETE FROM qr_sessions WHERE expires_at < now() - interval '7 days';
+  GET DIAGNOSTICS v_deleted_count = ROW_COUNT;
+  RETURN v_deleted_count;
+END;
+$$;
+
+-- ============================================================================
+-- 5. ENROLLMENT ENFORCEMENT
+-- ============================================================================
+
+-- Enforce can_host constraint: only active enrollments can be hosts.
+-- When status changes away from 'active', reset can_host to false.
+CREATE OR REPLACE FUNCTION public.fn_enforce_can_host_on_status_change()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.status <> 'active' AND NEW.can_host = true THEN
+    NEW.can_host := false;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+-- ============================================================================
+-- 6. TRIGGER BINDINGS
 -- ============================================================================
 
 -- Generic updated_at triggers
@@ -405,3 +606,9 @@ DROP TRIGGER IF EXISTS trg_validate_excuse_request_session_day ON excuse_request
 CREATE TRIGGER trg_validate_excuse_request_session_day
   BEFORE INSERT OR UPDATE OF session_id, attendance_date ON excuse_request
   FOR EACH ROW EXECUTE FUNCTION validate_excuse_request_session_day();
+
+-- Enrollment can_host enforcement (named aaa_ to fire first alphabetically)
+DROP TRIGGER IF EXISTS aaa_enforce_can_host_on_status_change ON enrollment;
+CREATE TRIGGER aaa_enforce_can_host_on_status_change
+  BEFORE INSERT OR UPDATE ON enrollment
+  FOR EACH ROW EXECUTE FUNCTION fn_enforce_can_host_on_status_change();

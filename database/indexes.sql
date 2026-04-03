@@ -1,8 +1,12 @@
--- ============================================================================
+﻿-- ============================================================================
 -- Training Center — Indexes
 -- ============================================================================
 -- Run order: 3 of 6 (after functions.sql)
 -- All performance indexes. Uses IF NOT EXISTS for idempotent re-runs.
+-- Synced with live Supabase as of 2026-04-03.
+--
+-- NOTE: Primary key indexes and UNIQUE constraint indexes are created
+-- automatically by schema.sql and are NOT repeated here.
 -- ============================================================================
 
 -- ============================================================================
@@ -10,7 +14,7 @@
 -- ============================================================================
 
 -- student
-CREATE INDEX IF NOT EXISTS idx_student_email           ON public.student(email);
+-- NOTE: student_email_key UNIQUE already provides an email index.
 CREATE INDEX IF NOT EXISTS idx_student_name            ON public.student(name);
 CREATE INDEX IF NOT EXISTS idx_student_specialization  ON public.student(specialization);
 
@@ -31,32 +35,34 @@ CREATE INDEX IF NOT EXISTS idx_session_course_start    ON public.session(course_
 CREATE INDEX IF NOT EXISTS idx_session_learning_method ON public.session(learning_method);
 
 -- enrollment
-CREATE INDEX IF NOT EXISTS idx_enrollment_student         ON public.enrollment(student_id);
-CREATE INDEX IF NOT EXISTS idx_enrollment_session          ON public.enrollment(session_id);
-CREATE INDEX IF NOT EXISTS idx_enrollment_status           ON public.enrollment(status);
-CREATE INDEX IF NOT EXISTS idx_enrollment_can_host         ON public.enrollment(can_host) WHERE can_host = true;
+-- NOTE: enrollment_student_session_unique UNIQUE (student_id, session_id)
+-- already provides the composite index. Standalone student/session indexes
+-- are covered by other composites below.
+CREATE INDEX IF NOT EXISTS idx_enrollment_can_host         ON public.enrollment(session_id);
 CREATE INDEX IF NOT EXISTS idx_enrollment_session_canhost  ON public.enrollment(session_id, can_host);
 CREATE INDEX IF NOT EXISTS idx_enrollment_session_status   ON public.enrollment(session_id, status);
+CREATE INDEX IF NOT EXISTS idx_enrollment_session_student  ON public.enrollment(session_id, student_id);
 
 -- ============================================================================
 -- 2. ATTENDANCE & CHECK-IN
 -- ============================================================================
 
 -- attendance
--- NOTE: enrollment_id is the leading column in attendance_enrollment_date_unique,
--- so a standalone enrollment_id index is not needed.
-CREATE INDEX IF NOT EXISTS idx_attendance_student          ON public.attendance(student_id);
-CREATE INDEX IF NOT EXISTS idx_attendance_status           ON public.attendance(status);
+-- NOTE: attendance_enrollment_date_unique (enrollment_id, attendance_date)
+-- already provides the leading enrollment_id index.
 CREATE INDEX IF NOT EXISTS idx_attendance_session_date     ON public.attendance(session_id, attendance_date);
+CREATE INDEX IF NOT EXISTS idx_attendance_student_session  ON public.attendance(student_id, session_id);
+CREATE INDEX IF NOT EXISTS idx_attendance_student_date     ON public.attendance(student_id, attendance_date);
+CREATE INDEX IF NOT EXISTS idx_attendance_status_excuse    ON public.attendance(status, excuse_reason);
 CREATE INDEX IF NOT EXISTS idx_attendance_host_address     ON public.attendance(host_address);
 CREATE INDEX IF NOT EXISTS idx_attendance_date_address     ON public.attendance(attendance_date, host_address);
 CREATE INDEX IF NOT EXISTS idx_attendance_late_minutes     ON public.attendance(late_minutes) WHERE late_minutes IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_attendance_student_session  ON public.attendance(student_id, session_id);
 
 -- qr_sessions
 CREATE INDEX IF NOT EXISTS idx_qr_sessions_token          ON public.qr_sessions(token) WHERE is_valid = true;
 CREATE INDEX IF NOT EXISTS idx_qr_sessions_session_date   ON public.qr_sessions(session_id, attendance_date);
 CREATE INDEX IF NOT EXISTS idx_qr_sessions_expires        ON public.qr_sessions(expires_at) WHERE is_valid = true;
+CREATE INDEX IF NOT EXISTS idx_qr_sessions_linked_photo_token ON public.qr_sessions(linked_photo_token);
 
 -- photo_checkin_sessions
 CREATE INDEX IF NOT EXISTS idx_photo_checkin_token         ON public.photo_checkin_sessions(token);
@@ -67,8 +73,7 @@ CREATE INDEX IF NOT EXISTS idx_photo_checkin_session       ON public.photo_check
 -- ============================================================================
 
 -- session_date_host
--- NOTE: (session_id, attendance_date) is covered by the UNIQUE constraint.
--- session_id alone is also covered as the UNIQUE's leading column.
+-- NOTE: session_date_host_session_id_attendance_date_key UNIQUE covers (session_id, attendance_date).
 CREATE INDEX IF NOT EXISTS idx_session_date_host_date         ON public.session_date_host(attendance_date);
 
 -- session_day_change
@@ -82,6 +87,7 @@ CREATE INDEX IF NOT EXISTS idx_session_time_change_effective ON public.session_t
 -- teacher_host_schedule
 CREATE INDEX IF NOT EXISTS idx_teacher_host_schedule_teacher_id ON public.teacher_host_schedule(teacher_id);
 CREATE INDEX IF NOT EXISTS idx_teacher_host_schedule_session_id ON public.teacher_host_schedule(session_id);
+CREATE INDEX IF NOT EXISTS idx_teacher_host_schedule_host_date  ON public.teacher_host_schedule(host_date);
 
 -- session_recording
 CREATE INDEX IF NOT EXISTS idx_session_recording_session_date ON public.session_recording(session_id, attendance_date);
@@ -96,15 +102,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_session_recording_primary_per_date
 
 CREATE INDEX IF NOT EXISTS idx_session_book_coverage_session ON public.session_book_coverage(session_id);
 CREATE INDEX IF NOT EXISTS idx_book_ref_parent              ON public.course_book_reference(parent_id);
+CREATE INDEX IF NOT EXISTS idx_course_book_reference_course_id ON public.course_book_reference(course_id);
+CREATE INDEX IF NOT EXISTS idx_course_book_reference_pages  ON public.course_book_reference(course_id, start_page);
 
 -- ============================================================================
 -- 5. SCORING
 -- ============================================================================
 
 CREATE INDEX IF NOT EXISTS idx_scoring_config_teacher  ON public.scoring_config(teacher_id);
-
--- NOTE: late_brackets is a JSONB column in scoring_config, not a separate table.
--- No standalone index needed.
+-- Enforce one default config per teacher
+CREATE UNIQUE INDEX IF NOT EXISTS unique_teacher_default
+  ON public.scoring_config(teacher_id, is_default) WHERE is_default = true;
 
 -- ============================================================================
 -- 6. EXCUSES
@@ -135,8 +143,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_feedback_question_unique_per_date
 CREATE INDEX IF NOT EXISTS idx_issued_cert_student       ON public.issued_certificate(student_id);
 CREATE INDEX IF NOT EXISTS idx_issued_cert_session       ON public.issued_certificate(session_id);
 CREATE INDEX IF NOT EXISTS idx_issued_cert_template      ON public.issued_certificate(template_id);
--- NOTE: verification_code and certificate_number have UNIQUE constraints
--- that already create implicit indexes.
 CREATE INDEX IF NOT EXISTS idx_issued_certificate_student_session ON public.issued_certificate(student_id, session_id);
 
 -- ============================================================================
@@ -154,8 +160,6 @@ CREATE INDEX IF NOT EXISTS idx_announcement_course_created ON public.announcemen
 
 -- announcement_read
 CREATE INDEX IF NOT EXISTS idx_announcement_read_student      ON public.announcement_read(student_id);
--- NOTE: (announcement_id, student_id) is covered by the UNIQUE constraint.
--- announcement_id alone is also covered as the UNIQUE's leading column.
 
 -- announcement_reaction / comment
 CREATE INDEX IF NOT EXISTS idx_announcement_reaction_announcement ON public.announcement_reaction(announcement_id);
@@ -173,7 +177,6 @@ CREATE INDEX IF NOT EXISTS idx_message_recipient_sorted ON public.message(recipi
 CREATE INDEX IF NOT EXISTS idx_message_sender_sorted    ON public.message(sender_type, sender_id, created_at DESC);
 
 -- message_reaction / starred
--- NOTE: message_attachment table does not exist; attachments use Supabase Storage.
 CREATE INDEX IF NOT EXISTS idx_message_reaction_message ON public.message_reaction(message_id);
 CREATE INDEX IF NOT EXISTS idx_message_starred_message  ON public.message_starred(message_id);
 
