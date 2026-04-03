@@ -15,8 +15,9 @@ BEGIN;
 -- enrollment_student_id_session_id_key (student_id, session_id) ← auto-named
 -- enrollment_student_session_unique    (student_id, session_id) ← canonical
 -- Both are UNIQUE on the same columns. Keep the canonical one.
+-- These are constraints, not plain indexes, so use ALTER TABLE.
 
-DROP INDEX IF EXISTS enrollment_student_id_session_id_key;
+ALTER TABLE enrollment DROP CONSTRAINT IF EXISTS enrollment_student_id_session_id_key;
 
 -- ============================================================================
 -- 2. DUPLICATE UNIQUE INDEXES ON excuse_request
@@ -25,7 +26,7 @@ DROP INDEX IF EXISTS enrollment_student_id_session_id_key;
 -- excuse_request_student_session_date_unique               ← canonical
 -- Both are UNIQUE on the same columns. Keep the canonical one.
 
-DROP INDEX IF EXISTS excuse_request_student_id_session_id_attendance_date_key;
+ALTER TABLE excuse_request DROP CONSTRAINT IF EXISTS excuse_request_student_id_session_id_attendance_date_key;
 
 -- ============================================================================
 -- 3. DROP stale indexes that don't match canonical definitions
