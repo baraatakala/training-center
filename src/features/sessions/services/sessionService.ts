@@ -242,12 +242,16 @@ export const sessionService = {
   async update(
     id: string,
     updates: UpdateSession,
-    dayChangeStrategy?: 'from_start' | 'after_last_attended' | 'from_today' | 'from_date',
-    timeChangeStrategy?: 'from_start' | 'after_last_attended' | 'from_today' | 'from_date',
-    /** Required when dayChangeStrategy = 'from_date' */
+    dayChangeStrategy?: 'from_start' | 'after_last_attended' | 'from_today' | 'from_date' | 'date_range',
+    timeChangeStrategy?: 'from_start' | 'after_last_attended' | 'from_today' | 'from_date' | 'date_range',
+    /** Required when dayChangeStrategy = 'from_date' or 'date_range' */
     dayChangeCutoffDate?: string,
-    /** Required when timeChangeStrategy = 'from_date' */
+    /** Required when timeChangeStrategy = 'from_date' or 'date_range' */
     timeChangeCutoffDate?: string,
+    /** Required when dayChangeStrategy = 'date_range': last day the new schedule is active */
+    dayChangeCutoffEndDate?: string,
+    /** Required when timeChangeStrategy = 'date_range': last day the new schedule is active */
+    timeChangeCutoffEndDate?: string,
   ) {
     const { data: oldData } = await supabase
       .from(Tables.SESSION)
@@ -304,56 +308,107 @@ export const sessionService = {
           // Compute effective_date based on strategy
           let effectiveDate = new Date().toISOString().split('T')[0]; // default: today
 
-          if (strategy === 'from_date' && dayChangeCutoffDate) {
-            effectiveDate = dayChangeCutoffDate;
-          } else if (strategy === 'after_last_attended') {            try {
-              const { data: lastAtt } = await supabase
-                .from(Tables.ATTENDANCE)
-                .select('attendance_date')
+          if (strategy === 'date_range' && dayChangeCutoffDate && dayChangeCutoffEndDate) {
+            // Bounded date range: new schedule applies [fromDate, toDate], reverts after
+            const [ey, em, ed] = dayChangeCutoffEndDate.split('-').map(Number);
+            const revertDate = new Date(ey, (em || 1) - 1, (ed || 1) + 1);
+            const revertDateStr = revertDate.toISOString().split('T')[0];
+
+            // Preserve the day active just before fromDate
+            let rangePrevDay = oldData.day;
+            try {
+              const { data: earliest } = await supabase
+                .from('session_day_change')
+                .select('old_day')
                 .eq('session_id', id)
-                .neq('status', 'absent')
-                .order('attendance_date', { ascending: false })
+                .gte('effective_date', dayChangeCutoffDate)
+                .order('effective_date', { ascending: true })
                 .limit(1)
                 .maybeSingle();
-              if (lastAtt?.attendance_date) {
-                // Day after the last attended date
-                const d = new Date(lastAtt.attendance_date);
-                d.setDate(d.getDate() + 1);
-                effectiveDate = d.toISOString().split('T')[0];
-              }
-            } catch { /* fallback to today */ }
-          }
+              if (earliest?.old_day) rangePrevDay = earliest.old_day;
+            } catch { /* fallback */ }
 
-          // Before deleting overlapping records, preserve the earliest old_day
-          // so the new record correctly reflects the day that was active before it
-          let preservedOldDay = oldData.day;
-          try {
-            const { data: earliest } = await supabase
-              .from('session_day_change')
-              .select('old_day')
+            // Delete existing records in [fromDate, revertDate] to avoid duplicates
+            await supabase.from('session_day_change')
+              .delete()
               .eq('session_id', id)
-              .gte('effective_date', effectiveDate)
-              .order('effective_date', { ascending: true })
-              .limit(1)
-              .maybeSingle();
-            if (earliest?.old_day) preservedOldDay = earliest.old_day;
-          } catch { /* use oldData.day fallback */ }
+              .gte('effective_date', dayChangeCutoffDate)
+              .lte('effective_date', revertDateStr);
 
-          // Remove any existing changes at or after the new effective date
-          // to prevent overlapping/contradicting records
-          await deleteFutureChanges(effectiveDate);
+            try {
+              const { data: { user } } = await supabase.auth.getUser();
+              // Insert start-of-range record
+              await supabase.from('session_day_change').insert({
+                session_id: id,
+                old_day: rangePrevDay,
+                new_day: updates.day,
+                effective_date: dayChangeCutoffDate,
+                changed_by: user?.email || null,
+                reason: 'Date range start',
+              });
+              // Insert end-of-range revert record
+              await supabase.from('session_day_change').insert({
+                session_id: id,
+                old_day: updates.day,
+                new_day: rangePrevDay,
+                effective_date: revertDateStr,
+                changed_by: user?.email || null,
+                reason: 'Date range end (revert)',
+              });
+            } catch { /* day range log non-critical */ }
+          } else {
+            // from_date, from_today, after_last_attended: single-record insert
+            if (strategy === 'from_date' && dayChangeCutoffDate) {
+              effectiveDate = dayChangeCutoffDate;
+            } else if (strategy === 'after_last_attended') {            try {
+                const { data: lastAtt } = await supabase
+                  .from(Tables.ATTENDANCE)
+                  .select('attendance_date')
+                  .eq('session_id', id)
+                  .neq('status', 'absent')
+                  .order('attendance_date', { ascending: false })
+                  .limit(1)
+                  .maybeSingle();
+                if (lastAtt?.attendance_date) {
+                  // Day after the last attended date
+                  const d = new Date(lastAtt.attendance_date);
+                  d.setDate(d.getDate() + 1);
+                  effectiveDate = d.toISOString().split('T')[0];
+                }
+              } catch { /* fallback to today */ }
+            }
 
-          try {
-            const { data: { user } } = await supabase.auth.getUser();
-            await supabase.from('session_day_change').insert({
-              session_id: id,
-              old_day: preservedOldDay,
-              new_day: updates.day,
-              effective_date: effectiveDate,
-              changed_by: user?.email || null,
-              reason: strategy === 'after_last_attended' ? 'After last attended date' : 'From today',
-            });
-          } catch { /* day change log non-critical */ }
+            // Before deleting overlapping records, preserve the earliest old_day
+            // so the new record correctly reflects the day that was active before it
+            let preservedOldDay = oldData.day;
+            try {
+              const { data: earliest } = await supabase
+                .from('session_day_change')
+                .select('old_day')
+                .eq('session_id', id)
+                .gte('effective_date', effectiveDate)
+                .order('effective_date', { ascending: true })
+                .limit(1)
+                .maybeSingle();
+              if (earliest?.old_day) preservedOldDay = earliest.old_day;
+            } catch { /* use oldData.day fallback */ }
+
+            // Remove any existing changes at or after the new effective date
+            // to prevent overlapping/contradicting records
+            await deleteFutureChanges(effectiveDate);
+
+            try {
+              const { data: { user } } = await supabase.auth.getUser();
+              await supabase.from('session_day_change').insert({
+                session_id: id,
+                old_day: preservedOldDay,
+                new_day: updates.day,
+                effective_date: effectiveDate,
+                changed_by: user?.email || null,
+                reason: strategy === 'after_last_attended' ? 'After last attended date' : 'From today',
+              });
+            } catch { /* day change log non-critical */ }
+          }
         }
       }
 
@@ -378,6 +433,26 @@ export const sessionService = {
               .from(Tables.SESSION_DATE_HOST)
               .update({ override_time: null })
               .eq('session_id', id);
+          } else if (timeChangeStrategy === 'date_range' && timeChangeCutoffDate && timeChangeCutoffEndDate) {
+            // Dates before fromDate: stamp oldTime override (keep old time)
+            await supabase
+              .from(Tables.SESSION_DATE_HOST)
+              .update({ override_time: oldTime })
+              .eq('session_id', id)
+              .lt('attendance_date', timeChangeCutoffDate);
+            // Dates within range: clear override (use new session.time)
+            await supabase
+              .from(Tables.SESSION_DATE_HOST)
+              .update({ override_time: null })
+              .eq('session_id', id)
+              .gte('attendance_date', timeChangeCutoffDate)
+              .lte('attendance_date', timeChangeCutoffEndDate);
+            // Dates after range: stamp oldTime override (revert to old time)
+            await supabase
+              .from(Tables.SESSION_DATE_HOST)
+              .update({ override_time: oldTime })
+              .eq('session_id', id)
+              .gt('attendance_date', timeChangeCutoffEndDate);
           } else {
             // Compute cutoff date
             let cutoffDate = new Date().toISOString().split('T')[0]; // default: today

@@ -301,25 +301,31 @@ export function Sessions() {
     }
   };
 
-  const executeScheduleChange = async (cutoffDate: string | null) => {
+  const executeScheduleChange = async (fromDate: string | null, toDate: string | null) => {
     if (!scheduleChangeDialog || !editingSession) return;
     const { data, dayChanged, timeChanged } = scheduleChangeDialog;
     setScheduleChanging(true);
     try {
-      const strategy = cutoffDate === null ? 'from_start' : 'from_date';
+      const strategy = fromDate === null ? 'from_start' : (toDate ? 'date_range' : 'from_date');
       const { error } = await sessionService.update(
         editingSession.session_id,
         data,
         dayChanged ? strategy : undefined,
         timeChanged ? strategy : undefined,
-        dayChanged && cutoffDate ? cutoffDate : undefined,
-        timeChanged && cutoffDate ? cutoffDate : undefined,
+        dayChanged && fromDate ? fromDate : undefined,
+        timeChanged && fromDate ? fromDate : undefined,
+        dayChanged && toDate ? toDate : undefined,
+        timeChanged && toDate ? toDate : undefined,
       );
       if (error) {
         const message = error.message || 'Unknown session update error';
         toast.error(message.startsWith('Session delivery fields are enabled') ? message : 'Error updating session: ' + message, 7000);
       } else {
-        const label = cutoffDate === null ? 'applied from session start' : `applied from ${cutoffDate}`;
+        const label = fromDate === null
+          ? 'applied from session start'
+          : toDate
+            ? `applied from ${fromDate} to ${toDate}`
+            : `applied from ${fromDate}`;
         toast.success(`Session updated — schedule change ${label}.`);
         setScheduleChangeDialog(null);
         setIsModalOpen(false);
@@ -911,6 +917,7 @@ export function Sessions() {
             newTime={scheduleChangeDialog.newTime}
             sessionStartDate={editingSession?.start_date ?? null}
             lastAttendedDate={scheduleChangeDialog.lastAttendedDate}
+            sessionEndDate={editingSession?.end_date ?? null}
             onApply={executeScheduleChange}
             onCancel={() => setScheduleChangeDialog(null)}
             executing={scheduleChanging}

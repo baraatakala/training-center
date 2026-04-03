@@ -7,11 +7,12 @@ import { Button } from '@/shared/components/ui/Button';
  * Instead of forcing the admin to choose between abstract strategy names
  * ("from_start / after_last_attended / from_today"), this component simply asks:
  *
- *   "When does the new schedule start?"
+ *   "When does the new schedule start?" — and optionally "When does it end?"
  *
- * The answer is an optional cutoff date:
- *   - null  → apply retroactively from session start (clears all overrides)
- *   - string → specific date; old schedule kept before it, new schedule from it
+ * The answer is an optional cutoff date range:
+ *   - null fromDate  → apply retroactively from session start (clears all overrides)
+ *   - fromDate only  → old schedule kept before it, new schedule from it forever
+ *   - fromDate+toDate → new schedule applies only between those two dates; reverts after
  *
  * Works for day-only, time-only, or combined day+time changes in one interaction.
  */
@@ -24,6 +25,7 @@ export function ScheduleChangeCutoffPicker({
   newTime,
   sessionStartDate,
   lastAttendedDate,
+  sessionEndDate,
   onApply,
   onCancel,
   executing = false,
@@ -36,17 +38,20 @@ export function ScheduleChangeCutoffPicker({
   newTime: string | null;
   sessionStartDate: string | null;
   lastAttendedDate: string | null;
-  /** null = retroactive from session start */
-  onApply: (cutoffDate: string | null) => void;
+  sessionEndDate?: string | null;
+  /** fromDate = null means retroactive; toDate = null means open-ended */
+  onApply: (fromDate: string | null, toDate: string | null) => void;
   onCancel: () => void;
   executing?: boolean;
 }) {
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
 
-  const [mode, setMode] = useState<'retroactive' | 'from_date'>('from_date');
+  const [mode, setMode] = useState<'from_date' | 'date_range' | 'retroactive'>('from_date');
   const [cutoffDate, setCutoffDate] = useState<string>(today);
+  const [toDate, setToDate] = useState<string>(sessionEndDate || today);
 
-  const effectiveDate = mode === 'retroactive' ? null : cutoffDate;
+  const effectiveFromDate = mode === 'retroactive' ? null : cutoffDate;
+  const effectiveToDate = mode === 'date_range' ? toDate : null;
 
   // Format a date like "Mon, Apr 2" for display
   const fmt = (dateStr: string | null) => {
@@ -57,12 +62,19 @@ export function ScheduleChangeCutoffPicker({
     });
   };
 
-  // Build readable "before / from" summary
+  // One day after toDate for display purposes
+  const dayAfter = (dateStr: string) => {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const next = new Date(y, (m || 1) - 1, (d || 1) + 1);
+    return next.toISOString().split('T')[0];
+  };
+
+  // Build readable "before / from / after" summary
   const buildPreview = () => {
     const oldSchedule = [oldDay, oldTime ? `@ ${oldTime}` : ''].filter(Boolean).join(' ');
     const newSchedule = [newDay, newTime ? `@ ${newTime}` : ''].filter(Boolean).join(' ');
 
-    if (effectiveDate === null) {
+    if (effectiveFromDate === null) {
       return (
         <div className="space-y-1 text-sm">
           <div className="flex items-center gap-2">
@@ -75,14 +87,36 @@ export function ScheduleChangeCutoffPicker({
         </div>
       );
     }
+    if (effectiveToDate) {
+      const isValid = toDate >= cutoffDate;
+      return (
+        <div className="space-y-1 text-sm">
+          <div className="flex items-center gap-2">
+            <span className="w-24 text-right text-gray-400 dark:text-gray-500 text-xs">Before {fmt(effectiveFromDate)}</span>
+            <span className="text-gray-600 dark:text-gray-300">{oldSchedule || '(old schedule)'}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-24 text-right text-blue-500 dark:text-blue-400 text-xs font-medium">{fmt(effectiveFromDate)} → {fmt(effectiveToDate)}</span>
+            <span className="text-blue-700 dark:text-blue-300 font-semibold">{newSchedule || '(new schedule)'}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-24 text-right text-gray-400 dark:text-gray-500 text-xs">From {fmt(dayAfter(effectiveToDate))}</span>
+            <span className="text-gray-600 dark:text-gray-300">{oldSchedule || '(old schedule, resumes)'}</span>
+          </div>
+          {!isValid && (
+            <p className="text-xs text-red-500 dark:text-red-400 pl-28">⚠️ End date must be on or after start date.</p>
+          )}
+        </div>
+      );
+    }
     return (
       <div className="space-y-1 text-sm">
         <div className="flex items-center gap-2">
-          <span className="w-20 text-right text-gray-400 dark:text-gray-500 text-xs">Before {fmt(effectiveDate)}</span>
+          <span className="w-20 text-right text-gray-400 dark:text-gray-500 text-xs">Before {fmt(effectiveFromDate)}</span>
           <span className="text-gray-600 dark:text-gray-300">{oldSchedule || '(old schedule)'}</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="w-20 text-right text-blue-500 dark:text-blue-400 text-xs font-medium">From {fmt(effectiveDate)}</span>
+          <span className="w-20 text-right text-blue-500 dark:text-blue-400 text-xs font-medium">From {fmt(effectiveFromDate)}</span>
           <span className="text-blue-700 dark:text-blue-300 font-semibold">{newSchedule || '(new schedule)'}</span>
         </div>
       </div>
@@ -109,7 +143,7 @@ export function ScheduleChangeCutoffPicker({
       <div className="space-y-2">
         <p className="text-sm font-medium text-gray-700 dark:text-gray-300">When does the new schedule start?</p>
 
-        {/* Option A: specific date */}
+        {/* Option A: specific date (open-ended) */}
         <label className={`flex items-start gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
           mode === 'from_date'
             ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-500'
@@ -124,7 +158,7 @@ export function ScheduleChangeCutoffPicker({
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-900 dark:text-white">From a specific date</p>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              Keep the old schedule before this date; apply the new schedule from it.
+              Keep the old schedule before this date; apply the new schedule from it onward.
             </p>
             {mode === 'from_date' && (
               <div className="mt-3 space-y-2">
@@ -149,7 +183,6 @@ export function ScheduleChangeCutoffPicker({
                     <button
                       type="button"
                       onClick={() => {
-                        // Day after last attendance
                         const [y, m, d] = lastAttendedDate.split('-').map(Number);
                         const next = new Date(y, (m || 1) - 1, (d || 1) + 1);
                         setCutoffDate(next.toISOString().split('T')[0]);
@@ -172,7 +205,86 @@ export function ScheduleChangeCutoffPicker({
           </div>
         </label>
 
-        {/* Option B: retroactive */}
+        {/* Option B: specific date range (bounded) */}
+        <label className={`flex items-start gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
+          mode === 'date_range'
+            ? 'border-green-500 bg-green-50 dark:bg-green-900/20 dark:border-green-500'
+            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+        }`}>
+          <input
+            type="radio"
+            className="mt-0.5 accent-green-600"
+            checked={mode === 'date_range'}
+            onChange={() => setMode('date_range')}
+          />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-gray-900 dark:text-white">Date range (bounded)</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              Apply the new schedule between two dates; revert to the old schedule after.
+            </p>
+            {mode === 'date_range' && (
+              <div className="mt-3 space-y-3">
+                {/* From date */}
+                <div>
+                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">From</p>
+                  <input
+                    type="date"
+                    value={cutoffDate}
+                    onChange={e => setCutoffDate(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  />
+                  <div className="flex flex-wrap gap-2 mt-1.5">
+                    {sessionStartDate && (
+                      <button type="button" onClick={() => setCutoffDate(sessionStartDate)}
+                        className="px-2.5 py-1 text-xs font-medium rounded-full border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors">
+                        Session start ({fmt(sessionStartDate)})
+                      </button>
+                    )}
+                    {lastAttendedDate && (
+                      <button type="button" onClick={() => {
+                        const [y, m, d] = lastAttendedDate.split('-').map(Number);
+                        const next = new Date(y, (m || 1) - 1, (d || 1) + 1);
+                        setCutoffDate(next.toISOString().split('T')[0]);
+                      }}
+                        className="px-2.5 py-1 text-xs font-medium rounded-full border border-orange-300 dark:border-orange-700 hover:bg-orange-50 dark:hover:bg-orange-900/20 text-orange-600 dark:text-orange-400 transition-colors">
+                        After last attendance ({fmt(lastAttendedDate)})
+                      </button>
+                    )}
+                    <button type="button" onClick={() => setCutoffDate(today)}
+                      className="px-2.5 py-1 text-xs font-medium rounded-full border border-blue-300 dark:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 transition-colors">
+                      Today ({fmt(today)})
+                    </button>
+                  </div>
+                </div>
+                {/* To date */}
+                <div>
+                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">To (last day of new schedule)</p>
+                  <input
+                    type="date"
+                    value={toDate}
+                    min={cutoffDate}
+                    onChange={e => setToDate(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  />
+                  <div className="flex flex-wrap gap-2 mt-1.5">
+                    {sessionEndDate && (
+                      <button type="button" onClick={() => setToDate(sessionEndDate)}
+                        className="px-2.5 py-1 text-xs font-medium rounded-full border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors">
+                        Session end ({fmt(sessionEndDate)})
+                      </button>
+                    )}
+                    <button type="button" onClick={() => setToDate(today)}
+                      className="px-2.5 py-1 text-xs font-medium rounded-full border border-blue-300 dark:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 transition-colors">
+                      Today ({fmt(today)})
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </label>
+
+        {/* Option C: retroactive */}
         <label className={`flex items-start gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
           mode === 'retroactive'
             ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-500'
@@ -205,8 +317,12 @@ export function ScheduleChangeCutoffPicker({
           Cancel
         </Button>
         <Button
-          onClick={() => onApply(effectiveDate)}
-          disabled={executing || (mode === 'from_date' && !cutoffDate)}
+          onClick={() => onApply(effectiveFromDate, effectiveToDate)}
+          disabled={
+            executing ||
+            ((mode === 'from_date' || mode === 'date_range') && !cutoffDate) ||
+            (mode === 'date_range' && (!toDate || toDate < cutoffDate))
+          }
         >
           {executing ? 'Applying…' : 'Apply Change'}
         </Button>
