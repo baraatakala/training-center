@@ -421,6 +421,16 @@ BEGIN
 
   v_token := uuid_generate_v4();
 
+  -- Invalidate any existing active token for the same session/date/mode slot
+  -- to prevent 23505 from qr_sessions_active_unique (partial index on is_valid=true)
+  -- when a teacher reopens the QR modal without the previous one being closed cleanly.
+  UPDATE public.qr_sessions
+  SET is_valid = false
+  WHERE session_id = p_session_id
+    AND attendance_date = p_attendance_date
+    AND check_in_mode = v_mode
+    AND is_valid = true;
+
   INSERT INTO public.qr_sessions (
     token, session_id, attendance_date, expires_at,
     created_by, check_in_mode, linked_photo_token
