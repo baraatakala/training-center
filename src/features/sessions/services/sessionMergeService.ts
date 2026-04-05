@@ -390,6 +390,17 @@ export const sessionMergeService = {
         targetEnrollmentMap.set(e.student_id, e.enrollment_id);
       }
 
+      // ── 1b. Source enrollments — used to copy can_host when auto-enrolling ──
+      const { data: sourceEnrollments } = await supabase
+        .from(Tables.ENROLLMENT)
+        .select('student_id, can_host')
+        .eq('session_id', sourceSessionId);
+
+      const sourceEnrollmentCanHost = new Map<string, boolean>();
+      for (const e of (sourceEnrollments || [])) {
+        sourceEnrollmentCanHost.set(e.student_id, e.can_host ?? false);
+      }
+
       // ── 2. Re-fetch full source attendance records ────────────────────────
       const { data: sourceAttendance, error: saErr } = await supabase
         .from(Tables.ATTENDANCE)
@@ -471,7 +482,7 @@ export const sessionMergeService = {
                 student_id: att.student_id,
                 session_id: targetSessionId,
                 status: 'active',
-                can_host: false,
+                can_host: sourceEnrollmentCanHost.get(att.student_id) ?? false,
                 enrollment_date: new Date().toISOString().split('T')[0],
               })
               .select('enrollment_id')
@@ -745,7 +756,23 @@ export const sessionMergeService = {
           ? (allSourceRecordings || []).filter((r) => dateFilter.has(r.attendance_date))
           : (allSourceRecordings || []);
 
+        // Pre-fetch existing target recordings to avoid duplicates
+        const { data: existingTargetRecordings } = await supabase
+          .from(Tables.SESSION_RECORDING)
+          .select('attendance_date, recording_url')
+          .eq('session_id', targetSessionId)
+          .is('deleted_at', null);
+
+        const targetRecordingKeys = new Set(
+          (existingTargetRecordings || []).map(r => `${r.attendance_date}|${r.recording_url}`),
+        );
+
         for (const rec of sourceRecordings) {
+          // Skip if an identical recording (same date + URL) already exists in target
+          if (targetRecordingKeys.has(`${rec.attendance_date}|${rec.recording_url}`)) {
+            continue;
+          }
+
           const {
             recording_id: _rid,
             created_at: _ca,
@@ -780,12 +807,13 @@ export const sessionMergeService = {
             : (allSourceBookCoverage || []);
 
           for (const cov of sourceBookCoverage) {
-            // Explicit check-then-update-or-insert to avoid upsert constraint conflicts
+            // Check by date + reference_id for proper dedup when multiple books per date
             const { data: existingCov } = await supabase
               .from(Tables.SESSION_BOOK_COVERAGE)
               .select('coverage_id')
               .eq('session_id', targetSessionId)
               .eq('attendance_date', cov.attendance_date)
+              .eq('reference_id', cov.reference_id)
               .maybeSingle();
 
             let covErr;
@@ -838,7 +866,23 @@ export const sessionMergeService = {
             )
           : (allSourceFeedback || []);
 
+        // Pre-fetch existing target feedback questions to avoid duplicates
+        const { data: existingTargetQuestions } = await supabase
+          .from(Tables.FEEDBACK_QUESTION)
+          .select('question_text, attendance_date')
+          .eq('session_id', targetSessionId);
+
+        const targetQuestionKeys = new Set(
+          (existingTargetQuestions || []).map(q => `${q.attendance_date ?? ''}|${q.question_text}`),
+        );
+
         for (const q of sourceFeedback) {
+          // Skip if an identical question (same date + text) already exists in target
+          const qKey = `${q.attendance_date ?? ''}|${q.question_text}`;
+          if (targetQuestionKeys.has(qKey)) {
+            continue;
+          }
+
           const {
             id: _qid,
             created_at: _ca,

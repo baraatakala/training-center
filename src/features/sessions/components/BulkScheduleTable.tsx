@@ -540,18 +540,17 @@ export const BulkScheduleTable: React.FC<BulkScheduleTableProps> = ({ sessionId,
       });
     }
     
-    // Check coverage - dates before first assigned date are considered covered
+    // Check coverage: a date is "covered" if it's in the past OR has a host assigned
+    const today = new Date().toISOString().split('T')[0];
     const assignedDates = new Set(Object.values(hostDateMap).filter(Boolean));
-    const assignedDatesArray = Array.from(assignedDates).sort();
-    const firstAssignedDate = assignedDatesArray.length > 0 ? assignedDatesArray[0] : null;
-    
-    let coveredCount = assignedDates.size;
-    if (firstAssignedDate) {
-      // Count dates before first assignment as covered
-      const datesBeforeFirst = fullDates.filter(d => d < firstAssignedDate).length;
-      coveredCount += datesBeforeFirst;
+
+    let coveredCount = 0;
+    for (const d of fullDates) {
+      if (d < today || assignedDates.has(d)) {
+        coveredCount++;
+      }
     }
-    
+
     const totalDates = fullDates.length;
     const remainingDates = totalDates - coveredCount;
     
@@ -781,12 +780,11 @@ export const BulkScheduleTable: React.FC<BulkScheduleTableProps> = ({ sessionId,
             <div className="text-2xl font-bold text-yellow-900 dark:text-yellow-100">
               {(() => {
                 if (fullDates.length === 0) return 0;
+                const today = new Date().toISOString().split('T')[0];
                 const assigned = new Set(Object.values(hostDateMap).filter(Boolean));
-                let covered = assigned.size;
-                const sorted = Array.from(assigned).sort();
-                const first = sorted[0];
-                if (first) {
-                  covered += fullDates.filter(d => d < first).length;
+                let covered = 0;
+                for (const d of fullDates) {
+                  if (d < today || assigned.has(d)) covered++;
                 }
                 return Math.round((covered / fullDates.length) * 100);
               })()}%

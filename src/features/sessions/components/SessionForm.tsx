@@ -457,20 +457,36 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
                   Students can check in without being marked late
                 </span>
               </label>
-              <select
-                value={formData.grace_period_minutes}
-                onChange={(e) => setFormData({ ...formData, grace_period_minutes: parseInt(e.target.value) })}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value={0}>0 minutes (no grace period)</option>
-                <option value={5}>5 minutes</option>
-                <option value={10}>10 minutes</option>
-                <option value={15}>15 minutes (default)</option>
-                <option value={20}>20 minutes</option>
-                <option value={30}>30 minutes</option>
-                <option value={45}>45 minutes</option>
-                <option value={60}>60 minutes (1 hour)</option>
-              </select>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  max={120}
+                  value={formData.grace_period_minutes}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value);
+                    setFormData({ ...formData, grace_period_minutes: isNaN(v) ? 0 : Math.max(0, Math.min(120, v)) });
+                  }}
+                  className="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center tabular-nums"
+                />
+                <span className="text-sm text-gray-500 dark:text-gray-400">min</span>
+                <div className="flex gap-1 ml-2 flex-wrap">
+                  {[0, 5, 10, 15, 20, 30].map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, grace_period_minutes: v })}
+                      className={`px-2 py-1 text-xs rounded-md border transition-colors ${
+                        formData.grace_period_minutes === v
+                          ? 'bg-blue-100 dark:bg-blue-900/40 border-blue-400 text-blue-700 dark:text-blue-300 font-semibold'
+                          : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <div className="space-y-3 rounded-lg border border-gray-200 dark:border-gray-700 p-4">

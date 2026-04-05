@@ -15,6 +15,16 @@ export type DashboardStats = {
 };
 
 
+export type HealthCheckCategory = 'data-integrity' | 'feedback' | 'tokens' | 'config' | 'workflow';
+
+export const HEALTH_CATEGORY_LABELS: Record<HealthCheckCategory, { label: string; icon: string }> = {
+  'data-integrity': { label: 'Data Integrity', icon: '🛡️' },
+  'feedback': { label: 'Feedback Pipeline', icon: '💬' },
+  'tokens': { label: 'Check-in Tokens', icon: '🔑' },
+  'config': { label: 'Session Configuration', icon: '⚙️' },
+  'workflow': { label: 'Workflows & Actions', icon: '📋' },
+};
+
 export type HealthCheck = {
   label: string;
   status: 'ok' | 'warn' | 'error';
@@ -23,6 +33,7 @@ export type HealthCheck = {
   icon: string;
   actionLabel?: string;
   actionPath?: string;
+  category?: HealthCheckCategory;
 };
 
 // Risk level styling

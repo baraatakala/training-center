@@ -5,13 +5,24 @@ import { Button } from '@/shared/components/ui/Button';
 import { excuseRequestService } from '@/features/excuses/services/excuseRequestService';
 import { dashboardService } from '@/features/dashboard/services/dashboardService';
 import { toast } from '@/shared/components/ui/toastUtils';
-import type { HealthCheck } from '../constants/dashboardConstants';
+import type { HealthCheck, HealthCheckCategory } from '../constants/dashboardConstants';
+import { HEALTH_CATEGORY_LABELS } from '../constants/dashboardConstants';
 
 export function HealthCheckPanel() {
   const navigate = useNavigate();
   const [healthChecks, setHealthChecks] = useState<HealthCheck[]>([]);
   const [healthLoading, setHealthLoading] = useState(false);
   const [healthLoaded, setHealthLoaded] = useState(false);
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+
+  const toggleCategory = useCallback((cat: string) => {
+    setCollapsedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  }, []);
 
   const loadHealthChecks = useCallback(async () => {
     setHealthLoading(true);
@@ -85,6 +96,7 @@ export function HealthCheckPanel() {
         icon: feedbackWithoutQuestions.length > 0 ? '⚠️' : '✅',
         actionLabel: feedbackWithoutQuestions.length > 0 ? 'Open Attendance Setup' : undefined,
         actionPath: feedbackWithoutQuestionsSample ? `/attendance/${feedbackWithoutQuestionsSample.session_id}?date=${feedbackWithoutQuestionsSample.attendance_date}` : undefined,
+        category: 'feedback',
       });
 
       const hostMap = new Map(hostRows.map((row) => [`${row.session_id}|${row.attendance_date}`, row]));
@@ -121,6 +133,7 @@ export function HealthCheckPanel() {
         icon: hostMissingCount > 0 ? '🚨' : '✅',
         actionLabel: hostMissingCount > 0 ? 'Open Exact Date' : undefined,
         actionPath: hostMissingSample ? `/attendance/${hostMissingSample.session_id}?date=${hostMissingSample.attendance_date}` : undefined,
+        category: 'data-integrity',
       });
 
       const photoTokenSet = new Set(activePhotoRows.map((row) => row.token));
@@ -137,6 +150,7 @@ export function HealthCheckPanel() {
         icon: brokenPhotoQrCount > 0 ? '🚨' : '✅',
         actionLabel: brokenPhotoQrSample ? 'Open Broken Date' : undefined,
         actionPath: brokenPhotoQrSample ? `/attendance/${brokenPhotoQrSample.session_id}?date=${brokenPhotoQrSample.attendance_date}` : undefined,
+        category: 'tokens',
       });
 
       const attendanceMethodMap = new Map(
@@ -160,6 +174,7 @@ export function HealthCheckPanel() {
         icon: feedbackMethodMismatchCount > 0 ? '⚠️' : '✅',
         actionLabel: feedbackMethodMismatchSample ? 'Open Exact Feedback Slice' : undefined,
         actionPath: feedbackMethodMismatchSample ? `/feedback-analytics?session=${feedbackMethodMismatchSample.session_id}&date=${feedbackMethodMismatchSample.attendance_date}` : undefined,
+        category: 'feedback',
       });
 
       let hostAddressDriftCount = 0;
@@ -184,6 +199,7 @@ export function HealthCheckPanel() {
         icon: hostAddressDriftCount > 0 ? '⚠️' : '✅',
         actionLabel: hostAddressDriftSample ? 'Open Drifted Date' : undefined,
         actionPath: hostAddressDriftSample ? `/attendance/${hostAddressDriftSample.session_id}?date=${hostAddressDriftSample.attendance_date}` : undefined,
+        category: 'data-integrity',
       });
 
       const hostDupes = new Set<string>();
@@ -202,6 +218,7 @@ export function HealthCheckPanel() {
           : 'No duplicate session_date_host rows were found in the scanned data.',
         icon: hostDupes.size > 0 ? '🚨' : '✅',
         actionLabel: hostDupes.size > 0 ? 'Open Sample Duplicate' : undefined,
+        category: 'data-integrity',
         actionPath: hostDupes.size > 0 ? (() => {
           const firstDuplicate = Array.from(hostDupes)[0];
           if (!firstDuplicate) return undefined;
@@ -222,6 +239,7 @@ export function HealthCheckPanel() {
           icon: (count || 0) > 0 ? '⚠️' : '✅',
           actionLabel: (count || 0) > 0 ? 'Review Excuses' : undefined,
           actionPath: (count || 0) > 0 ? '/excuse-requests' : undefined,
+          category: 'workflow',
         });
       } catch {
         checks.push({
@@ -232,6 +250,7 @@ export function HealthCheckPanel() {
           icon: '⚠️',
           actionLabel: 'Open Excuses',
           actionPath: '/excuse-requests',
+          category: 'workflow',
         });
       }
 
@@ -257,6 +276,7 @@ export function HealthCheckPanel() {
         icon: duplicateFeedbackCount > 0 ? '🚨' : '✅',
         actionLabel: duplicateFeedbackCount > 0 ? 'Open Feedback Analytics' : undefined,
         actionPath: duplicateFeedbackCount > 0 ? '/feedback-analytics' : undefined,
+        category: 'feedback',
       });
 
       // ── Check 9: Feedback on disabled sessions ──
@@ -273,6 +293,7 @@ export function HealthCheckPanel() {
         icon: uniqueDisabledSessions.size > 0 ? '⚠️' : '✅',
         actionLabel: uniqueDisabledSessions.size > 0 ? 'Review in Analytics' : undefined,
         actionPath: uniqueDisabledSessions.size > 0 ? `/feedback-analytics?session=${Array.from(uniqueDisabledSessions)[0]}` : undefined,
+        category: 'feedback',
       });
 
       // ── Check 10: Attendance without active enrollment ──
@@ -292,6 +313,7 @@ export function HealthCheckPanel() {
         icon: attendanceNoEnrollment.length > 0 ? '🚨' : '✅',
         actionLabel: attendanceNoEnrollment.length > 0 ? 'Check Enrollments' : undefined,
         actionPath: attendanceNoEnrollment.length > 0 ? '/enrollments' : undefined,
+        category: 'data-integrity',
       });
 
       // ── Check 11: Active sessions with zero enrollments ──
@@ -308,6 +330,7 @@ export function HealthCheckPanel() {
         icon: emptyActiveSessions.length > 0 ? '⚠️' : '✅',
         actionLabel: emptyActiveSessions.length > 0 ? 'Manage Sessions' : undefined,
         actionPath: emptyActiveSessions.length > 0 ? '/sessions' : undefined,
+        category: 'config',
       });
 
       // ── Check 12: Expired QR sessions still marked valid → auto-fix ──
@@ -321,6 +344,7 @@ export function HealthCheckPanel() {
           count: 0,
           detail: `Auto-fixed ${expiredQrIds.length} expired QR token(s) — set is_valid=false.`,
           icon: '✅',
+          category: 'tokens',
         });
       } else {
         checks.push({
@@ -329,6 +353,7 @@ export function HealthCheckPanel() {
           count: 0,
           detail: 'All expired QR sessions are properly invalidated.',
           icon: '✅',
+          category: 'tokens',
         });
       }
 
@@ -342,6 +367,7 @@ export function HealthCheckPanel() {
           count: 0,
           detail: `Auto-fixed ${expiredButValidPhoto.length} expired photo token(s) — set is_valid=false.`,
           icon: '✅',
+          category: 'tokens',
         });
       } else {
         checks.push({
@@ -350,6 +376,7 @@ export function HealthCheckPanel() {
           count: 0,
           detail: 'All expired photo sessions are properly invalidated.',
           icon: '✅',
+          category: 'tokens',
         });
       }
 
@@ -369,6 +396,7 @@ export function HealthCheckPanel() {
         icon: staleWithActivity.length > 0 ? '⚠️' : '✅',
         actionLabel: staleWithActivity.length > 0 ? 'View Sessions' : undefined,
         actionPath: staleWithActivity.length > 0 ? '/sessions' : undefined,
+        category: 'config',
       });
 
       // ── Check 15: Feedback without matching attendance ──
@@ -396,6 +424,7 @@ export function HealthCheckPanel() {
         icon: feedbackNoAttendance.length > 0 ? '🚨' : '✅',
         actionLabel: feedbackNoAttendance.length > 0 ? 'Analytics' : undefined,
         actionPath: feedbackNoAttendance.length > 0 ? '/feedback-analytics' : undefined,
+        category: 'feedback',
       });
 
       // ── Check 16: Teachers without scoring configuration ──
@@ -415,6 +444,7 @@ export function HealthCheckPanel() {
         icon: scoringGap > 0 ? '⚠️' : '✅',
         actionLabel: scoringGap > 0 ? 'Scoring Setup' : undefined,
         actionPath: scoringGap > 0 ? '/scoring-configuration' : undefined,
+        category: 'config',
       });
 
       // ── Check 17: Enrollment-Session FK integrity ──
@@ -430,6 +460,7 @@ export function HealthCheckPanel() {
         icon: orphanedEnrollments.length > 0 ? '🚨' : '✅',
         actionLabel: orphanedEnrollments.length > 0 ? 'Manage Enrollments' : undefined,
         actionPath: orphanedEnrollments.length > 0 ? '/enrollments' : undefined,
+        category: 'data-integrity',
       });
 
       // ── Check 18: Feedback anonymous mode mismatch ──
@@ -445,6 +476,45 @@ export function HealthCheckPanel() {
           ? `${anonFeedbackOnBlocked.length} anonymous feedback row(s) exist on sessions that now block anonymous mode. These were submitted before the setting changed.`
           : 'No anonymous feedback on sessions that block anonymous submissions.',
         icon: anonFeedbackOnBlocked.length > 0 ? '⚠️' : '✅',
+        category: 'feedback',
+      });
+
+      // ── Check 19: Duplicate attendance records (same student + session + date) ──
+      const attDupKeys = new Map<string, number>();
+      for (const a of attendance) {
+        const key = `${a.student_id}|${a.session_id}|${a.attendance_date}`;
+        attDupKeys.set(key, (attDupKeys.get(key) || 0) + 1);
+      }
+      const duplicateAttendanceCount = Array.from(attDupKeys.values()).filter(c => c > 1).length;
+      checks.push({
+        label: 'Duplicate attendance records',
+        status: duplicateAttendanceCount > 0 ? 'error' : 'ok',
+        count: duplicateAttendanceCount,
+        detail: duplicateAttendanceCount > 0
+          ? `${duplicateAttendanceCount} student-session-date combo(s) have more than one attendance row. This corrupts scoring and analytics.`
+          : 'Every student has at most one attendance record per session date.',
+        icon: duplicateAttendanceCount > 0 ? '🚨' : '✅',
+        actionLabel: duplicateAttendanceCount > 0 ? 'Check Attendance' : undefined,
+        actionPath: duplicateAttendanceCount > 0 ? '/sessions' : undefined,
+        category: 'data-integrity',
+      });
+
+      // ── Check 20: Sessions ending within 7 days with incomplete host setup ──
+      const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const endingSoonSessions = activeSessions.filter(s => s.end_date >= today && s.end_date <= sevenDaysFromNow);
+      const hostSessionIds = new Set(hostRows.map(r => r.session_id));
+      const endingSoonNoHost = endingSoonSessions.filter(s => !hostSessionIds.has(s.session_id));
+      checks.push({
+        label: 'Sessions ending soon without host setup',
+        status: endingSoonNoHost.length > 0 ? 'warn' : 'ok',
+        count: endingSoonNoHost.length,
+        detail: endingSoonNoHost.length > 0
+          ? `${endingSoonNoHost.length} session(s) end within 7 days but have no host assignment rows at all.`
+          : 'All sessions ending soon have host assignments configured.',
+        icon: endingSoonNoHost.length > 0 ? '⚠️' : '✅',
+        actionLabel: endingSoonNoHost.length > 0 ? 'Manage Sessions' : undefined,
+        actionPath: endingSoonNoHost.length > 0 ? '/sessions' : undefined,
+        category: 'workflow',
       });
 
       setHealthChecks(checks);
@@ -489,18 +559,32 @@ export function HealthCheckPanel() {
             const warnCount = healthChecks.filter(c => c.status === 'warn').length;
             const okCount = healthChecks.filter(c => c.status === 'ok').length;
             const totalChecks = healthChecks.length;
-            const healthScore = totalChecks > 0 ? Math.round((okCount / totalChecks) * 100) : 100;
+            // Weighted score: errors penalize 3x, warnings 1x
+            const maxPoints = totalChecks * 3;
+            const lostPoints = (errorCount * 3) + (warnCount * 1);
+            const healthScore = maxPoints > 0 ? Math.round(((maxPoints - lostPoints) / maxPoints) * 100) : 100;
             const scoreColor = healthScore >= 90 ? 'text-emerald-600 dark:text-emerald-400' : healthScore >= 70 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400';
             const scoreBg = healthScore >= 90 ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800' : healthScore >= 70 ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800';
-            // Sort: errors first, then warnings, then ok
-            const sorted = [...healthChecks].sort((a, b) => {
-              const order = { error: 0, warn: 1, ok: 2 };
-              return order[a.status] - order[b.status];
-            });
+
+            // Group checks by category
+            const categoryOrder: HealthCheckCategory[] = ['data-integrity', 'feedback', 'tokens', 'config', 'workflow'];
+            const grouped = new Map<HealthCheckCategory, HealthCheck[]>();
+            for (const cat of categoryOrder) grouped.set(cat, []);
+            for (const check of healthChecks) {
+              const cat = check.category || 'config';
+              if (!grouped.has(cat)) grouped.set(cat, []);
+              grouped.get(cat)!.push(check);
+            }
+            // Sort within each group: errors first, then warnings, then ok
+            const statusOrder = { error: 0, warn: 1, ok: 2 };
+            for (const [, checks] of grouped) {
+              checks.sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
+            }
+
             return (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {/* Health Score + Summary */}
-              <div className={`rounded-xl border p-3 mb-3 ${scoreBg}`}>
+              <div className={`rounded-xl border p-3 mb-1 ${scoreBg}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <span className={`text-2xl font-bold ${scoreColor}`}>{healthScore}%</span>
@@ -521,37 +605,72 @@ export function HealthCheckPanel() {
                   <strong>{errorCount} blocking issue{errorCount > 1 ? 's' : ''}</strong> found. These indicate data integrity problems that need immediate attention.
                 </div>
               )}
-              {sorted.map((check, i) => (
-                <div key={i} className={`flex items-start gap-3 rounded-lg border px-3 py-2.5 ${
-                  check.status === 'error' ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20'
-                    : check.status === 'warn' ? 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20'
-                    : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/30'
-                }`}>
-                  <span className="text-lg shrink-0 mt-0.5">{check.icon}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">{check.label}</p>
-                      {check.count > 0 && (
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                          check.status === 'error' ? 'bg-red-600 text-white'
-                            : check.status === 'warn' ? 'bg-amber-600 text-white'
-                            : 'bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200'
-                        }`}>{check.count}</span>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{check.detail}</p>
-                    {check.actionPath && check.actionLabel && (
-                      <button
-                        type="button"
-                        onClick={() => navigate(check.actionPath!)}
-                        className="mt-2 text-[11px] font-medium text-purple-600 dark:text-purple-400 hover:underline"
-                      >
-                        {check.actionLabel} →
-                      </button>
+              {/* Category-grouped checks */}
+              {categoryOrder.map(cat => {
+                const catChecks = grouped.get(cat) || [];
+                if (catChecks.length === 0) return null;
+                const catMeta = HEALTH_CATEGORY_LABELS[cat];
+                const catErrors = catChecks.filter(c => c.status === 'error').length;
+                const catWarns = catChecks.filter(c => c.status === 'warn').length;
+                const isCollapsed = collapsedCategories.has(cat);
+                const allOk = catErrors === 0 && catWarns === 0;
+                return (
+                  <div key={cat}>
+                    <button
+                      type="button"
+                      onClick={() => toggleCategory(cat)}
+                      className="w-full flex items-center justify-between py-1.5 px-1 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <span>{catMeta.icon}</span>
+                        <span>{catMeta.label}</span>
+                        <span className="text-[10px] font-normal text-gray-400">({catChecks.length})</span>
+                      </span>
+                      <span className="flex items-center gap-2">
+                        {catErrors > 0 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-600 text-white">{catErrors}</span>}
+                        {catWarns > 0 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-600 text-white">{catWarns}</span>}
+                        {allOk && <span className="text-[10px] text-emerald-600 dark:text-emerald-400">All clear</span>}
+                        <span className="text-gray-400 text-[10px]">{isCollapsed ? '▸' : '▾'}</span>
+                      </span>
+                    </button>
+                    {!isCollapsed && (
+                      <div className="space-y-1.5 mb-2">
+                        {catChecks.map((check, i) => (
+                          <div key={i} className={`flex items-start gap-3 rounded-lg border px-3 py-2.5 ${
+                            check.status === 'error' ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20'
+                              : check.status === 'warn' ? 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20'
+                              : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/30'
+                          }`}>
+                            <span className="text-lg shrink-0 mt-0.5">{check.icon}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-medium text-gray-900 dark:text-white">{check.label}</p>
+                                {check.count > 0 && (
+                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                                    check.status === 'error' ? 'bg-red-600 text-white'
+                                      : check.status === 'warn' ? 'bg-amber-600 text-white'
+                                      : 'bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200'
+                                  }`}>{check.count}</span>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{check.detail}</p>
+                              {check.actionPath && check.actionLabel && (
+                                <button
+                                  type="button"
+                                  onClick={() => navigate(check.actionPath!)}
+                                  className="mt-2 text-[11px] font-medium text-purple-600 dark:text-purple-400 hover:underline"
+                                >
+                                  {check.actionLabel} →
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             );
           })()}

@@ -2818,8 +2818,26 @@ export const AttendanceRecords = () => {
         const chunkDates = sortedDates.slice(startCol, endCol);
 
         // Add a new page for the matrix (landscape or portrait)
+        // For the first chunk, check if the current page is still just the report header (no tables rendered yet).
+        // If so, keep the header page and add a matrix page (separate orientation may be needed).
         doc.addPage(useLandscape ? 'l' : 'p');
         const matrixPageWidth = doc.internal.pageSize.width;
+
+        // If the very first page was only the header and we just added page 2 for the matrix,
+        // remove the blank header-only page 1 when no other tables were included
+        if (chunkIdx === 0 && currentY <= 42 && doc.getNumberOfPages() === 2) {
+          // Copy date-range info onto the new matrix page header
+          doc.setFontSize(8);
+          doc.setTextColor(120, 120, 120);
+          doc.text(
+            `Attendance Analytics Report  |  ${format(new Date(filters.startDate), 'MMM dd, yyyy')} – ${format(new Date(filters.endDate), 'MMM dd, yyyy')}  |  Generated: ${format(new Date(), 'MMM dd, yyyy HH:mm')}`,
+            matrixPageWidth / 2, 7,
+            { align: 'center' }
+          );
+          doc.setTextColor(0, 0, 0);
+          // Delete the blank page 1
+          doc.deletePage(1);
+        }
 
         // Title with chunk info and selection info
         doc.setFontSize(11);
@@ -2832,9 +2850,31 @@ export const AttendanceRecords = () => {
         }
         doc.text(matrixTitle, 14, 14);
 
-        // Date format: compact for many columns
-        const dateFormat = totalDates <= 15 ? 'MM/dd' : totalDates <= 30 ? 'dd' : 'd';
-        const ctHeaders = ['Student', ...chunkDates.map(d => format(new Date(d.date), dateFormat))];
+        // Date format: compact for many columns but always includes month context
+        // Use two-line headers: month name on top, day number below — for readability
+        const dateYears = new Set(chunkDates.map(d => new Date(d.date).getFullYear()));
+        const showYear = dateYears.size > 1;
+        const ctHeaders: string[] = ['Student'];
+        if (totalDates <= 15) {
+          const fmt = showYear ? 'M/dd/yy' : 'M/dd';
+          chunkDates.forEach(d => ctHeaders.push(format(new Date(d.date), fmt)));
+        } else if (totalDates <= 30) {
+          const fmt = showYear ? 'M/d/yy' : 'M/d';
+          chunkDates.forEach(d => ctHeaders.push(format(new Date(d.date), fmt)));
+        } else {
+          // >30 dates: show day number, prefix with month abbreviation at every month boundary
+          let lastMonth = -1;
+          chunkDates.forEach(d => {
+            const dt = new Date(d.date);
+            const m = dt.getMonth();
+            if (m !== lastMonth) {
+              ctHeaders.push(format(dt, 'MMM') + '\n' + format(dt, 'd'));
+              lastMonth = m;
+            } else {
+              ctHeaders.push(format(dt, 'd'));
+            }
+          });
+        }
 
         // ALL students — auto page break handled by autoTable
         const ctBody = sortedStudents.map(student => {
@@ -5517,7 +5557,10 @@ export const AttendanceRecords = () => {
                         {/* Quick actions */}
                         <div className="flex flex-wrap items-center gap-2 mb-2">
                           <button
-                            onClick={() => setMatrixSelectedDates(null)}
+                            onClick={() => {
+                              setMatrixSelectedDates(null);
+                              setFilters(f => ({ ...f, startDate: earliestDate || f.startDate, endDate: latestDate || f.endDate }));
+                            }}
                             className={`px-2 py-0.5 text-[10px] rounded border transition-colors ${allSelected ? 'bg-violet-600 text-white border-violet-600' : 'bg-white dark:bg-gray-800 text-violet-600 dark:text-violet-400 border-violet-300 dark:border-violet-700 hover:bg-violet-100 dark:hover:bg-violet-900/40'}`}
                           >
                             Select All
@@ -5532,6 +5575,9 @@ export const AttendanceRecords = () => {
                             onClick={() => {
                               const last7 = allDates.slice(-7);
                               setMatrixSelectedDates(new Set(last7.map(d => d.date)));
+                              if (last7.length > 0) {
+                                setFilters(f => ({ ...f, startDate: last7[0].date, endDate: last7[last7.length - 1].date }));
+                              }
                             }}
                             className="px-2 py-0.5 text-[10px] rounded border bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
                           >
@@ -5541,6 +5587,9 @@ export const AttendanceRecords = () => {
                             onClick={() => {
                               const last14 = allDates.slice(-14);
                               setMatrixSelectedDates(new Set(last14.map(d => d.date)));
+                              if (last14.length > 0) {
+                                setFilters(f => ({ ...f, startDate: last14[0].date, endDate: last14[last14.length - 1].date }));
+                              }
                             }}
                             className="px-2 py-0.5 text-[10px] rounded border bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
                           >
@@ -5550,6 +5599,9 @@ export const AttendanceRecords = () => {
                             onClick={() => {
                               const first = allDates.slice(0, Math.ceil(allDates.length / 2));
                               setMatrixSelectedDates(new Set(first.map(d => d.date)));
+                              if (first.length > 0) {
+                                setFilters(f => ({ ...f, startDate: first[0].date, endDate: first[first.length - 1].date }));
+                              }
                             }}
                             className="px-2 py-0.5 text-[10px] rounded border bg-white dark:bg-gray-800 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
                           >
@@ -5559,6 +5611,9 @@ export const AttendanceRecords = () => {
                             onClick={() => {
                               const second = allDates.slice(Math.floor(allDates.length / 2));
                               setMatrixSelectedDates(new Set(second.map(d => d.date)));
+                              if (second.length > 0) {
+                                setFilters(f => ({ ...f, startDate: second[0].date, endDate: second[second.length - 1].date }));
+                              }
                             }}
                             className="px-2 py-0.5 text-[10px] rounded border bg-white dark:bg-gray-800 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
                           >

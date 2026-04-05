@@ -186,29 +186,14 @@ export const enrollmentService = {
 
     if (enrollError) return { data: null, error: enrollError };
 
-    // Get session details with course capacity
-    const { data: session, error: sessionError } = await supabase
-      .from(Tables.SESSION)
-      .select(`
-        session_id,
-        course:course_id (
-          max_students
-        )
-      `)
-      .eq('session_id', sessionId)
-      .single();
-
-    if (sessionError) return { data: null, error: sessionError };
-
-    const maxCapacity = (session.course as { max_students?: number } | null)?.max_students || null;
     const currentCount = enrollments?.length || 0;
 
     return {
       data: {
         currentCount,
-        maxCapacity,
-        isAtCapacity: maxCapacity ? currentCount >= maxCapacity : false,
-        spotsRemaining: maxCapacity ? Math.max(0, maxCapacity - currentCount) : null,
+        maxCapacity: null as number | null,
+        isAtCapacity: false,
+        spotsRemaining: null as number | null,
       },
       error: null,
     };
