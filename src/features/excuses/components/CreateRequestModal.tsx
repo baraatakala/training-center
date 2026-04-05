@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Modal } from '@/shared/components/ui/Modal';
 import { Button } from '@/shared/components/ui/Button';
 import { toast } from '@/shared/components/ui/toastUtils';
@@ -39,6 +39,10 @@ export function CreateRequestModal({
   const [studentId, setStudentId] = useState('');
   const [loadingSessions, setLoadingSessions] = useState(true);
 
+  // Actual scheduled dates for the selected session (accounts for day changes)
+  const [sessionDates, setSessionDates] = useState<Set<string>>(new Set());
+  const [loadingDates, setLoadingDates] = useState(false);
+
   // Attendance status check for selected session + date
   const [attendanceStatus, setAttendanceStatus] = useState<{ status: string; excuse_reason: string | null } | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
@@ -65,58 +69,43 @@ export function CreateRequestModal({
     return () => { cancelled = true; };
   }, [studentId, selectedSession, attendanceDate]);
 
-  // Auto-fill absence date: find the next occurrence of ANY of the session's scheduled days
+  // Fetch actual session dates when session changes — accounts for session_day_change
   useEffect(() => {
-    if (!selectedSession) return;
-    const session = sessions.find(s => s.session_id === selectedSession);
-    if (!session?.day) return;
-
-    const dayMap: Record<string, number> = {
-      sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
-      thursday: 4, friday: 5, saturday: 6,
-    };
-    const dayNums = session.day.split(',').map(d => dayMap[d.trim().toLowerCase()]).filter((n): n is number => n !== undefined);
-    if (dayNums.length === 0) return;
-
-    const today = new Date();
-    const currentDay = today.getDay();
-    // Find which of the session days is nearest (including today)
-    let minDaysAhead = 7;
-    for (const targetDay of dayNums) {
-      const daysAhead = (targetDay - currentDay + 7) % 7;
-      if (daysAhead < minDaysAhead) minDaysAhead = daysAhead;
+    if (!selectedSession) {
+      setSessionDates(new Set());
+      setAttendanceDate('');
+      return;
     }
-    const targetDate = new Date(today);
-    targetDate.setDate(today.getDate() + minDaysAhead);
+    let cancelled = false;
+    const fetchDates = async () => {
+      setLoadingDates(true);
+      try {
+        const { dates, error } = await excuseRequestService.getSessionDates(selectedSession);
+        if (cancelled) return;
+        if (error) {
+          console.error('Failed to fetch session dates:', error);
+          setSessionDates(new Set());
+          return;
+        }
+        setSessionDates(dates);
 
-    const yyyy = targetDate.getFullYear();
-    const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
-    const dd = String(targetDate.getDate()).padStart(2, '0');
-    setAttendanceDate(`${yyyy}-${mm}-${dd}`);
-  }, [selectedSession, sessions]);
-
-  // Get the set of session day numbers for calendar highlighting (supports multi-day sessions)
-  const sessionDayNums = useMemo((): Set<number> | null => {
-    if (!selectedSession) return null;
-    const session = sessions.find(s => s.session_id === selectedSession);
-    if (!session?.day) return null;
-    const dayMap: Record<string, number> = {
-      sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
-      thursday: 4, friday: 5, saturday: 6,
+        // Auto-fill: pick the nearest date (today or future) from the actual set
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        const sorted = [...dates].sort();
+        const nearest = sorted.find(d => d >= todayStr) || sorted[sorted.length - 1];
+        if (nearest) setAttendanceDate(nearest);
+      } finally {
+        if (!cancelled) setLoadingDates(false);
+      }
     };
-    const result = new Set<number>();
-    for (const part of session.day.split(',')) {
-      const num = dayMap[part.trim().toLowerCase()];
-      if (num !== undefined) result.add(num);
-    }
-    return result.size > 0 ? result : null;
-  }, [selectedSession, sessions]);
+    fetchDates();
+    return () => { cancelled = true; };
+  }, [selectedSession]);
 
   const isScheduledSessionDate = useCallback((dateStr: string) => {
-    if (!dateStr || !sessionDayNums) return false;
-    const [year, month, day] = dateStr.split('-').map(Number);
-    return sessionDayNums.has(new Date(year, (month || 1) - 1, day || 1).getDay());
-  }, [sessionDayNums]);
+    return sessionDates.has(dateStr);
+  }, [sessionDates]);
 
   // Calendar state
   const [calendarMonth, setCalendarMonth] = useState(() => {
@@ -259,7 +248,9 @@ export function CreateRequestModal({
                   </label>
 
                   {/* Custom Calendar */}
-                  {(() => {
+                  {loadingDates ? (
+                    <div className="py-6 text-center text-gray-400 text-sm">Loading session dates...</div>
+                  ) : (() => {
                     const { year, month } = calendarMonth;
                     const firstDay = new Date(year, month, 1).getDay();
                     const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -270,16 +261,23 @@ export function CreateRequestModal({
 
                     const cells: Array<{ day: number; dateStr: string; isSessionDay: boolean; isToday: boolean; isSelected: boolean; isPast: boolean }> = [];
                     for (let d = 1; d <= daysInMonth; d++) {
-                      const dateObj = new Date(year, month, d);
                       const ds = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
                       cells.push({
                         day: d,
                         dateStr: ds,
-                        isSessionDay: sessionDayNums !== null && sessionDayNums.has(dateObj.getDay()),
+                        isSessionDay: sessionDates.has(ds),
                         isToday: ds === todayStr,
                         isSelected: ds === attendanceDate,
-                        isPast: dateObj < new Date(today.getFullYear(), today.getMonth(), today.getDate()),
+                        isPast: new Date(year, month, d) < new Date(today.getFullYear(), today.getMonth(), today.getDate()),
                       });
+                    }
+
+                    // Determine which weekday columns have at least one session date in this month
+                    const activeWeekdayCols = new Set<number>();
+                    for (const c of cells) {
+                      if (c.isSessionDay) {
+                        activeWeekdayCols.add(new Date(c.dateStr + 'T00:00:00').getDay());
+                      }
                     }
 
                     return (
@@ -313,7 +311,7 @@ export function CreateRequestModal({
                         <div className="grid grid-cols-7 text-center">
                           {dayLabels.map((dl, i) => (
                             <div key={dl} className={`py-2 text-[11px] font-semibold uppercase tracking-wider ${
-                              sessionDayNums?.has(i)
+                              activeWeekdayCols.has(i)
                                 ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
                                 : 'text-gray-400 dark:text-gray-500'
                             }`}>{dl}</div>
@@ -372,7 +370,7 @@ export function CreateRequestModal({
                       </div>
                     );
                   })()}
-                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Only highlighted session-day dates can be selected.</p>
+                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Only actual scheduled session dates (accounting for schedule changes) can be selected.</p>
                 </div>
 
                 {/* Attendance Status Indicator */}

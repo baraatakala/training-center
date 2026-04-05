@@ -139,6 +139,11 @@ function RecordingPlayer({ url }: { url: string }) {
   return null;
 }
 
+// ─── HTML escape for safe export ────────────────────────────
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 export function SessionRecordingsManager({ sessionId, courseName, canManageInAttendance = false }: Props) {
   const [recordings, setRecordings] = useState<SessionRecording[]>([]);
   const [loading, setLoading] = useState(true);
@@ -165,6 +170,139 @@ export function SessionRecordingsManager({ sessionId, courseName, canManageInAtt
     return b.localeCompare(a);
   });
 
+  // ─── Export Recording Catalog as HTML ───────────────────────
+  const handleExportCatalog = useCallback(() => {
+    if (recordings.length === 0) {
+      toast.error('No recordings to export');
+      return;
+    }
+
+    const dateRows = sortedDates.map(date => {
+      const items = grouped[date];
+      const dateLabel = date === 'No date' ? 'Undated' : (() => {
+        const d = new Date(`${date}T00:00:00`);
+        return d.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' });
+      })();
+
+      const linkRows = items.map(r => {
+        const provider = detectProvider(r.recording_url || '');
+        const duration = r.duration_seconds
+          ? `${Math.floor(r.duration_seconds / 60)}m ${r.duration_seconds % 60}s`
+          : '';
+        const title = r.title || provider.name || 'Recording';
+        const meta = [provider.name, duration, r.mime_type].filter(Boolean).join(' · ');
+        return `
+          <tr>
+            <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-size:18px;text-align:center;width:40px">
+              ${provider.icon}
+            </td>
+            <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb">
+              <a href="${escapeHtml(r.recording_url || '')}" target="_blank" rel="noopener noreferrer"
+                 style="color:#2563eb;text-decoration:none;font-weight:600;font-size:14px">
+                ${escapeHtml(title)}
+              </a>
+              <div style="color:#6b7280;font-size:12px;margin-top:2px">${escapeHtml(meta)}</div>
+            </td>
+            <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:center;white-space:nowrap">
+              <a href="${escapeHtml(r.recording_url || '')}" target="_blank" rel="noopener noreferrer"
+                 style="display:inline-block;padding:6px 16px;background:#2563eb;color:#fff;border-radius:8px;text-decoration:none;font-size:12px;font-weight:600">
+                ▶ Open
+              </a>
+            </td>
+          </tr>`;
+      }).join('');
+
+      return `
+        <div style="margin-bottom:28px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+            <span style="font-size:16px">📅</span>
+            <h2 style="margin:0;font-size:16px;color:#1f2937">${escapeHtml(dateLabel)}</h2>
+            <span style="background:#e5e7eb;color:#6b7280;font-size:11px;padding:2px 8px;border-radius:99px">
+              ${items.length} recording${items.length > 1 ? 's' : ''}
+            </span>
+          </div>
+          <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
+            ${linkRows}
+          </table>
+        </div>`;
+    }).join('');
+
+    const exportDate = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎥 Recording Catalog — ${escapeHtml(courseName)}</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+    color: #1f2937;
+    min-height: 100vh;
+  }
+  .container { max-width: 720px; margin: 0 auto; }
+  .header {
+    text-align: center; padding: 32px 20px; margin-bottom: 32px;
+    background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+    border-radius: 16px; color: #fff;
+    box-shadow: 0 4px 20px rgba(37,99,235,0.3);
+  }
+  .header h1 { margin: 0 0 6px; font-size: 24px; }
+  .header p { margin: 4px 0; opacity: 0.9; font-size: 14px; }
+  .stats {
+    display: flex; justify-content: center; gap: 24px; margin-top: 16px;
+    background: rgba(255,255,255,0.15); border-radius: 10px; padding: 10px 20px;
+  }
+  .stats div { text-align: center; }
+  .stats .num { font-size: 22px; font-weight: 700; }
+  .stats .lbl { font-size: 11px; opacity: 0.85; text-transform: uppercase; letter-spacing: 0.5px; }
+  a:hover { opacity: 0.85; }
+  .footer {
+    text-align: center; margin-top: 32px; padding-top: 16px;
+    border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 12px;
+  }
+  @media print {
+    body { background: #fff; padding: 16px; }
+    .header { box-shadow: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    a[href]::after { content: " (" attr(href) ")"; font-size: 10px; word-break: break-all; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>🎥 Recording Catalog</h1>
+    <p><strong>${escapeHtml(courseName)}</strong></p>
+    <p>Exported ${escapeHtml(exportDate)}</p>
+    <div class="stats">
+      <div><div class="num">${recordings.length}</div><div class="lbl">Recordings</div></div>
+      <div><div class="num">${sortedDates.filter(d => d !== 'No date').length}</div><div class="lbl">Session Dates</div></div>
+    </div>
+  </div>
+  ${dateRows}
+  <div class="footer">
+    Generated by Training Center · All links open in a new tab · Print-friendly
+  </div>
+</div>
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `recordings-${courseName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}-${new Date().toISOString().slice(0, 10)}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${recordings.length} recording${recordings.length > 1 ? 's' : ''} as HTML catalog`);
+  }, [recordings, sortedDates, grouped, courseName]);
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -174,9 +312,20 @@ export function SessionRecordingsManager({ sessionId, courseName, canManageInAtt
             Replays for {courseName}, grouped by attendance date. Supports YouTube, Zoom, Drive, Vimeo, Loom, Samsung Recorder, Upgone, direct media files, and more.
           </p>
         </div>
-        <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-2 py-1 rounded-full">
-          {recordings.length} link{recordings.length === 1 ? '' : 's'}
-        </span>
+        <div className="flex items-center gap-2">
+          {recordings.length > 0 && (
+            <button
+              type="button"
+              onClick={handleExportCatalog}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-medium hover:from-blue-600 hover:to-indigo-600 transition-all shadow-sm hover:shadow"
+            >
+              📥 Export Catalog
+            </button>
+          )}
+          <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-2 py-1 rounded-full">
+            {recordings.length} link{recordings.length === 1 ? '' : 's'}
+          </span>
+        </div>
       </div>
 
       <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/60 dark:bg-blue-900/10 p-4">

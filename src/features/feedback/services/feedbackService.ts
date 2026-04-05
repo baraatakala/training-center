@@ -321,6 +321,46 @@ export const feedbackService = {
     return { data: data as FeedbackTemplate[] | null, error: normalizeFeedbackError(error) };
   },
 
+  /** Create a new feedback template (save current questions as a reusable set) */
+  async createTemplate(input: FeedbackTemplateInput) {
+    const { data, error } = await supabase
+      .from('feedback_template')
+      .insert({
+        name: input.name,
+        description: input.description || null,
+        questions: input.questions,
+        is_default: input.is_default ?? false,
+      })
+      .select()
+      .single();
+
+    if (data) {
+      try { await logInsert('feedback_template', data.id, toAuditRecord(data), 'Feedback template created'); } catch { /* audit non-critical */ }
+    }
+
+    return { data: data as FeedbackTemplate | null, error: normalizeFeedbackError(error) };
+  },
+
+  /** Delete a feedback template */
+  async deleteTemplate(templateId: string) {
+    const { data: oldData } = await supabase
+      .from('feedback_template')
+      .select('*')
+      .eq('id', templateId)
+      .maybeSingle();
+
+    const { error } = await supabase
+      .from('feedback_template')
+      .delete()
+      .eq('id', templateId);
+
+    if (!error && oldData) {
+      try { await logDelete('feedback_template', templateId, toAuditRecord(oldData), 'Feedback template deleted'); } catch { /* audit non-critical */ }
+    }
+
+    return { error: normalizeFeedbackError(error) };
+  },
+
   async updateTemplate(templateId: string, updates: Partial<FeedbackTemplateInput>) {
     const { data: oldData } = await supabase
       .from('feedback_template')

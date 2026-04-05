@@ -7,6 +7,7 @@
  */
 
 import { supabase } from '@/shared/lib/supabase';
+import { generateAttendanceDates, type SessionSchedule, type DayChange } from '@/shared/utils/attendanceGenerator';
 
 export interface ExcuseRequest {
   request_id: string;
@@ -58,68 +59,55 @@ export const EXCUSE_REASONS = [
   { value: 'other', label: 'Other', labelAr: 'أخرى', icon: '📝' },
 ] as const;
 
-const SESSION_DAY_MAP: Record<string, number> = {
-  sunday: 0,
-  monday: 1,
-  tuesday: 2,
-  wednesday: 3,
-  thursday: 4,
-  friday: 5,
-  saturday: 6,
-};
-
-const getWeekdayFromDateString = (dateStr: string) => {
-  const [year, month, day] = dateStr.split('-').map(Number);
-  return new Date(year, (month || 1) - 1, day || 1).getDay();
-};
-
-// Parses a day string that may be comma-separated (e.g. "Monday, Wednesday, Friday")
-// into a Set of weekday numbers (0=Sun…6=Sat).
-const parseSessionDays = (dayString: string): Set<number> => {
-  const result = new Set<number>();
-  for (const part of dayString.split(',')) {
-    const num = SESSION_DAY_MAP[part.trim().toLowerCase()];
-    if (num !== undefined) result.add(num);
-  }
-  return result;
-};
-
 class ExcuseRequestService {
+  /**
+   * Compute actual session dates from schedule + day-change history,
+   * then check if the requested date falls in that set.
+   */
   private async validateScheduledSessionDate(sessionId: string, attendanceDate: string) {
-    const { data: session, error } = await supabase
-      .from('session')
-      .select('day')
-      .eq('session_id', sessionId)
-      .maybeSingle();
+    const { dates, error } = await this.getSessionDates(sessionId);
+    if (error) return { valid: false, error };
 
-    if (error) {
-      return { valid: false, error: error as Error };
-    }
-
-    if (!session?.day) {
+    if (!dates.has(attendanceDate)) {
       return {
         valid: false,
-        error: new Error('Session schedule day could not be verified'),
-      };
-    }
-
-    const allowedWeekdays = parseSessionDays(session.day);
-    if (allowedWeekdays.size === 0) {
-      return {
-        valid: false,
-        error: new Error(`Session schedule day could not be verified: ${session.day}`),
-      };
-    }
-
-    const actualWeekday = getWeekdayFromDateString(attendanceDate);
-    if (!allowedWeekdays.has(actualWeekday)) {
-      return {
-        valid: false,
-        error: new Error(`Excuse requests can only be submitted for scheduled ${session.day} sessions`),
+        error: new Error('Excuse requests can only be submitted for actual scheduled session dates'),
       };
     }
 
     return { valid: true, error: null };
+  }
+
+  /**
+   * Fetch the session schedule + day-change history and compute actual dates.
+   * Returns a Set of YYYY-MM-DD strings for all scheduled dates.
+   */
+  async getSessionDates(sessionId: string): Promise<{ dates: Set<string>; error: Error | null }> {
+    const { data: session, error: sessionError } = await supabase
+      .from('session')
+      .select('session_id, start_date, end_date, day, time, location')
+      .eq('session_id', sessionId)
+      .maybeSingle();
+
+    if (sessionError || !session) {
+      return { dates: new Set(), error: sessionError as Error || new Error('Session not found') };
+    }
+
+    const { data: changes } = await supabase
+      .from('session_day_change')
+      .select('old_day, new_day, effective_date')
+      .eq('session_id', sessionId)
+      .order('effective_date', { ascending: true });
+
+    const attendanceDates = generateAttendanceDates(
+      session as SessionSchedule,
+      (changes || []) as DayChange[]
+    );
+
+    return {
+      dates: new Set(attendanceDates.map(d => d.date)),
+      error: null,
+    };
   }
 
   /**

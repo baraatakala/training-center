@@ -172,7 +172,7 @@ export function Attendance() {
   const [fbQuestions, setFbQuestions] = useState<FeedbackQuestion[]>([]);
   const [fbTemplates, setFbTemplates] = useState<FeedbackTemplate[]>([]);
   const [fbSelectedTemplateId, setFbSelectedTemplateId] = useState('');
-  const [fbApplyingTemplate, setFbApplyingTemplate] = useState(false);
+  const [, setFbApplyingTemplate] = useState(false);
   const [fbSavingQuestion, setFbSavingQuestion] = useState(false);
   const [fbEditingQuestionId, setFbEditingQuestionId] = useState<string | null>(null);
   const [showFeedbackSetup, setShowFeedbackSetup] = useState(false);
@@ -2507,9 +2507,63 @@ export function Attendance() {
                         ))}
                       </select>
                     </div>
-                    <div className="sm:min-w-[140px] text-xs text-gray-500 dark:text-gray-400 self-center sm:self-auto">
-                      {fbApplyingTemplate ? 'Applying saved question set...' : 'Selecting a saved question set applies it immediately.'}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {fbSelectedTemplateId && !fbTemplates.find(t => t.id === fbSelectedTemplateId)?.is_default && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!confirm('Delete this template? This cannot be undone.')) return;
+                            const { error } = await feedbackService.deleteTemplate(fbSelectedTemplateId);
+                            if (error) { toast.error('Failed to delete template'); return; }
+                            toast.success('Template deleted');
+                            setFbSelectedTemplateId('');
+                            const { data } = await feedbackService.getTemplates();
+                            if (data) setFbTemplates(data);
+                          }}
+                          className="text-xs px-2 py-2 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 border border-red-200 dark:border-red-800"
+                          title="Delete this template"
+                        >🗑️</button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (fbQuestions.length === 0) { toast.warning('Add at least one question first'); return; }
+                          const name = prompt('Name for the new template:');
+                          if (!name?.trim()) return;
+                          const { data: newTpl, error } = await feedbackService.createTemplate({
+                            name: name.trim(),
+                            questions: toTemplateQuestions(fbQuestions),
+                          });
+                          if (error) { toast.error('Failed to create template'); return; }
+                          toast.success(`Template "${name.trim()}" saved`);
+                          const { data } = await feedbackService.getTemplates();
+                          if (data) setFbTemplates(data);
+                          if (newTpl) setFbSelectedTemplateId(newTpl.id);
+                        }}
+                        className="text-xs px-3 py-2 rounded-lg text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 font-medium whitespace-nowrap"
+                      >💾 Save as New</button>
                     </div>
+                  </div>
+                )}
+                {fbTemplates.length === 0 && fbQuestions.length > 0 && (
+                  <div className="p-3 bg-gray-50 dark:bg-gray-800/40 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const name = prompt('Name for the new template:');
+                        if (!name?.trim()) return;
+                        const { data: newTpl, error } = await feedbackService.createTemplate({
+                          name: name.trim(),
+                          questions: toTemplateQuestions(fbQuestions),
+                        });
+                        if (error) { toast.error('Failed to create template'); return; }
+                        toast.success(`Template "${name.trim()}" saved`);
+                        const { data } = await feedbackService.getTemplates();
+                        if (data) setFbTemplates(data);
+                        if (newTpl) setFbSelectedTemplateId(newTpl.id);
+                      }}
+                      className="text-xs px-3 py-2 rounded-lg text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 font-medium"
+                    >💾 Save current questions as reusable template</button>
                   </div>
                 )}
 
