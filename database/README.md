@@ -6,20 +6,31 @@ Consolidated SQL files for the Training Center Supabase database.
 
 | # | File | Description |
 |---|------|-------------|
-| 1 | `schema.sql` | All 34 table definitions in dependency order |
-| 2 | `functions.sql` | Helper functions, trigger functions, and trigger bindings |
-| 3 | `indexes.sql` | All performance indexes (~80 indexes) |
-| 4 | `rls-policies.sql` | Row Level Security policies for all tables (~107 policies) |
+| 1 | `schema.sql` | All 32 table definitions in dependency order with table comments |
+| 2 | `functions.sql` | Helper functions (SECURITY DEFINER + search_path hardened), trigger functions, and trigger bindings |
+| 3 | `indexes.sql` | All performance indexes (functional, composite, partial) |
+| 4 | `rls-policies.sql` | Row Level Security policies for all tables |
 | 5 | `storage.sql` | Supabase storage bucket configuration |
-| 6 | `seed-data.sql` | Essential seed data (admin user, specializations, late brackets, feedback template) |
+| 6 | `seed-data.sql` | Essential seed data (admin user, specializations, feedback template) |
 
 ## Architecture
 
-- **Roles**: Admin (full access), Teacher (read + insert), Student (scoped read)
-- **Auth**: Policies use `is_admin()`, `is_teacher()`, `get_my_student_id()` helper functions
-- **Timestamps**: Most tables have `updated_at` triggers via `update_updated_at_column()`
-- **Validation**: Business-logic triggers enforce data integrity (e.g., excuse date must match session day)
+- **Roles**: Admin (full access via `FOR ALL`), Teacher (scoped read + write), Student (scoped read)
+- **Auth**: Policies use `is_admin()`, `is_teacher()`, `get_my_student_id()` — all SECURITY DEFINER with `SET search_path = public`
+- **UUIDs**: All primary keys use `gen_random_uuid()` (native PostgreSQL 13+, no extensions)
+- **Timestamps**: `created_at` / `updated_at` are NOT NULL on all tables; `updated_at` triggers via shared `update_updated_at_column()`
+- **Validation**: Business-logic triggers enforce data integrity (excuse date ↔ session day, book reference ↔ course, enrollment host status)
+- **Self-documenting**: All 32 tables have `COMMENT ON TABLE` metadata (queryable via `\dt+` in psql)
 
-## Archive
+## Migrations
 
-The `archive/` directory contains the original 75 incremental migration files for historical reference. These are superseded by the consolidated files above.
+Sequential SQL files in `migrations/`. Each migration is wrapped in `BEGIN; ... COMMIT;` for atomic rollback.
+
+| Range | Description |
+|-------|-------------|
+| 001–010 | RLS fixes, schema evolution, session scheduling |
+| 011–015 | Constraint + RLS audit passes |
+| 016–018 | Dead column cleanup, duplicate index removal |
+| 019 | QR session conflict fix |
+| 020 | Schema hardening — UUID standardization, NOT NULL enforcement, FK corrections |
+| 021 | Enterprise hardening — SECURITY DEFINER search_path, data integrity, self-documenting schema |

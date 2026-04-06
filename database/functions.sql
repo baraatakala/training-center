@@ -3,43 +3,45 @@
 -- ============================================================================
 -- Run order: 2 of 6 (after schema.sql)
 -- All database functions, trigger functions, and trigger bindings.
--- Synced with live Supabase as of 2026-04-06 (migration 020 applied).
+-- Synced with live Supabase as of 2026-04-06 (migration 021 applied).
 -- ============================================================================
 
 -- ============================================================================
 -- 1. ROLE-CHECK HELPER FUNCTIONS (used by RLS policies)
+--    All SECURITY DEFINER functions include SET search_path = public
+--    to prevent search_path hijacking (CWE-426).
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION is_admin()
 RETURNS BOOLEAN AS $$
 BEGIN
   RETURN EXISTS (
-    SELECT 1 FROM admin
+    SELECT 1 FROM public.admin
     WHERE LOWER(email) = LOWER(auth.jwt()->>'email')
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE OR REPLACE FUNCTION is_teacher()
 RETURNS BOOLEAN AS $$
 BEGIN
   RETURN EXISTS (
-    SELECT 1 FROM teacher
+    SELECT 1 FROM public.teacher
     WHERE LOWER(email) = LOWER(auth.jwt()->>'email')
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE OR REPLACE FUNCTION get_my_student_id()
 RETURNS UUID AS $$
 BEGIN
   RETURN (
-    SELECT student_id FROM student
+    SELECT student_id FROM public.student
     WHERE LOWER(email) = LOWER(auth.jwt()->>'email')
     LIMIT 1
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- ============================================================================
 -- 2. TIMESTAMP TRIGGER FUNCTIONS
@@ -65,23 +67,23 @@ RETURNS INTEGER AS $$
 BEGIN
   RETURN (
     SELECT COUNT(*)::INTEGER
-    FROM announcement a
-    LEFT JOIN announcement_read ar ON a.announcement_id = ar.announcement_id
+    FROM public.announcement a
+    LEFT JOIN public.announcement_read ar ON a.announcement_id = ar.announcement_id
       AND ar.student_id = p_student_id
     WHERE ar.read_id IS NULL
       AND (a.expires_at IS NULL OR a.expires_at > now())
       AND (
         a.course_id IS NULL
         OR EXISTS (
-          SELECT 1 FROM enrollment e
-          JOIN session s ON e.session_id = s.session_id
+          SELECT 1 FROM public.enrollment e
+          JOIN public.session s ON e.session_id = s.session_id
           WHERE e.student_id = p_student_id
             AND s.course_id = a.course_id
         )
       )
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- NOTE: get_unread_message_count was removed in migration 017 (never called).
 
@@ -329,6 +331,7 @@ CREATE OR REPLACE FUNCTION public.generate_qr_session(
 RETURNS JSON
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_token UUID;
@@ -375,7 +378,7 @@ BEGIN
     END IF;
   END IF;
 
-  v_token := uuid_generate_v4();
+  v_token := gen_random_uuid();
 
   -- Invalidate any existing active token for the same session/date/mode slot
   -- to prevent 23505 from qr_sessions_active_unique (partial index on is_valid=true)
@@ -416,6 +419,7 @@ CREATE OR REPLACE FUNCTION public.validate_qr_token(
 RETURNS JSON
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_qr_session public.qr_sessions%ROWTYPE;
@@ -458,6 +462,7 @@ CREATE OR REPLACE FUNCTION public.invalidate_qr_session(p_token UUID)
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
   UPDATE qr_sessions SET is_valid = false WHERE token = p_token;

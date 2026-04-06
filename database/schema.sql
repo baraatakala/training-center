@@ -2,12 +2,10 @@
 -- Training Center — Schema Definition
 -- ============================================================================
 -- Run order: 1 of 6
--- This file creates all tables in dependency order.
--- Synced with live Supabase as of 2026-04-06 (migration 020 applied).
+-- This file creates all 32 tables in dependency order.
+-- All UUID columns use gen_random_uuid() (native PostgreSQL 13+, no extensions).
+-- Synced with live Supabase as of 2026-04-06 (migration 021 applied).
 -- ============================================================================
-
--- Required extensions
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ============================================================================
 -- 1. LOOKUP / INDEPENDENT TABLES
@@ -162,7 +160,7 @@ CREATE TABLE IF NOT EXISTS public.qr_sessions (
   qr_session_id UUID NOT NULL DEFAULT gen_random_uuid(),
   token UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
   session_id UUID NOT NULL,
-  attendance_date DATE NOT NULL CHECK (attendance_date IS NOT NULL),
+  attendance_date DATE NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   expires_at TIMESTAMPTZ NOT NULL,
   is_valid BOOLEAN NOT NULL DEFAULT true,
@@ -288,6 +286,7 @@ CREATE TABLE IF NOT EXISTS public.course_book_reference (
   topic TEXT NOT NULL,
   start_page INTEGER NOT NULL CHECK (start_page > 0),
   end_page INTEGER NOT NULL,
+  CONSTRAINT course_book_reference_page_range_check CHECK (end_page >= start_page),
   display_order INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -584,7 +583,44 @@ CREATE TABLE IF NOT EXISTS public.audit_log (
   deleted_by TEXT,
   deleted_at TIMESTAMPTZ DEFAULT now(),
   reason TEXT,
-  changed_at TIMESTAMPTZ DEFAULT now(),
+  changed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   changed_by UUID,
   CONSTRAINT audit_log_pkey PRIMARY KEY (audit_id)
 );
+
+-- ============================================================================
+-- 12. TABLE COMMENTS (self-documenting — queryable via \dt+ in psql)
+-- ============================================================================
+
+COMMENT ON TABLE public.admin IS 'Platform administrators with full system access';
+COMMENT ON TABLE public.specialization IS 'Lookup table for student/teacher specialization domains';
+COMMENT ON TABLE public.teacher IS 'Instructors who manage courses, sessions, and student enrollment';
+COMMENT ON TABLE public.student IS 'Learners enrolled in training sessions';
+COMMENT ON TABLE public.course IS 'Curriculum definitions owned by a teacher';
+COMMENT ON TABLE public.session IS 'Scheduled course delivery — date range, day(s), time, and configuration';
+COMMENT ON TABLE public.enrollment IS 'Student ↔ session binding with status lifecycle (active → completed/dropped)';
+COMMENT ON TABLE public.attendance IS 'Per-date attendance record for each enrollment — status, GPS, timing';
+COMMENT ON TABLE public.qr_sessions IS 'Time-limited QR/photo check-in tokens generated per session date';
+COMMENT ON TABLE public.photo_checkin_sessions IS 'Face-recognition check-in sessions linked to QR tokens';
+COMMENT ON TABLE public.session_date_host IS 'Per-date host assignment and location override for a session';
+COMMENT ON TABLE public.session_day_change IS 'Audit trail of session schedule day changes with effective dates';
+COMMENT ON TABLE public.session_time_change IS 'Audit trail of session schedule time changes with effective dates';
+COMMENT ON TABLE public.teacher_host_schedule IS 'Teacher-hosted session dates (when teacher_can_host is enabled)';
+COMMENT ON TABLE public.session_recording IS 'Session recordings with visibility controls and soft-delete';
+COMMENT ON TABLE public.course_book_reference IS 'Hierarchical book/page references linked to a course';
+COMMENT ON TABLE public.session_book_coverage IS 'Tracks which book references were covered on each session date';
+COMMENT ON TABLE public.scoring_config IS 'Teacher-owned scoring formula: weights, late brackets (JSONB), decay curves';
+COMMENT ON TABLE public.excuse_request IS 'Student absence excuse workflow — pending → approved/rejected/cancelled';
+COMMENT ON TABLE public.feedback_question IS 'Per-session, per-date feedback questions (rating, text, emoji, multiple choice)';
+COMMENT ON TABLE public.feedback_template IS 'Reusable feedback question templates for quick session setup';
+COMMENT ON TABLE public.session_feedback IS 'Student-submitted feedback responses with optional anonymity';
+COMMENT ON TABLE public.certificate_template IS 'Certificate layout and criteria templates (completion, attendance, achievement)';
+COMMENT ON TABLE public.issued_certificate IS 'Individually issued certificates with unique verification codes';
+COMMENT ON TABLE public.announcement IS 'Teacher/admin announcements — global or course-scoped, with priority and expiry';
+COMMENT ON TABLE public.announcement_read IS 'Tracks which students have read which announcements';
+COMMENT ON TABLE public.announcement_comment IS 'Threaded comments on announcements (teacher or student)';
+COMMENT ON TABLE public.announcement_reaction IS 'Emoji reactions on announcements';
+COMMENT ON TABLE public.message IS 'Direct messages between teachers, students, and admins';
+COMMENT ON TABLE public.message_reaction IS 'Emoji reactions on messages';
+COMMENT ON TABLE public.message_starred IS 'User-starred messages for quick access';
+COMMENT ON TABLE public.audit_log IS 'Immutable audit trail — INSERT/UPDATE/DELETE operations with old/new data snapshots';

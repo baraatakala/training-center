@@ -1,6 +1,6 @@
 -- ============================================================================
 -- Training Center — Row Level Security Policies
--- Synced with live Supabase as of 2026-04-03
+-- Synced with live Supabase as of 2026-04-06 (migration 021 applied)
 -- ============================================================================
 -- Run order: 4 of 6 (after indexes.sql)
 -- Requires: functions.sql (is_admin, is_teacher, get_my_student_id)
@@ -326,7 +326,7 @@ CREATE POLICY "Admins have full access to session recordings" ON session_recordi
 CREATE POLICY "Teachers have full access to session recordings" ON session_recording
   FOR ALL TO authenticated USING (is_teacher()) WITH CHECK (is_teacher());
 
--- NOTE: student.student_id is uuid_generate_v4(), NOT auth.uid().
+-- NOTE: student.student_id is gen_random_uuid(), NOT auth.uid().
 -- get_my_student_id() (SECURITY DEFINER) resolves student_id from auth.email().
 CREATE POLICY "Students can view session recordings" ON session_recording
   FOR SELECT TO authenticated
@@ -548,10 +548,9 @@ CREATE POLICY "Anyone can read feedback questions" ON feedback_question
   FOR SELECT TO authenticated USING (true);
 
 DROP POLICY IF EXISTS "Teachers and admins can manage feedback questions" ON feedback_question;
-CREATE POLICY "Teachers and admins can manage feedback questions" ON feedback_question
-  FOR ALL TO authenticated
-  USING (is_teacher() OR is_admin())
-  WITH CHECK (is_teacher() OR is_admin());
+DROP POLICY IF EXISTS "Admin has full access" ON feedback_question;
+CREATE POLICY "Admin has full access" ON feedback_question
+  FOR ALL TO authenticated USING (is_admin()) WITH CHECK (is_admin());
 
 DROP POLICY IF EXISTS "Teachers can manage own session feedback questions" ON feedback_question;
 CREATE POLICY "Teachers can manage own session feedback questions" ON feedback_question

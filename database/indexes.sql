@@ -3,7 +3,7 @@
 -- ============================================================================
 -- Run order: 3 of 6 (after functions.sql)
 -- All performance indexes. Uses IF NOT EXISTS for idempotent re-runs.
--- Synced with live Supabase as of 2026-04-06 (migration 020 applied).
+-- Synced with live Supabase as of 2026-04-06 (migration 021 applied).
 --
 -- NOTE: Primary key indexes and UNIQUE constraint indexes are created
 -- automatically by schema.sql and are NOT repeated here.

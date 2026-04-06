@@ -30,17 +30,12 @@ INSERT INTO public.specialization (name) VALUES
 ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================================
--- 3. DEFAULT LATE BRACKETS (global — session_id = NULL)
+-- 3. DEFAULT LATE BRACKETS
+--    Late brackets are stored as a JSONB column (scoring_config.late_brackets)
+--    with a built-in DEFAULT. No separate seed is needed — every new
+--    scoring_config row automatically receives the default bracket set.
+--    See scoring_config table definition in schema.sql.
 -- ============================================================================
-
-INSERT INTO public.late_brackets (session_id, min_minutes, max_minutes, bracket_name, bracket_name_ar, score_weight, display_color)
-VALUES
-  (NULL,  1,  5, 'Minor',       'بسيط',    0.90, '#22c55e'),
-  (NULL,  6, 15, 'Moderate',    'متوسط',   0.75, '#eab308'),
-  (NULL, 16, 30, 'Significant', 'ملحوظ',   0.50, '#f97316'),
-  (NULL, 31, 60, 'Severe',      'شديد',    0.25, '#ef4444'),
-  (NULL, 61, NULL, 'Very Late', 'متأخر جداً', 0.10, '#991b1b')
-ON CONFLICT (session_id, min_minutes) DO NOTHING;
 
 -- ============================================================================
 -- 4. DEFAULT FEEDBACK TEMPLATE
