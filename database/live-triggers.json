@@ -1,0 +1,170 @@
+﻿[
+    {
+        "trigger_name":  "update_admin_updated_at",
+        "event_manipulation":  "UPDATE",
+        "event_object_table":  "admin",
+        "action_timing":  "BEFORE",
+        "action_statement":  "EXECUTE FUNCTION update_updated_at_column()",
+        "action_orientation":  "ROW"
+    },
+    {
+        "trigger_name":  "trigger_update_announcement_timestamp",
+        "event_manipulation":  "UPDATE",
+        "event_object_table":  "announcement",
+        "action_timing":  "BEFORE",
+        "action_statement":  "EXECUTE FUNCTION update_announcement_timestamp()",
+        "action_orientation":  "ROW"
+    },
+    {
+        "trigger_name":  "update_announcement_comment_updated_at",
+        "event_manipulation":  "UPDATE",
+        "event_object_table":  "announcement_comment",
+        "action_timing":  "BEFORE",
+        "action_statement":  "EXECUTE FUNCTION update_updated_at_column()",
+        "action_orientation":  "ROW"
+    },
+    {
+        "trigger_name":  "update_attendance_updated_at",
+        "event_manipulation":  "UPDATE",
+        "event_object_table":  "attendance",
+        "action_timing":  "BEFORE",
+        "action_statement":  "EXECUTE FUNCTION update_updated_at_column()",
+        "action_orientation":  "ROW"
+    },
+    {
+        "trigger_name":  "trg_certificate_template_updated",
+        "event_manipulation":  "UPDATE",
+        "event_object_table":  "certificate_template",
+        "action_timing":  "BEFORE",
+        "action_statement":  "EXECUTE FUNCTION update_certificate_template_timestamp()",
+        "action_orientation":  "ROW"
+    },
+    {
+        "trigger_name":  "update_course_updated_at",
+        "event_manipulation":  "UPDATE",
+        "event_object_table":  "course",
+        "action_timing":  "BEFORE",
+        "action_statement":  "EXECUTE FUNCTION update_updated_at_column()",
+        "action_orientation":  "ROW"
+    },
+    {
+        "trigger_name":  "trg_book_ref_same_course",
+        "event_manipulation":  "INSERT",
+        "event_object_table":  "course_book_reference",
+        "action_timing":  "BEFORE",
+        "action_statement":  "EXECUTE FUNCTION check_book_ref_same_course()",
+        "action_orientation":  "ROW"
+    },
+    {
+        "trigger_name":  "trg_book_ref_same_course",
+        "event_manipulation":  "UPDATE",
+        "event_object_table":  "course_book_reference",
+        "action_timing":  "BEFORE",
+        "action_statement":  "EXECUTE FUNCTION check_book_ref_same_course()",
+        "action_orientation":  "ROW"
+    },
+    {
+        "trigger_name":  "aaa_enforce_can_host_on_status_change",
+        "event_manipulation":  "UPDATE",
+        "event_object_table":  "enrollment",
+        "action_timing":  "BEFORE",
+        "action_statement":  "EXECUTE FUNCTION fn_enforce_can_host_on_status_change()",
+        "action_orientation":  "ROW"
+    },
+    {
+        "trigger_name":  "aaa_enforce_can_host_on_status_change",
+        "event_manipulation":  "INSERT",
+        "event_object_table":  "enrollment",
+        "action_timing":  "BEFORE",
+        "action_statement":  "EXECUTE FUNCTION fn_enforce_can_host_on_status_change()",
+        "action_orientation":  "ROW"
+    },
+    {
+        "trigger_name":  "update_enrollment_updated_at",
+        "event_manipulation":  "UPDATE",
+        "event_object_table":  "enrollment",
+        "action_timing":  "BEFORE",
+        "action_statement":  "EXECUTE FUNCTION update_updated_at_column()",
+        "action_orientation":  "ROW"
+    },
+    {
+        "trigger_name":  "trg_validate_excuse_request_session_day",
+        "event_manipulation":  "UPDATE",
+        "event_object_table":  "excuse_request",
+        "action_timing":  "BEFORE",
+        "action_statement":  "EXECUTE FUNCTION validate_excuse_request_session_day()",
+        "action_orientation":  "ROW"
+    },
+    {
+        "trigger_name":  "trg_validate_excuse_request_session_day",
+        "event_manipulation":  "INSERT",
+        "event_object_table":  "excuse_request",
+        "action_timing":  "BEFORE",
+        "action_statement":  "EXECUTE FUNCTION validate_excuse_request_session_day()",
+        "action_orientation":  "ROW"
+    },
+    {
+        "trigger_name":  "trigger_excuse_request_updated_at",
+        "event_manipulation":  "UPDATE",
+        "event_object_table":  "excuse_request",
+        "action_timing":  "BEFORE",
+        "action_statement":  "EXECUTE FUNCTION update_excuse_request_updated_at()",
+        "action_orientation":  "ROW"
+    },
+    {
+        "trigger_name":  "trg_issued_certificate_updated",
+        "event_manipulation":  "UPDATE",
+        "event_object_table":  "issued_certificate",
+        "action_timing":  "BEFORE",
+        "action_statement":  "EXECUTE FUNCTION update_issued_certificate_timestamp()",
+        "action_orientation":  "ROW"
+    },
+    {
+        "trigger_name":  "scoring_config_updated",
+        "event_manipulation":  "UPDATE",
+        "event_object_table":  "scoring_config",
+        "action_timing":  "BEFORE",
+        "action_statement":  "EXECUTE FUNCTION update_scoring_config_timestamp()",
+        "action_orientation":  "ROW"
+    },
+    {
+        "trigger_name":  "update_session_updated_at",
+        "event_manipulation":  "UPDATE",
+        "event_object_table":  "session",
+        "action_timing":  "BEFORE",
+        "action_statement":  "EXECUTE FUNCTION update_updated_at_column()",
+        "action_orientation":  "ROW"
+    },
+    {
+        "trigger_name":  "update_session_date_host_updated_at",
+        "event_manipulation":  "UPDATE",
+        "event_object_table":  "session_date_host",
+        "action_timing":  "BEFORE",
+        "action_statement":  "EXECUTE FUNCTION update_updated_at_column()",
+        "action_orientation":  "ROW"
+    },
+    {
+        "trigger_name":  "update_session_recording_updated_at",
+        "event_manipulation":  "UPDATE",
+        "event_object_table":  "session_recording",
+        "action_timing":  "BEFORE",
+        "action_statement":  "EXECUTE FUNCTION update_updated_at_column()",
+        "action_orientation":  "ROW"
+    },
+    {
+        "trigger_name":  "update_student_updated_at",
+        "event_manipulation":  "UPDATE",
+        "event_object_table":  "student",
+        "action_timing":  "BEFORE",
+        "action_statement":  "EXECUTE FUNCTION update_updated_at_column()",
+        "action_orientation":  "ROW"
+    },
+    {
+        "trigger_name":  "update_teacher_updated_at",
+        "event_manipulation":  "UPDATE",
+        "event_object_table":  "teacher",
+        "action_timing":  "BEFORE",
+        "action_statement":  "EXECUTE FUNCTION update_updated_at_column()",
+        "action_orientation":  "ROW"
+    }
+]

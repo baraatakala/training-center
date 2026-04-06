@@ -1,0 +1,1372 @@
+﻿[
+    {
+        "schemaname":  "public",
+        "tablename":  "admin",
+        "policyname":  "Admin delete admin table",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "DELETE",
+        "qual":  "is_admin()",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "admin",
+        "policyname":  "Admin insert admin table",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "INSERT",
+        "qual":  null,
+        "with_check":  "is_admin()"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "admin",
+        "policyname":  "Admin read admin table",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "is_admin()",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "admin",
+        "policyname":  "Admin update admin table",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "UPDATE",
+        "qual":  "is_admin()",
+        "with_check":  "is_admin()"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "announcement",
+        "policyname":  "Admin has full access",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "is_admin()",
+        "with_check":  "is_admin()"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "announcement",
+        "policyname":  "Students can read relevant announcements",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "((NOT is_teacher()) AND (NOT is_admin()) AND ((course_id IS NULL) OR (EXISTS ( SELECT 1\n   FROM (enrollment e\n     JOIN session s ON ((e.session_id = s.session_id)))\n  WHERE ((s.course_id = announcement.course_id) AND (e.student_id = get_my_student_id()) AND ((e.status)::text = \u0027active\u0027::text))))))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "announcement",
+        "policyname":  "Teachers can manage their announcements",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "(is_teacher() AND (NOT is_admin()) AND (EXISTS ( SELECT 1\n   FROM teacher\n  WHERE ((teacher.teacher_id = announcement.created_by) AND (lower((teacher.email)::text) = lower((auth.jwt() -\u003e\u003e \u0027email\u0027::text)))))))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "announcement_comment",
+        "policyname":  "Admin has full access",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "is_admin()",
+        "with_check":  "is_admin()"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "announcement_comment",
+        "policyname":  "Enable delete for own comments",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "DELETE",
+        "qual":  "((((commenter_type)::text = \u0027teacher\u0027::text) AND (EXISTS ( SELECT 1\n   FROM teacher\n  WHERE ((teacher.teacher_id = announcement_comment.commenter_id) AND (lower((teacher.email)::text) = lower((auth.jwt() -\u003e\u003e \u0027email\u0027::text))))))) OR (((commenter_type)::text = \u0027student\u0027::text) AND (commenter_id = get_my_student_id())))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "announcement_comment",
+        "policyname":  "Enable insert for authenticated users",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "INSERT",
+        "qual":  null,
+        "with_check":  "((((commenter_type)::text = \u0027teacher\u0027::text) AND (EXISTS ( SELECT 1\n   FROM teacher\n  WHERE ((teacher.teacher_id = announcement_comment.commenter_id) AND (lower((teacher.email)::text) = lower((auth.jwt() -\u003e\u003e \u0027email\u0027::text))))))) OR (((commenter_type)::text = \u0027student\u0027::text) AND (commenter_id = get_my_student_id())))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "announcement_comment",
+        "policyname":  "Enable read for authenticated users",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "true",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "announcement_comment",
+        "policyname":  "Enable update for own comments",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "UPDATE",
+        "qual":  "((((commenter_type)::text = \u0027teacher\u0027::text) AND (EXISTS ( SELECT 1\n   FROM teacher\n  WHERE ((teacher.teacher_id = announcement_comment.commenter_id) AND (lower((teacher.email)::text) = lower((auth.jwt() -\u003e\u003e \u0027email\u0027::text))))))) OR (((commenter_type)::text = \u0027student\u0027::text) AND (commenter_id = get_my_student_id())))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "announcement_reaction",
+        "policyname":  "Admin has full access",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "is_admin()",
+        "with_check":  "is_admin()"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "announcement_reaction",
+        "policyname":  "Enable delete for own reactions",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "DELETE",
+        "qual":  "(student_id = get_my_student_id())",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "announcement_reaction",
+        "policyname":  "Enable insert for authenticated users",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "INSERT",
+        "qual":  null,
+        "with_check":  "(student_id = get_my_student_id())"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "announcement_reaction",
+        "policyname":  "Enable read for authenticated users",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "true",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "announcement_read",
+        "policyname":  "Admin has full access",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "is_admin()",
+        "with_check":  "is_admin()"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "announcement_read",
+        "policyname":  "Students can mark announcements as read",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "((NOT is_teacher()) AND (NOT is_admin()) AND (student_id = get_my_student_id()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "announcement_read",
+        "policyname":  "Teachers can view read status",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "attendance",
+        "policyname":  "Admin has full access",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "is_admin()",
+        "with_check":  "is_admin()"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "attendance",
+        "policyname":  "Students can insert own attendance",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "INSERT",
+        "qual":  null,
+        "with_check":  "((NOT is_teacher()) AND (NOT is_admin()) AND (student_id = get_my_student_id()))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "attendance",
+        "policyname":  "Students can read own attendance",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "((NOT is_teacher()) AND (NOT is_admin()) AND (student_id = get_my_student_id()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "attendance",
+        "policyname":  "Students can update own attendance",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "UPDATE",
+        "qual":  "((NOT is_teacher()) AND (NOT is_admin()) AND (student_id = get_my_student_id()))",
+        "with_check":  "((NOT is_teacher()) AND (NOT is_admin()) AND (student_id = get_my_student_id()))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "attendance",
+        "policyname":  "Teachers can insert",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "INSERT",
+        "qual":  null,
+        "with_check":  "(is_teacher() AND (NOT is_admin()))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "attendance",
+        "policyname":  "Teachers can read",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "attendance",
+        "policyname":  "Teachers can update",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "UPDATE",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  "(is_teacher() AND (NOT is_admin()))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "audit_log",
+        "policyname":  "Admin has full access",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "is_admin()",
+        "with_check":  "is_admin()"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "audit_log",
+        "policyname":  "Teachers can insert",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "INSERT",
+        "qual":  null,
+        "with_check":  "(is_teacher() AND (NOT is_admin()))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "audit_log",
+        "policyname":  "Teachers can read",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "certificate_template",
+        "policyname":  "Anyone can view active templates",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "(is_active = true)",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "certificate_template",
+        "policyname":  "Teachers can manage templates",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "(is_teacher() OR is_admin())",
+        "with_check":  "(is_teacher() OR is_admin())"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "course",
+        "policyname":  "Admin has full access",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "is_admin()",
+        "with_check":  "is_admin()"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "course",
+        "policyname":  "Students can read courses",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "((NOT is_teacher()) AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "course",
+        "policyname":  "Teachers can insert",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "INSERT",
+        "qual":  null,
+        "with_check":  "(is_teacher() AND (NOT is_admin()))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "course",
+        "policyname":  "Teachers can read",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "course",
+        "policyname":  "Teachers can update",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "UPDATE",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  "(is_teacher() AND (NOT is_admin()))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "course_book_reference",
+        "policyname":  "Admin has full access",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "is_admin()",
+        "with_check":  "is_admin()"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "course_book_reference",
+        "policyname":  "Students can read book references",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "((NOT is_teacher()) AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "course_book_reference",
+        "policyname":  "Teachers can delete book references",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "DELETE",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "course_book_reference",
+        "policyname":  "Teachers can insert",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "INSERT",
+        "qual":  null,
+        "with_check":  "(is_teacher() AND (NOT is_admin()))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "course_book_reference",
+        "policyname":  "Teachers can read",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "course_book_reference",
+        "policyname":  "Teachers can update book references",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "UPDATE",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  "(is_teacher() AND (NOT is_admin()))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "enrollment",
+        "policyname":  "Admin has full access",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "is_admin()",
+        "with_check":  "is_admin()"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "enrollment",
+        "policyname":  "Students can read own enrollments",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "((NOT is_teacher()) AND (NOT is_admin()) AND (student_id = get_my_student_id()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "enrollment",
+        "policyname":  "Teachers can insert",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "INSERT",
+        "qual":  null,
+        "with_check":  "(is_teacher() AND (NOT is_admin()))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "enrollment",
+        "policyname":  "Teachers can read",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "enrollment",
+        "policyname":  "Teachers can update enrollment",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "UPDATE",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  "(is_teacher() AND (NOT is_admin()))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "excuse_request",
+        "policyname":  "Admins have full access to excuse requests",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "is_admin()",
+        "with_check":  "is_admin()"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "excuse_request",
+        "policyname":  "Students can cancel own pending requests",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "UPDATE",
+        "qual":  "((NOT is_teacher()) AND (NOT is_admin()) AND (student_id = get_my_student_id()) AND (status = \u0027pending\u0027::text))",
+        "with_check":  "(status = \u0027cancelled\u0027::text)"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "excuse_request",
+        "policyname":  "Students can create own excuse requests",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "INSERT",
+        "qual":  null,
+        "with_check":  "((NOT is_teacher()) AND (NOT is_admin()) AND (student_id = get_my_student_id()) AND (status = \u0027pending\u0027::text))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "excuse_request",
+        "policyname":  "Students can view own excuse requests",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "((NOT is_teacher()) AND (NOT is_admin()) AND (student_id = get_my_student_id()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "excuse_request",
+        "policyname":  "Teachers can review excuse requests",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "UPDATE",
+        "qual":  "(is_teacher() AND (NOT is_admin()) AND (session_id IN ( SELECT s.session_id\n   FROM (session s\n     JOIN teacher t ON ((s.teacher_id = t.teacher_id)))\n  WHERE (lower((t.email)::text) = lower((auth.jwt() -\u003e\u003e \u0027email\u0027::text))))) AND (status = \u0027pending\u0027::text))",
+        "with_check":  "(status = ANY (ARRAY[\u0027approved\u0027::text, \u0027rejected\u0027::text]))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "excuse_request",
+        "policyname":  "Teachers can view excuse requests for their sessions",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "(is_teacher() AND (NOT is_admin()) AND (session_id IN ( SELECT s.session_id\n   FROM (session s\n     JOIN teacher t ON ((s.teacher_id = t.teacher_id)))\n  WHERE (lower((t.email)::text) = lower((auth.jwt() -\u003e\u003e \u0027email\u0027::text))))))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "feedback_question",
+        "policyname":  "Anyone can read feedback questions",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "true",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "feedback_question",
+        "policyname":  "Teachers and admins can manage feedback questions",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "(is_teacher() OR is_admin())",
+        "with_check":  "(is_teacher() OR is_admin())"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "feedback_question",
+        "policyname":  "Teachers can manage own session feedback questions",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "(is_admin() OR (EXISTS ( SELECT 1\n   FROM (session session_row\n     JOIN teacher teacher_row ON ((teacher_row.teacher_id = session_row.teacher_id)))\n  WHERE ((session_row.session_id = feedback_question.session_id) AND (lower((teacher_row.email)::text) = lower(auth.email()))))))",
+        "with_check":  "(is_admin() OR (EXISTS ( SELECT 1\n   FROM (session session_row\n     JOIN teacher teacher_row ON ((teacher_row.teacher_id = session_row.teacher_id)))\n  WHERE ((session_row.session_id = feedback_question.session_id) AND (lower((teacher_row.email)::text) = lower(auth.email()))))))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "feedback_template",
+        "policyname":  "Anyone can read feedback templates",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "true",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "feedback_template",
+        "policyname":  "Teachers and admins can manage feedback templates",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "(is_teacher() OR is_admin())",
+        "with_check":  "(is_teacher() OR is_admin())"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "issued_certificate",
+        "policyname":  "Students view own certificates",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "((NOT is_teacher()) AND (NOT is_admin()) AND (student_id = get_my_student_id()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "issued_certificate",
+        "policyname":  "Teachers manage certificates",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "(is_teacher() OR is_admin())",
+        "with_check":  "(is_teacher() OR is_admin())"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "issued_certificate",
+        "policyname":  "Teachers view all certificates",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "(is_teacher() OR is_admin())",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "message",
+        "policyname":  "Admin has full access",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "is_admin()",
+        "with_check":  "is_admin()"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "message",
+        "policyname":  "Recipients can update message read status",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "UPDATE",
+        "qual":  "((((recipient_type)::text = \u0027teacher\u0027::text) AND (EXISTS ( SELECT 1\n   FROM teacher\n  WHERE ((teacher.teacher_id = message.recipient_id) AND (lower((teacher.email)::text) = lower((auth.jwt() -\u003e\u003e \u0027email\u0027::text))))))) OR (((recipient_type)::text = \u0027student\u0027::text) AND (EXISTS ( SELECT 1\n   FROM student\n  WHERE ((student.student_id = message.recipient_id) AND (lower((student.email)::text) = lower((auth.jwt() -\u003e\u003e \u0027email\u0027::text))))))))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "message",
+        "policyname":  "Students can send messages",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "INSERT",
+        "qual":  null,
+        "with_check":  "(((sender_type)::text = \u0027student\u0027::text) AND (EXISTS ( SELECT 1\n   FROM student\n  WHERE ((student.student_id = message.sender_id) AND (lower((student.email)::text) = lower((auth.jwt() -\u003e\u003e \u0027email\u0027::text)))))))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "message",
+        "policyname":  "Teachers can send messages",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "INSERT",
+        "qual":  null,
+        "with_check":  "(((sender_type)::text = \u0027teacher\u0027::text) AND (EXISTS ( SELECT 1\n   FROM teacher\n  WHERE ((teacher.teacher_id = message.sender_id) AND (lower((teacher.email)::text) = lower((auth.jwt() -\u003e\u003e \u0027email\u0027::text)))))))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "message",
+        "policyname":  "Users can delete their messages",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "DELETE",
+        "qual":  "((((sender_type)::text = \u0027teacher\u0027::text) AND (EXISTS ( SELECT 1\n   FROM teacher\n  WHERE ((teacher.teacher_id = message.sender_id) AND (lower((teacher.email)::text) = lower((auth.jwt() -\u003e\u003e \u0027email\u0027::text))))))) OR (((sender_type)::text = \u0027student\u0027::text) AND (EXISTS ( SELECT 1\n   FROM student\n  WHERE ((student.student_id = message.sender_id) AND (lower((student.email)::text) = lower((auth.jwt() -\u003e\u003e \u0027email\u0027::text))))))) OR (((recipient_type)::text = \u0027teacher\u0027::text) AND (EXISTS ( SELECT 1\n   FROM teacher\n  WHERE ((teacher.teacher_id = message.recipient_id) AND (lower((teacher.email)::text) = lower((auth.jwt() -\u003e\u003e \u0027email\u0027::text))))))) OR (((recipient_type)::text = \u0027student\u0027::text) AND (EXISTS ( SELECT 1\n   FROM student\n  WHERE ((student.student_id = message.recipient_id) AND (lower((student.email)::text) = lower((auth.jwt() -\u003e\u003e \u0027email\u0027::text))))))))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "message",
+        "policyname":  "Users can view their messages",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "((((sender_type)::text = \u0027teacher\u0027::text) AND (EXISTS ( SELECT 1\n   FROM teacher\n  WHERE ((teacher.teacher_id = message.sender_id) AND (lower((teacher.email)::text) = lower((auth.jwt() -\u003e\u003e \u0027email\u0027::text))))))) OR (((sender_type)::text = \u0027student\u0027::text) AND (EXISTS ( SELECT 1\n   FROM student\n  WHERE ((student.student_id = message.sender_id) AND (lower((student.email)::text) = lower((auth.jwt() -\u003e\u003e \u0027email\u0027::text))))))) OR (((recipient_type)::text = \u0027teacher\u0027::text) AND (EXISTS ( SELECT 1\n   FROM teacher\n  WHERE ((teacher.teacher_id = message.recipient_id) AND (lower((teacher.email)::text) = lower((auth.jwt() -\u003e\u003e \u0027email\u0027::text))))))) OR (((recipient_type)::text = \u0027student\u0027::text) AND (EXISTS ( SELECT 1\n   FROM student\n  WHERE ((student.student_id = message.recipient_id) AND (lower((student.email)::text) = lower((auth.jwt() -\u003e\u003e \u0027email\u0027::text))))))))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "message_reaction",
+        "policyname":  "Admin has full access",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "is_admin()",
+        "with_check":  "is_admin()"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "message_reaction",
+        "policyname":  "Enable delete for own reactions",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "DELETE",
+        "qual":  "((((reactor_type)::text = \u0027teacher\u0027::text) AND (EXISTS ( SELECT 1\n   FROM teacher\n  WHERE ((teacher.teacher_id = message_reaction.reactor_id) AND (lower((teacher.email)::text) = lower((auth.jwt() -\u003e\u003e \u0027email\u0027::text))))))) OR (((reactor_type)::text = \u0027student\u0027::text) AND (reactor_id = get_my_student_id())) OR (((reactor_type)::text = \u0027admin\u0027::text) AND (EXISTS ( SELECT 1\n   FROM admin\n  WHERE (lower(admin.email) = lower((auth.jwt() -\u003e\u003e \u0027email\u0027::text)))))))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "message_reaction",
+        "policyname":  "Enable insert for authenticated users",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "INSERT",
+        "qual":  null,
+        "with_check":  "((((reactor_type)::text = \u0027teacher\u0027::text) AND (EXISTS ( SELECT 1\n   FROM teacher\n  WHERE ((teacher.teacher_id = message_reaction.reactor_id) AND (lower((teacher.email)::text) = lower((auth.jwt() -\u003e\u003e \u0027email\u0027::text))))))) OR (((reactor_type)::text = \u0027student\u0027::text) AND (reactor_id = get_my_student_id())) OR (((reactor_type)::text = \u0027admin\u0027::text) AND (EXISTS ( SELECT 1\n   FROM admin\n  WHERE (lower(admin.email) = lower((auth.jwt() -\u003e\u003e \u0027email\u0027::text)))))))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "message_reaction",
+        "policyname":  "Enable read for authenticated users",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "true",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "message_starred",
+        "policyname":  "Admin has full access",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "is_admin()",
+        "with_check":  "is_admin()"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "message_starred",
+        "policyname":  "Enable delete for own stars",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "DELETE",
+        "qual":  "((((user_type)::text = \u0027teacher\u0027::text) AND (EXISTS ( SELECT 1\n   FROM teacher\n  WHERE ((teacher.teacher_id = message_starred.user_id) AND (lower((teacher.email)::text) = lower((auth.jwt() -\u003e\u003e \u0027email\u0027::text))))))) OR (((user_type)::text = \u0027student\u0027::text) AND (user_id = get_my_student_id())) OR (((user_type)::text = \u0027admin\u0027::text) AND (EXISTS ( SELECT 1\n   FROM admin\n  WHERE (lower(admin.email) = lower((auth.jwt() -\u003e\u003e \u0027email\u0027::text)))))))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "message_starred",
+        "policyname":  "Enable insert for authenticated users",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "INSERT",
+        "qual":  null,
+        "with_check":  "((((user_type)::text = \u0027teacher\u0027::text) AND (EXISTS ( SELECT 1\n   FROM teacher\n  WHERE ((teacher.teacher_id = message_starred.user_id) AND (lower((teacher.email)::text) = lower((auth.jwt() -\u003e\u003e \u0027email\u0027::text))))))) OR (((user_type)::text = \u0027student\u0027::text) AND (user_id = get_my_student_id())) OR (((user_type)::text = \u0027admin\u0027::text) AND (EXISTS ( SELECT 1\n   FROM admin\n  WHERE (lower(admin.email) = lower((auth.jwt() -\u003e\u003e \u0027email\u0027::text)))))))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "message_starred",
+        "policyname":  "Enable read for authenticated users",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "true",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "photo_checkin_sessions",
+        "policyname":  "Admin has full access",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "is_admin()",
+        "with_check":  "is_admin()"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "photo_checkin_sessions",
+        "policyname":  "Students can read photo sessions",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "((NOT is_teacher()) AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "photo_checkin_sessions",
+        "policyname":  "Teachers can insert",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "INSERT",
+        "qual":  null,
+        "with_check":  "(is_teacher() AND (NOT is_admin()))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "photo_checkin_sessions",
+        "policyname":  "Teachers can read",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "qr_sessions",
+        "policyname":  "Admin has full access",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "is_admin()",
+        "with_check":  "is_admin()"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "qr_sessions",
+        "policyname":  "Students can read QR sessions",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "((NOT is_teacher()) AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "qr_sessions",
+        "policyname":  "Teachers can insert",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "INSERT",
+        "qual":  null,
+        "with_check":  "(is_teacher() AND (NOT is_admin()))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "qr_sessions",
+        "policyname":  "Teachers can read",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "scoring_config",
+        "policyname":  "Authenticated read scoring_config",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "true",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "scoring_config",
+        "policyname":  "Teacher and admin write scoring_config",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "(is_admin() OR is_teacher())",
+        "with_check":  "(is_admin() OR is_teacher())"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session",
+        "policyname":  "Admin has full access",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "is_admin()",
+        "with_check":  "is_admin()"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session",
+        "policyname":  "Students can read sessions",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "((NOT is_teacher()) AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session",
+        "policyname":  "Teachers can delete",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "DELETE",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session",
+        "policyname":  "Teachers can insert",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "INSERT",
+        "qual":  null,
+        "with_check":  "(is_teacher() AND (NOT is_admin()))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session",
+        "policyname":  "Teachers can read",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session",
+        "policyname":  "Teachers can update",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "UPDATE",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  "(is_teacher() AND (NOT is_admin()))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_book_coverage",
+        "policyname":  "Admin has full access",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "is_admin()",
+        "with_check":  "is_admin()"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_book_coverage",
+        "policyname":  "Students can read book coverage",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "((NOT is_teacher()) AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_book_coverage",
+        "policyname":  "Teachers can delete book coverage",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "DELETE",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_book_coverage",
+        "policyname":  "Teachers can insert",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "INSERT",
+        "qual":  null,
+        "with_check":  "(is_teacher() AND (NOT is_admin()))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_book_coverage",
+        "policyname":  "Teachers can read",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_book_coverage",
+        "policyname":  "Teachers can update book coverage",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "UPDATE",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  "(is_teacher() AND (NOT is_admin()))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_date_host",
+        "policyname":  "Admin has full access",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "is_admin()",
+        "with_check":  "is_admin()"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_date_host",
+        "policyname":  "Students can read session hosts",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "((NOT is_teacher()) AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_date_host",
+        "policyname":  "Teachers can insert",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "INSERT",
+        "qual":  null,
+        "with_check":  "(is_teacher() AND (NOT is_admin()))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_date_host",
+        "policyname":  "Teachers can read",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_date_host",
+        "policyname":  "Teachers can update",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "UPDATE",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  "(is_teacher() AND (NOT is_admin()))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_day_change",
+        "policyname":  "Admin has full access",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "is_admin()",
+        "with_check":  "is_admin()"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_day_change",
+        "policyname":  "Students can read day changes",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "((NOT is_teacher()) AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_day_change",
+        "policyname":  "Teachers can delete day changes",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "DELETE",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_day_change",
+        "policyname":  "Teachers can insert",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "INSERT",
+        "qual":  null,
+        "with_check":  "(is_teacher() AND (NOT is_admin()))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_day_change",
+        "policyname":  "Teachers can read",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_feedback",
+        "policyname":  "Students can read own feedback",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "(is_teacher() OR is_admin() OR (student_id = get_my_student_id()) OR (student_id IS NULL))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_feedback",
+        "policyname":  "Students can submit feedback",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "INSERT",
+        "qual":  null,
+        "with_check":  "((NOT is_teacher()) AND (NOT is_admin()) AND ((student_id = get_my_student_id()) OR (student_id IS NULL)))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_feedback",
+        "policyname":  "Teachers can delete session feedback",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "DELETE",
+        "qual":  "(is_teacher() AND (NOT is_admin()) AND (session_id IN ( SELECT s.session_id\n   FROM (session s\n     JOIN teacher t ON ((s.teacher_id = t.teacher_id)))\n  WHERE (lower((t.email)::text) = lower((auth.jwt() -\u003e\u003e \u0027email\u0027::text))))))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_feedback",
+        "policyname":  "Teachers can read own session feedback analytics",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "(is_admin() OR (EXISTS ( SELECT 1\n   FROM (session session_row\n     JOIN teacher teacher_row ON ((teacher_row.teacher_id = session_row.teacher_id)))\n  WHERE ((session_row.session_id = session_feedback.session_id) AND (lower((teacher_row.email)::text) = lower(auth.email()))))))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_recording",
+        "policyname":  "Admins have full access to session recordings",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "is_admin()",
+        "with_check":  "is_admin()"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_recording",
+        "policyname":  "Students can view session recordings",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "((deleted_at IS NULL) AND (NOT is_teacher()) AND (NOT is_admin()) AND ((recording_visibility = ANY (ARRAY[\u0027organization\u0027::text, \u0027public_link\u0027::text])) OR ((recording_visibility = ANY (ARRAY[\u0027enrolled_students\u0027::text, \u0027course_staff\u0027::text])) AND (EXISTS ( SELECT 1\n   FROM enrollment e\n  WHERE ((e.session_id = session_recording.session_id) AND (e.student_id = get_my_student_id()) AND ((e.status)::text = \u0027active\u0027::text)))))))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_recording",
+        "policyname":  "Teachers have full access to session recordings",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "is_teacher()",
+        "with_check":  "is_teacher()"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_time_change",
+        "policyname":  "Admin has full access",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "is_admin()",
+        "with_check":  "is_admin()"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_time_change",
+        "policyname":  "Students can read time changes",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "((NOT is_teacher()) AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_time_change",
+        "policyname":  "Teachers can delete time changes",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "DELETE",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_time_change",
+        "policyname":  "Teachers can insert",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "INSERT",
+        "qual":  null,
+        "with_check":  "(is_teacher() AND (NOT is_admin()))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "session_time_change",
+        "policyname":  "Teachers can read",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "specialization",
+        "policyname":  "Anyone can read specializations",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "true",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "specialization",
+        "policyname":  "Teachers and admins can manage specializations",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "(is_teacher() OR is_admin())",
+        "with_check":  "(is_teacher() OR is_admin())"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "student",
+        "policyname":  "Admin has full access",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "is_admin()",
+        "with_check":  "is_admin()"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "student",
+        "policyname":  "Students can read students",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "((NOT is_teacher()) AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "student",
+        "policyname":  "Teachers can insert",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "INSERT",
+        "qual":  null,
+        "with_check":  "(is_teacher() AND (NOT is_admin()))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "student",
+        "policyname":  "Teachers can read",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "student",
+        "policyname":  "Teachers can update",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "UPDATE",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  "(is_teacher() AND (NOT is_admin()))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "teacher",
+        "policyname":  "Admin has full access",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "is_admin()",
+        "with_check":  "is_admin()"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "teacher",
+        "policyname":  "Students can read teachers",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "((NOT is_teacher()) AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "teacher",
+        "policyname":  "Teachers can insert",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "INSERT",
+        "qual":  null,
+        "with_check":  "(is_teacher() AND (NOT is_admin()))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "teacher",
+        "policyname":  "Teachers can read",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "teacher",
+        "policyname":  "Teachers can update",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "UPDATE",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  "(is_teacher() AND (NOT is_admin()))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "teacher_host_schedule",
+        "policyname":  "Admin has full access",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "ALL",
+        "qual":  "is_admin()",
+        "with_check":  "is_admin()"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "teacher_host_schedule",
+        "policyname":  "Students can read host schedule",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "((NOT is_teacher()) AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "teacher_host_schedule",
+        "policyname":  "Teachers can delete host schedule",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "DELETE",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "teacher_host_schedule",
+        "policyname":  "Teachers can insert",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "INSERT",
+        "qual":  null,
+        "with_check":  "(is_teacher() AND (NOT is_admin()))"
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "teacher_host_schedule",
+        "policyname":  "Teachers can read",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "SELECT",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  null
+    },
+    {
+        "schemaname":  "public",
+        "tablename":  "teacher_host_schedule",
+        "policyname":  "Teachers can update host schedule",
+        "permissive":  "PERMISSIVE",
+        "roles":  "{authenticated}",
+        "cmd":  "UPDATE",
+        "qual":  "(is_teacher() AND (NOT is_admin()))",
+        "with_check":  "(is_teacher() AND (NOT is_admin()))"
+    }
+]
