@@ -3,7 +3,7 @@
 -- ============================================================================
 -- Run order: 2 of 6 (after schema.sql)
 -- All database functions, trigger functions, and trigger bindings.
--- Synced with live Supabase as of 2026-04-03.
+-- Synced with live Supabase as of 2026-04-06 (migration 020 applied).
 -- ============================================================================
 
 -- ============================================================================
@@ -45,53 +45,9 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- 2. TIMESTAMP TRIGGER FUNCTIONS
 -- ============================================================================
 
--- Generic updated_at trigger (used by most tables)
+-- Generic updated_at trigger (shared by ALL tables — migration 020 consolidated
+-- 5 redundant per-table functions into this single one).
 CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = now();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Certificate template timestamp
-CREATE OR REPLACE FUNCTION update_certificate_template_timestamp()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = now();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Issued certificate timestamp
-CREATE OR REPLACE FUNCTION update_issued_certificate_timestamp()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = now();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Scoring config timestamp
-CREATE OR REPLACE FUNCTION update_scoring_config_timestamp()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = now();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Excuse request timestamp
-CREATE OR REPLACE FUNCTION update_excuse_request_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = now();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Announcement timestamp
-CREATE OR REPLACE FUNCTION update_announcement_timestamp()
 RETURNS TRIGGER AS $$
 BEGIN
   NEW.updated_at = now();
@@ -586,26 +542,30 @@ DROP TRIGGER IF EXISTS update_session_recording_updated_at ON session_recording;
 CREATE TRIGGER update_session_recording_updated_at
   BEFORE UPDATE ON session_recording FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Specialized timestamp triggers
-DROP TRIGGER IF EXISTS trg_certificate_template_updated ON certificate_template;
-CREATE TRIGGER trg_certificate_template_updated
-  BEFORE UPDATE ON certificate_template FOR EACH ROW EXECUTE FUNCTION update_certificate_template_timestamp();
+-- All timestamp triggers now use the shared update_updated_at_column() (migration 020)
+DROP TRIGGER IF EXISTS update_certificate_template_updated_at ON certificate_template;
+CREATE TRIGGER update_certificate_template_updated_at
+  BEFORE UPDATE ON certificate_template FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-DROP TRIGGER IF EXISTS trg_issued_certificate_updated ON issued_certificate;
-CREATE TRIGGER trg_issued_certificate_updated
-  BEFORE UPDATE ON issued_certificate FOR EACH ROW EXECUTE FUNCTION update_issued_certificate_timestamp();
+DROP TRIGGER IF EXISTS update_issued_certificate_updated_at ON issued_certificate;
+CREATE TRIGGER update_issued_certificate_updated_at
+  BEFORE UPDATE ON issued_certificate FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-DROP TRIGGER IF EXISTS scoring_config_updated ON scoring_config;
-CREATE TRIGGER scoring_config_updated
-  BEFORE UPDATE ON scoring_config FOR EACH ROW EXECUTE FUNCTION update_scoring_config_timestamp();
+DROP TRIGGER IF EXISTS update_scoring_config_updated_at ON scoring_config;
+CREATE TRIGGER update_scoring_config_updated_at
+  BEFORE UPDATE ON scoring_config FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-DROP TRIGGER IF EXISTS trigger_excuse_request_updated_at ON excuse_request;
-CREATE TRIGGER trigger_excuse_request_updated_at
-  BEFORE UPDATE ON excuse_request FOR EACH ROW EXECUTE FUNCTION update_excuse_request_updated_at();
+DROP TRIGGER IF EXISTS update_excuse_request_updated_at ON excuse_request;
+CREATE TRIGGER update_excuse_request_updated_at
+  BEFORE UPDATE ON excuse_request FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-DROP TRIGGER IF EXISTS trigger_update_announcement_timestamp ON announcement;
-CREATE TRIGGER trigger_update_announcement_timestamp
-  BEFORE UPDATE ON announcement FOR EACH ROW EXECUTE FUNCTION update_announcement_timestamp();
+DROP TRIGGER IF EXISTS set_announcement_updated_at ON announcement;
+CREATE TRIGGER set_announcement_updated_at
+  BEFORE UPDATE ON announcement FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS set_photo_checkin_sessions_updated_at ON photo_checkin_sessions;
+CREATE TRIGGER set_photo_checkin_sessions_updated_at
+  BEFORE UPDATE ON photo_checkin_sessions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Business logic triggers
 DROP TRIGGER IF EXISTS trg_book_ref_same_course ON course_book_reference;

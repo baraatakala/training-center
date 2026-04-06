@@ -146,6 +146,26 @@ class ExcuseRequestService {
   }
 
   /**
+   * Get all attendance dates for a student in a session.
+   * Returns a Set of YYYY-MM-DD strings where attendance has been recorded.
+   * Used to filter the excuse date picker — only show dates without attendance.
+   */
+  async getAttendedDates(studentId: string, sessionId: string): Promise<{ dates: Set<string>; error: Error | null }> {
+    const { data, error } = await supabase
+      .from('attendance')
+      .select('attendance_date')
+      .eq('student_id', studentId)
+      .eq('session_id', sessionId);
+
+    if (error) return { dates: new Set(), error: error as Error };
+
+    return {
+      dates: new Set((data || []).map(r => r.attendance_date)),
+      error: null,
+    };
+  }
+
+  /**
    * Get all excuse requests (with student and session info)
    * Teachers see their session requests, admins see all
    */

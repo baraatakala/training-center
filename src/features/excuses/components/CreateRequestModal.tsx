@@ -43,6 +43,9 @@ export function CreateRequestModal({
   const [sessionDates, setSessionDates] = useState<Set<string>>(new Set());
   const [loadingDates, setLoadingDates] = useState(false);
 
+  // Dates where attendance was already recorded — shown but not selectable
+  const [attendedDates, setAttendedDates] = useState<Set<string>>(new Set());
+
   // Attendance status check for selected session + date
   const [attendanceStatus, setAttendanceStatus] = useState<{ status: string; excuse_reason: string | null } | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
@@ -70,9 +73,11 @@ export function CreateRequestModal({
   }, [studentId, selectedSession, attendanceDate]);
 
   // Fetch actual session dates when session changes — accounts for session_day_change
+  // Also fetches attended dates to filter out dates where attendance was already taken
   useEffect(() => {
     if (!selectedSession) {
       setSessionDates(new Set());
+      setAttendedDates(new Set());
       setAttendanceDate('');
       return;
     }
@@ -80,28 +85,45 @@ export function CreateRequestModal({
     const fetchDates = async () => {
       setLoadingDates(true);
       try {
-        const { dates, error } = await excuseRequestService.getSessionDates(selectedSession);
+        // Fetch session schedule dates and attended dates in parallel
+        const [datesResult, attendedResult] = await Promise.all([
+          excuseRequestService.getSessionDates(selectedSession),
+          studentId
+            ? excuseRequestService.getAttendedDates(studentId, selectedSession)
+            : Promise.resolve({ dates: new Set<string>(), error: null }),
+        ]);
         if (cancelled) return;
-        if (error) {
-          console.error('Failed to fetch session dates:', error);
+
+        if (datesResult.error) {
+          console.error('Failed to fetch session dates:', datesResult.error);
           setSessionDates(new Set());
+          setAttendedDates(new Set());
           return;
         }
-        setSessionDates(dates);
 
-        // Auto-fill: pick the nearest date (today or future) from the actual set
+        const attended = attendedResult.dates;
+        setAttendedDates(attended);
+
+        // Filter out dates where attendance was already recorded
+        const availableDates = new Set(
+          [...datesResult.dates].filter(d => !attended.has(d))
+        );
+        setSessionDates(availableDates);
+
+        // Auto-fill: pick the nearest available date (today or future)
         const today = new Date();
         const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-        const sorted = [...dates].sort();
+        const sorted = [...availableDates].sort();
         const nearest = sorted.find(d => d >= todayStr) || sorted[sorted.length - 1];
         if (nearest) setAttendanceDate(nearest);
+        else setAttendanceDate('');
       } finally {
         if (!cancelled) setLoadingDates(false);
       }
     };
     fetchDates();
     return () => { cancelled = true; };
-  }, [selectedSession]);
+  }, [selectedSession, studentId]);
 
   const isScheduledSessionDate = useCallback((dateStr: string) => {
     return sessionDates.has(dateStr);
@@ -259,13 +281,15 @@ export function CreateRequestModal({
                     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
                     const dayLabels = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
-                    const cells: Array<{ day: number; dateStr: string; isSessionDay: boolean; isToday: boolean; isSelected: boolean; isPast: boolean }> = [];
+                    const cells: Array<{ day: number; dateStr: string; isSessionDay: boolean; isAttended: boolean; isToday: boolean; isSelected: boolean; isPast: boolean }> = [];
                     for (let d = 1; d <= daysInMonth; d++) {
                       const ds = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                      const isAttended = attendedDates.has(ds);
                       cells.push({
                         day: d,
                         dateStr: ds,
                         isSessionDay: sessionDates.has(ds),
+                        isAttended,
                         isToday: ds === todayStr,
                         isSelected: ds === attendanceDate,
                         isPast: new Date(year, month, d) < new Date(today.getFullYear(), today.getMonth(), today.getDate()),
@@ -275,7 +299,7 @@ export function CreateRequestModal({
                     // Determine which weekday columns have at least one session date in this month
                     const activeWeekdayCols = new Set<number>();
                     for (const c of cells) {
-                      if (c.isSessionDay) {
+                      if (c.isSessionDay || c.isAttended) {
                         activeWeekdayCols.add(new Date(c.dateStr + 'T00:00:00').getDay());
                       }
                     }
@@ -325,24 +349,30 @@ export function CreateRequestModal({
                             <div key={`empty-${i}`} className="h-9" />
                           ))}
                           {/* Day cells */}
-                          {cells.map(({ day, dateStr, isSessionDay, isToday, isSelected }) => (
+                          {cells.map(({ day, dateStr, isSessionDay, isAttended, isToday, isSelected }) => (
                             <button
                               key={day}
                               type="button"
-                              onClick={() => isSessionDay && setAttendanceDate(dateStr)}
-                              disabled={!isSessionDay}
+                              onClick={() => isSessionDay && !isAttended && setAttendanceDate(dateStr)}
+                              disabled={!isSessionDay || isAttended}
+                              title={isAttended ? 'Attendance already recorded' : isSessionDay ? 'Available for excuse' : undefined}
                               className={`h-9 w-full rounded-lg text-sm font-medium relative transition-all ${
                                 isSelected
                                   ? 'bg-blue-600 text-white shadow-md scale-105 ring-2 ring-blue-300 dark:ring-blue-500'
-                                  : isToday
-                                    ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-bold ring-1 ring-indigo-300 dark:ring-indigo-600'
-                                    : isSessionDay
-                                      ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800/40 font-semibold'
-                                      : 'text-gray-400 dark:text-gray-600 bg-gray-50 dark:bg-gray-800 cursor-not-allowed opacity-60'
+                                  : isAttended
+                                    ? 'bg-green-50 dark:bg-green-900/20 text-green-400 dark:text-green-600 cursor-not-allowed line-through'
+                                    : isToday
+                                      ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-bold ring-1 ring-indigo-300 dark:ring-indigo-600'
+                                      : isSessionDay
+                                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800/40 font-semibold'
+                                        : 'text-gray-400 dark:text-gray-600 bg-gray-50 dark:bg-gray-800 cursor-not-allowed opacity-60'
                               }`}
                             >
                               {day}
-                              {isSessionDay && !isSelected && (
+                              {isAttended && (
+                                <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[8px] text-green-500">✓</span>
+                              )}
+                              {isSessionDay && !isSelected && !isAttended && (
                                 <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400" />
                               )}
                               {isToday && !isSelected && (
@@ -353,10 +383,14 @@ export function CreateRequestModal({
                         </div>
 
                         {/* Legend */}
-                        <div className="flex items-center justify-center gap-4 px-3 py-2.5 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                        <div className="flex items-center justify-center gap-4 px-3 py-2.5 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex-wrap">
                           <div className="flex items-center gap-1.5">
                             <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-                            <span className="text-[11px] text-gray-600 dark:text-gray-400">Session Day</span>
+                            <span className="text-[11px] text-gray-600 dark:text-gray-400">Available</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full bg-green-400 flex items-center justify-center text-[6px] text-white">✓</span>
+                            <span className="text-[11px] text-gray-600 dark:text-gray-400">Attended</span>
                           </div>
                           <div className="flex items-center gap-1.5">
                             <span className="w-2.5 h-2.5 rounded-full bg-indigo-400 ring-1 ring-indigo-300" />
@@ -370,7 +404,7 @@ export function CreateRequestModal({
                       </div>
                     );
                   })()}
-                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Only actual scheduled session dates (accounting for schedule changes) can be selected.</p>
+                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Only dates without recorded attendance are selectable. Dates marked ✓ already have attendance.</p>
                 </div>
 
                 {/* Attendance Status Indicator */}

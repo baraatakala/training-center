@@ -3,7 +3,7 @@
 -- ============================================================================
 -- Run order: 1 of 6
 -- This file creates all tables in dependency order.
--- Synced with live Supabase as of 2026-04-03.
+-- Synced with live Supabase as of 2026-04-06 (migration 020 applied).
 -- ============================================================================
 
 -- Required extensions
@@ -26,17 +26,17 @@ CREATE TABLE IF NOT EXISTS public.admin (
 CREATE TABLE IF NOT EXISTS public.specialization (
   id UUID NOT NULL DEFAULT gen_random_uuid(),
   name TEXT NOT NULL UNIQUE,
-  created_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT specialization_pkey PRIMARY KEY (id)
 );
 
 CREATE TABLE IF NOT EXISTS public.teacher (
-  teacher_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  teacher_id UUID NOT NULL DEFAULT gen_random_uuid(),
   name VARCHAR NOT NULL,
   phone VARCHAR,
   email VARCHAR NOT NULL UNIQUE,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   address TEXT,
   address_latitude NUMERIC CHECK (address_latitude IS NULL OR (address_latitude >= -90 AND address_latitude <= 90)),
   address_longitude NUMERIC CHECK (address_longitude IS NULL OR (address_longitude >= -180 AND address_longitude <= 180)),
@@ -45,15 +45,15 @@ CREATE TABLE IF NOT EXISTS public.teacher (
 );
 
 CREATE TABLE IF NOT EXISTS public.student (
-  student_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  student_id UUID NOT NULL DEFAULT gen_random_uuid(),
   name VARCHAR NOT NULL,
   phone VARCHAR,
   email VARCHAR NOT NULL UNIQUE,
   address TEXT,
   nationality VARCHAR,
   age INTEGER CHECK (age > 0 AND age < 150),
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   location TEXT,
   photo_url TEXT,
   address_latitude NUMERIC CHECK (address_latitude IS NULL OR (address_latitude >= -90 AND address_latitude <= 90)),
@@ -67,12 +67,12 @@ CREATE TABLE IF NOT EXISTS public.student (
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS public.course (
-  course_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  course_id UUID NOT NULL DEFAULT gen_random_uuid(),
   teacher_id UUID,
   course_name VARCHAR NOT NULL,
   category VARCHAR,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   description TEXT CHECK (description IS NULL OR char_length(description) <= 6000),
   description_format TEXT DEFAULT 'markdown' CHECK (description_format = ANY (ARRAY['markdown', 'plain_text'])),
   description_updated_at TIMESTAMPTZ,
@@ -81,15 +81,15 @@ CREATE TABLE IF NOT EXISTS public.course (
 );
 
 CREATE TABLE IF NOT EXISTS public.session (
-  session_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  session_id UUID NOT NULL DEFAULT gen_random_uuid(),
   course_id UUID NOT NULL,
   teacher_id UUID NOT NULL,
   start_date DATE NOT NULL,
   end_date DATE NOT NULL,
   day TEXT,    -- TEXT (unbounded) — supports multi-day strings e.g. "Monday, Friday, Tuesday"
   time VARCHAR,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   location TEXT,
   grace_period_minutes INTEGER DEFAULT 15 CHECK (grace_period_minutes >= 0 AND grace_period_minutes <= 60),
   proximity_radius INTEGER DEFAULT 50,
@@ -108,13 +108,13 @@ CREATE TABLE IF NOT EXISTS public.session (
 );
 
 CREATE TABLE IF NOT EXISTS public.enrollment (
-  enrollment_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  enrollment_id UUID NOT NULL DEFAULT gen_random_uuid(),
   student_id UUID NOT NULL,
   session_id UUID NOT NULL,
   enrollment_date DATE NOT NULL DEFAULT CURRENT_DATE,
   status VARCHAR DEFAULT 'active' CHECK (status::TEXT = ANY (ARRAY['active', 'completed', 'dropped', 'pending'])),
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   can_host BOOLEAN NOT NULL DEFAULT false,
   host_date DATE,
   CONSTRAINT enrollment_pkey PRIMARY KEY (enrollment_id),
@@ -128,20 +128,20 @@ CREATE TABLE IF NOT EXISTS public.enrollment (
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS public.attendance (
-  attendance_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  attendance_id UUID NOT NULL DEFAULT gen_random_uuid(),
   enrollment_id UUID NOT NULL,
   student_id UUID NOT NULL,
   status VARCHAR DEFAULT 'absent' CHECK (status::TEXT = ANY (ARRAY['on time', 'absent', 'late', 'excused', 'not enrolled'])),
   check_in_time TIMESTAMPTZ,
   notes TEXT,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   gps_latitude NUMERIC,
   gps_longitude NUMERIC,
   gps_accuracy NUMERIC,
   gps_timestamp TIMESTAMPTZ,
   excuse_reason VARCHAR,
-  session_id UUID,
+  session_id UUID NOT NULL,
   attendance_date DATE NOT NULL DEFAULT CURRENT_DATE,
   marked_by TEXT,
   marked_at TIMESTAMPTZ,
@@ -159,8 +159,8 @@ CREATE TABLE IF NOT EXISTS public.attendance (
 );
 
 CREATE TABLE IF NOT EXISTS public.qr_sessions (
-  qr_session_id UUID NOT NULL DEFAULT uuid_generate_v4(),
-  token UUID NOT NULL DEFAULT uuid_generate_v4() UNIQUE,
+  qr_session_id UUID NOT NULL DEFAULT gen_random_uuid(),
+  token UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
   session_id UUID NOT NULL,
   attendance_date DATE NOT NULL CHECK (attendance_date IS NOT NULL),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -186,8 +186,8 @@ CREATE TABLE IF NOT EXISTS public.photo_checkin_sessions (
   token TEXT NOT NULL UNIQUE,
   expires_at TIMESTAMPTZ NOT NULL,
   is_valid BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT photo_checkin_sessions_pkey PRIMARY KEY (id),
   CONSTRAINT photo_checkin_sessions_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
 );
@@ -197,14 +197,14 @@ CREATE TABLE IF NOT EXISTS public.photo_checkin_sessions (
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS public.session_date_host (
-  id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  id UUID NOT NULL DEFAULT gen_random_uuid(),
   session_id UUID NOT NULL,
   attendance_date DATE NOT NULL,
   host_id UUID,
   host_type VARCHAR DEFAULT 'student',
   host_address TEXT DEFAULT NULL,                          -- nullable: NULL when row is created only for a time override (migration 009)
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   host_latitude NUMERIC CHECK (host_latitude IS NULL OR (host_latitude >= -90 AND host_latitude <= 90)),
   host_longitude NUMERIC CHECK (host_longitude IS NULL OR (host_longitude >= -180 AND host_longitude <= 180)),
   CONSTRAINT session_date_host_pkey PRIMARY KEY (id),
@@ -221,7 +221,7 @@ CREATE TABLE IF NOT EXISTS public.session_day_change (
   effective_date DATE NOT NULL,
   reason TEXT,
   changed_by TEXT,
-  created_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT session_day_change_pkey PRIMARY KEY (change_id),
   CONSTRAINT session_day_change_session_date_unique UNIQUE (session_id, effective_date),
   CONSTRAINT session_day_change_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id) ON DELETE CASCADE
@@ -235,19 +235,19 @@ CREATE TABLE IF NOT EXISTS public.session_time_change (
   effective_date DATE NOT NULL,
   reason TEXT,
   changed_by TEXT,
-  created_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT session_time_change_pkey PRIMARY KEY (change_id),
   CONSTRAINT session_time_change_session_date_unique UNIQUE (session_id, effective_date),
   CONSTRAINT session_time_change_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS public.teacher_host_schedule (
-  id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  id UUID NOT NULL DEFAULT gen_random_uuid(),
   teacher_id UUID NOT NULL,
   session_id UUID NOT NULL,
   host_date DATE NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT teacher_host_schedule_pkey PRIMARY KEY (id),
   CONSTRAINT teacher_host_schedule_session_date_unique UNIQUE (session_id, host_date),
   CONSTRAINT teacher_host_schedule_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES public.teacher(teacher_id),
@@ -270,8 +270,8 @@ CREATE TABLE IF NOT EXISTS public.session_recording (
   file_size_bytes BIGINT CHECK (file_size_bytes IS NULL OR file_size_bytes >= 0),
   mime_type VARCHAR,
   is_primary BOOLEAN NOT NULL DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   deleted_at TIMESTAMPTZ,
   CONSTRAINT session_recording_pkey PRIMARY KEY (recording_id),
   CONSTRAINT session_recording_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id),
@@ -283,14 +283,14 @@ CREATE TABLE IF NOT EXISTS public.session_recording (
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS public.course_book_reference (
-  reference_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  reference_id UUID NOT NULL DEFAULT gen_random_uuid(),
   course_id UUID NOT NULL,
   topic TEXT NOT NULL,
   start_page INTEGER NOT NULL CHECK (start_page > 0),
   end_page INTEGER NOT NULL,
   display_order INTEGER DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   parent_id UUID,
   CONSTRAINT course_book_reference_pkey PRIMARY KEY (reference_id),
   CONSTRAINT course_book_reference_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.course_book_reference(reference_id),
@@ -298,12 +298,12 @@ CREATE TABLE IF NOT EXISTS public.course_book_reference (
 );
 
 CREATE TABLE IF NOT EXISTS public.session_book_coverage (
-  coverage_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  coverage_id UUID NOT NULL DEFAULT gen_random_uuid(),
   session_id UUID NOT NULL,
   attendance_date DATE NOT NULL,
   reference_id UUID NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT session_book_coverage_pkey PRIMARY KEY (coverage_id),
   CONSTRAINT session_book_coverage_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id),
   CONSTRAINT session_book_coverage_reference_id_fkey FOREIGN KEY (reference_id) REFERENCES public.course_book_reference(reference_id)
@@ -331,10 +331,10 @@ CREATE TABLE IF NOT EXISTS public.scoring_config (
   perfect_attendance_bonus NUMERIC NOT NULL DEFAULT 0.00,
   streak_bonus_per_week NUMERIC NOT NULL DEFAULT 0.00,
   absence_penalty_multiplier NUMERIC NOT NULL DEFAULT 1.00,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT scoring_config_pkey PRIMARY KEY (id),
-  CONSTRAINT scoring_config_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES auth.users(id)
+  CONSTRAINT scoring_config_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES public.teacher(teacher_id) ON DELETE CASCADE
 );
 
 -- NOTE: late_brackets is stored as a JSONB column in scoring_config above.
@@ -357,8 +357,8 @@ CREATE TABLE IF NOT EXISTS public.excuse_request (
   reviewed_by TEXT,
   reviewed_at TIMESTAMPTZ,
   review_note TEXT,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT excuse_request_pkey PRIMARY KEY (request_id),
   CONSTRAINT excuse_request_student_session_date_unique UNIQUE (student_id, session_id, attendance_date),
   CONSTRAINT excuse_request_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.student(student_id),
@@ -381,7 +381,7 @@ CREATE TABLE IF NOT EXISTS public.feedback_question (
   options JSONB DEFAULT '[]'::JSONB,
   sort_order INTEGER NOT NULL DEFAULT 0,
   is_required BOOLEAN DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   attendance_date DATE,
   CONSTRAINT feedback_question_pkey PRIMARY KEY (id),
   CONSTRAINT feedback_question_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
@@ -394,7 +394,7 @@ CREATE TABLE IF NOT EXISTS public.feedback_template (
   questions JSONB NOT NULL DEFAULT '[]'::JSONB,
   is_default BOOLEAN DEFAULT false,
   created_by UUID,
-  created_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT feedback_template_pkey PRIMARY KEY (id)
 );
 
@@ -408,10 +408,11 @@ CREATE TABLE IF NOT EXISTS public.session_feedback (
   comment TEXT,
   responses JSONB DEFAULT '{}'::JSONB,
   check_in_method TEXT,
-  created_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT session_feedback_pkey PRIMARY KEY (id),
   CONSTRAINT session_feedback_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id),
-  CONSTRAINT session_feedback_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.student(student_id)
+  CONSTRAINT session_feedback_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.student(student_id),
+  CONSTRAINT session_feedback_anonymous_student_check CHECK (is_anonymous = true OR student_id IS NOT NULL)
 );
 
 -- ============================================================================
@@ -430,8 +431,8 @@ CREATE TABLE IF NOT EXISTS public.certificate_template (
   signature_name TEXT,
   signature_title TEXT,
   is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT certificate_template_pkey PRIMARY KEY (template_id)
 );
 
@@ -451,8 +452,8 @@ CREATE TABLE IF NOT EXISTS public.issued_certificate (
   revoked_at TIMESTAMPTZ,
   revoke_reason TEXT,
   resolved_body TEXT,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   signature_name TEXT,
   signature_title TEXT,
   signer_teacher_id UUID,
@@ -479,8 +480,8 @@ CREATE TABLE IF NOT EXISTS public.announcement (
   course_id UUID,
   is_pinned BOOLEAN DEFAULT false,
   expires_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   category VARCHAR DEFAULT 'general',
   attachments JSONB DEFAULT '[]'::JSONB,
   view_count INTEGER DEFAULT 0,
@@ -501,26 +502,26 @@ CREATE TABLE IF NOT EXISTS public.announcement_read (
 );
 
 CREATE TABLE IF NOT EXISTS public.announcement_comment (
-  comment_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  comment_id UUID NOT NULL DEFAULT gen_random_uuid(),
   announcement_id UUID NOT NULL,
   commenter_type VARCHAR NOT NULL CHECK (commenter_type::TEXT = ANY (ARRAY['teacher', 'student'])),
   commenter_id UUID NOT NULL,
   content TEXT NOT NULL,
   parent_comment_id UUID,
   is_pinned BOOLEAN DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT announcement_comment_pkey PRIMARY KEY (comment_id),
   CONSTRAINT announcement_comment_announcement_id_fkey FOREIGN KEY (announcement_id) REFERENCES public.announcement(announcement_id),
   CONSTRAINT announcement_comment_parent_comment_id_fkey FOREIGN KEY (parent_comment_id) REFERENCES public.announcement_comment(comment_id)
 );
 
 CREATE TABLE IF NOT EXISTS public.announcement_reaction (
-  reaction_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  reaction_id UUID NOT NULL DEFAULT gen_random_uuid(),
   announcement_id UUID NOT NULL,
   student_id UUID NOT NULL,
   emoji VARCHAR NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT announcement_reaction_pkey PRIMARY KEY (reaction_id),
   CONSTRAINT announcement_reaction_announcement_id_fkey FOREIGN KEY (announcement_id) REFERENCES public.announcement(announcement_id),
   CONSTRAINT announcement_reaction_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.student(student_id)
@@ -537,7 +538,7 @@ CREATE TABLE IF NOT EXISTS public.message (
   is_read BOOLEAN DEFAULT false,
   read_at TIMESTAMPTZ,
   parent_message_id UUID,
-  created_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT message_pkey PRIMARY KEY (message_id),
   CONSTRAINT message_parent_message_id_fkey FOREIGN KEY (parent_message_id) REFERENCES public.message(message_id)
 );
@@ -546,22 +547,22 @@ CREATE TABLE IF NOT EXISTS public.message (
 -- Attachments are handled via Supabase Storage directly.
 
 CREATE TABLE IF NOT EXISTS public.message_reaction (
-  reaction_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  reaction_id UUID NOT NULL DEFAULT gen_random_uuid(),
   message_id UUID NOT NULL,
   reactor_type VARCHAR NOT NULL CHECK (reactor_type::TEXT = ANY (ARRAY['teacher', 'student', 'admin'])),
   reactor_id UUID NOT NULL,
   emoji VARCHAR NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT message_reaction_pkey PRIMARY KEY (reaction_id),
   CONSTRAINT message_reaction_message_id_fkey FOREIGN KEY (message_id) REFERENCES public.message(message_id)
 );
 
 CREATE TABLE IF NOT EXISTS public.message_starred (
-  id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  id UUID NOT NULL DEFAULT gen_random_uuid(),
   message_id UUID NOT NULL,
   user_type VARCHAR NOT NULL CHECK (user_type::TEXT = ANY (ARRAY['teacher', 'student', 'admin'])),
   user_id UUID NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT message_starred_pkey PRIMARY KEY (id),
   CONSTRAINT message_starred_message_id_fkey FOREIGN KEY (message_id) REFERENCES public.message(message_id)
 );
@@ -574,7 +575,7 @@ CREATE TABLE IF NOT EXISTS public.message_starred (
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS public.audit_log (
-  audit_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  audit_id UUID NOT NULL DEFAULT gen_random_uuid(),
   table_name TEXT NOT NULL,
   record_id TEXT NOT NULL,
   operation TEXT NOT NULL CHECK (operation = ANY (ARRAY['DELETE', 'UPDATE', 'INSERT'])),

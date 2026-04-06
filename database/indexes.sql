@@ -3,11 +3,21 @@
 -- ============================================================================
 -- Run order: 3 of 6 (after functions.sql)
 -- All performance indexes. Uses IF NOT EXISTS for idempotent re-runs.
--- Synced with live Supabase as of 2026-04-03.
+-- Synced with live Supabase as of 2026-04-06 (migration 020 applied).
 --
 -- NOTE: Primary key indexes and UNIQUE constraint indexes are created
 -- automatically by schema.sql and are NOT repeated here.
 -- ============================================================================
+
+-- ============================================================================
+-- 0. FUNCTIONAL INDEXES — RLS PERFORMANCE
+-- ============================================================================
+
+-- Every RLS policy resolves identity via LOWER(email) = LOWER(auth.jwt()->>'email').
+-- Without these, PostgreSQL does sequential scans on the identity tables.
+CREATE INDEX IF NOT EXISTS idx_teacher_email_lower ON public.teacher (LOWER(email));
+CREATE INDEX IF NOT EXISTS idx_student_email_lower ON public.student (LOWER(email));
+CREATE INDEX IF NOT EXISTS idx_admin_email_lower   ON public.admin   (LOWER(email));
 
 -- ============================================================================
 -- 1. CORE TABLES
