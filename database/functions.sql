@@ -3,7 +3,7 @@
 -- ============================================================================
 -- Run order: 2 of 6 (after schema.sql)
 -- All database functions, trigger functions, and trigger bindings.
--- Synced with live Supabase as of 2026-04-06 (migration 021 applied).
+-- Synced with live Supabase as of 2026-04-06 (migration 022 applied).
 -- ============================================================================
 
 -- ============================================================================
@@ -502,6 +502,31 @@ BEGIN
 END;
 $$;
 
+-- Ensure attendance.student_id always matches enrollment.student_id.
+-- Auto-corrects mismatches rather than rejecting (handles bulk inserts gracefully).
+CREATE OR REPLACE FUNCTION public.fn_enforce_attendance_student_match()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_enrollment_student_id UUID;
+BEGIN
+  SELECT student_id INTO v_enrollment_student_id
+  FROM public.enrollment
+  WHERE enrollment_id = NEW.enrollment_id;
+
+  IF v_enrollment_student_id IS NULL THEN
+    RAISE EXCEPTION 'Enrollment % does not exist', NEW.enrollment_id;
+  END IF;
+
+  IF NEW.student_id <> v_enrollment_student_id THEN
+    NEW.student_id := v_enrollment_student_id;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
 -- ============================================================================
 -- 6. TRIGGER BINDINGS
 -- ============================================================================
@@ -587,3 +612,9 @@ DROP TRIGGER IF EXISTS aaa_enforce_can_host_on_status_change ON enrollment;
 CREATE TRIGGER aaa_enforce_can_host_on_status_change
   BEFORE INSERT OR UPDATE ON enrollment
   FOR EACH ROW EXECUTE FUNCTION fn_enforce_can_host_on_status_change();
+
+-- Attendance ↔ enrollment student consistency
+DROP TRIGGER IF EXISTS trg_enforce_attendance_student_match ON attendance;
+CREATE TRIGGER trg_enforce_attendance_student_match
+  BEFORE INSERT OR UPDATE OF student_id, enrollment_id ON attendance
+  FOR EACH ROW EXECUTE FUNCTION fn_enforce_attendance_student_match();
