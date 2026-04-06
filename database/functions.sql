@@ -503,7 +503,8 @@ END;
 $$;
 
 -- Ensure attendance.student_id always matches enrollment.student_id.
--- Auto-corrects mismatches rather than rejecting (handles bulk inserts gracefully).
+-- Logs a WARNING when a mismatch is detected (visible in Supabase logs) then corrects.
+-- This makes bugs visible while still not breaking bulk inserts.
 CREATE OR REPLACE FUNCTION public.fn_enforce_attendance_student_match()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -520,6 +521,8 @@ BEGIN
   END IF;
 
   IF NEW.student_id <> v_enrollment_student_id THEN
+    RAISE WARNING 'attendance student_id mismatch: got %, expected % (from enrollment %). Auto-correcting.',
+      NEW.student_id, v_enrollment_student_id, NEW.enrollment_id;
     NEW.student_id := v_enrollment_student_id;
   END IF;
 

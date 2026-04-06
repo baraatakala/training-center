@@ -28,8 +28,8 @@ BEGIN
   END IF;
 
   IF NEW.student_id <> v_enrollment_student_id THEN
-    -- Auto-correct: set student_id to the enrollment's student_id
-    -- rather than rejecting — handles bulk inserts gracefully
+    RAISE WARNING 'attendance student_id mismatch: got %, expected % (from enrollment %). Auto-correcting.',
+      NEW.student_id, v_enrollment_student_id, NEW.enrollment_id;
     NEW.student_id := v_enrollment_student_id;
   END IF;
 
