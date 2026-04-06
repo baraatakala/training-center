@@ -2,7 +2,7 @@
 ## Usage: .\database\extract-live-schema.ps1
 
 $token = $env:SUPABASE_ACCESS_TOKEN
-if (-not $token) { $token = "sbp_4576011bdaf0f2c056b492a7f6bab5532728f6be" }
+if (-not $token) { throw "Set SUPABASE_ACCESS_TOKEN environment variable before running this script." }
 $ref = "qrznvvjlzqzoqsmzljvk"
 $headers = @{ "Authorization" = "Bearer $token"; "Content-Type" = "application/json" }
 $outDir = "database"
