@@ -4786,9 +4786,15 @@ export const AttendanceRecords = () => {
       .filter((f): f is { key: string; label: string; labelAr: string } => f !== undefined);
     
     // Apply saved field renames from export settings
+    // Skip renames that match the other language's default (stale from language switch)
     const renames = savedExportSettings[dataType]?.fieldRenames;
     const headers = selectedFields.map(f => {
-      if (renames?.[f.key]) return renames[f.key];
+      const rename = renames?.[f.key];
+      if (rename) {
+        if (isArabic && rename === f.label) return f.labelAr;
+        if (!isArabic && rename === f.labelAr) return f.label;
+        return rename;
+      }
       return isArabic ? f.labelAr : f.label;
     });
     

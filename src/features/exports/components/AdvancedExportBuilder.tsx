@@ -211,14 +211,31 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
 
   const isAr = config.language === 'ar';
 
+  // Clear field renames when language changes — renames are language-specific
+  useEffect(() => {
+    setFieldRenames({});
+  }, [config.language]);
+
   const getFieldLabel = useCallback((f: ExportField, isArabic: boolean): string => {
-    if (fieldRenames[f.key]) return fieldRenames[f.key];
+    const rename = fieldRenames[f.key];
+    if (rename) {
+      // Skip rename if it matches the OTHER language's default (stale from language switch)
+      if (isArabic && rename === f.label) return f.labelAr || f.label;
+      if (!isArabic && f.labelAr && rename === f.labelAr) return f.label;
+      return rename;
+    }
     return isArabic && f.labelAr ? f.labelAr : f.label;
   }, [fieldRenames]);
 
   /** Display label for a field in the UI — respects current language setting */
   const displayLabel = useCallback((f: ExportField): string => {
-    return fieldRenames[f.key] || (isAr && f.labelAr ? f.labelAr : f.label);
+    const rename = fieldRenames[f.key];
+    if (rename) {
+      if (isAr && rename === f.label) return f.labelAr || f.label;
+      if (!isAr && f.labelAr && rename === f.labelAr) return f.label;
+      return rename;
+    }
+    return isAr && f.labelAr ? f.labelAr : f.label;
   }, [fieldRenames, isAr]);
 
   /** Display label for a category in the UI */

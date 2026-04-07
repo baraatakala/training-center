@@ -6,7 +6,7 @@
 -- Requires: functions.sql (is_admin, is_teacher, get_my_student_id)
 --
 -- Convention:
---   Admin  → full access (ALL) on every table (except session_feedback)
+--   Admin  → full access (ALL) on every table
 --   Teacher → SELECT + INSERT (not admin) on most tables
 --   Student → SELECT only, scoped to own data where appropriate
 -- ============================================================================
@@ -575,6 +575,12 @@ CREATE POLICY "Teachers can manage own session feedback questions" ON feedback_q
 
 -- session_feedback ------------------------------------------------------
 ALTER TABLE session_feedback ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Admin has full access" ON session_feedback;
+CREATE POLICY "Admin has full access" ON session_feedback
+  FOR ALL TO authenticated
+  USING (is_admin())
+  WITH CHECK (is_admin());
 
 DROP POLICY IF EXISTS "Students can submit feedback" ON session_feedback;
 CREATE POLICY "Students can submit feedback" ON session_feedback
