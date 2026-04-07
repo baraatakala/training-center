@@ -5211,7 +5211,6 @@ export const AttendanceRecords = () => {
             { key: 'records' as const, icon: '📋', label: t.attendanceRecords, desc: t.totalRecords },
             { key: 'analytics' as const, icon: '📊', label: t.studentPerformance, desc: t.summaryStatistics },
             { key: 'matrix' as const, icon: '🗓️', label: t.crosstabTitle || 'Cross-Tab Matrix', desc: t.crosstabDesc || 'Student × Date Heatmap' },
-            { key: 'scoring' as const, icon: '🧮', label: 'Score Breakdown', desc: 'Weighted score explainer' },
           ]).map(tab => (
             <button
               key={tab.key}
@@ -6542,10 +6541,7 @@ export const AttendanceRecords = () => {
           </div>
       )}
 
-      {/* ════════════════════════════════════════════════════════════════════
-          WEIGHTED SCORE EXPLAINER — Bilingual, per-student breakdown
-          ════════════════════════════════════════════════════════════════════ */}
-      {activeSection === 'scoring' && studentAnalytics.length > 0 && (
+      {false && studentAnalytics.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg dark:shadow-gray-900/30 overflow-hidden border border-indigo-100 dark:border-indigo-900/40">
           {/* Header */}
           <button

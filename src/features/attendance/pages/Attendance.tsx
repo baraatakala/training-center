@@ -965,9 +965,8 @@ export function Attendance() {
   const handleTemplateChange = useCallback(async (templateId: string) => {
     setFbSelectedTemplateId(templateId);
     cancelEditQuestion();
-    if (!templateId) return;
-    await handleApplyTemplate(templateId);
-  }, [cancelEditQuestion, handleApplyTemplate]);
+    // Don't auto-apply — user must click the Apply button
+  }, [cancelEditQuestion]);
 
   // Auto-suggest planned host based on host_date from Host Schedule
   useEffect(() => {
@@ -2518,6 +2517,14 @@ export function Attendance() {
                       </select>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
+                      {fbSelectedTemplateId && (
+                        <button
+                          type="button"
+                          onClick={() => void handleApplyTemplate(fbSelectedTemplateId)}
+                          className="text-xs px-2 py-2 rounded-lg text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 border border-green-300 dark:border-green-700 font-medium"
+                          title="Apply template — replaces current questions for this date"
+                        >▶ Apply</button>
+                      )}
                       {fbSelectedTemplateId && !fbTemplates.find(t => t.id === fbSelectedTemplateId)?.is_default && (
                         <>
                         <button
@@ -2539,10 +2546,10 @@ export function Attendance() {
                         <button
                           type="button"
                           onClick={async () => {
-                            if (!confirm('Delete this template? This cannot be undone.')) return;
+                            if (!confirm('Delete this template? Current questions for this date will NOT be affected.')) return;
                             const { error } = await feedbackService.deleteTemplate(fbSelectedTemplateId);
                             if (error) { toast.error('Failed to delete template'); return; }
-                            toast.success('Template deleted');
+                            toast.success('Template deleted — existing questions remain unchanged');
                             setFbSelectedTemplateId('');
                             const { data } = await feedbackService.getTemplates();
                             if (data) setFbTemplates(data);

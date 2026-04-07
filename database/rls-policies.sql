@@ -157,6 +157,7 @@ CREATE POLICY "Teachers can insert" ON enrollment
   FOR INSERT TO authenticated WITH CHECK (is_teacher() AND NOT is_admin());
 
 DROP POLICY IF EXISTS "Students can read enrollments" ON enrollment;
+DROP POLICY IF EXISTS "Students can read own enrollments" ON enrollment;
 CREATE POLICY "Students can read own enrollments" ON enrollment
   FOR SELECT TO authenticated USING (NOT is_teacher() AND NOT is_admin() AND student_id = get_my_student_id());
 

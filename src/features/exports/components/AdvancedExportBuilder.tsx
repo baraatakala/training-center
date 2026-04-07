@@ -209,10 +209,22 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
   );
   const [editingFieldKey, setEditingFieldKey] = useState<string | null>(null);
 
+  const isAr = config.language === 'ar';
+
   const getFieldLabel = useCallback((f: ExportField, isArabic: boolean): string => {
     if (fieldRenames[f.key]) return fieldRenames[f.key];
     return isArabic && f.labelAr ? f.labelAr : f.label;
   }, [fieldRenames]);
+
+  /** Display label for a field in the UI — respects current language setting */
+  const displayLabel = useCallback((f: ExportField): string => {
+    return fieldRenames[f.key] || (isAr && f.labelAr ? f.labelAr : f.label);
+  }, [fieldRenames, isAr]);
+
+  /** Display label for a category in the UI */
+  const categoryDisplayLabel = useCallback((c: ExportCategory): string => {
+    return isAr && c.labelAr ? c.labelAr : c.label;
+  }, [isAr]);
 
   // Reset config when modal opens or categories change - use saved settings
   useEffect(() => {
@@ -1101,7 +1113,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                       <div className="flex items-center gap-3">
                         <span className="text-2xl">{category.icon}</span>
                         <div>
-                          <h3 className="font-semibold text-gray-900 dark:text-white">{category.label}</h3>
+                          <h3 className="font-semibold text-gray-900 dark:text-white">{categoryDisplayLabel(category)}</h3>
                           <p className="text-sm text-gray-500 dark:text-gray-400">
                             {selectedInCategory} of {category.fields.length} fields selected
                           </p>
@@ -1143,12 +1155,13 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                               <input
                                 type="text"
                                 autoFocus
-                                defaultValue={fieldRenames[field.key] || field.label}
+                                defaultValue={displayLabel(field)}
                                 onBlur={(e) => {
                                   const val = e.target.value.trim();
                                   setFieldRenames(prev => {
                                     const next = { ...prev };
-                                    if (!val || val === field.label) delete next[field.key];
+                                    const originalLabel = isAr && field.labelAr ? field.labelAr : field.label;
+                                    if (!val || val === originalLabel) delete next[field.key];
                                     else next[field.key] = val;
                                     return next;
                                   });
@@ -1166,7 +1179,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                                 title="Click to rename this column header for export"
                                 onClick={() => setEditingFieldKey(field.key)}
                               >
-                                {fieldRenames[field.key] || field.label}
+                                {displayLabel(field)}
                                 {fieldRenames[field.key] && (
                                   <span className="ml-1 text-[10px] text-blue-500">✏️</span>
                                 )}
@@ -1237,7 +1250,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                           </span>
                           {/* Field name */}
                           <span className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-200 truncate">
-                            {fieldRenames[field.key] || field.label}
+                            {displayLabel(field)}
                             {fieldRenames[field.key] && <span className="ml-1 text-[10px] text-blue-500">✏️</span>}
                           </span>
                           {/* Up/Down arrows */}
@@ -1763,7 +1776,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                       {getSelectedFieldsOrdered().map(field => (
                         <div key={field.key} className="flex items-center gap-3 p-2.5 bg-gray-50 dark:bg-gray-700 rounded-lg">
                           <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{fieldRenames[field.key] || field.label}</div>
+                            <div className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{displayLabel(field)}</div>
                             {field.labelAr && !fieldRenames[field.key] && <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{field.labelAr}</div>}
                           </div>
                           <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -2131,7 +2144,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                                     }}
                                     className="w-3 h-3 rounded border-gray-300 text-rose-600 focus:ring-rose-500"
                                   />
-                                  <span className="truncate">{field.label}</span>
+                                  <span className="truncate">{displayLabel(field)}</span>
                                   {isAutoDetected && config.dataValidation.coloringFields.length === 0 && (
                                     <span className="text-green-600 text-[10px]">auto</span>
                                   )}
@@ -2205,7 +2218,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                           className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
                         >
                           {allFields.filter(f => config.selectedFields.includes(f.key)).map(f => (
-                            <option key={f.key} value={f.key}>{f.label}</option>
+                            <option key={f.key} value={f.key}>{displayLabel(f)}</option>
                           ))}
                         </select>
                         <div className="flex gap-1 flex-shrink-0">
