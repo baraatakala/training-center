@@ -1161,9 +1161,7 @@ export class WordExportService {
     const sections: (Paragraph | Table)[] = [];
 
     // Title and Date Info
-    const titleText = isArabic
-      ? 'تقرير تحليل الحضور الشامل'
-      : 'Comprehensive Attendance Analytics Report';
+    const titleText = isArabic ? 'تقرير تحليل الحضور الشامل' : 'Comprehensive Attendance Analytics Report';
     const dateText = isArabic
       ? `تاريخ التقرير: ${format(new Date(), 'yyyy-MM-dd HH:mm')}`
       : `Report Generated: ${format(new Date(), 'yyyy-MM-dd HH:mm')}`;
@@ -1747,9 +1745,7 @@ export class WordExportService {
     const sections: (Paragraph | Table)[] = [];
 
     // Title and Date Info
-    const titleText = isArabic
-      ? 'تقرير تحليل الحضور الشامل'
-      : 'Comprehensive Attendance Analytics Report';
+    const titleText = isArabic ? 'تقرير تحليل الحضور الشامل' : 'Comprehensive Attendance Analytics Report';
     const dateText = isArabic
       ? `تاريخ التقرير: ${format(new Date(), 'yyyy-MM-dd HH:mm')}`
       : `Report Generated: ${format(new Date(), 'yyyy-MM-dd HH:mm')}`;

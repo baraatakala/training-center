@@ -36,6 +36,8 @@ export function QRCodeModal({
   const [faceCheckInUrl, setFaceCheckInUrl] = useState<string>('');
   const [faceLoading, setFaceLoading] = useState(false);
   const [faceCopied, setFaceCopied] = useState(false);
+  const [qrLinkCopied, setQrLinkCopied] = useState(false);
+  const [qrCheckInUrl, setQrCheckInUrl] = useState<string>('');
 
   const clearPhotoState = useCallback(() => {
     setFaceToken(null);
@@ -153,6 +155,7 @@ export function QRCodeModal({
 
       // Create check-in URL with secure token only
       const checkInUrl = `${window.location.origin}/checkin/${token}`;
+      setQrCheckInUrl(checkInUrl);
 
       const qrDataUrl = await QRCode.toDataURL(checkInUrl, {
         width: 400,
@@ -433,6 +436,55 @@ export function QRCodeModal({
                 <div className="mt-3 inline-flex items-center gap-2 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-3 py-1 rounded-full text-sm">
                   <span>🔄</span>
                   <span>Refreshed {refreshCount}x (every 3 min for security)</span>
+                </div>
+              )}
+
+              {/* QR Direct Link */}
+              {checkInMode === 'qr_code' && qrCheckInUrl && (
+                <div className="mt-4 space-y-2">
+                  <div className="bg-white dark:bg-gray-700 rounded-lg p-3 border border-blue-200 dark:border-blue-600">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Check-In Link</p>
+                    <p className="text-sm font-mono text-blue-700 dark:text-blue-300 break-all">{qrCheckInUrl}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(qrCheckInUrl);
+                          setQrLinkCopied(true);
+                          setTimeout(() => setQrLinkCopied(false), 2000);
+                        } catch {
+                          const textArea = document.createElement('textarea');
+                          textArea.value = qrCheckInUrl;
+                          document.body.appendChild(textArea);
+                          textArea.select();
+                          document.execCommand('copy');
+                          document.body.removeChild(textArea);
+                          setQrLinkCopied(true);
+                          setTimeout(() => setQrLinkCopied(false), 2000);
+                        }
+                      }}
+                      className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        qrLinkCopied
+                          ? 'bg-green-500 text-white'
+                          : 'bg-blue-600 text-white hover:bg-blue-700'
+                      }`}
+                    >
+                      {qrLinkCopied ? '✓ Copied!' : '📋 Copy Link'}
+                    </button>
+                    {navigator.share && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            await navigator.share({ title: `Check-In: ${courseName}`, text: `Check in for ${courseName}`, url: qrCheckInUrl });
+                          } catch { /* share cancelled */ }
+                        }}
+                        className="px-3 py-2 bg-pink-600 text-white rounded-lg text-sm font-medium hover:bg-pink-700"
+                      >
+                        📤 Share
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

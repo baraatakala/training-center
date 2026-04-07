@@ -2,6 +2,9 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { attendanceService } from '@/features/attendance/services/attendanceService';
 import { studentService } from '@/features/students/services/studentService';
+import { certificateService } from '@/features/certificates/services/certificateService';
+import type { IssuedCertificate } from '@/features/certificates/services/certificateService';
+import { getSignedPhotoUrl } from '@/shared/utils/photoUtils';
 import type { Student } from '@/shared/types/database.types';
 
 interface StudentDetailModalProps {
@@ -50,25 +53,39 @@ function unwrap<T>(val: T | T[] | null | undefined): T | undefined {
 export function StudentDetailModal({ student, onClose }: StudentDetailModalProps) {
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [enrollments, setEnrollments] = useState<EnrollmentRecord[]>([]);
+  const [certificates, setCertificates] = useState<IssuedCertificate[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'attendance' | 'enrollments'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'attendance' | 'enrollments' | 'certificates'>('overview');
+  const [photoSignedUrl, setPhotoSignedUrl] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       setLoading(true);
-      const [attRes, enrRes] = await Promise.all([
+      const [attRes, enrRes, certRes] = await Promise.all([
         attendanceService.getByStudent(student.student_id),
         studentService.getEnrollments(student.student_id),
+        certificateService.getIssuedCertificates({ student_id: student.student_id }),
       ]);
       if (cancelled) return;
       setAttendance((attRes.data as AttendanceRecord[]) || []);
       setEnrollments((enrRes.data as EnrollmentRecord[]) || []);
+      setCertificates((certRes.data || []) as IssuedCertificate[]);
       setLoading(false);
     }
     load();
     return () => { cancelled = true; };
   }, [student.student_id]);
+
+  // Load signed photo URL
+  useEffect(() => {
+    let cancelled = false;
+    if (!student.photo_url) { setPhotoSignedUrl(null); return; }
+    getSignedPhotoUrl(student.photo_url).then(url => {
+      if (!cancelled) setPhotoSignedUrl(url);
+    });
+    return () => { cancelled = true; };
+  }, [student.photo_url]);
 
   // Close on Escape
   useEffect(() => {
@@ -174,8 +191,26 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
           </button>
 
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center text-white text-lg font-bold shadow-lg">
-              {initials}
+            <div className="relative w-14 h-14 rounded-full overflow-hidden shadow-lg shrink-0 group">
+              {photoSignedUrl ? (
+                <>
+                  <img src={photoSignedUrl} alt={student.name} className="w-full h-full object-cover" />
+                  <a
+                    href={photoSignedUrl}
+                    download={`${student.name.replace(/\s+/g, '-')}-photo`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Download photo"
+                  >
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  </a>
+                </>
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center text-white text-lg font-bold">
+                  {initials}
+                </div>
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white truncate">{student.name}</h2>
@@ -204,6 +239,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
             { key: 'overview' as const, label: 'Overview' },
             { key: 'attendance' as const, label: 'Attendance', count: attendance.length },
             { key: 'enrollments' as const, label: 'Enrollments', count: activeEnrollments.length },
+            { key: 'certificates' as const, label: 'Certificates', count: certificates.filter(c => c.status === 'issued').length },
           ]).map(t => (
             <button
               key={t.key}
@@ -392,7 +428,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
               )}
             </div>
 
-          ) : (
+          ) : activeTab === 'enrollments' ? (
             <div className="space-y-2">
               {enrollments.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-8">No enrollments</p>
@@ -419,7 +455,47 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                 </div>
               )}
             </div>
-          )}
+          ) : activeTab === 'certificates' ? (
+            <div className="space-y-2">
+              {certificates.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">No certificates issued yet</p>
+              ) : (
+                <div className="space-y-2">
+                  {certificates.map(cert => {
+                    const courseName = cert.course?.course_name
+                      || cert.session?.course?.course_name
+                      || 'Unknown Course';
+                    return (
+                      <div key={cert.certificate_id} className="rounded-xl border border-gray-100 dark:border-gray-700 p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{courseName}</p>
+                            <p className="text-[11px] text-gray-400 mt-0.5">#{cert.certificate_number}</p>
+                            {cert.issued_at && (
+                              <p className="text-[11px] text-gray-400">
+                                Issued: {new Date(cert.issued_at).toLocaleDateString()}
+                              </p>
+                            )}
+                            {cert.final_score != null && (
+                              <p className="text-[11px] text-gray-500">Score: {cert.final_score}%</p>
+                            )}
+                            {cert.attendance_rate != null && (
+                              <p className="text-[11px] text-gray-500">Attendance: {cert.attendance_rate}%</p>
+                            )}
+                          </div>
+                          <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                            cert.status === 'issued' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600' :
+                            cert.status === 'draft' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600' :
+                            'bg-red-100 dark:bg-red-900/30 text-red-500'
+                          }`}>{cert.status}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

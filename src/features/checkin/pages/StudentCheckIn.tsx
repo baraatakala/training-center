@@ -45,7 +45,7 @@ export function StudentCheckIn() {
   const [checkedInAfterSession, setCheckedInAfterSession] = useState(false);
   const [checkInData, setCheckInData] = useState<CheckInData | null>(null);
   const [studentInfo, setStudentInfo] = useState<{ student_id: string; name: string; email: string } | null>(null);
-  const [hostAddresses, setHostAddresses] = useState<HostInfo[]>([]);
+  const [, setHostAddresses] = useState<HostInfo[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<string>('');
   const [feedbackEnabled, setFeedbackEnabled] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
@@ -196,46 +196,7 @@ export function StudentCheckIn() {
         return;
       }
 
-      // STEP 7: Load ALL host addresses (students with addresses + teacher)
-      // First, get session's teacher info
-      const { data: sessionData } = await checkinService
-        .getSessionTeacherInfo(sessionId);
-
-      // Load ALL students with non-null addresses
-      const { data: allStudentsWithAddress } = await checkinService
-        .getStudentsWithAddresses();
-
-      const hostList: HostInfo[] = [];
-
-      // Add teacher as first option if they have address
-      const teacher = Array.isArray(sessionData?.teacher) ? sessionData?.teacher[0] : sessionData?.teacher;
-      if (teacher?.address && teacher.address.trim() !== '') {
-        hostList.push({
-          student_id: teacher.teacher_id,
-          student_name: `🎓 ${teacher.name} (Teacher)`,
-          address: teacher.address,
-          host_date: null,
-          is_teacher: true
-        });
-      }
-
-      // Add all students with addresses
-      if (allStudentsWithAddress) {
-        const studentHosts: HostInfo[] = allStudentsWithAddress
-          .map((s: { student_id: string; name: string; address: string }) => ({
-            student_id: s.student_id,
-            student_name: s.name,
-            address: s.address,
-            host_date: null,
-            is_teacher: false
-          }))
-          .sort((a, b) => a.student_name.localeCompare(b.student_name));
-        hostList.push(...studentHosts);
-      }
-
-      setHostAddresses(hostList);
-
-      // STEP 8: Check if host is already set for this date in session_date_host table
+      // STEP 7: Load host address from session_date_host (set by teacher)
       const { data: hostData } = await checkinService
         .getSessionDateHost(sessionId, date);
 
@@ -247,11 +208,13 @@ export function StudentCheckIn() {
       }
 
       // Set the pre-saved host address (read-only for students)
-      if (hostData.host_id) {
-        setSelectedAddress(`${hostData.host_id}|||${hostData.host_address}`);
-      } else {
-        setSelectedAddress(`unknown|||${hostData.host_address}`);
-      }
+      setSelectedAddress(hostData.host_address);
+      setHostAddresses([{
+        student_id: hostData.host_id || 'unknown',
+        student_name: '',
+        address: hostData.host_address,
+        host_date: null,
+      }]);
 
       // Handle both single object and array from Supabase for course relation
       const courseData = session.course ? (Array.isArray(session.course) ? session.course[0] : session.course) : undefined;
@@ -409,7 +372,7 @@ export function StudentCheckIn() {
         throw new Error('Enrollment not found');
       }
 
-      const addressOnly = selectedAddress ? selectedAddress.split('|||')[1] || selectedAddress : null;
+      const addressOnly = selectedAddress || null;
 
       // Determine attendance status based on session time and grace period
       let attendanceStatus: 'on time' | 'late' | 'absent' = 'on time';
@@ -739,13 +702,13 @@ export function StudentCheckIn() {
           </div>
 
           {/* Host Address Selection */}
-          {hostAddresses.length > 0 && selectedAddress && (
+          {selectedAddress && (
             <div>
               <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                 🏠 Session Location
               </label>
               <div className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
-                📍 {selectedAddress.split('|||')[1] || selectedAddress}
+                📍 {selectedAddress}
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Location set by teacher. Your GPS will be checked against this address.

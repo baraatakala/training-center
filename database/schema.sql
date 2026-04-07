@@ -376,7 +376,7 @@ CREATE TABLE IF NOT EXISTS public.feedback_question (
   id UUID NOT NULL DEFAULT gen_random_uuid(),
   session_id UUID NOT NULL,
   question_text TEXT NOT NULL,
-  question_type TEXT NOT NULL DEFAULT 'rating' CHECK (question_type = ANY (ARRAY['rating', 'text', 'emoji', 'multiple_choice'])),
+  question_type TEXT NOT NULL DEFAULT 'rating' CHECK (question_type = ANY (ARRAY['rating', 'text', 'multiple_choice'])),
   options JSONB DEFAULT '[]'::JSONB,
   sort_order INTEGER NOT NULL DEFAULT 0,
   is_required BOOLEAN DEFAULT false,

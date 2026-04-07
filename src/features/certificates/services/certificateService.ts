@@ -61,7 +61,7 @@ export interface IssuedCertificate {
   updated_at: string;
   // Joined
   template?: CertificateTemplate;
-  student?: { student_id: string; name: string; email: string };
+  student?: { student_id: string; name: string; email: string; photo_url?: string | null };
   session?: { session_id: string; course?: { course_name: string }; teacher?: { name: string } };
   course?: { course_id: string; course_name: string };
 }
@@ -212,7 +212,7 @@ class CertificateService {
       .select(`
         *,
         template:template_id(*),
-        student:student_id(student_id, name, email),
+        student:student_id(student_id, name, email, photo_url),
         session:session_id(
           session_id,
           course:course_id(course_name),
@@ -237,7 +237,7 @@ class CertificateService {
       .select(`
         *,
         template:template_id(*),
-        student:student_id(student_id, name, email),
+        student:student_id(student_id, name, email, photo_url),
         session:session_id(
           session_id,
           course:course_id(course_name),

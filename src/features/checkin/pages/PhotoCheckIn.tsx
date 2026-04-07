@@ -72,6 +72,7 @@ export function PhotoCheckIn() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const successTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const cachedRefDescriptor = useRef<{ url: string; descriptor: Float32Array; score: number } | null>(null);
 
   // Load face-api models (including TinyFaceDetector as fallback)
   useEffect(() => {
@@ -290,15 +291,15 @@ export function PhotoCheckIn() {
     }
   };
 
-  // Start camera with higher resolution for better face recognition
+  // Start camera with optimized resolution for face recognition
   const startCamera = async () => {
     try {
       setError(null);
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: { 
           facingMode: 'user',
-          width: { ideal: 1280, min: 640 },
-          height: { ideal: 720, min: 480 }
+          width: { ideal: 640, min: 480 },
+          height: { ideal: 480, min: 360 }
         }
       });
       setStream(mediaStream);
@@ -467,14 +468,23 @@ export function PhotoCheckIn() {
       // Preprocess captured image for better recognition
       const processedCapturedUrl = await preprocessImage(capturedDataUrl);
       
-      // Load reference image using signed URL
-      const refImg = await faceapi.fetchImage(signedPhotoUrl);
-      const refDetection = await detectFaceWithFallback(refImg);
-
-      if (!refDetection) {
-        setFaceMatchResult({ matched: false, confidence: 0, error: 'Could not detect face in your reference photo. Please update your profile photo.' });
-        setVerifying(false);
-        return;
+      // Use cached reference descriptor if same URL, otherwise detect and cache
+      let refDescriptor: Float32Array;
+      let refScore: number;
+      if (cachedRefDescriptor.current && cachedRefDescriptor.current.url === signedPhotoUrl) {
+        refDescriptor = cachedRefDescriptor.current.descriptor;
+        refScore = cachedRefDescriptor.current.score;
+      } else {
+        const refImg = await faceapi.fetchImage(signedPhotoUrl);
+        const refDetection = await detectFaceWithFallback(refImg);
+        if (!refDetection) {
+          setFaceMatchResult({ matched: false, confidence: 0, error: 'Could not detect face in your reference photo. Please update your profile photo.' });
+          setVerifying(false);
+          return;
+        }
+        refDescriptor = refDetection.descriptor;
+        refScore = refDetection.detection.score;
+        cachedRefDescriptor.current = { url: signedPhotoUrl, descriptor: refDescriptor, score: refScore };
       }
 
       // Load and detect on preprocessed captured image
@@ -494,7 +504,7 @@ export function PhotoCheckIn() {
       }
 
       // Compare face descriptors using Euclidean distance
-      const distance = faceapi.euclideanDistance(refDetection.descriptor, capturedDetection.descriptor);
+      const distance = faceapi.euclideanDistance(refDescriptor, capturedDetection.descriptor);
       
       // Adaptive confidence calculation:
       // Use a sigmoid-based mapping for smoother confidence values
@@ -505,7 +515,6 @@ export function PhotoCheckIn() {
       // - Both detections have high score → be slightly more lenient (0.55)
       // - Normal case → standard threshold (0.50)
       // - This reduces false negatives for good-quality photos
-      const refScore = refDetection.detection.score;
       const capScore = capturedDetection.detection.score;
       const bothHighQuality = refScore > 0.85 && capScore > 0.85;
       const threshold = bothHighQuality ? 0.55 : 0.50;

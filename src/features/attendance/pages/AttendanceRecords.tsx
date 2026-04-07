@@ -202,16 +202,7 @@ export const AttendanceRecords = () => {
 
   // Advanced Export Builder state
   const [showAdvancedExport, setShowAdvancedExport] = useState(false);
-  const [activeSection, setActiveSection] = useState<'records' | 'analytics' | 'matrix' | 'scoring'>(() => {
-    try {
-      const saved = localStorage.getItem('attendance_activeSection');
-      if (saved === 'analytics' || saved === 'matrix' || saved === 'scoring') return saved;
-      if (localStorage.getItem('attendance_showAnalytics') === 'true') return 'analytics';
-      return 'records';
-    } catch {
-      return 'records';
-    }
-  });
+  const [activeSection, setActiveSection] = useState<'records' | 'analytics' | 'matrix' | 'scoring'>('records');
   const [exportDataType, setExportDataType] = useState<'records' | 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics' | 'specializationAnalytics'>('records');
 
   // Load saved field selections from localStorage
@@ -316,7 +307,6 @@ export const AttendanceRecords = () => {
 
   useEffect(() => {
     try {
-      localStorage.setItem('attendance_activeSection', activeSection);
       localStorage.setItem('attendance_collapseStudentTable', String(collapseStudentTable));
       localStorage.setItem('attendance_collapseDateTable', String(collapseDateTable));
       localStorage.setItem('attendance_collapseHostTable', String(collapseHostTable));
@@ -327,7 +317,6 @@ export const AttendanceRecords = () => {
       /* ignore localStorage errors */
     }
   }, [
-    activeSection,
     collapseStudentTable,
     collapseDateTable,
     collapseHostTable,
@@ -2835,6 +2824,7 @@ export const AttendanceRecords = () => {
           doc.setTextColor(120, 120, 120);
           doc.text(
             `Attendance Analytics Report  |  ${format(new Date(filters.startDate), 'MMM dd, yyyy')} – ${format(new Date(filters.endDate), 'MMM dd, yyyy')}  |  Generated: ${format(new Date(), 'MMM dd, yyyy HH:mm')}`,
+
             matrixPageWidth / 2, 7,
             { align: 'center' }
           );
@@ -4795,7 +4785,12 @@ export const AttendanceRecords = () => {
       .map(key => allFields.find(f => f.key === key))
       .filter((f): f is { key: string; label: string; labelAr: string } => f !== undefined);
     
-    const headers = selectedFields.map(f => isArabic ? f.labelAr : f.label);
+    // Apply saved field renames from export settings
+    const renames = savedExportSettings[dataType]?.fieldRenames;
+    const headers = selectedFields.map(f => {
+      if (renames?.[f.key]) return renames[f.key];
+      return isArabic ? f.labelAr : f.label;
+    });
     
     const getData = (item: Record<string, unknown>, index: number): unknown[] => {
       return selectedFields.map(field => {

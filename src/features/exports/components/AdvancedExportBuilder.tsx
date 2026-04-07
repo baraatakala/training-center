@@ -96,6 +96,7 @@ export interface ExportSettings {
   coloringFields?: string[];
   coloringTheme?: 'default' | 'traffic' | 'heatmap' | 'status';
   excludedRows?: string[];  // Row values to exclude (e.g., specific dates)
+  fieldRenames?: Record<string, string>;  // Custom column header labels
 }
 
 interface AdvancedExportBuilderProps {
@@ -203,7 +204,9 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
   );
 
   // Field label renames — lets user override column headers for export
-  const [fieldRenames, setFieldRenames] = useState<Record<string, string>>({});
+  const [fieldRenames, setFieldRenames] = useState<Record<string, string>>(
+    savedSettings?.fieldRenames || {}
+  );
   const [editingFieldKey, setEditingFieldKey] = useState<string | null>(null);
 
   const getFieldLabel = useCallback((f: ExportField, isArabic: boolean): string => {
@@ -247,6 +250,8 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
       setActiveTab('fields');
       // Restore excluded rows from saved settings
       setExcludedRows(new Set(savedSettings?.excludedRows || []));
+      // Restore field renames from saved settings
+      setFieldRenames(savedSettings?.fieldRenames || {});
     }
   }, [isOpen, getDefaultSelectedFields, defaultTitle, dateRange, savedSettings]);
 
@@ -950,6 +955,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
           coloringFields: config.dataValidation.coloringFields,
           coloringTheme: config.dataValidation.coloringTheme,
           excludedRows: [...excludedRows],
+          fieldRenames: Object.keys(fieldRenames).length > 0 ? fieldRenames : undefined,
         });
       }
       
@@ -999,6 +1005,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
         coloringFields: config.dataValidation.coloringFields,
         coloringTheme: config.dataValidation.coloringTheme,
         excludedRows: [...excludedRows],
+        fieldRenames: Object.keys(fieldRenames).length > 0 ? fieldRenames : undefined,
       });
     }
     onClose();

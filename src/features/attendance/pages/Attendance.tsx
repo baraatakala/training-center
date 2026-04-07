@@ -878,21 +878,6 @@ export function Attendance() {
     return () => { cancelled = true; };
   }, [sessionId, selectedDate]);
 
-  const syncSelectedTemplate = useCallback(async (questionsToSync: FeedbackQuestion[]) => {
-    if (!fbSelectedTemplateId) return;
-
-    const { error } = await feedbackService.updateTemplate(fbSelectedTemplateId, {
-      questions: toTemplateQuestions(questionsToSync),
-    });
-
-    if (!error) {
-      const { data } = await feedbackService.getTemplates();
-      if (data) {
-        setFbTemplates(data);
-      }
-    }
-  }, [fbSelectedTemplateId]);
-
   // Feedback handlers
   const handleAddOrUpdateQuestion = useCallback(async () => {
     if (!sessionId || !fbQuestionText.trim()) return;
@@ -936,9 +921,8 @@ export function Attendance() {
     const { data } = await feedbackService.getQuestions(sessionId, selectedDate);
     if (data) {
       setFbQuestions(data);
-      await syncSelectedTemplate(data);
     }
-  }, [sessionId, selectedDate, fbQuestionText, fbQuestionType, fbQuestionRequired, fbOptionsText, fbEditingQuestionId, fbQuestions.length, syncSelectedTemplate]);
+  }, [sessionId, selectedDate, fbQuestionText, fbQuestionType, fbQuestionRequired, fbOptionsText, fbEditingQuestionId, fbQuestions.length]);
 
   const handleDeleteQuestion = useCallback(async (questionId: string) => {
     if (!sessionId) return;
@@ -948,9 +932,8 @@ export function Attendance() {
     const { data } = await feedbackService.getQuestions(sessionId, selectedDate);
     if (data) {
       setFbQuestions(data);
-      await syncSelectedTemplate(data);
     }
-  }, [sessionId, selectedDate, syncSelectedTemplate]);
+  }, [sessionId, selectedDate]);
 
   const handleApplyTemplate = useCallback(async (templateId: string) => {
     if (!sessionId || !templateId) return;
@@ -1048,6 +1031,33 @@ export function Attendance() {
       })();
     }
   }, [selectedDate, hostDataLoaded, hostAddresses, selectedAddress, sessionNotHeld, sessionId]);
+
+  // Validate saved host is still in the valid host list (can_host may have changed)
+  useEffect(() => {
+    if (!hostDataLoaded || !selectedAddress || selectedAddress === 'SESSION_NOT_HELD' || hostAddresses.length === 0) return;
+
+    const parts = selectedAddress.split('|||');
+    const savedHostId = parts[0];
+    if (!savedHostId || savedHostId === 'unknown') return;
+
+    const isStillValid = hostAddresses.some(h => h.student_id === savedHostId);
+    if (!isStillValid) {
+      toast.warning('⚠️ The previously selected host is no longer allowed to host. Please select a new host address.');
+      setSelectedAddress('');
+      setHostCoordinates(null);
+      // Clear stale session_date_host record
+      if (sessionId && selectedDate) {
+        supabase
+          .from(Tables.SESSION_DATE_HOST)
+          .delete()
+          .eq('session_id', sessionId)
+          .eq('attendance_date', selectedDate)
+          .then(({ error }) => {
+            if (error) console.error('Error clearing stale host:', error);
+          });
+      }
+    }
+  }, [hostDataLoaded, selectedAddress, hostAddresses, sessionId, selectedDate]);
 
   const loadSelectedBookReference = async () => {
     if (!sessionId || !selectedDate) return;
@@ -2509,6 +2519,23 @@ export function Attendance() {
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       {fbSelectedTemplateId && !fbTemplates.find(t => t.id === fbSelectedTemplateId)?.is_default && (
+                        <>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (fbQuestions.length === 0) { toast.warning('No questions to save'); return; }
+                            if (!confirm('Update this template with the current questions?')) return;
+                            const { error } = await feedbackService.updateTemplate(fbSelectedTemplateId, {
+                              questions: toTemplateQuestions(fbQuestions),
+                            });
+                            if (error) { toast.error('Failed to update template'); return; }
+                            toast.success('Template updated');
+                            const { data } = await feedbackService.getTemplates();
+                            if (data) setFbTemplates(data);
+                          }}
+                          className="text-xs px-2 py-2 rounded-lg text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 border border-amber-200 dark:border-amber-700"
+                          title="Update template with current questions"
+                        >🔄</button>
                         <button
                           type="button"
                           onClick={async () => {
@@ -2523,6 +2550,7 @@ export function Attendance() {
                           className="text-xs px-2 py-2 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 border border-red-200 dark:border-red-800"
                           title="Delete this template"
                         >🗑️</button>
+                        </>
                       )}
                       <button
                         type="button"
@@ -2579,7 +2607,7 @@ export function Attendance() {
                     className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-white placeholder-gray-400"
                   />
                   <div className="flex flex-wrap gap-2">
-                    {(['rating', 'emoji', 'text', 'multiple_choice'] as const).map(t => (
+                    {(['rating', 'text', 'multiple_choice'] as const).map(t => (
                       <button
                         key={t}
                         type="button"
@@ -2590,7 +2618,7 @@ export function Attendance() {
                             : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-indigo-400'
                         }`}
                       >
-                        {t === 'rating' ? 'Rating' : t === 'emoji' ? 'Emoji' : t === 'text' ? 'Text' : 'Multiple Choice'}
+                        {t === 'rating' ? 'Rating' : t === 'text' ? 'Text' : 'Multiple Choice'}
                       </button>
                     ))}
                   </div>
@@ -2655,7 +2683,7 @@ export function Attendance() {
                           <p className="text-sm text-gray-800 dark:text-white break-words">{q.question_text}</p>
                           <div className="flex flex-wrap gap-1.5 mt-1">
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-                              {q.question_type === 'rating' ? 'Rating' : q.question_type === 'emoji' ? 'Emoji' : q.question_type === 'text' ? 'Text' : 'Multiple Choice'}
+                              {q.question_type === 'rating' ? 'Rating' : q.question_type === 'text' ? 'Text' : 'Multiple Choice'}
                             </span>
                             {q.is_required && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400">

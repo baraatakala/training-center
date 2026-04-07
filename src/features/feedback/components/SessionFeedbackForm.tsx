@@ -2,13 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { feedbackService, type FeedbackQuestion } from '@/features/feedback/services/feedbackService';
 import { Button } from '@/shared/components/ui';
 
-const MOOD_EMOJIS = [
-  { emoji: '😴', label: 'Tired' },
-  { emoji: '🤔', label: 'Confused' },
-  { emoji: '😐', label: 'Neutral' },
-  { emoji: '😊', label: 'Happy' },
-  { emoji: '🔥', label: 'Energized' },
-];
+
 
 interface Props {
   sessionId: string;
@@ -272,25 +266,6 @@ export default function SessionFeedbackForm({
                     }`}
                   >
                     ★
-                  </button>
-                ))}
-              </div>
-            )}
-            {q.question_type === 'emoji' && (
-              <div className="flex gap-2 justify-center">
-                {MOOD_EMOJIS.map((m) => (
-                  <button
-                    key={m.label}
-                    type="button"
-                    onClick={() => handleSetResponse(q.id, m.label)}
-                    className={`p-2 rounded-xl transition-all ${
-                      responses[q.id] === m.label
-                        ? 'bg-purple-100 dark:bg-purple-800/50 scale-110'
-                        : 'opacity-50 hover:opacity-75'
-                    }`}
-                  >
-                    <span className="text-2xl">{m.emoji}</span>
-                    <span className="text-[10px] block">{m.label}</span>
                   </button>
                 ))}
               </div>

@@ -6,30 +6,18 @@ import { toast } from '@/shared/components/ui/toastUtils';
 import { useRefreshOnFocus } from '@/shared/hooks/useRefreshOnFocus';
 import { Breadcrumb } from '@/shared/components/ui/Breadcrumb';
 import { feedbackService } from '@/features/feedback/services/feedbackService';
-import type { SessionFeedback, FeedbackStats, FeedbackQuestion, FeedbackComparison } from '@/shared/types/database.types';
+import type { SessionFeedback, FeedbackStats, FeedbackQuestion, FeedbackComparison, FeedbackTemplate } from '@/shared/types/database.types';
 import {
-  ResponsiveContainer, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip,
-  AreaChart, Area, Line, Legend, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
+  ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip,
+  AreaChart, Area, Line, Legend,
 } from 'recharts';
-
-// ─── Sub-components (new executive design) ─────────────────
-import { FeedbackKPICards } from '../components/FeedbackKPICards';
-import { EmojiDistribution } from '../components/EmojiDistribution';
-import { InstructorMatrix } from '../components/InstructorMatrix';
-import { ResponseRepository } from '../components/ResponseRepository';
-import { EnrollmentPolls } from '../components/EnrollmentPolls';
-import { IntelligenceFeed } from '../components/IntelligenceFeed';
 
 // ─── Constants ─────────────────────────────────────────────
 const RATING_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#8b5cf6'];
 const RATING_EMOJIS = ['😢', '😕', '😐', '😊', '🤩'];
-const MOOD_EMOJIS: Record<string, string> = {
-  Tired: '😴', Confused: '🤔', Neutral: '😐', Happy: '😊', Energized: '🔥',
-};
 
-type ActiveView = 'overview' | 'drilldown' | 'questions' | 'dates';
-type MethodFilter = 'all' | 'qr_code' | 'photo' | 'manual' | 'bulk' | 'unknown';
-type QuestionTypeFilter = 'all' | FeedbackQuestion['question_type'];
+type ActiveView = 'records' | 'analytics' | 'templates';
+type QuestionTypeFilter = 'all' | 'rating' | 'text' | 'multiple_choice';
 
 interface SessionOption {
   session_id: string;
@@ -41,7 +29,14 @@ interface SessionOption {
   feedback_anonymous_allowed: boolean;
 }
 
-// ─── Per-question analytics helpers ────────────────────────
+interface TemplateQuestion {
+  type: 'rating' | 'text' | 'multiple_choice';
+  text: string;
+  required: boolean;
+  optionsText: string; // comma-separated string for multiple_choice options
+}
+
+// ─── Per-question analytics ────────────────────────────────
 function aggregateQuestionResponses(question: FeedbackQuestion, feedbacks: SessionFeedback[]) {
   const values: unknown[] = [];
   for (const fb of feedbacks) {
@@ -55,11 +50,6 @@ function aggregateQuestionResponses(question: FeedbackQuestion, feedbacks: Sessi
     const avg = nums.length > 0 ? nums.reduce((a, b) => a + b, 0) / nums.length : 0;
     return { type: 'rating' as const, distribution: dist, avg: Math.round(avg * 10) / 10, total: values.length };
   }
-  if (question.question_type === 'emoji') {
-    const dist: Record<string, number> = {};
-    for (const v of values) dist[String(v)] = (dist[String(v)] || 0) + 1;
-    return { type: 'emoji' as const, distribution: dist, total: values.length };
-  }
   if (question.question_type === 'multiple_choice') {
     const dist: Record<string, number> = {};
     for (const v of values) dist[String(v)] = (dist[String(v)] || 0) + 1;
@@ -68,7 +58,7 @@ function aggregateQuestionResponses(question: FeedbackQuestion, feedbacks: Sessi
   return { type: 'text' as const, answers: values.map(String), total: values.length };
 }
 
-// ─── CSV export helper ─────────────────────────────────────
+// ─── CSV export ─────────────────────────────────────────────
 function exportFeedbackCSV(feedbacks: SessionFeedback[], questions: FeedbackQuestion[], courseName: string, selectedDate?: string) {
   const headers = ['Student', 'Date', 'Overall Rating', 'Comment', 'Anonymous', 'Check-In Method'];
   for (const q of questions) headers.push(`${q.question_text}${q.attendance_date ? ` (${q.attendance_date})` : ''}`);
@@ -107,7 +97,7 @@ export function FeedbackAnalytics() {
   const [stats, setStats] = useState<FeedbackStats | null>(null);
   const [questions, setQuestions] = useState<FeedbackQuestion[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activeView, setActiveView] = useState<ActiveView>('overview');
+  const [activeView, setActiveView] = useState<ActiveView>('records');
   const [updatingFeedbackEnabled, setUpdatingFeedbackEnabled] = useState(false);
   const [updatingAnonymousAllowed, setUpdatingAnonymousAllowed] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
@@ -115,14 +105,23 @@ export function FeedbackAnalytics() {
   // Date Comparison
   const [dateComparison, setDateComparison] = useState<FeedbackComparison | null>(null);
   const [selectedAnalyticsDate, setSelectedAnalyticsDate] = useState<string>('');
-  const [dateStats, setDateStats] = useState<FeedbackStats | null>(null);
-  const [loadingDateStats, setLoadingDateStats] = useState(false);
-  const [analyticsSortBy, setAnalyticsSortBy] = useState<'date' | 'rating' | 'responses' | 'rate'>('date');
-  const [analyticsSortDir, setAnalyticsSortDir] = useState<'asc' | 'desc'>('desc');
-  const [methodFilter, _setMethodFilter] = useState<MethodFilter>('all');
   const [questionTypeFilter, setQuestionTypeFilter] = useState<QuestionTypeFilter>('all');
   const [feedbackSearch, setFeedbackSearch] = useState('');
-  const [selectedQuestionId, setSelectedQuestionId] = useState<string>('');
+  const [recordsPage, setRecordsPage] = useState(0);
+  const RECORDS_PER_PAGE = 15;
+
+  // Template management state
+  const [templates, setTemplates] = useState<FeedbackTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [templateFormOpen, setTemplateFormOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<FeedbackTemplate | null>(null);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [applyingTemplate, setApplyingTemplate] = useState<string | null>(null);
+  const [templateName, setTemplateName] = useState('');
+  const [templateDescription, setTemplateDescription] = useState('');
+  const [templateQuestions, setTemplateQuestions] = useState<TemplateQuestion[]>([
+    { type: 'rating', text: '', required: true, optionsText: '' },
+  ]);
 
   const selectedSession = sessions.find(s => s.session_id === selectedSessionId);
 
@@ -202,21 +201,10 @@ export function FeedbackAnalytics() {
     return () => { cancelled = true; };
   }, [selectedSessionId]);
 
-  useEffect(() => {
-    if (!selectedSessionId || !selectedAnalyticsDate) { setDateStats(null); return; }
-    let cancelled = false;
-    setLoadingDateStats(true);
-    feedbackService.getStatsByDate(selectedSessionId, selectedAnalyticsDate).then(r => {
-      if (!cancelled) { setDateStats(r.data); setLoadingDateStats(false); }
-    });
-    return () => { cancelled = true; };
-  }, [selectedSessionId, selectedAnalyticsDate]);
-
   // ─── Derived data ──────────────────────────────────────────
   const filteredFeedbacks = useMemo(() => {
     return feedbacks.filter(fb => {
       if (selectedAnalyticsDate && fb.attendance_date !== selectedAnalyticsDate) return false;
-      if (methodFilter !== 'all' && (fb.check_in_method || 'unknown') !== methodFilter) return false;
       if (feedbackSearch.trim()) {
         const haystack = [fb.student_name, fb.comment, ...Object.values(fb.responses || {}).map(String)]
           .filter(Boolean).join(' ').toLowerCase();
@@ -224,7 +212,7 @@ export function FeedbackAnalytics() {
       }
       return true;
     });
-  }, [feedbacks, selectedAnalyticsDate, methodFilter, feedbackSearch]);
+  }, [feedbacks, selectedAnalyticsDate, feedbackSearch]);
 
   const filteredStats = useMemo(() => {
     const rated = filteredFeedbacks.filter(fb => fb.overall_rating != null);
@@ -252,36 +240,14 @@ export function FeedbackAnalytics() {
     [...new Set(feedbacks.map(f => f.attendance_date))].sort().reverse(),
     [feedbacks]);
 
-  const filteredQuestionAnalytics = useMemo(() => {
+  const questionAnalytics = useMemo(() => {
     return questions
       .filter(q => questionTypeFilter === 'all' || q.question_type === questionTypeFilter)
-      .filter(q => !selectedQuestionId || q.id === selectedQuestionId)
-      .filter(q => !feedbackSearch.trim() || q.question_text.toLowerCase().includes(feedbackSearch.trim().toLowerCase()))
       .map(q => ({ question: q, data: aggregateQuestionResponses(q, filteredFeedbacks) }))
       .sort((a, b) => b.data.total - a.data.total);
-  }, [questions, questionTypeFilter, selectedQuestionId, feedbackSearch, filteredFeedbacks]);
+  }, [questions, questionTypeFilter, filteredFeedbacks]);
 
-  const sortedDateSummaries = useMemo(() => {
-    if (!dateComparison) return [];
-    const sorted = [...dateComparison.dates];
-    sorted.sort((a, b) => {
-      let cmp = 0;
-      if (analyticsSortBy === 'date') cmp = a.date.localeCompare(b.date);
-      else if (analyticsSortBy === 'rating') cmp = a.averageRating - b.averageRating;
-      else if (analyticsSortBy === 'responses') cmp = a.responses - b.responses;
-      else if (analyticsSortBy === 'rate') cmp = a.responseRate - b.responseRate;
-      return analyticsSortDir === 'asc' ? cmp : -cmp;
-    });
-    return sorted;
-  }, [dateComparison, analyticsSortBy, analyticsSortDir]);
-
-  const dateFilteredQuestionAnalytics = useMemo(() => {
-    if (!selectedAnalyticsDate) return filteredQuestionAnalytics;
-    const dateFb = feedbacks.filter(f => f.attendance_date === selectedAnalyticsDate);
-    return questions.map(q => ({ question: q, data: aggregateQuestionResponses(q, dateFb) }));
-  }, [selectedAnalyticsDate, feedbacks, questions, filteredQuestionAnalytics]);
-
-  const radarData = useMemo(() => {
+  const trendData = useMemo(() => {
     if (!dateComparison || dateComparison.dates.length < 2) return [];
     return dateComparison.dates.map(d => ({
       date: `${new Date(`${d.date}T00:00:00`).getMonth() + 1}/${new Date(`${d.date}T00:00:00`).getDate()}`,
@@ -289,14 +255,12 @@ export function FeedbackAnalytics() {
     }));
   }, [dateComparison]);
 
-  const dateHeatmapData = useMemo(() => {
-    if (!dateComparison) return [];
-    return dateComparison.dates.map(d => ({
-      date: d.date,
-      label: new Date(`${d.date}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-      rating: d.averageRating, responses: d.responses, rate: d.responseRate,
-    }));
-  }, [dateComparison]);
+  const paginatedRecords = useMemo(() => {
+    const start = recordsPage * RECORDS_PER_PAGE;
+    return filteredFeedbacks.slice(start, start + RECORDS_PER_PAGE);
+  }, [filteredFeedbacks, recordsPage]);
+
+  const totalPages = Math.ceil(filteredFeedbacks.length / RECORDS_PER_PAGE);
 
   // ─── Toggle handlers ──────────────────────────────────────
   const handleToggleFeedbackEnabled = async () => {
@@ -321,38 +285,193 @@ export function FeedbackAnalytics() {
     toast.success(nextValue ? 'Anonymous feedback allowed.' : 'Feedback now records identity.');
   };
 
+  // ─── Template management ───────────────────────────────────
+  const loadTemplates = useCallback(async () => {
+    setLoadingTemplates(true);
+    const { data, error } = await feedbackService.getTemplates();
+    setLoadingTemplates(false);
+    if (error) { toast.error((error as { message?: string }).message || 'Failed to load templates.', 5000); return; }
+    setTemplates(data || []);
+  }, []);
+
+  useEffect(() => { void loadTemplates(); }, [loadTemplates]);
+
+  const openNewTemplateForm = () => {
+    setEditingTemplate(null);
+    setTemplateName('');
+    setTemplateDescription('');
+    setTemplateQuestions([{ type: 'rating', text: '', required: true, optionsText: '' }]);
+    setTemplateFormOpen(true);
+  };
+
+  const openEditTemplateForm = (tmpl: FeedbackTemplate) => {
+    setEditingTemplate(tmpl);
+    setTemplateName(tmpl.name);
+    setTemplateDescription(tmpl.description || '');
+    const qs = Array.isArray(tmpl.questions) ? tmpl.questions : [];
+    setTemplateQuestions(qs.map((q: { type?: string; text?: string; required?: boolean; options?: string[] }) => ({
+      type: (q.type || 'rating') as 'rating' | 'text' | 'multiple_choice',
+      text: q.text || '',
+      required: Boolean(q.required),
+      optionsText: Array.isArray(q.options) ? q.options.join(', ') : '',
+    })));
+    setTemplateFormOpen(true);
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!templateName.trim()) { toast.error('Template name is required.'); return; }
+    const validQs = templateQuestions.filter(q => q.text.trim());
+    if (validQs.length === 0) { toast.error('Add at least one question.'); return; }
+    const payload = {
+      name: templateName.trim(),
+      description: templateDescription.trim() || undefined,
+      questions: validQs.map(q => ({
+        type: q.type,
+        text: q.text.trim(),
+        required: q.required,
+        options: q.type === 'multiple_choice' ? q.optionsText.split(',').map(o => o.trim()).filter(Boolean) : [],
+      })),
+    };
+    setSavingTemplate(true);
+    if (editingTemplate) {
+      const { error } = await feedbackService.updateTemplate(editingTemplate.id, payload);
+      setSavingTemplate(false);
+      if (error) { toast.error((error as { message?: string }).message || 'Failed to update template.', 5000); return; }
+      toast.success('Template updated.');
+    } else {
+      const { error } = await feedbackService.createTemplate(payload);
+      setSavingTemplate(false);
+      if (error) { toast.error((error as { message?: string }).message || 'Failed to create template.', 5000); return; }
+      toast.success('Template created.');
+    }
+    setTemplateFormOpen(false);
+    void loadTemplates();
+  };
+
+  const handleDeleteTemplate = async (id: string) => {
+    const { error } = await feedbackService.deleteTemplate(id);
+    if (error) { toast.error((error as { message?: string }).message || 'Failed to delete template.', 5000); return; }
+    toast.success('Template deleted.');
+    setTemplates(prev => prev.filter(t => t.id !== id));
+  };
+
+  const handleApplyTemplate = async (templateId: string) => {
+    if (!selectedSessionId) return;
+    setApplyingTemplate(templateId);
+    const { error } = await feedbackService.applyTemplateToSession(templateId, selectedSessionId);
+    setApplyingTemplate(null);
+    if (error) { toast.error((error as { message?: string }).message || 'Failed to apply template.', 5000); return; }
+    toast.success('Template applied to session questions.');
+    const { data } = await feedbackService.getQuestions(selectedSessionId);
+    if (data) setQuestions(data);
+  };
+
+  const addTemplateQuestion = () => setTemplateQuestions(q => [...q, { type: 'rating', text: '', required: false, optionsText: '' }]);
+  const removeTemplateQuestion = (i: number) => setTemplateQuestions(q => q.filter((_, idx) => idx !== i));
+  const updateTemplateQuestion = (i: number, patch: Partial<TemplateQuestion>) =>
+    setTemplateQuestions(q => q.map((item, idx) => idx === i ? { ...item, ...patch } : item));
+
+  // ─── AI Insights computation ───────────────────────────────
+  const aiInsights = useMemo(() => {
+    if (feedbacks.length < 3) return [];
+    const insights: { type: 'positive' | 'warning' | 'info'; message: string }[] = [];
+
+    // Trend
+    if (dateComparison?.trendDirection === 'declining')
+      insights.push({ type: 'warning', message: 'Ratings are declining over time — consider reviewing session content or pace.' });
+    if (dateComparison?.trendDirection === 'improving')
+      insights.push({ type: 'positive', message: 'Ratings are improving across sessions — students are responding well.' });
+
+    // Low engagement dates
+    if (dateComparison) {
+      const lowEng = dateComparison.dates.filter(d => d.responseRate < 30 && d.responseRate > 0);
+      if (lowEng.length > 0)
+        insights.push({ type: 'warning', message: `Low engagement (<30%) on ${lowEng.length} date(s): ${lowEng.map(d => d.date).join(', ')}` });
+    }
+
+    // Check-in method correlation
+    const rateBy = (method: string) => {
+      const sub = feedbacks.filter(f => f.check_in_method === method && f.overall_rating != null);
+      return sub.length > 2 ? sub.reduce((s, f) => s + Number(f.overall_rating), 0) / sub.length : null;
+    };
+    const qrAvg = rateBy('qr'); const faceAvg = rateBy('face'); const manualAvg = rateBy('manual');
+    if (qrAvg && faceAvg && Math.abs(qrAvg - faceAvg) > 0.6)
+      insights.push({ type: 'info', message: `QR check-in avg rating: ${qrAvg.toFixed(1)} vs Face: ${faceAvg.toFixed(1)} — noticeable difference in satisfaction by check-in method.` });
+    if (qrAvg && manualAvg && Math.abs(qrAvg - manualAvg) > 0.6)
+      insights.push({ type: 'info', message: `QR check-in avg rating: ${qrAvg.toFixed(1)} vs Manual: ${manualAvg.toFixed(1)}` });
+
+    // Anonymous vs named
+    const anonSub = feedbacks.filter(f => f.is_anonymous && f.overall_rating != null);
+    const namedSub = feedbacks.filter(f => !f.is_anonymous && f.overall_rating != null);
+    if (anonSub.length > 2 && namedSub.length > 2) {
+      const anonAvg = anonSub.reduce((s, f) => s + Number(f.overall_rating), 0) / anonSub.length;
+      const namedAvg = namedSub.reduce((s, f) => s + Number(f.overall_rating), 0) / namedSub.length;
+      if (Math.abs(anonAvg - namedAvg) > 0.7)
+        insights.push({ type: 'info', message: `Anonymous ratings (${anonAvg.toFixed(1)}) differ from named (${namedAvg.toFixed(1)}) — students may feel more comfortable rating honestly when anonymous.` });
+    }
+
+    // Text sentiment analysis
+    const textQs = questions.filter(q => q.question_type === 'text');
+    if (textQs.length > 0) {
+      const allText = feedbacks.flatMap(f => textQs.map(q => String(f.responses?.[q.id] || '')).filter(Boolean));
+      const positive = ['good', 'great', 'excellent', 'helpful', 'clear', 'interesting', 'enjoyed', 'best', 'amazing', 'wonderful', 'fantastic'];
+      const negative = ['bad', 'boring', 'confusing', 'difficult', 'slow', 'unclear', 'hard', 'worse', 'complicated', 'unhelpful', 'poor'];
+      const posCount = allText.reduce((s, t) => s + positive.filter(w => t.toLowerCase().includes(w)).length, 0);
+      const negCount = allText.reduce((s, t) => s + negative.filter(w => t.toLowerCase().includes(w)).length, 0);
+      if (allText.length >= 3) {
+        if (posCount > negCount * 2)
+          insights.push({ type: 'positive', message: `Text responses are predominantly positive (${posCount} positive vs ${negCount} concern signals detected).` });
+        else if (negCount > posCount * 1.5)
+          insights.push({ type: 'warning', message: `Text responses show more concerns (${negCount} negative vs ${posCount} positive signals). Review comments for specific issues.` });
+        else
+          insights.push({ type: 'info', message: `Text feedback sentiment is mixed (${posCount} positive, ${negCount} negative signals across ${allText.length} responses).` });
+      }
+    }
+
+    // Polarized question detection
+    for (const { question, data } of questionAnalytics) {
+      if (data.type === 'rating' && data.total >= 5) {
+        const high = (data.distribution[4] || 0) + (data.distribution[5] || 0);
+        const low = (data.distribution[1] || 0) + (data.distribution[2] || 0);
+        if (high > 0 && low > 0 && (Math.min(high, low) / data.total) > 0.2)
+          insights.push({ type: 'warning', message: `"${question.question_text}" has polarized opinions — ${Math.round((low/data.total)*100)}% low, ${Math.round((high/data.total)*100)}% high ratings.` });
+      }
+    }
+
+    // Best question (highest avg rating)
+    const ratingQs = questionAnalytics.filter(q => q.data.type === 'rating' && q.data.total >= 3);
+    if (ratingQs.length > 1) {
+      const best = ratingQs.reduce((a, b) => (a.data as { avg: number }).avg > (b.data as { avg: number }).avg ? a : b);
+      const bestData = best.data as { avg: number };
+      if (bestData.avg >= 4.2)
+        insights.push({ type: 'positive', message: `Highest-rated aspect: "${best.question.question_text}" with avg ${bestData.avg}/5.` });
+    }
+
+    return insights;
+  }, [feedbacks, dateComparison, questions, questionAnalytics]);
+
   // ═══════════════════════════════════════════════════════════
   // RENDER
   // ═══════════════════════════════════════════════════════════
   return (
     <div className="space-y-6">
-      <Breadcrumb items={[{ label: 'Dashboard', path: '/' }, { label: 'Feedback Intelligence' }]} />
+      <Breadcrumb items={[{ label: 'Dashboard', path: '/' }, { label: 'Feedback Analytics' }]} />
 
-      {/* ─── Executive Header ──────────────────────────────── */}
+      {/* ─── Header ───────────────────────────────────────── */}
       <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white tracking-tight">
-            Executive Feedback Intelligence
+            Feedback Analytics
           </h1>
           <p className="text-sm text-gray-400 dark:text-gray-500 max-w-xl">
-            A high-density aggregation of institutional sentiment across all course categories and instructional staff.
+            View feedback records, per-question analytics, and manage reusable templates.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={selectedAnalyticsDate}
-            onChange={e => setSelectedAnalyticsDate(e.target.value)}
-            className="text-xs font-bold rounded-full border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2 text-gray-700 dark:text-gray-200 shadow-sm"
-          >
-            <option value="">All Dates</option>
-            {uniqueDates.map(d => <option key={d} value={d}>{d}</option>)}
-          </select>
-          {feedbacks.length > 0 && (
-            <Button variant="outline" size="sm" className="rounded-full" onClick={() => exportFeedbackCSV(filteredFeedbacks, questions, selectedSession?.course_name || 'feedback', selectedAnalyticsDate)}>
-              📥 Export CSV
-            </Button>
-          )}
-        </div>
+        {feedbacks.length > 0 && activeView === 'records' && (
+          <Button variant="outline" size="sm" className="rounded-full" onClick={() => exportFeedbackCSV(filteredFeedbacks, questions, selectedSession?.course_name || 'feedback', selectedAnalyticsDate)}>
+            📥 Export CSV
+          </Button>
+        )}
       </div>
 
       {/* ─── Session Selector ────────────────────────────────── */}
@@ -432,18 +551,51 @@ export function FeedbackAnalytics() {
 
       {!loading && selectedSessionId && feedbacks.length > 0 && (
         <>
+          {/* ─── KPI Summary Cards ─────────────────────────── */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-4">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Responses</p>
+              <p className="text-2xl font-black text-gray-900 dark:text-white">{filteredStats.totalResponses}</p>
+              <p className="text-[10px] text-gray-400">{filteredStats.engagedStudents} students</p>
+            </div>
+            <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-4">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Avg Rating</p>
+              <p className="text-2xl font-black text-purple-600 dark:text-purple-400">
+                {filteredStats.averageRating || '—'}<span className="text-sm font-bold text-gray-400 ml-1">/ 5</span>
+              </p>
+              <p className="text-[10px] text-gray-400">{RATING_EMOJIS[Math.round(filteredStats.averageRating) - 1] || ''}</p>
+            </div>
+            <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-4">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Engagement</p>
+              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{filteredResponseRate}%</p>
+              <div className="w-full bg-gray-100 dark:bg-gray-700 h-1.5 rounded-full overflow-hidden mt-1">
+                <div className="h-full rounded-full bg-emerald-500" style={{ width: `${filteredResponseRate}%` }} />
+              </div>
+            </div>
+            <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-4">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Dates</p>
+              <p className="text-2xl font-black text-gray-900 dark:text-white">{filteredStats.datesCovered}</p>
+              {dateComparison && dateComparison.trendDirection !== 'insufficient' && (
+                <p className={`text-[10px] font-semibold ${
+                  dateComparison.trendDirection === 'improving' ? 'text-emerald-500' : dateComparison.trendDirection === 'declining' ? 'text-red-500' : 'text-gray-400'
+                }`}>
+                  {dateComparison.trendDirection === 'improving' ? '📈' : dateComparison.trendDirection === 'declining' ? '📉' : '➡️'} {dateComparison.trendDirection}
+                </p>
+              )}
+            </div>
+          </div>
+
           {/* ─── View Tabs ──────────────────────────────────── */}
-          <div className="flex items-center gap-1 p-1.5 bg-gray-100/80 dark:bg-gray-800/80 rounded-2xl overflow-x-auto backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50">
+          <div className="flex items-center gap-1 p-1.5 bg-gray-100/80 dark:bg-gray-800/80 rounded-2xl backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50">
             {([
-              { key: 'overview' as ActiveView, icon: '📊', label: 'Executive Overview', badge: stats?.totalResponses },
-              { key: 'drilldown' as ActiveView, icon: '🔍', label: 'Session Drill-Down', badge: filteredFeedbacks.length },
-              { key: 'questions' as ActiveView, icon: '🧩', label: 'Question Insights', badge: questions.length },
-              { key: 'dates' as ActiveView, icon: '📅', label: 'Date Analysis', badge: dateComparison?.dates.length },
+              { key: 'records' as ActiveView, icon: '📋', label: 'Feedback Records', badge: filteredFeedbacks.length },
+              { key: 'analytics' as ActiveView, icon: '📊', label: 'Question Analytics', badge: questions.length },
+              { key: 'templates' as ActiveView, icon: '📄', label: 'Templates', badge: templates.length },
             ]).map(t => (
               <button
                 key={t.key}
                 onClick={() => setActiveView(t.key)}
-                className={`px-4 py-2.5 text-xs font-bold rounded-xl transition-all whitespace-nowrap flex items-center gap-2 ${
+                className={`flex-1 px-4 py-2.5 text-xs font-bold rounded-xl transition-all whitespace-nowrap flex items-center justify-center gap-2 ${
                   activeView === t.key
                     ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-md ring-1 ring-gray-200/50 dark:ring-gray-600/50'
                     : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 hover:bg-white/50 dark:hover:bg-gray-700/50'
@@ -462,238 +614,193 @@ export function FeedbackAnalytics() {
           </div>
 
           {/* ═══════════════════════════════════════════════════ */}
-          {/* VIEW: EXECUTIVE OVERVIEW (Stitch-inspired)        */}
+          {/* VIEW: FEEDBACK RECORDS                            */}
           {/* ═══════════════════════════════════════════════════ */}
-          {activeView === 'overview' && (
-            <div className="space-y-6">
-              {/* KPI Cards */}
-              <FeedbackKPICards
-                stats={stats}
-                filteredTotal={filteredStats.totalResponses}
-                filteredStudents={filteredStats.engagedStudents}
-                filteredAvg={filteredStats.averageRating}
-                responseRate={filteredResponseRate}
-                questionsUsed={filteredQuestionAnalytics.filter(a => a.data.total > 0).length}
-                latestDate={filteredStats.latestResponseDate}
-                datesCovered={filteredStats.datesCovered}
-              />
-
-              {/* Emoji Distribution (like Stitch screenshot 2) */}
-              <EmojiDistribution questions={questions} feedbacks={filteredFeedbacks} />
-
-              {/* Session Performance Matrix (like Stitch Institutional Matrix) */}
-              <InstructorMatrix dateComparison={dateComparison} questions={questions} feedbacks={filteredFeedbacks} />
-
-              {/* Two-column: Enrollment Polls + Intelligence Feed */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <EnrollmentPolls questions={questions} feedbacks={filteredFeedbacks} />
-                <IntelligenceFeed feedbacks={filteredFeedbacks} questions={questions} />
-              </div>
-            </div>
-          )}
-
-          {/* ═══════════════════════════════════════════════════ */}
-          {/* VIEW: RESPONSE REPOSITORY (Session Drill-Down)    */}
-          {/* ═══════════════════════════════════════════════════ */}
-          {activeView === 'drilldown' && (
-            <div className="space-y-5">
-              {/* Session Title Header — Stitch style */}
-              {selectedSession && (
-                <div>
-                  <p className="text-[11px] text-gray-400 dark:text-gray-500 font-medium mb-1">
-                    <span className="hover:text-violet-500 cursor-pointer" onClick={() => setActiveView('overview')}>Analytics</span>
-                    <span className="mx-1.5">›</span>
-                    <span>Session Feedback</span>
-                  </p>
-                  <h2 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white tracking-tight">
-                    {selectedSession.course_name}
-                  </h2>
-                </div>
-              )}
-
-              {/* Session Header Bento Cards */}
-              {selectedSession && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-5">
-                    <div className="absolute -right-4 -top-4 w-24 h-24 bg-purple-500/5 rounded-full blur-2xl" />
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Session Score</p>
-                    <div className="flex items-end gap-2">
-                      <span className="text-4xl font-black text-purple-600 dark:text-purple-400">{filteredStats.averageRating || '—'}</span>
-                      <span className="text-sm font-bold text-gray-400 mb-1">/ 5.0</span>
-                    </div>
-                    {dateComparison && dateComparison.trendDirection !== 'insufficient' && (
-                      <div className={`mt-2 flex items-center gap-1 text-[11px] font-semibold ${
-                        dateComparison.trendDirection === 'improving' ? 'text-emerald-600 dark:text-emerald-400'
-                          : dateComparison.trendDirection === 'declining' ? 'text-red-500' : 'text-gray-400'
-                      }`}>
-                        {dateComparison.trendDirection === 'improving' ? '📈' : dateComparison.trendDirection === 'declining' ? '📉' : '➡️'}
-                        {dateComparison.trendDirection}
-                      </div>
-                    )}
-                  </div>
-                  <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-5">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Session Benchmark</p>
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-sm text-gray-600 dark:text-gray-300 italic">Current Session</span>
-                      <span className="text-sm font-bold text-purple-600 dark:text-purple-400">{filteredStats.averageRating}</span>
-                    </div>
-                    <div className="w-full bg-gray-100 dark:bg-gray-700 h-2 rounded-full overflow-hidden mb-3">
-                      <div className="bg-purple-600 h-full rounded-full transition-all" style={{ width: `${(filteredStats.averageRating / 5) * 100}%` }} />
-                    </div>
-                    <div className="flex justify-between text-[10px] text-gray-400 font-semibold uppercase">
-                      <span>Avg: {dateComparison?.overallAvg ?? '—'}</span>
-                      {dateComparison && filteredStats.averageRating > dateComparison.overallAvg && (
-                        <span className="text-emerald-500">Outperforming by {(filteredStats.averageRating - dateComparison.overallAvg).toFixed(1)}</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-5">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Engagement</p>
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-sm text-gray-600 dark:text-gray-300 italic">Response Rate</span>
-                      <span className="text-sm font-bold text-gray-700 dark:text-gray-200">{filteredResponseRate}%</span>
-                    </div>
-                    <div className="w-full bg-gray-100 dark:bg-gray-700 h-2 rounded-full overflow-hidden mb-3">
-                      <div className="bg-emerald-500 h-full rounded-full transition-all" style={{ width: `${filteredResponseRate}%` }} />
-                    </div>
-                    <div className="flex justify-between text-[10px] text-gray-400 font-semibold uppercase">
-                      <span>{filteredStats.engagedStudents} students participated</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Session metadata chips */}
-              {selectedSession && (
-                <div className="flex flex-wrap gap-2">
-                  <span className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-full text-xs font-semibold text-gray-600 dark:text-gray-300">
-                    📅 {selectedSession.start_date} → {selectedSession.end_date}
-                  </span>
-                  <span className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-full text-xs font-semibold text-gray-600 dark:text-gray-300">
-                    👤 {selectedSession.teacher_name}
-                  </span>
-                  <span className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-full text-xs font-semibold text-gray-600 dark:text-gray-300">
-                    👥 {filteredStats.engagedStudents} Respondents
-                  </span>
-                </div>
-              )}
-
-              {/* Response Repository Table */}
-              <ResponseRepository
-                feedbacks={filteredFeedbacks}
-                questions={questions}
-                search={feedbackSearch}
-                onSearchChange={setFeedbackSearch}
-              />
-
-              {/* Insight Digest — AI-Generated Summary */}
-              {filteredFeedbacks.length >= 3 && (
-                <div className="relative overflow-hidden rounded-2xl border-2 border-violet-200 dark:border-violet-800">
-                  {/* Gradient accent bar */}
-                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 via-purple-500 to-indigo-500" />
-                  <div className="p-6 sm:p-8">
-                    <div className="flex items-start gap-4">
-                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shrink-0 shadow-lg shadow-violet-500/20">
-                        <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                        </svg>
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="text-lg font-black text-gray-900 dark:text-white tracking-tight">Insight Digest</h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-300 mt-2 leading-relaxed">
-                          {(() => {
-                            const avg = filteredStats.averageRating;
-                            const total = filteredFeedbacks.length;
-                            const withComments = filteredFeedbacks.filter(f => f.comment?.trim()).length;
-                            const commentPct = Math.round((withComments / total) * 100);
-                            const trend = dateComparison?.trendDirection || 'insufficient';
-                            const rate = filteredResponseRate;
-                            
-                            const segments: string[] = [];
-                            
-                            if (avg >= 4) {
-                              segments.push(`This session shows strong performance with an average rating of ${avg}/5.`);
-                            } else if (avg >= 3) {
-                              segments.push(`This session shows moderate performance with an average rating of ${avg}/5, suggesting room for improvement.`);
-                            } else {
-                              segments.push(`This session shows a rating of ${avg}/5, indicating significant concerns that should be addressed.`);
-                            }
-                            
-                            if (trend === 'improving') {
-                              segments.push('Qualitative feedback suggests the session format is gaining positive traction over time.');
-                            } else if (trend === 'declining') {
-                              segments.push('A declining trend has been detected — consider reviewing recent session changes.');
-                            }
-                            
-                            if (rate >= 70) {
-                              segments.push(`With ${rate}% engagement rate, student participation is excellent.`);
-                            } else if (rate >= 40) {
-                              segments.push(`The ${rate}% engagement rate shows moderate participation — consider incentivizing feedback.`);
-                            }
-                            
-                            if (commentPct >= 50) {
-                              segments.push(`${commentPct}% of respondents left written comments, providing rich qualitative data for review.`);
-                            }
-                            
-                            return segments.join(' ');
-                          })()}
-                        </p>
-                        <div className="mt-4 flex items-center gap-2 text-[10px] font-bold text-violet-600 dark:text-violet-400 uppercase tracking-widest">
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                          </svg>
-                          AI-Generated Intelligence Summary
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ═══════════════════════════════════════════════════ */}
-          {/* VIEW: QUESTION INSIGHTS                            */}
-          {/* ═══════════════════════════════════════════════════ */}
-          {activeView === 'questions' && (
-            <div className="space-y-5">
-              {/* Filters */}
+          {activeView === 'records' && (
+            <div className="space-y-4">
+              {/* Filters Row */}
               <div className="flex flex-wrap gap-3 items-end">
-                <div className="min-w-[200px]">
-                  <label className="text-[11px] text-gray-400 block mb-1">Question type</label>
+                <div className="flex-1 min-w-[200px]">
+                  <label className="text-[11px] text-gray-400 block mb-1">Search</label>
+                  <input
+                    type="text"
+                    value={feedbackSearch}
+                    onChange={e => { setFeedbackSearch(e.target.value); setRecordsPage(0); }}
+                    placeholder="Search student, comment, response..."
+                    className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white placeholder:text-gray-400"
+                  />
+                </div>
+                <div className="min-w-[140px]">
+                  <label className="text-[11px] text-gray-400 block mb-1">Date</label>
                   <select
-                    value={questionTypeFilter}
-                    onChange={e => setQuestionTypeFilter(e.target.value as QuestionTypeFilter)}
+                    value={selectedAnalyticsDate}
+                    onChange={e => { setSelectedAnalyticsDate(e.target.value); setRecordsPage(0); }}
                     className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white"
                   >
-                    <option value="all">All types</option>
-                    <option value="rating">Rating</option>
-                    <option value="emoji">Emoji</option>
-                    <option value="text">Text</option>
-                    <option value="multiple_choice">Multiple choice</option>
+                    <option value="">All Dates</option>
+                    {uniqueDates.map(d => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </div>
-                <div className="min-w-[200px]">
-                  <label className="text-[11px] text-gray-400 block mb-1">Focus question</label>
-                  <select
-                    value={selectedQuestionId}
-                    onChange={e => setSelectedQuestionId(e.target.value)}
-                    className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white"
+                {(feedbackSearch || selectedAnalyticsDate) && (
+                  <button
+                    onClick={() => { setFeedbackSearch(''); setSelectedAnalyticsDate(''); setRecordsPage(0); }}
+                    className="text-xs text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 px-3 py-2 rounded-lg border border-purple-200 dark:border-purple-700"
                   >
-                    <option value="">All questions</option>
-                    {questions.map(q => <option key={q.id} value={q.id}>{q.question_text}</option>)}
-                  </select>
-                </div>
+                    ✕ Clear
+                  </button>
+                )}
               </div>
 
-              {filteredQuestionAnalytics.length === 0 ? (
+              {/* Records Table */}
+              {filteredFeedbacks.length === 0 ? (
+                <div className="text-center py-12">
+                  <span className="text-4xl block mb-3">🔍</span>
+                  <p className="text-sm text-gray-500">No records match your filters.</p>
+                </div>
+              ) : (
+                <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-gray-50 dark:bg-gray-800/60">
+                        <tr>
+                          {['Student', 'Date', 'Rating', 'Check-in', 'Comment', 'Responses'].map(h => (
+                            <th key={h} className="px-3 py-2.5 text-gray-400 font-semibold text-left first:pl-5">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
+                        {paginatedRecords.map(fb => (
+                          <tr key={fb.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors">
+                            <td className="px-3 py-3 pl-5">
+                              <div className="flex items-center gap-2">
+                                {fb.is_anonymous ? (
+                                  <span className="text-gray-400 italic">🕵️ Anonymous</span>
+                                ) : (
+                                  <span className="font-medium text-gray-900 dark:text-white">{fb.student_name || '—'}</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-3 py-3 text-gray-600 dark:text-gray-300">{fb.attendance_date}</td>
+                            <td className="px-3 py-3">
+                              {fb.overall_rating != null ? (
+                                <span className={`font-bold ${
+                                  Number(fb.overall_rating) >= 4 ? 'text-emerald-600' : Number(fb.overall_rating) >= 3 ? 'text-amber-600' : 'text-red-600'
+                                }`}>
+                                  {fb.overall_rating} {RATING_EMOJIS[Math.round(Number(fb.overall_rating)) - 1] || ''}
+                                </span>
+                              ) : <span className="text-gray-400">—</span>}
+                            </td>
+                            <td className="px-3 py-3">
+                              <span className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-[10px]">
+                                {fb.check_in_method || 'unknown'}
+                              </span>
+                            </td>
+                            <td className="px-3 py-3 max-w-[200px]">
+                              {fb.comment ? (
+                                <p className="text-gray-700 dark:text-gray-300 truncate" title={fb.comment}>{fb.comment}</p>
+                              ) : <span className="text-gray-400">—</span>}
+                            </td>
+                            <td className="px-3 py-3">
+                              {fb.responses && Object.keys(fb.responses).length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {Object.entries(fb.responses).slice(0, 3).map(([qId, val]) => {
+                                    const q = questions.find(qq => qq.id === qId);
+                                    return (
+                                      <span key={qId} className="px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 text-[10px] max-w-[80px] truncate" title={`${q?.question_text || 'Q'}: ${val}`}>
+                                        {String(val)}
+                                      </span>
+                                    );
+                                  })}
+                                  {Object.keys(fb.responses).length > 3 && (
+                                    <span className="text-[10px] text-gray-400">+{Object.keys(fb.responses).length - 3}</span>
+                                  )}
+                                </div>
+                              ) : <span className="text-gray-400">—</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 dark:border-gray-700">
+                      <p className="text-[11px] text-gray-400">
+                        Showing {recordsPage * RECORDS_PER_PAGE + 1}–{Math.min((recordsPage + 1) * RECORDS_PER_PAGE, filteredFeedbacks.length)} of {filteredFeedbacks.length}
+                      </p>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => setRecordsPage(p => Math.max(0, p - 1))}
+                          disabled={recordsPage === 0}
+                          className="px-2.5 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-gray-800"
+                        >
+                          ‹ Prev
+                        </button>
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                          const page = totalPages <= 5 ? i : Math.max(0, Math.min(recordsPage - 2, totalPages - 5)) + i;
+                          return (
+                            <button
+                              key={page}
+                              onClick={() => setRecordsPage(page)}
+                              className={`px-2.5 py-1.5 text-xs rounded-lg border transition-all ${
+                                recordsPage === page
+                                  ? 'border-purple-500 bg-purple-600 text-white'
+                                  : 'border-gray-200 dark:border-gray-700 text-gray-500 hover:border-purple-300'
+                              }`}
+                            >
+                              {page + 1}
+                            </button>
+                          );
+                        })}
+                        <button
+                          onClick={() => setRecordsPage(p => Math.min(totalPages - 1, p + 1))}
+                          disabled={recordsPage >= totalPages - 1}
+                          className="px-2.5 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-gray-800"
+                        >
+                          Next ›
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+            </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════════ */}
+          {/* VIEW: QUESTION ANALYTICS                           */}
+          {/* ═══════════════════════════════════════════════════ */}
+          {activeView === 'analytics' && (
+            <div className="space-y-5">
+              {/* Question Type Filter */}
+              <div className="flex flex-wrap gap-2">
+                {(['all', 'rating', 'text', 'multiple_choice'] as const).map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setQuestionTypeFilter(t)}
+                    className={`text-xs px-3 py-1.5 rounded-full border transition-all ${
+                      questionTypeFilter === t
+                        ? 'border-purple-500 bg-purple-600 text-white'
+                        : 'border-gray-200 dark:border-gray-600 text-gray-500 hover:border-purple-300'
+                    }`}
+                  >
+                    {t === 'all' ? 'All Types' : t === 'multiple_choice' ? 'Multiple Choice' : t.charAt(0).toUpperCase() + t.slice(1)}
+                  </button>
+                ))}
+              </div>
+
+              {/* Per-Question Analytics Cards */}
+              {questionAnalytics.length === 0 ? (
                 <div className="text-center py-16">
                   <span className="text-5xl block mb-3">🧩</span>
-                  <h3 className="text-base font-semibold text-gray-900 dark:text-white">No Question Matches</h3>
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-white">No Questions Match</h3>
+                  <p className="text-sm text-gray-500 mt-1">Try changing the type filter.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                  {filteredQuestionAnalytics.map(({ question, data }, index) => (
+                  {questionAnalytics.map(({ question, data }, index) => (
                     <div key={question.id} className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-5 space-y-3">
                       <div className="flex items-start gap-2">
                         <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 px-1.5 py-0.5 rounded shrink-0">Q{index + 1}</span>
@@ -729,15 +836,6 @@ export function FeedbackAnalytics() {
                             );
                           })}
                         </div>
-                      ) : data.type === 'emoji' ? (
-                        <div className="flex flex-wrap gap-3 justify-center py-2">
-                          {Object.entries(data.distribution).sort(([, a], [, b]) => b - a).map(([value, count]) => (
-                            <div key={value} className="text-center min-w-[56px]">
-                              <span className="text-2xl block">{MOOD_EMOJIS[value] || value}</span>
-                              <span className="text-[10px] text-gray-500">{count}</span>
-                            </div>
-                          ))}
-                        </div>
                       ) : data.type === 'multiple_choice' ? (
                         <div className="space-y-2">
                           {Object.entries(data.distribution).sort(([, a], [, b]) => b - a).map(([option, count]) => {
@@ -748,7 +846,7 @@ export function FeedbackAnalytics() {
                                 <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
                                   <div className="h-full rounded-full bg-purple-500" style={{ width: `${width}%` }} />
                                 </div>
-                                <span className="text-[10px] text-gray-400 w-8 text-right">{count}</span>
+                                <span className="text-[10px] text-gray-400 w-8 text-right">{Math.round(width)}%</span>
                               </div>
                             );
                           })}
@@ -756,7 +854,7 @@ export function FeedbackAnalytics() {
                       ) : (
                         <div className="space-y-1 max-h-40 overflow-y-auto">
                           {data.answers.map((answer, ai) => (
-                            <p key={ai} className="text-[11px] text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/50 rounded px-2 py-1.5">{answer}</p>
+                            <p key={ai} className="text-[11px] text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/50 rounded px-2 py-1.5">"{answer}"</p>
                           ))}
                         </div>
                       )}
@@ -764,221 +862,52 @@ export function FeedbackAnalytics() {
                   ))}
                 </div>
               )}
-            </div>
-          )}
 
-          {/* ═══════════════════════════════════════════════════ */}
-          {/* VIEW: DATE ANALYSIS                                */}
-          {/* ═══════════════════════════════════════════════════ */}
-          {activeView === 'dates' && (
-            <div className="space-y-5">
-              {/* Trend Overview Banner */}
-              {dateComparison && dateComparison.dates.length >= 2 && (
-                <div className={`rounded-2xl p-5 border ${
-                  dateComparison.trendDirection === 'improving' ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-900/10' :
-                  dateComparison.trendDirection === 'declining' ? 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10' :
-                  'border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/10'
-                }`}>
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{dateComparison.trendDirection === 'improving' ? '📈' : dateComparison.trendDirection === 'declining' ? '📉' : '➡️'}</span>
-                    <div>
-                      <p className="text-sm font-bold text-gray-900 dark:text-white">
-                        Trend: <span className="capitalize">{dateComparison.trendDirection}</span>
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {dateComparison.dates.length} dates · Avg: {dateComparison.overallAvg}/5
-                        {dateComparison.bestDate && ` · Best: ${dateComparison.bestDate}`}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Sort Controls */}
-              <div className="flex flex-wrap items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800/40 rounded-xl border border-gray-200 dark:border-gray-700">
-                <span className="text-xs text-gray-500 shrink-0">Sort by:</span>
-                {(['date', 'rating', 'responses', 'rate'] as const).map(key => (
-                  <button
-                    key={key}
-                    onClick={() => {
-                      if (analyticsSortBy === key) setAnalyticsSortDir(d => d === 'asc' ? 'desc' : 'asc');
-                      else { setAnalyticsSortBy(key); setAnalyticsSortDir('desc'); }
-                    }}
-                    className={`text-[11px] px-2.5 py-1.5 rounded-full border transition-all ${
-                      analyticsSortBy === key ? 'border-purple-500 bg-purple-600 text-white' : 'border-gray-200 dark:border-gray-600 text-gray-500 hover:border-purple-300'
-                    }`}
-                  >
-                    {key === 'date' ? '📅 Date' : key === 'rating' ? '⭐ Rating' : key === 'responses' ? '📊 Volume' : '📈 Engagement'}
-                    {analyticsSortBy === key ? (analyticsSortDir === 'asc' ? ' ↑' : ' ↓') : ''}
-                  </button>
-                ))}
-              </div>
-
-              {/* Date Heatmap */}
-              {dateHeatmapData.length > 0 && (
+              {/* Rating Trend Chart */}
+              {trendData.length >= 2 && (
                 <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-5">
-                  <p className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide mb-4">Rating Heatmap</p>
-                  <div className="flex flex-wrap gap-2">
-                    {dateHeatmapData.map(d => {
-                      const intensity = d.rating > 0 ? Math.max(0.15, d.rating / 5) : 0;
-                      const color = d.rating >= 4 ? `rgba(34,197,94,${intensity})`
-                        : d.rating >= 3 ? `rgba(234,179,8,${intensity})`
-                        : d.rating > 0 ? `rgba(239,68,68,${intensity})` : 'rgba(156,163,175,0.1)';
-                      return (
-                        <button
-                          key={d.date}
-                          onClick={() => setSelectedAnalyticsDate(selectedAnalyticsDate === d.date ? '' : d.date)}
-                          title={`${d.date}: ${d.rating}/5 · ${d.responses} responses`}
-                          className={`relative rounded-xl px-3 py-2 text-center transition-all min-w-[70px] border ${
-                            selectedAnalyticsDate === d.date ? 'ring-2 ring-purple-500 border-purple-400 shadow-md' : 'border-transparent hover:border-gray-300'
-                          }`}
-                          style={{ backgroundColor: color }}
-                        >
-                          <p className="text-[10px] font-medium text-gray-700 dark:text-gray-200">{d.label}</p>
-                          <p className="text-lg font-black text-gray-900 dark:text-white">{d.rating > 0 ? d.rating : '—'}</p>
-                          <p className="text-[10px] text-gray-500">{d.responses}r</p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Selected Date Detail */}
-              {selectedAnalyticsDate && (
-                <div className="rounded-2xl border-2 border-purple-200 dark:border-purple-700 bg-purple-50/30 dark:bg-purple-900/10 p-5 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">📅</span>
-                      <div>
-                        <p className="text-sm font-bold text-gray-900 dark:text-white">{selectedAnalyticsDate}</p>
-                        <p className="text-[11px] text-gray-500">{new Date(`${selectedAnalyticsDate}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
-                      </div>
-                    </div>
-                    <button onClick={() => setSelectedAnalyticsDate('')} className="text-xs text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30 px-2 py-1 rounded-lg">✕ Close</button>
-                  </div>
-
-                  {loadingDateStats ? (
-                    <div className="flex items-center justify-center py-8"><div className="animate-spin rounded-full h-6 w-6 border-2 border-purple-500 border-t-transparent" /></div>
-                  ) : dateStats ? (
-                    <>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        {[
-                          { label: 'Responses', value: dateStats.totalResponses },
-                          { label: 'Students', value: dateStats.engagedStudents, sub: `${dateStats.responseRate}% rate` },
-                          { label: 'Avg Rating', value: `${dateStats.averageRating} ${RATING_EMOJIS[Math.round(dateStats.averageRating) - 1] || ''}` },
-                          { label: 'vs Overall', value: stats ? `${dateStats.averageRating > stats.averageRating ? '+' : ''}${(dateStats.averageRating - stats.averageRating).toFixed(1)}` : '—' },
-                        ].map(kpi => (
-                          <div key={kpi.label} className="p-3 rounded-xl border border-purple-200 dark:border-purple-800 bg-white dark:bg-gray-800/50">
-                            <p className="text-[11px] uppercase tracking-wide text-gray-400">{kpi.label}</p>
-                            <p className="text-xl font-bold text-gray-900 dark:text-white mt-0.5">{kpi.value}</p>
-                            {'sub' in kpi && kpi.sub && <p className="text-[10px] text-gray-400">{kpi.sub}</p>}
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Per-date rating distribution */}
-                      <div className="rounded-xl bg-white dark:bg-gray-900/30 border border-gray-200 dark:border-gray-700 p-4">
-                        <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">Rating Distribution</p>
-                        <ResponsiveContainer width="100%" height={180}>
-                          <BarChart data={[1,2,3,4,5].map(r => ({ rating: `${RATING_EMOJIS[r-1]} ${r}`, count: dateStats.ratingDistribution[r] || 0 }))}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.4} />
-                            <XAxis dataKey="rating" tick={{ fontSize: 11 }} stroke="#9ca3af" />
-                            <YAxis tick={{ fontSize: 10 }} stroke="#9ca3af" allowDecimals={false} />
-                            <Tooltip />
-                            <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={32}>
-                              {[1,2,3,4,5].map((_, i) => <Cell key={i} fill={RATING_COLORS[i]} />)}
-                            </Bar>
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-
-                      {/* Per-date question breakdown */}
-                      {dateFilteredQuestionAnalytics.length > 0 && (
-                        <div className="space-y-3">
-                          <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">Question Breakdown</p>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {dateFilteredQuestionAnalytics.map(({ question, data: qData }, qi) => (
-                              <div key={question.id} className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/30 p-3">
-                                <div className="flex items-start gap-2 mb-2">
-                                  <span className="text-[10px] font-bold text-purple-600 bg-purple-50 dark:bg-purple-900/30 px-1.5 py-0.5 rounded shrink-0">Q{qi + 1}</span>
-                                  <p className="text-xs font-medium text-gray-800 dark:text-gray-200 line-clamp-2">{question.question_text}</p>
-                                </div>
-                                {qData.total === 0 ? (
-                                  <p className="text-xs text-gray-400 text-center py-3">No responses</p>
-                                ) : qData.type === 'rating' ? (
-                                  <div className="space-y-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <span className="text-lg font-bold text-purple-600">{qData.avg}</span>
-                                      <span>{RATING_EMOJIS[Math.round(qData.avg) - 1] || ''}</span>
-                                    </div>
-                                    {[5,4,3,2,1].map(r => (
-                                      <div key={r} className="flex items-center gap-1.5">
-                                        <span className="text-[10px] w-4 text-right">{r}</span>
-                                        <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
-                                          <div className="h-full rounded-full" style={{ width: `${qData.total > 0 ? ((qData.distribution[r] || 0) / qData.total) * 100 : 0}%`, backgroundColor: RATING_COLORS[r-1] }} />
-                                        </div>
-                                        <span className="text-[10px] text-gray-400 w-6 text-right">{qData.distribution[r] || 0}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : qData.type === 'emoji' ? (
-                                  <div className="flex flex-wrap gap-2 justify-center py-1">
-                                    {Object.entries(qData.distribution).sort(([,a],[,b]) => b-a).map(([emoji, count]) => (
-                                      <div key={emoji} className="text-center"><span className="text-xl block">{MOOD_EMOJIS[emoji] || emoji}</span><span className="text-[10px] text-gray-500">{count}</span></div>
-                                    ))}
-                                  </div>
-                                ) : qData.type === 'multiple_choice' ? (
-                                  <div className="space-y-1">
-                                    {Object.entries(qData.distribution).sort(([,a],[,b]) => b-a).map(([option, count]) => (
-                                      <div key={option} className="flex items-center gap-1.5">
-                                        <span className="text-[10px] text-gray-600 w-20 truncate shrink-0">{option}</span>
-                                        <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
-                                          <div className="h-full rounded-full bg-purple-500" style={{ width: `${qData.total > 0 ? (count / qData.total) * 100 : 0}%` }} />
-                                        </div>
-                                        <span className="text-[10px] text-gray-400 w-8 text-right">{Math.round(qData.total > 0 ? (count / qData.total) * 100 : 0)}%</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <div className="space-y-1 max-h-28 overflow-y-auto">
-                                    {qData.answers.slice(0, 5).map((a, ai) => (
-                                      <p key={ai} className="text-[11px] text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/50 rounded px-2 py-1 truncate">"{a}"</p>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  ) : <p className="text-sm text-gray-400 text-center py-6">No data for this date.</p>}
+                  <p className="text-sm font-bold text-gray-900 dark:text-white mb-3">Rating Trend Over Time</p>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <AreaChart data={trendData}>
+                      <defs>
+                        <linearGradient id="ratingGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.4} />
+                      <XAxis dataKey="date" tick={{ fontSize: 10 }} stroke="#9ca3af" />
+                      <YAxis domain={[0, 5]} tick={{ fontSize: 10 }} stroke="#9ca3af" />
+                      <Tooltip />
+                      <Legend />
+                      <Area type="monotone" dataKey="rating" stroke="#8b5cf6" fill="url(#ratingGrad)" strokeWidth={2.5} dot={{ r: 3, fill: '#8b5cf6' }} name="Avg Rating" />
+                      <Line type="monotone" dataKey="responses" stroke="#06b6d4" strokeWidth={1.5} dot={{ r: 2 }} name="Volume" />
+                    </AreaChart>
+                  </ResponsiveContainer>
                 </div>
               )}
 
               {/* Date Comparison Table */}
-              {sortedDateSummaries.length > 0 && (
+              {dateComparison && dateComparison.dates.length > 1 && (
                 <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 overflow-hidden">
                   <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-700">
-                    <p className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide">Date-by-Date Comparison</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide">Date Comparison</p>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs">
                       <thead className="bg-gray-50 dark:bg-gray-800/60">
                         <tr>
-                          {['Date', 'Avg Rating', 'Responses', 'Students', 'Engagement', 'Comments', 'Distribution'].map(h => (
+                          {['Date', 'Avg Rating', 'Responses', 'Students', 'Engagement'].map(h => (
                             <th key={h} className="px-3 py-2.5 text-gray-400 font-semibold text-left first:pl-5">{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
-                        {sortedDateSummaries.map(d => (
-                          <tr key={d.date} onClick={() => setSelectedAnalyticsDate(selectedAnalyticsDate === d.date ? '' : d.date)}
-                            className={`cursor-pointer transition-colors ${selectedAnalyticsDate === d.date ? 'bg-purple-50 dark:bg-purple-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-800/40'}`}>
+                        {dateComparison.dates.map(d => (
+                          <tr key={d.date} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                             <td className="px-3 py-2.5 pl-5 font-medium text-gray-900 dark:text-white">
                               {d.date}
-                              {dateComparison?.bestDate === d.date && <span className="ml-1 text-[10px] text-emerald-600">★</span>}
+                              {dateComparison.bestDate === d.date && <span className="ml-1 text-[10px] text-emerald-600">★</span>}
                             </td>
                             <td className={`px-3 py-2.5 font-bold ${d.averageRating >= 4 ? 'text-emerald-600' : d.averageRating >= 3 ? 'text-amber-600' : 'text-red-600'}`}>
                               {d.averageRating} {RATING_EMOJIS[Math.round(d.averageRating) - 1] || ''}
@@ -993,14 +922,6 @@ export function FeedbackAnalytics() {
                                 <span className="text-gray-500">{d.responseRate}%</span>
                               </div>
                             </td>
-                            <td className="px-3 py-2.5 text-gray-500">{d.commentCount}</td>
-                            <td className="px-3 py-2.5">
-                              <div className="flex gap-px">
-                                {[1,2,3,4,5].map(r => (
-                                  <div key={r} className="w-3 rounded-sm" style={{ height: `${Math.max(2, (d.ratingDistribution[r] || 0) / Math.max(1, d.responses) * 100 * 0.2)}px`, backgroundColor: RATING_COLORS[r-1], minHeight: '2px' }} />
-                                ))}
-                              </div>
-                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -1009,50 +930,181 @@ export function FeedbackAnalytics() {
                 </div>
               )}
 
-              {/* Charts */}
-              {radarData.length >= 3 && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-5">
-                    <p className="text-sm font-bold text-gray-900 dark:text-white mb-3">Rating Trend</p>
-                    <ResponsiveContainer width="100%" height={220}>
-                      <AreaChart data={radarData}>
-                        <defs>
-                          <linearGradient id="ratingGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                            <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.4} />
-                        <XAxis dataKey="date" tick={{ fontSize: 10 }} stroke="#9ca3af" />
-                        <YAxis domain={[0, 5]} tick={{ fontSize: 10 }} stroke="#9ca3af" />
-                        <Tooltip />
-                        <Legend />
-                        <Area type="monotone" dataKey="rating" stroke="#8b5cf6" fill="url(#ratingGrad)" strokeWidth={2.5} dot={{ r: 3, fill: '#8b5cf6' }} name="Avg Rating" />
-                        <Line type="monotone" dataKey="responses" stroke="#06b6d4" strokeWidth={1.5} dot={{ r: 2 }} name="Volume" />
-                      </AreaChart>
-                    </ResponsiveContainer>
+              {/* ─── AI Insights Panel ─────────────────────── */}
+              {aiInsights.length > 0 && (
+                <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🤖</span>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">AI Insights</p>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-300 font-bold">{aiInsights.length}</span>
                   </div>
-                  <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-5">
-                    <p className="text-sm font-bold text-gray-900 dark:text-white mb-3">Engagement Radar</p>
-                    <ResponsiveContainer width="100%" height={220}>
-                      <RadarChart data={radarData.slice(-8)}>
-                        <PolarGrid stroke="#e5e7eb" />
-                        <PolarAngleAxis dataKey="date" tick={{ fontSize: 9 }} stroke="#9ca3af" />
-                        <PolarRadiusAxis tick={{ fontSize: 8 }} stroke="#9ca3af" />
-                        <Radar name="Rating" dataKey="rating" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.3} />
-                        <Radar name="Engagement %" dataKey="engagement" stroke="#06b6d4" fill="#06b6d4" fillOpacity={0.15} />
-                        <Legend />
-                        <Tooltip />
-                      </RadarChart>
-                    </ResponsiveContainer>
+                  <div className="space-y-2">
+                    {aiInsights.map((insight, i) => (
+                      <div key={i} className={`flex items-start gap-3 rounded-xl px-3 py-2.5 text-xs ${
+                        insight.type === 'positive' ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-200'
+                        : insight.type === 'warning' ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200'
+                        : 'bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200'
+                      }`}>
+                        <span className="shrink-0 mt-0.5">{insight.type === 'positive' ? '✅' : insight.type === 'warning' ? '⚠️' : 'ℹ️'}</span>
+                        <span>{insight.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════════ */}
+          {/* VIEW: TEMPLATES                                    */}
+          {/* ═══════════════════════════════════════════════════ */}
+          {activeView === 'templates' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Reusable question sets. Apply a template to quickly configure questions for any session.
+                </p>
+                <Button size="sm" onClick={openNewTemplateForm} className="rounded-full shrink-0">
+                  + New Template
+                </Button>
+              </div>
+
+              {/* Template Form (inline) */}
+              {templateFormOpen && (
+                <div className="rounded-2xl bg-white dark:bg-gray-800/60 border-2 border-purple-200 dark:border-purple-700 p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">
+                      {editingTemplate ? 'Edit Template' : 'New Template'}
+                    </p>
+                    <button onClick={() => setTemplateFormOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none">×</button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] text-gray-400 block mb-1">Template Name *</label>
+                      <input type="text" value={templateName} onChange={e => setTemplateName(e.target.value)}
+                        placeholder="e.g. Standard Session Feedback"
+                        className="w-full text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white placeholder:text-gray-400" />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-gray-400 block mb-1">Description</label>
+                      <input type="text" value={templateDescription} onChange={e => setTemplateDescription(e.target.value)}
+                        placeholder="Optional description"
+                        className="w-full text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white placeholder:text-gray-400" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Questions</p>
+                      <button onClick={addTemplateQuestion}
+                        className="text-xs text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 px-2 py-1 rounded-lg">
+                        + Add Question
+                      </button>
+                    </div>
+                    {templateQuestions.map((q, i) => (
+                      <div key={i} className="flex items-start gap-2 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-700">
+                        <span className="text-[10px] font-bold text-purple-500 mt-2.5 shrink-0 w-5">Q{i+1}</span>
+                        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <input type="text" value={q.text} onChange={e => updateTemplateQuestion(i, { text: e.target.value })}
+                            placeholder="Question text"
+                            className="text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1.5 text-gray-900 dark:text-white placeholder:text-gray-400" />
+                          <select value={q.type} onChange={e => updateTemplateQuestion(i, { type: e.target.value as TemplateQuestion['type'] })}
+                            className="text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1.5 text-gray-900 dark:text-white">
+                            <option value="rating">Rating (1-5)</option>
+                            <option value="text">Text / Open-ended</option>
+                            <option value="multiple_choice">Multiple Choice</option>
+                          </select>
+                          {q.type === 'multiple_choice' && (
+                            <input type="text" value={q.optionsText} onChange={e => updateTemplateQuestion(i, { optionsText: e.target.value })}
+                              placeholder="Options: Good, Average, Bad"
+                              className="text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1.5 text-gray-900 dark:text-white placeholder:text-gray-400 sm:col-span-2" />
+                          )}
+                          <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300 cursor-pointer">
+                            <input type="checkbox" checked={q.required} onChange={e => updateTemplateQuestion(i, { required: e.target.checked })}
+                              className="rounded accent-purple-600" />
+                            Required
+                          </label>
+                        </div>
+                        {templateQuestions.length > 1 && (
+                          <button onClick={() => removeTemplateQuestion(i)}
+                            className="text-xs text-red-400 hover:text-red-600 shrink-0 mt-2 px-1">✕</button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-1">
+                    <Button variant="outline" size="sm" onClick={() => setTemplateFormOpen(false)}>Cancel</Button>
+                    <Button size="sm" onClick={handleSaveTemplate} disabled={savingTemplate}>
+                      {savingTemplate ? 'Saving…' : editingTemplate ? 'Update Template' : 'Create Template'}
+                    </Button>
                   </div>
                 </div>
               )}
 
-              {sortedDateSummaries.length === 0 && (
+              {/* Template List */}
+              {loadingTemplates ? (
+                <div className="flex justify-center py-10">
+                  <div className="animate-spin rounded-full h-6 w-6 border-2 border-purple-500 border-t-transparent" />
+                </div>
+              ) : templates.length === 0 ? (
                 <div className="text-center py-16">
-                  <span className="text-5xl block mb-3">📅</span>
-                  <h3 className="text-base font-semibold text-gray-900 dark:text-white">No Date Data Yet</h3>
+                  <span className="text-5xl block mb-3">📄</span>
+                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">No Templates Yet</p>
+                  <p className="text-xs text-gray-400 mt-1">Create a reusable question set to use across sessions.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {templates.map(tmpl => {
+                    const qs = Array.isArray(tmpl.questions) ? tmpl.questions : [];
+                    return (
+                      <div key={tmpl.id} className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{tmpl.name}</p>
+                              {tmpl.is_default && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 font-bold shrink-0">Default</span>}
+                            </div>
+                            {tmpl.description && <p className="text-[11px] text-gray-400 mt-0.5 truncate">{tmpl.description}</p>}
+                            <p className="text-[11px] text-gray-400 mt-0.5">{qs.length} question{qs.length !== 1 ? 's' : ''}</p>
+                          </div>
+                          <div className="flex gap-1 shrink-0">
+                            <button onClick={() => openEditTemplateForm(tmpl)}
+                              className="text-[11px] px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
+                              Edit
+                            </button>
+                            <button onClick={() => handleDeleteTemplate(tmpl.id)}
+                              className="text-[11px] px-2 py-1 rounded-lg border border-red-200 dark:border-red-800 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                        {/* Questions preview */}
+                        <div className="space-y-1">
+                          {(qs as Array<{ type?: string; text?: string }>).slice(0, 3).map((q, i) => (
+                            <div key={i} className="flex items-center gap-2 text-[11px] text-gray-500">
+                              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                                q.type === 'rating' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600' :
+                                q.type === 'multiple_choice' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600' :
+                                'bg-gray-100 dark:bg-gray-700 text-gray-500'
+                              }`}>{q.type === 'multiple_choice' ? 'MC' : q.type === 'rating' ? '★' : 'T'}</span>
+                              <span className="truncate">{q.text || '(no text)'}</span>
+                            </div>
+                          ))}
+                          {qs.length > 3 && <p className="text-[11px] text-gray-400">+{qs.length - 3} more</p>}
+                        </div>
+                        {selectedSessionId && (
+                          <button
+                            onClick={() => handleApplyTemplate(tmpl.id)}
+                            disabled={applyingTemplate === tmpl.id}
+                            className="w-full text-xs font-semibold py-2 rounded-xl border-2 border-purple-200 dark:border-purple-700 text-purple-600 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all disabled:opacity-50"
+                          >
+                            {applyingTemplate === tmpl.id ? 'Applying…' : '⚡ Apply to Selected Session'}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
