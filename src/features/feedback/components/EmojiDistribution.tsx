@@ -43,22 +43,23 @@ export function EmojiDistribution({ questions, feedbacks }: EmojiDistributionPro
 
   return (
     <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-6">
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center justify-between mb-6">
         <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide">Emoji Response Distribution</h3>
-        <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700">
+        <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400 uppercase tracking-wider px-3 py-1 rounded-full bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800">
           Live Feed Aggregate
         </span>
       </div>
-      <div className="flex items-end justify-center gap-6 sm:gap-10 py-4">
+      <div className="flex items-center justify-around py-4">
         {sorted.map(([emoji, count]) => {
           const pct = emojiData.total > 0 ? Math.round((count / emojiData.total) * 100) : 0;
+          const isTop = pct === Math.round((sorted[0][1] / emojiData.total) * 100);
           return (
-            <div key={emoji} className="text-center group">
-              <div className="text-3xl sm:text-4xl mb-2 transition-transform group-hover:scale-125">
+            <div key={emoji} className="text-center group flex-1 max-w-[140px]">
+              <div className={`text-4xl sm:text-5xl mb-3 transition-transform group-hover:scale-110 ${isTop ? 'drop-shadow-lg' : ''}`}>
                 {MOOD_EMOJIS[emoji] || emoji}
               </div>
-              <p className="text-2xl font-black text-gray-900 dark:text-white">{pct}%</p>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mt-0.5">
+              <p className={`text-2xl sm:text-3xl font-black ${isTop ? 'text-violet-600 dark:text-violet-400' : 'text-gray-900 dark:text-white'}`}>{pct}%</p>
+              <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mt-1">
                 {sentimentLabels[emoji] || emoji}
               </p>
             </div>

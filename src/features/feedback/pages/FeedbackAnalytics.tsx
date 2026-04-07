@@ -329,26 +329,26 @@ export function FeedbackAnalytics() {
       <Breadcrumb items={[{ label: 'Dashboard', path: '/' }, { label: 'Feedback Intelligence' }]} />
 
       {/* ─── Executive Header ──────────────────────────────── */}
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white tracking-tight">
-            Feedback Intelligence
+            Executive Feedback Intelligence
           </h1>
-          <p className="text-sm text-gray-400 dark:text-gray-500 max-w-lg">
-            High-density aggregation of institutional sentiment across all course categories and instructional staff.
+          <p className="text-sm text-gray-400 dark:text-gray-500 max-w-xl">
+            A high-density aggregation of institutional sentiment across all course categories and instructional staff.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <select
             value={selectedAnalyticsDate}
             onChange={e => setSelectedAnalyticsDate(e.target.value)}
-            className="text-xs font-semibold rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-gray-700 dark:text-gray-200"
+            className="text-xs font-bold rounded-full border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2 text-gray-700 dark:text-gray-200 shadow-sm"
           >
             <option value="">All Dates</option>
             {uniqueDates.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
           {feedbacks.length > 0 && (
-            <Button variant="outline" size="sm" onClick={() => exportFeedbackCSV(filteredFeedbacks, questions, selectedSession?.course_name || 'feedback', selectedAnalyticsDate)}>
+            <Button variant="outline" size="sm" className="rounded-full" onClick={() => exportFeedbackCSV(filteredFeedbacks, questions, selectedSession?.course_name || 'feedback', selectedAnalyticsDate)}>
               📥 Export CSV
             </Button>
           )}
@@ -433,26 +433,27 @@ export function FeedbackAnalytics() {
       {!loading && selectedSessionId && feedbacks.length > 0 && (
         <>
           {/* ─── View Tabs ──────────────────────────────────── */}
-          <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl overflow-x-auto">
+          <div className="flex items-center gap-1 p-1.5 bg-gray-100/80 dark:bg-gray-800/80 rounded-2xl overflow-x-auto backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50">
             {([
-              { key: 'overview' as ActiveView, label: 'Executive Overview', badge: stats?.totalResponses },
-              { key: 'drilldown' as ActiveView, label: 'Response Repository', badge: filteredFeedbacks.length },
-              { key: 'questions' as ActiveView, label: 'Question Insights', badge: questions.length },
-              { key: 'dates' as ActiveView, label: 'Date Analysis', badge: dateComparison?.dates.length },
+              { key: 'overview' as ActiveView, icon: '📊', label: 'Executive Overview', badge: stats?.totalResponses },
+              { key: 'drilldown' as ActiveView, icon: '🔍', label: 'Session Drill-Down', badge: filteredFeedbacks.length },
+              { key: 'questions' as ActiveView, icon: '🧩', label: 'Question Insights', badge: questions.length },
+              { key: 'dates' as ActiveView, icon: '📅', label: 'Date Analysis', badge: dateComparison?.dates.length },
             ]).map(t => (
               <button
                 key={t.key}
                 onClick={() => setActiveView(t.key)}
-                className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                className={`px-4 py-2.5 text-xs font-bold rounded-xl transition-all whitespace-nowrap flex items-center gap-2 ${
                   activeView === t.key
-                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'
+                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-md ring-1 ring-gray-200/50 dark:ring-gray-600/50'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 hover:bg-white/50 dark:hover:bg-gray-700/50'
                 }`}
               >
+                <span className="text-sm">{t.icon}</span>
                 {t.label}
                 {t.badge != null && t.badge > 0 && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                    activeView === t.key ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300'
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                    activeView === t.key ? 'bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-300'
                       : 'bg-gray-200 dark:bg-gray-700 text-gray-500'
                   }`}>{t.badge}</span>
                 )}
@@ -496,6 +497,20 @@ export function FeedbackAnalytics() {
           {/* ═══════════════════════════════════════════════════ */}
           {activeView === 'drilldown' && (
             <div className="space-y-5">
+              {/* Session Title Header — Stitch style */}
+              {selectedSession && (
+                <div>
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500 font-medium mb-1">
+                    <span className="hover:text-violet-500 cursor-pointer" onClick={() => setActiveView('overview')}>Analytics</span>
+                    <span className="mx-1.5">›</span>
+                    <span>Session Feedback</span>
+                  </p>
+                  <h2 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white tracking-tight">
+                    {selectedSession.course_name}
+                  </h2>
+                </div>
+              )}
+
               {/* Session Header Bento Cards */}
               {selectedSession && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -570,6 +585,70 @@ export function FeedbackAnalytics() {
                 search={feedbackSearch}
                 onSearchChange={setFeedbackSearch}
               />
+
+              {/* Insight Digest — AI-Generated Summary */}
+              {filteredFeedbacks.length >= 3 && (
+                <div className="relative overflow-hidden rounded-2xl border-2 border-violet-200 dark:border-violet-800">
+                  {/* Gradient accent bar */}
+                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 via-purple-500 to-indigo-500" />
+                  <div className="p-6 sm:p-8">
+                    <div className="flex items-start gap-4">
+                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shrink-0 shadow-lg shadow-violet-500/20">
+                        <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-black text-gray-900 dark:text-white tracking-tight">Insight Digest</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-300 mt-2 leading-relaxed">
+                          {(() => {
+                            const avg = filteredStats.averageRating;
+                            const total = filteredFeedbacks.length;
+                            const withComments = filteredFeedbacks.filter(f => f.comment?.trim()).length;
+                            const commentPct = Math.round((withComments / total) * 100);
+                            const trend = dateComparison?.trendDirection || 'insufficient';
+                            const rate = filteredResponseRate;
+                            
+                            const segments: string[] = [];
+                            
+                            if (avg >= 4) {
+                              segments.push(`This session shows strong performance with an average rating of ${avg}/5.`);
+                            } else if (avg >= 3) {
+                              segments.push(`This session shows moderate performance with an average rating of ${avg}/5, suggesting room for improvement.`);
+                            } else {
+                              segments.push(`This session shows a rating of ${avg}/5, indicating significant concerns that should be addressed.`);
+                            }
+                            
+                            if (trend === 'improving') {
+                              segments.push('Qualitative feedback suggests the session format is gaining positive traction over time.');
+                            } else if (trend === 'declining') {
+                              segments.push('A declining trend has been detected — consider reviewing recent session changes.');
+                            }
+                            
+                            if (rate >= 70) {
+                              segments.push(`With ${rate}% engagement rate, student participation is excellent.`);
+                            } else if (rate >= 40) {
+                              segments.push(`The ${rate}% engagement rate shows moderate participation — consider incentivizing feedback.`);
+                            }
+                            
+                            if (commentPct >= 50) {
+                              segments.push(`${commentPct}% of respondents left written comments, providing rich qualitative data for review.`);
+                            }
+                            
+                            return segments.join(' ');
+                          })()}
+                        </p>
+                        <div className="mt-4 flex items-center gap-2 text-[10px] font-bold text-violet-600 dark:text-violet-400 uppercase tracking-widest">
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                          </svg>
+                          AI-Generated Intelligence Summary
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

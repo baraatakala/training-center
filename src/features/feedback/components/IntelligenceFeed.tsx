@@ -80,28 +80,30 @@ export function IntelligenceFeed({ feedbacks, questions }: IntelligenceFeedProps
         </div>
       </div>
 
-      <div className="space-y-4 max-h-[400px] overflow-y-auto pr-1">
+      <div className="space-y-5 max-h-[420px] overflow-y-auto pr-1">
         {feedEntries.slice(0, 8).map((entry, i) => {
           const config = sentimentConfig[entry.sentiment];
           return (
-            <div key={i} className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[10px] font-bold flex items-center justify-center shrink-0">
-                    {entry.initials}
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-gray-900 dark:text-white">{entry.studentName}</p>
-                    <p className="text-[10px] text-gray-400">{entry.context} · {entry.timeAgo}</p>
-                  </div>
+            <div key={i} className="group">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                  {entry.initials}
                 </div>
-                <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${config.color}`}>
-                  {config.label}: {entry.tag}
-                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-bold text-gray-900 dark:text-white">{entry.studentName}</p>
+                      <span className="text-[10px] text-gray-400">{entry.context}</span>
+                    </div>
+                    <span className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full shrink-0 ${config.color}`}>
+                      {config.label}: {entry.tag}
+                    </span>
+                  </div>
+                  <p className="text-[13px] text-gray-600 dark:text-gray-300 leading-relaxed mt-2 border-l-2 border-violet-200 dark:border-violet-700 pl-3 italic">
+                    "{entry.comment}"
+                  </p>
+                </div>
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-300 italic pl-10 leading-relaxed">
-                "{entry.comment}"
-              </p>
             </div>
           );
         })}

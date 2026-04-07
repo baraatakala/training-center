@@ -1,8 +1,6 @@
 import { useMemo } from 'react';
 import type { FeedbackQuestion, SessionFeedback, FeedbackComparison } from '@/shared/types/database.types';
 
-const RATING_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#8b5cf6'];
-
 interface InstructorMatrixProps {
   dateComparison: FeedbackComparison | null;
   questions: FeedbackQuestion[];
@@ -12,86 +10,86 @@ interface InstructorMatrixProps {
 export function InstructorMatrix({ dateComparison }: InstructorMatrixProps) {
   const matrixData = useMemo(() => {
     if (!dateComparison || dateComparison.dates.length < 2) return null;
-
-    // Group dates by performance tier
-    const dates = dateComparison.dates.map(d => ({
+    return dateComparison.dates.map(d => ({
       ...d,
       tier: d.averageRating >= 4.5 ? 'optimal' as const
         : d.averageRating >= 3.5 ? 'developing' as const
         : 'critical' as const,
+      dateLabel: new Date(`${d.date}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
     }));
-
-    return dates;
   }, [dateComparison]);
 
   if (!matrixData || matrixData.length < 2) return null;
 
+  const tierColor = (rating: number) => {
+    if (rating >= 4.5) return 'bg-emerald-600 text-white';
+    if (rating >= 3.5) return 'bg-amber-500 text-white';
+    if (rating > 0) return 'bg-red-500 text-white';
+    return 'bg-gray-200 dark:bg-gray-700 text-gray-400';
+  };
+
   return (
     <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-6">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
         <div>
           <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide">
-            Session Performance Matrix
+            Institutional Matrix
           </h3>
           <p className="text-xs text-gray-400 mt-0.5">
-            Cross-referencing session dates against performance indices.
+            Cross-referencing session dates against performance indices
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          {(['critical', 'developing', 'optimal'] as const).map(tier => (
-            <div key={tier} className="flex items-center gap-1.5">
-              <div className={`w-3 h-3 rounded-sm ${
-                tier === 'critical' ? 'bg-red-500'
-                : tier === 'developing' ? 'bg-amber-500'
-                : 'bg-emerald-500'
-              }`} />
-              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-                {tier}
-              </span>
+        <div className="flex items-center gap-4">
+          {([
+            { tier: 'Critical', color: 'bg-red-500' },
+            { tier: 'Developing', color: 'bg-amber-500' },
+            { tier: 'Optimal', color: 'bg-emerald-600' },
+          ]).map(l => (
+            <div key={l.tier} className="flex items-center gap-1.5">
+              <div className={`w-2.5 h-2.5 rounded-full ${l.color}`} />
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{l.tier}</span>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <div className="flex gap-2 min-w-[500px]">
-          {matrixData.map(d => {
-            const dateLabel = new Date(`${d.date}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-            const bgColor = d.tier === 'optimal' ? 'bg-emerald-500/90 dark:bg-emerald-600/80'
-              : d.tier === 'developing' ? 'bg-amber-500/80 dark:bg-amber-600/70'
-              : 'bg-red-500/80 dark:bg-red-600/70';
-
-            return (
-              <div key={d.date} className="flex-1 min-w-[80px]">
-                <p className="text-[10px] font-semibold text-gray-500 text-center mb-1.5 uppercase tracking-wider">
-                  {dateLabel}
-                </p>
-                <div className={`${bgColor} rounded-xl py-3 px-2 text-center transition-all hover:scale-105`}>
-                  <p className="text-lg font-black text-white">{d.averageRating}</p>
-                </div>
-                <div className="flex justify-center gap-px mt-1.5">
-                  {[1, 2, 3, 4, 5].map(r => {
-                    const count = d.ratingDistribution[r] || 0;
-                    const pct = d.responses > 0 ? (count / d.responses) * 100 : 0;
-                    return (
-                      <div
-                        key={r}
-                        className="w-2 rounded-sm"
-                        style={{
-                          height: `${Math.max(2, pct * 0.3)}px`,
-                          backgroundColor: RATING_COLORS[r - 1],
-                          minHeight: '2px',
-                        }}
-                        title={`${r}★: ${count} (${Math.round(pct)}%)`}
-                      />
-                    );
-                  })}
-                </div>
-                <p className="text-[9px] text-gray-400 text-center mt-1">{d.responses} resp · {d.responseRate}%</p>
-              </div>
-            );
-          })}
-        </div>
+      <div className="overflow-x-auto -mx-2">
+        <table className="w-full text-xs">
+          <thead>
+            <tr>
+              <th className="text-left px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider w-32">Session Date</th>
+              <th className="text-center px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Rating</th>
+              <th className="text-center px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Responses</th>
+              <th className="text-center px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Engagement</th>
+              <th className="text-center px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Comments</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
+            {matrixData.map(d => (
+              <tr key={d.date} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/20 transition-colors">
+                <td className="px-3 py-2.5">
+                  <span className="font-semibold text-gray-900 dark:text-white">{d.dateLabel}</span>
+                  <span className="text-[10px] text-gray-400 ml-1.5">{d.date}</span>
+                </td>
+                <td className="px-3 py-2.5 text-center">
+                  <span className={`inline-flex items-center justify-center w-12 h-8 rounded-lg text-sm font-black ${tierColor(d.averageRating)}`}>
+                    {d.averageRating}
+                  </span>
+                </td>
+                <td className="px-3 py-2.5 text-center font-semibold text-gray-700 dark:text-gray-300">{d.responses}</td>
+                <td className="px-3 py-2.5 text-center">
+                  <div className="flex items-center justify-center gap-1.5">
+                    <div className="w-12 bg-gray-100 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
+                      <div className="h-full rounded-full bg-violet-500" style={{ width: `${d.responseRate}%` }} />
+                    </div>
+                    <span className="text-gray-500 font-medium">{d.responseRate}%</span>
+                  </div>
+                </td>
+                <td className="px-3 py-2.5 text-center text-gray-500">{d.commentCount}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
