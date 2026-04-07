@@ -50,7 +50,7 @@ Features: `attendance`, `auth`, `certificates`, `checkin`, `communication`, `cou
 - `npx tsc -b --noEmit` — Type-check only
 
 ## Database
-- 34 tables with RLS policies. See `database/README.md` for full schema.
+- 32 tables with RLS policies. See `database/README.md` for full schema.
 - Run order: `schema.sql` → `functions.sql` → `indexes.sql` → `rls-policies.sql` → `storage.sql` → `seed-data.sql`
 - Historical migrations in `database/archive/`
 

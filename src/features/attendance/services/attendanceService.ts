@@ -32,7 +32,7 @@ function summarizeAttendanceRecords(records: AttendanceSummaryRecord[]) {
   const priority = (status: string) => {
     if (status === 'absent') return 5;
     if (status === 'late') return 4;
-    if (status === 'on time' || status === 'present') return 3;
+    if (status === 'on time') return 3;
     if (status === 'excused') return 2;
     if (status === 'not enrolled') return 1;
     return 0;
@@ -48,14 +48,14 @@ function summarizeAttendanceRecords(records: AttendanceSummaryRecord[]) {
   const unique = [...byDate.values()];
   const held = unique.length;
   const excused = unique.filter((record) => record.status === 'excused').length;
-  const present = unique.filter((record) => record.status === 'on time' || record.status === 'late' || record.status === 'present').length;
+  const present = unique.filter((record) => record.status === 'on time' || record.status === 'late').length;
   const late = unique.filter((record) => record.status === 'late').length;
   const absent = unique.filter((record) => record.status === 'absent').length;
   const accountable = unique.filter((record) => record.status !== 'excused' && record.status !== 'not enrolled').length;
 
   let qualitySum = 0;
   for (const record of unique) {
-    if (record.status === 'on time' || record.status === 'present') qualitySum += 1;
+    if (record.status === 'on time') qualitySum += 1;
     else if (record.status === 'late') {
       qualitySum += Math.max(
         DEFAULT_SCORING_CONFIG.late_minimum_credit,

@@ -131,4 +131,52 @@ export const dashboardService = {
         .eq('token', token);
     }
   },
+
+  async getOperationalPulse() {
+    const today = new Date().toISOString().split('T')[0];
+    const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+
+    const [upcomingRes, todayAttendanceRes, recentExcusesRes] = await Promise.all([
+      supabase.from('session')
+        .select('session_id, start_date, end_date, feedback_enabled, session_days, course:course_id(course_name), teacher:teacher_id(name)')
+        .lte('start_date', nextWeek)
+        .gte('end_date', today)
+        .order('start_date')
+        .limit(20),
+      supabase.from('attendance')
+        .select('status', { count: 'exact' })
+        .eq('attendance_date', today),
+      supabase.from('excuse_request')
+        .select('id, status', { count: 'exact' })
+        .eq('status', 'pending'),
+    ]);
+
+    // Count today's attendance by status
+    const todayRecords = todayAttendanceRes.data || [];
+    const todayStats = {
+      total: todayRecords.length,
+      onTime: todayRecords.filter(r => r.status === 'on time').length,
+      late: todayRecords.filter(r => r.status === 'late').length,
+      absent: todayRecords.filter(r => r.status === 'absent').length,
+    };
+
+    return {
+      upcomingSessions: (upcomingRes.data || []).map((s: Record<string, unknown>) => {
+        const course = s.course as Record<string, string> | Record<string, string>[] | null;
+        const teacher = s.teacher as Record<string, string> | Record<string, string>[] | null;
+        return {
+          session_id: s.session_id as string,
+          course_name: (Array.isArray(course) ? course[0]?.course_name : course?.course_name) ?? 'Unknown',
+          teacher_name: (Array.isArray(teacher) ? teacher[0]?.name : teacher?.name) ?? 'Unknown',
+          start_date: String(s.start_date || ''),
+          end_date: String(s.end_date || ''),
+          session_days: s.session_days as string || '',
+          feedback_enabled: Boolean(s.feedback_enabled),
+          isToday: String(s.start_date || '') <= today && String(s.end_date || '') >= today,
+        };
+      }),
+      todayStats,
+      pendingExcuses: recentExcusesRes.count || 0,
+    };
+  },
 };

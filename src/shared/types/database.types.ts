@@ -261,6 +261,94 @@ export interface SessionTimeChange {
   created_at: string;
 }
 
+// ─── Feedback Types ────────────────────────────────────────
+export interface FeedbackQuestion {
+  id: string;
+  session_id: string;
+  question_text: string;
+  question_type: 'rating' | 'text' | 'emoji' | 'multiple_choice';
+  options: string[];
+  sort_order: number;
+  is_required: boolean;
+  attendance_date: string | null;
+  created_at: string;
+}
+
+export interface SessionFeedback {
+  id: string;
+  session_id: string;
+  attendance_date: string;
+  student_id: string | null;
+  is_anonymous: boolean;
+  overall_rating: number | null;
+  comment: string | null;
+  responses: Record<string, unknown>;
+  check_in_method: string | null;
+  created_at: string;
+  student_name?: string | null;
+}
+
+export interface FeedbackTemplate {
+  id: string;
+  name: string;
+  description: string | null;
+  questions: Array<{ type: string; text: string; required: boolean; options?: string[] }>;
+  is_default: boolean;
+  created_at: string;
+}
+
+export interface FeedbackStats {
+  totalResponses: number;
+  engagedStudents: number;
+  averageRating: number;
+  ratingDistribution: Record<number, number>;
+  responseRate: number;
+  datesCovered: number;
+  latestResponseDate: string | null;
+  recentComments: Array<{ comment: string; rating: number; date: string; is_anonymous: boolean }>;
+}
+
+export interface FeedbackDateSummary {
+  date: string;
+  responses: number;
+  uniqueStudents: number;
+  averageRating: number;
+  ratingDistribution: Record<number, number>;
+  commentCount: number;
+  responseRate: number;
+}
+
+export interface FeedbackComparison {
+  dates: FeedbackDateSummary[];
+  bestDate: string | null;
+  worstDate: string | null;
+  trendDirection: 'improving' | 'declining' | 'stable' | 'insufficient';
+  overallAvg: number;
+}
+
+// ─── QR / Photo Check-in Types ────────────────────────────
+export interface QRSession {
+  id: string;
+  session_id: string;
+  attendance_date: string;
+  token: string;
+  expires_at: string;
+  is_valid: boolean;
+  check_in_mode: 'qr_code' | 'photo';
+  linked_photo_token: string | null;
+  created_at: string;
+}
+
+export interface PhotoCheckinSession {
+  id: string;
+  session_id: string;
+  attendance_date: string;
+  token: string;
+  expires_at: string;
+  is_valid: boolean;
+  created_at: string;
+}
+
 // Database table names
 export const Tables = {
   TEACHER: 'teacher',

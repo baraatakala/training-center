@@ -17,6 +17,7 @@ import { generateWhatsAppLink, generateTemplateBody } from '../utils/messageGene
 import { HealthCheckPanel } from '../components/HealthCheckPanel';
 import { StatsGrid } from '../components/StatsGrid';
 import { MessageComposerModal } from '../components/MessageComposerModal';
+import { OperationalPulse } from '../components/OperationalPulse';
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -269,6 +270,9 @@ export function Dashboard() {
 
 
       <StatsGrid stats={stats} pendingExcuses={pendingExcuses} />
+
+      {/* Operational Pulse (Teachers/Admins Only) */}
+      {isTeacher && <OperationalPulse />}
 
       {/* Data Integrity Health Panel (Teachers/Admins Only) */}
       {isTeacher && <HealthCheckPanel />}

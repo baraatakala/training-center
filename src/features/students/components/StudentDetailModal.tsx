@@ -1,0 +1,427 @@
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { Link } from 'react-router-dom';
+import { attendanceService } from '@/features/attendance/services/attendanceService';
+import { studentService } from '@/features/students/services/studentService';
+import type { Student } from '@/shared/types/database.types';
+
+interface StudentDetailModalProps {
+  student: Student;
+  onClose: () => void;
+}
+
+interface AttendanceRecord {
+  attendance_date: string;
+  status: string;
+  check_in_method?: string | null;
+  check_in_time?: string | null;
+  late_minutes?: number | null;
+  session?: {
+    session_id?: string;
+    course?: { course_name?: string } | Array<{ course_name?: string }>;
+  } | Array<{
+    session_id?: string;
+    course?: { course_name?: string } | Array<{ course_name?: string }>;
+  }> | null;
+}
+
+interface EnrollmentRecord {
+  enrollment_id: string;
+  status: string;
+  session?: {
+    session_id?: string;
+    start_date?: string;
+    end_date?: string;
+    course?: { course_name?: string } | Array<{ course_name?: string }>;
+    teacher?: { name?: string } | Array<{ name?: string }>;
+  } | Array<{
+    session_id?: string;
+    start_date?: string;
+    end_date?: string;
+    course?: { course_name?: string } | Array<{ course_name?: string }>;
+    teacher?: { name?: string } | Array<{ name?: string }>;
+  }> | null;
+}
+
+function unwrap<T>(val: T | T[] | null | undefined): T | undefined {
+  if (Array.isArray(val)) return val[0];
+  return val ?? undefined;
+}
+
+export function StudentDetailModal({ student, onClose }: StudentDetailModalProps) {
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [enrollments, setEnrollments] = useState<EnrollmentRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'overview' | 'attendance' | 'enrollments'>('overview');
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      const [attRes, enrRes] = await Promise.all([
+        attendanceService.getByStudent(student.student_id),
+        studentService.getEnrollments(student.student_id),
+      ]);
+      if (cancelled) return;
+      setAttendance((attRes.data as AttendanceRecord[]) || []);
+      setEnrollments((enrRes.data as EnrollmentRecord[]) || []);
+      setLoading(false);
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [student.student_id]);
+
+  // Close on Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  // ─── Analytics ───────────────────────────────────────────
+  const analytics = useMemo(() => {
+    if (attendance.length === 0) return null;
+
+    const held = attendance.filter(a => a.status !== 'not enrolled');
+    const total = held.length;
+    if (total === 0) return null;
+
+    const onTime = held.filter(a => a.status === 'on time').length;
+    const late = held.filter(a => a.status === 'late').length;
+    const absent = held.filter(a => a.status === 'absent').length;
+    const excused = held.filter(a => a.status === 'excused').length;
+    const present = onTime + late;
+    const attendanceRate = total > 0 ? Math.round((present / total) * 100) : 0;
+
+    // Trend (last 5 vs previous 5)
+    const sorted = [...held].sort((a, b) => b.attendance_date.localeCompare(a.attendance_date));
+    const recent5 = sorted.slice(0, Math.min(5, sorted.length));
+    const prev5 = sorted.slice(5, Math.min(10, sorted.length));
+    const recentRate = recent5.length > 0 ? recent5.filter(r => r.status === 'on time' || r.status === 'late').length / recent5.length : 0;
+    const prevRate = prev5.length > 0 ? prev5.filter(r => r.status === 'on time' || r.status === 'late').length / prev5.length : 0;
+    let trend: 'improving' | 'declining' | 'stable' = 'stable';
+    if (prev5.length >= 3) {
+      if (recentRate - prevRate > 0.1) trend = 'improving';
+      else if (prevRate - recentRate > 0.1) trend = 'declining';
+    }
+
+    // Consecutive absences
+    let consecutive = 0;
+    for (const r of sorted) {
+      if (r.status === 'absent') consecutive++;
+      else break;
+    }
+
+    // Patterns
+    const patterns: string[] = [];
+    const dayAbsences: Record<string, number> = {};
+    for (const r of held.filter(a => a.status === 'absent')) {
+      const day = new Date(`${r.attendance_date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long' });
+      dayAbsences[day] = (dayAbsences[day] || 0) + 1;
+    }
+    for (const [day, count] of Object.entries(dayAbsences)) {
+      if (count >= 3) patterns.push(`Frequently absent on ${day}s`);
+    }
+    if (consecutive >= 3) patterns.push(`${consecutive} consecutive absences`);
+    if (attendanceRate < 50) patterns.push('Below 50% attendance');
+
+    // Late stats
+    const avgLateMinutes = late > 0
+      ? Math.round(held.filter(a => a.status === 'late' && a.late_minutes).reduce((s, a) => s + (a.late_minutes || 0), 0) / late)
+      : 0;
+
+    return {
+      total, onTime, late, absent, excused, present,
+      attendanceRate, trend, consecutive, patterns, avgLateMinutes,
+      lastDate: sorted[0]?.attendance_date || null,
+    };
+  }, [attendance]);
+
+  const riskLevel = useMemo(() => {
+    if (!analytics) return 'unknown';
+    if (analytics.attendanceRate < 50 || analytics.consecutive >= 5) return 'critical';
+    if (analytics.attendanceRate < 65 || analytics.consecutive >= 3) return 'high';
+    if (analytics.attendanceRate < 80) return 'medium';
+    return 'good';
+  }, [analytics]);
+
+  const riskStyles: Record<string, { bg: string; text: string; icon: string }> = {
+    critical: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-300', icon: '🔴' },
+    high: { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-300', icon: '🟠' },
+    medium: { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-700 dark:text-yellow-300', icon: '🟡' },
+    good: { bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-700 dark:text-emerald-300', icon: '🟢' },
+    unknown: { bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-500', icon: '⚪' },
+  };
+
+  const activeEnrollments = useMemo(() =>
+    enrollments.filter(e => e.status === 'active'),
+    [enrollments]);
+
+  const initials = student.name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
+
+  // Handle backdrop click
+  const handleBackdropClick = useCallback((e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) onClose();
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={handleBackdropClick}>
+      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+
+        {/* ─── Header ───────────────────────────────────── */}
+        <div className="relative px-6 pt-6 pb-4 border-b border-gray-100 dark:border-gray-800">
+          <button onClick={onClose} className="absolute top-4 right-4 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 transition-colors">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center text-white text-lg font-bold shadow-lg">
+              {initials}
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white truncate">{student.name}</h2>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {student.email && <span className="text-xs text-gray-500 dark:text-gray-400">{student.email}</span>}
+                {student.phone && <span className="text-xs text-gray-400">· {student.phone}</span>}
+              </div>
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {student.specialization && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 font-semibold">{student.specialization}</span>
+                )}
+                {student.nationality && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500">{student.nationality}</span>
+                )}
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${riskStyles[riskLevel].bg} ${riskStyles[riskLevel].text}`}>
+                  {riskStyles[riskLevel].icon} {riskLevel === 'good' ? 'Good standing' : `${riskLevel} risk`}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ─── Tabs ─────────────────────────────────────── */}
+        <div className="flex border-b border-gray-100 dark:border-gray-800 px-6">
+          {([
+            { key: 'overview' as const, label: 'Overview' },
+            { key: 'attendance' as const, label: 'Attendance', count: attendance.length },
+            { key: 'enrollments' as const, label: 'Enrollments', count: activeEnrollments.length },
+          ]).map(t => (
+            <button
+              key={t.key}
+              onClick={() => setActiveTab(t.key)}
+              className={`px-3 py-2.5 text-xs font-semibold border-b-2 transition-all ${
+                activeTab === t.key
+                  ? 'border-purple-500 text-purple-600 dark:text-purple-400'
+                  : 'border-transparent text-gray-400 hover:text-gray-600'
+              }`}
+            >
+              {t.label}
+              {t.count != null && <span className="ml-1 text-[10px] text-gray-400">({t.count})</span>}
+            </button>
+          ))}
+        </div>
+
+        {/* ─── Content ──────────────────────────────────── */}
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-6 w-6 border-2 border-purple-500 border-t-transparent" />
+            </div>
+          ) : activeTab === 'overview' ? (
+            <div className="space-y-4">
+              {/* KPI Row */}
+              {analytics ? (
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 p-3 text-center">
+                      <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">Attendance</p>
+                      <p className={`text-xl font-black ${analytics.attendanceRate >= 80 ? 'text-emerald-600' : analytics.attendanceRate >= 60 ? 'text-amber-600' : 'text-red-600'}`}>
+                        {analytics.attendanceRate}%
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 p-3 text-center">
+                      <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">Sessions</p>
+                      <p className="text-xl font-black text-gray-900 dark:text-white">{analytics.total}</p>
+                    </div>
+                    <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 p-3 text-center">
+                      <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">Trend</p>
+                      <p className={`text-sm font-bold ${analytics.trend === 'improving' ? 'text-emerald-600' : analytics.trend === 'declining' ? 'text-red-600' : 'text-gray-500'}`}>
+                        {analytics.trend === 'improving' ? '📈 Improving' : analytics.trend === 'declining' ? '📉 Declining' : '➡️ Stable'}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 p-3 text-center">
+                      <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">Streak</p>
+                      <p className={`text-xl font-black ${analytics.consecutive >= 3 ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>
+                        {analytics.consecutive > 0 ? `${analytics.consecutive} absent` : '✓'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Status Breakdown */}
+                  <div className="rounded-xl border border-gray-100 dark:border-gray-700 p-4 space-y-2">
+                    <p className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-2">Status Breakdown</p>
+                    {([
+                      { label: 'On Time', count: analytics.onTime, color: 'bg-emerald-500', pct: analytics.total > 0 ? (analytics.onTime / analytics.total) * 100 : 0 },
+                      { label: 'Late', count: analytics.late, color: 'bg-amber-500', pct: analytics.total > 0 ? (analytics.late / analytics.total) * 100 : 0, sub: analytics.avgLateMinutes > 0 ? `avg ${analytics.avgLateMinutes}min` : undefined },
+                      { label: 'Absent', count: analytics.absent, color: 'bg-red-500', pct: analytics.total > 0 ? (analytics.absent / analytics.total) * 100 : 0 },
+                      { label: 'Excused', count: analytics.excused, color: 'bg-blue-500', pct: analytics.total > 0 ? (analytics.excused / analytics.total) * 100 : 0 },
+                    ]).map(s => (
+                      <div key={s.label} className="flex items-center gap-2">
+                        <span className="text-[11px] text-gray-600 dark:text-gray-300 w-16 shrink-0">{s.label}</span>
+                        <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                          <div className={`h-full rounded-full ${s.color}`} style={{ width: `${s.pct}%` }} />
+                        </div>
+                        <span className="text-[11px] text-gray-500 w-12 text-right">{s.count} ({Math.round(s.pct)}%)</span>
+                        {s.sub && <span className="text-[10px] text-gray-400">{s.sub}</span>}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Patterns */}
+                  {analytics.patterns.length > 0 && (
+                    <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/10 p-4">
+                      <p className="text-xs font-bold text-amber-700 dark:text-amber-300 mb-2">🔍 Detected Patterns</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {analytics.patterns.map((p, i) => (
+                          <span key={i} className="text-[11px] px-2 py-1 bg-white dark:bg-gray-800 border border-amber-200 dark:border-amber-700 rounded-lg text-amber-700 dark:text-amber-300">{p}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Enrollments summary */}
+                  <div className="rounded-xl border border-gray-100 dark:border-gray-700 p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Active Enrollments</p>
+                      <span className="text-[10px] text-purple-600 dark:text-purple-400 font-bold">{activeEnrollments.length}</span>
+                    </div>
+                    {activeEnrollments.length === 0 ? (
+                      <p className="text-xs text-gray-400">No active enrollments</p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {activeEnrollments.slice(0, 3).map(e => {
+                          const session = unwrap(e.session);
+                          const course = unwrap(session?.course);
+                          const teacher = unwrap(session?.teacher);
+                          return (
+                            <div key={e.enrollment_id} className="flex items-center justify-between text-xs py-1">
+                              <span className="text-gray-700 dark:text-gray-300 font-medium">{course?.course_name || 'Unknown'}</span>
+                              <span className="text-gray-400">{teacher?.name || ''}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-8">
+                  <span className="text-4xl block mb-2">📊</span>
+                  <p className="text-sm text-gray-500">No attendance data yet</p>
+                </div>
+              )}
+
+              {/* Quick Actions */}
+              <div className="flex flex-wrap gap-2 pt-2">
+                <Link
+                  to={`/attendance-records?studentName=${encodeURIComponent(student.name)}`}
+                  onClick={onClose}
+                  className="text-xs px-3 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition-colors font-semibold"
+                >
+                  📋 Full Attendance Records
+                </Link>
+                {student.email && (
+                  <a href={`mailto:${student.email}`} className="text-xs px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-semibold text-gray-700 dark:text-gray-300">
+                    📧 Email
+                  </a>
+                )}
+                {student.phone && (
+                  <a href={`https://wa.me/${student.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer"
+                    className="text-xs px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-semibold text-gray-700 dark:text-gray-300">
+                    📱 WhatsApp
+                  </a>
+                )}
+              </div>
+            </div>
+
+          ) : activeTab === 'attendance' ? (
+            <div className="space-y-2">
+              {attendance.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">No attendance records</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-gray-100 dark:border-gray-800">
+                        <th className="text-left py-2 px-2 text-gray-400 font-semibold">Date</th>
+                        <th className="text-left py-2 px-2 text-gray-400 font-semibold">Course</th>
+                        <th className="text-left py-2 px-2 text-gray-400 font-semibold">Status</th>
+                        <th className="text-left py-2 px-2 text-gray-400 font-semibold">Method</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                      {attendance.slice(0, 50).map((a, i) => {
+                        const session = unwrap(a.session);
+                        const course = unwrap(session?.course);
+                        const statusColors: Record<string, string> = {
+                          'on time': 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20',
+                          'late': 'text-amber-600 bg-amber-50 dark:bg-amber-900/20',
+                          'absent': 'text-red-600 bg-red-50 dark:bg-red-900/20',
+                          'excused': 'text-blue-600 bg-blue-50 dark:bg-blue-900/20',
+                          'not enrolled': 'text-gray-400 bg-gray-50 dark:bg-gray-800',
+                        };
+                        return (
+                          <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/30">
+                            <td className="py-1.5 px-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">{a.attendance_date}</td>
+                            <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400 truncate max-w-[120px]">{course?.course_name || '—'}</td>
+                            <td className="py-1.5 px-2">
+                              <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${statusColors[a.status] || 'text-gray-500'}`}>
+                                {a.status}
+                                {a.status === 'late' && a.late_minutes ? ` (${a.late_minutes}m)` : ''}
+                              </span>
+                            </td>
+                            <td className="py-1.5 px-2 text-gray-400">{a.check_in_method || '—'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  {attendance.length > 50 && (
+                    <p className="text-[11px] text-gray-400 text-center py-2">Showing 50 of {attendance.length} records</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+          ) : (
+            <div className="space-y-2">
+              {enrollments.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">No enrollments</p>
+              ) : (
+                <div className="space-y-2">
+                  {enrollments.map(e => {
+                    const session = unwrap(e.session);
+                    const course = unwrap(session?.course);
+                    const teacher = unwrap(session?.teacher);
+                    return (
+                      <div key={e.enrollment_id} className="rounded-xl border border-gray-100 dark:border-gray-700 p-3 flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{course?.course_name || 'Unknown'}</p>
+                          <p className="text-[11px] text-gray-400">{teacher?.name || ''} · {session?.start_date} → {session?.end_date}</p>
+                        </div>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                          e.status === 'active' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600' :
+                          e.status === 'completed' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600' :
+                          'bg-gray-100 dark:bg-gray-800 text-gray-500'
+                        }`}>{e.status}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

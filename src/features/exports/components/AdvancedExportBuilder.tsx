@@ -202,6 +202,15 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     new Set(savedSettings?.excludedRows || [])
   );
 
+  // Field label renames — lets user override column headers for export
+  const [fieldRenames, setFieldRenames] = useState<Record<string, string>>({});
+  const [editingFieldKey, setEditingFieldKey] = useState<string | null>(null);
+
+  const getFieldLabel = useCallback((f: ExportField, isArabic: boolean): string => {
+    if (fieldRenames[f.key]) return fieldRenames[f.key];
+    return isArabic && f.labelAr ? f.labelAr : f.label;
+  }, [fieldRenames]);
+
   // Reset config when modal opens or categories change - use saved settings
   useEffect(() => {
     if (isOpen) {
@@ -549,7 +558,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     const selectedFields = getSelectedFieldsOrdered();
     const isArabic = config.language === 'ar';
     
-    const headers = selectedFields.map(f => isArabic && f.labelAr ? f.labelAr : f.label);
+    const headers = selectedFields.map(f => getFieldLabel(f, isArabic));
     const rows = processedData.map(record => 
       selectedFields.map(field => formatValue(field, record))
     );
@@ -592,7 +601,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     const selectedFields = getSelectedFieldsOrdered();
     const isArabic = config.language === 'ar';
     
-    const headers = selectedFields.map(f => isArabic && f.labelAr ? f.labelAr : f.label);
+    const headers = selectedFields.map(f => getFieldLabel(f, isArabic));
     const rows = processedData.map(record => 
       selectedFields.map(field => formatValue(field, record))
     );
@@ -654,7 +663,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
 
     // Apply column widths for better readability
     const colWidths = selectedFields.map(f => ({
-      wch: config.columnWidths?.[f.key] ?? Math.max((isArabic && f.labelAr ? f.labelAr.length : f.label.length) + 4, 12),
+      wch: config.columnWidths?.[f.key] ?? Math.max(getFieldLabel(f, isArabic).length + 4, 12),
     }));
     ws['!cols'] = colWidths;
 
@@ -791,7 +800,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     };
 
     // Table
-    const headers = selectedFields.map(f => isArabic && f.labelAr ? f.labelAr : f.label);
+    const headers = selectedFields.map(f => getFieldLabel(f, isArabic));
     const rows = processedData.map(record => 
       selectedFields.map(field => formatValue(field, record))
     );
@@ -870,7 +879,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     const selectedFields = getSelectedFieldsOrdered();
     const isArabic = config.language === 'ar';
     
-    const headers = selectedFields.map(f => isArabic && f.labelAr ? f.labelAr : f.label);
+    const headers = selectedFields.map(f => getFieldLabel(f, isArabic));
     const rows = processedData.map(record => 
       selectedFields.map(field => formatValue(field, record))
     );
@@ -1108,9 +1117,9 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                     {/* Fields */}
                     <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 dark:bg-gray-800">
                       {category.fields.map(field => (
-                        <label
+                        <div
                           key={field.key}
-                          className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition ${
+                          className={`flex items-center gap-3 p-3 rounded-lg transition ${
                             config.selectedFields.includes(field.key)
                               ? 'bg-blue-50 dark:bg-blue-900/40 border-2 border-blue-300 dark:border-blue-600'
                               : 'bg-gray-50 dark:bg-gray-700 border-2 border-transparent hover:bg-gray-100 dark:hover:bg-gray-600'
@@ -1120,10 +1129,44 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                             type="checkbox"
                             checked={config.selectedFields.includes(field.key)}
                             onChange={() => toggleField(field.key)}
-                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
                           />
-                          <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{field.label}</span>
-                        </label>
+                          <div className="flex-1 min-w-0">
+                            {editingFieldKey === field.key ? (
+                              <input
+                                type="text"
+                                autoFocus
+                                defaultValue={fieldRenames[field.key] || field.label}
+                                onBlur={(e) => {
+                                  const val = e.target.value.trim();
+                                  setFieldRenames(prev => {
+                                    const next = { ...prev };
+                                    if (!val || val === field.label) delete next[field.key];
+                                    else next[field.key] = val;
+                                    return next;
+                                  });
+                                  setEditingFieldKey(null);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                                  if (e.key === 'Escape') { setEditingFieldKey(null); }
+                                }}
+                                className="w-full text-sm font-medium px-1.5 py-0.5 rounded border border-blue-400 dark:border-blue-500 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              />
+                            ) : (
+                              <span
+                                className="text-sm font-medium text-gray-700 dark:text-gray-200 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 truncate block"
+                                title="Click to rename this column header for export"
+                                onClick={() => setEditingFieldKey(field.key)}
+                              >
+                                {fieldRenames[field.key] || field.label}
+                                {fieldRenames[field.key] && (
+                                  <span className="ml-1 text-[10px] text-blue-500">✏️</span>
+                                )}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -1187,7 +1230,8 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                           </span>
                           {/* Field name */}
                           <span className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-200 truncate">
-                            {field.label}
+                            {fieldRenames[field.key] || field.label}
+                            {fieldRenames[field.key] && <span className="ml-1 text-[10px] text-blue-500">✏️</span>}
                           </span>
                           {/* Up/Down arrows */}
                           <div className="flex items-center gap-0.5 flex-shrink-0">
@@ -1712,8 +1756,8 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                       {getSelectedFieldsOrdered().map(field => (
                         <div key={field.key} className="flex items-center gap-3 p-2.5 bg-gray-50 dark:bg-gray-700 rounded-lg">
                           <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{field.label}</div>
-                            {field.labelAr && <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{field.labelAr}</div>}
+                            <div className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{fieldRenames[field.key] || field.label}</div>
+                            {field.labelAr && !fieldRenames[field.key] && <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{field.labelAr}</div>}
                           </div>
                           <div className="flex items-center gap-1.5 flex-shrink-0">
                             <input
@@ -2363,7 +2407,8 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                         key={field.key}
                         className="px-3 py-1 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full text-sm font-medium"
                       >
-                        {field.label}
+                        {fieldRenames[field.key] || field.label}
+                        {fieldRenames[field.key] && <span className="ml-1 opacity-60">✏️</span>}
                       </span>
                     ))}
                     {config.selectedFields.length === 0 && (
@@ -2395,7 +2440,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                                 field.key === config.sortByField ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30' : 'text-gray-500 dark:text-gray-400'
                               }`}
                             >
-                              {field.label}
+                              {fieldRenames[field.key] || field.label}
                               {field.key === config.sortByField && (
                                 <span className="ml-1">{config.sortDirection === 'desc' ? '↓' : '↑'}</span>
                               )}

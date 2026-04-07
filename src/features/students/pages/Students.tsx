@@ -15,6 +15,7 @@ import { useRefreshOnFocus } from '@/shared/hooks/useRefreshOnFocus';
 import type { Student, CreateStudent } from '@/shared/types/database.types';
 import { TableSkeleton } from '@/shared/components/ui/Skeleton';
 import { Specializations } from '@/features/specializations/pages/Specializations';
+import { StudentDetailModal } from '@/features/students/components/StudentDetailModal';
 
 const PhotoUpload = lazy(() => import('@/features/students/components/PhotoUpload').then((module) => ({ default: module.PhotoUpload })));
 
@@ -39,6 +40,7 @@ export function Students() {
   const [deletingStudent, setDeletingStudent] = useState<Student | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
+  const [detailStudent, setDetailStudent] = useState<Student | null>(null);
 
   const loadStudents = useCallback(async () => {
     setLoading(true);
@@ -365,7 +367,7 @@ export function Students() {
         <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700/50 overflow-hidden">
           <div className="md:hidden divide-y divide-gray-100 dark:divide-gray-700">
             {paginatedStudents.map((student) => (
-              <div key={student.student_id} className="p-4 space-y-4 overflow-hidden">
+              <div key={student.student_id} className="p-4 space-y-4 overflow-hidden cursor-pointer" onClick={() => setDetailStudent(student)}>
                 <div className="flex items-start gap-3">
                   <PhotoAvatar
                     photoPath={student.photo_url}
@@ -456,7 +458,7 @@ export function Students() {
               </TableHeader>
               <TableBody>
                 {paginatedStudents.map((student) => (
-                    <TableRow key={student.student_id}>
+                    <TableRow key={student.student_id} className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors" onClick={() => setDetailStudent(student)}>
                       <TableCell className="w-12">
                         <PhotoAvatar 
                           photoPath={student.photo_url} 
@@ -605,6 +607,9 @@ export function Students() {
         onConfirm={handleDeleteStudent}
         onCancel={() => setDeletingStudent(null)}
       />
+      {detailStudent && (
+        <StudentDetailModal student={detailStudent} onClose={() => setDetailStudent(null)} />
+      )}
       </>
       )}
     </div>

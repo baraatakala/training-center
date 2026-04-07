@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { sessionRecordingService } from '@/features/sessions/services/sessionRecordingService';
 import type { SessionRecording } from '@/shared/types/database.types';
 import { toast } from '@/shared/components/ui/toastUtils';
@@ -148,6 +148,8 @@ export function SessionRecordingsManager({ sessionId, courseName, canManageInAtt
   const [recordings, setRecordings] = useState<SessionRecording[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   const loadRecordings = useCallback(async () => {
     setLoading(true);
@@ -159,6 +161,16 @@ export function SessionRecordingsManager({ sessionId, courseName, canManageInAtt
 
   useEffect(() => { loadRecordings(); }, [loadRecordings]);
 
+  // Close export menu on outside click
+  useEffect(() => {
+    if (!showExportMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) setShowExportMenu(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showExportMenu]);
+
   const grouped = recordings.reduce<Record<string, SessionRecording[]>>((acc, r) => {
     const key = r.attendance_date || 'No date';
     (acc[key] ??= []).push(r);
@@ -169,6 +181,92 @@ export function SessionRecordingsManager({ sessionId, courseName, canManageInAtt
     if (b === 'No date') return -1;
     return b.localeCompare(a);
   });
+
+  // ─── Helper to download a blob ────────────────────────────
+  const downloadBlob = useCallback((blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, []);
+
+  const filePrefix = `recordings-${courseName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}-${new Date().toISOString().slice(0, 10)}`;
+
+  // ─── Export as JSON ─────────────────────────────────────────
+  const handleExportJSON = useCallback(() => {
+    if (recordings.length === 0) { toast.error('No recordings to export'); return; }
+    const payload = {
+      course: courseName,
+      exportedAt: new Date().toISOString(),
+      totalRecordings: recordings.length,
+      dates: sortedDates.map(date => ({
+        date: date === 'No date' ? null : date,
+        recordings: grouped[date].map(r => {
+          const provider = detectProvider(r.recording_url || '');
+          return {
+            id: r.recording_id,
+            title: r.title || provider.name || 'Recording',
+            url: r.recording_url,
+            provider: provider.name || 'External',
+            type: r.recording_type,
+            durationSeconds: r.duration_seconds,
+            mimeType: r.mime_type,
+            fileSizeBytes: r.file_size_bytes,
+            visibility: r.recording_visibility,
+            isPrimary: r.is_primary,
+            createdAt: r.created_at,
+          };
+        }),
+      })),
+    };
+    downloadBlob(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }), `${filePrefix}.json`);
+    toast.success(`Exported ${recordings.length} recording${recordings.length > 1 ? 's' : ''} as JSON`);
+    setShowExportMenu(false);
+  }, [recordings, sortedDates, grouped, courseName, downloadBlob, filePrefix]);
+
+  // ─── Export as Markdown ─────────────────────────────────────
+  const handleExportMarkdown = useCallback(() => {
+    if (recordings.length === 0) { toast.error('No recordings to export'); return; }
+    const lines: string[] = [];
+    lines.push(`# 🎥 Recording Catalog — ${courseName}`);
+    lines.push('');
+    lines.push(`> Exported ${new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })} · ${recordings.length} recordings across ${sortedDates.filter(d => d !== 'No date').length} session dates`);
+    lines.push('');
+    lines.push('---');
+    lines.push('');
+
+    for (const date of sortedDates) {
+      const items = grouped[date];
+      const dateLabel = date === 'No date' ? 'Undated Recordings' : (() => {
+        const d = new Date(`${date}T00:00:00`);
+        return d.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' });
+      })();
+      lines.push(`## 📅 ${dateLabel}`);
+      lines.push('');
+
+      for (const r of items) {
+        const provider = detectProvider(r.recording_url || '');
+        const title = r.title || provider.name || 'Recording';
+        const meta: string[] = [];
+        if (provider.name) meta.push(provider.name);
+        if (r.duration_seconds) meta.push(`${Math.floor(r.duration_seconds / 60)}m ${r.duration_seconds % 60}s`);
+        if (r.mime_type) meta.push(r.mime_type);
+        lines.push(`- ${provider.icon} **[${title}](${r.recording_url || '#'})**${meta.length ? ` — _${meta.join(' · ')}_` : ''}`);
+      }
+      lines.push('');
+    }
+
+    lines.push('---');
+    lines.push('_Generated by Training Center_');
+
+    downloadBlob(new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' }), `${filePrefix}.md`);
+    toast.success(`Exported ${recordings.length} recording${recordings.length > 1 ? 's' : ''} as Markdown`);
+    setShowExportMenu(false);
+  }, [recordings, sortedDates, grouped, courseName, downloadBlob, filePrefix]);
 
   // ─── Export Recording Catalog as HTML ───────────────────────
   const handleExportCatalog = useCallback(() => {
@@ -291,17 +389,10 @@ export function SessionRecordingsManager({ sessionId, courseName, canManageInAtt
 </body>
 </html>`;
 
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `recordings-${courseName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}-${new Date().toISOString().slice(0, 10)}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadBlob(new Blob([html], { type: 'text/html;charset=utf-8' }), `${filePrefix}.html`);
     toast.success(`Exported ${recordings.length} recording${recordings.length > 1 ? 's' : ''} as HTML catalog`);
-  }, [recordings, sortedDates, grouped, courseName]);
+    setShowExportMenu(false);
+  }, [recordings, sortedDates, grouped, courseName, downloadBlob, filePrefix]);
 
   return (
     <div className="space-y-5">
@@ -314,13 +405,28 @@ export function SessionRecordingsManager({ sessionId, courseName, canManageInAtt
         </div>
         <div className="flex items-center gap-2">
           {recordings.length > 0 && (
-            <button
-              type="button"
-              onClick={handleExportCatalog}
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-medium hover:from-blue-600 hover:to-indigo-600 transition-all shadow-sm hover:shadow"
-            >
-              📥 Export Catalog
-            </button>
+            <div className="relative" ref={exportMenuRef}>
+              <button
+                type="button"
+                onClick={() => setShowExportMenu(prev => !prev)}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-medium hover:from-blue-600 hover:to-indigo-600 transition-all shadow-sm hover:shadow"
+              >
+                📥 Export ▾
+              </button>
+              {showExportMenu && (
+                <div className="absolute right-0 top-9 z-50 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-600 overflow-hidden">
+                  <button onClick={handleExportCatalog} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/20 flex items-center gap-2">
+                    🌐 <span>HTML Catalog</span>
+                  </button>
+                  <button onClick={handleExportMarkdown} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 flex items-center gap-2">
+                    📝 <span>Markdown</span>
+                  </button>
+                  <button onClick={handleExportJSON} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center gap-2">
+                    📦 <span>JSON Data</span>
+                  </button>
+                </div>
+              )}
+            </div>
           )}
           <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-2 py-1 rounded-full">
             {recordings.length} link{recordings.length === 1 ? '' : 's'}

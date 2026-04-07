@@ -53,7 +53,7 @@ interface AttendanceAnalyticsRecord {
   }> | null;
 }
 
-const PRESENT_STATUSES = new Set(['present', 'on time', 'late']);
+const PRESENT_STATUSES = new Set(['on time', 'late']);
 const EXCLUDED_STATUSES = new Set(['excused', 'not enrolled']);
 
 function isSessionNotHeld(record: AttendanceAnalyticsRecord): boolean {

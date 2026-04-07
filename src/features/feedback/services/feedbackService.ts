@@ -1,76 +1,15 @@
 import { supabase } from '@/shared/lib/supabase';
 import { logDelete, logInsert, logUpdate } from '@/shared/services/auditService';
+import type { FeedbackQuestion, SessionFeedback, FeedbackTemplate, FeedbackStats, FeedbackDateSummary, FeedbackComparison } from '@/shared/types/database.types';
 
-// ─── Types ───────────────────────────────────────────────────
-export interface FeedbackQuestion {
-  id: string;
-  session_id: string;
-  question_text: string;
-  question_type: 'rating' | 'text' | 'emoji' | 'multiple_choice';
-  options: string[];
-  sort_order: number;
-  is_required: boolean;
-  attendance_date: string | null; // null = global (all dates), set = date-specific
-  created_at: string;
-}
-
-export interface SessionFeedback {
-  id: string;
-  session_id: string;
-  attendance_date: string;
-  student_id: string | null;
-  is_anonymous: boolean;
-  overall_rating: number | null;
-  comment: string | null;
-  responses: Record<string, unknown>;
-  check_in_method: string | null;
-  created_at: string;
-  student_name?: string | null;
-}
-
-export interface FeedbackTemplate {
-  id: string;
-  name: string;
-  description: string | null;
-  questions: Array<{ type: string; text: string; required: boolean; options?: string[] }>;
-  is_default: boolean;
-  created_at: string;
-}
+// Re-export types for consumers
+export type { FeedbackQuestion, SessionFeedback, FeedbackTemplate, FeedbackStats, FeedbackDateSummary, FeedbackComparison };
 
 export interface FeedbackTemplateInput {
   name: string;
   description?: string | null;
   questions: Array<{ type: string; text: string; required: boolean; options?: string[] }>;
   is_default?: boolean;
-}
-
-export interface FeedbackStats {
-  totalResponses: number;
-  engagedStudents: number;
-  averageRating: number;
-  ratingDistribution: Record<number, number>;
-  responseRate: number;
-  datesCovered: number;
-  latestResponseDate: string | null;
-  recentComments: Array<{ comment: string; rating: number; date: string; is_anonymous: boolean }>;
-}
-
-export interface FeedbackDateSummary {
-  date: string;
-  responses: number;
-  uniqueStudents: number;
-  averageRating: number;
-  ratingDistribution: Record<number, number>;
-  commentCount: number;
-  responseRate: number;
-}
-
-export interface FeedbackComparison {
-  dates: FeedbackDateSummary[];
-  bestDate: string | null;
-  worstDate: string | null;
-  trendDirection: 'improving' | 'declining' | 'stable' | 'insufficient';
-  overallAvg: number;
 }
 
 function normalizeFeedbackError(error: { message?: string; details?: string; hint?: string } | null) {

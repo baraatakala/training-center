@@ -21,8 +21,8 @@ export function TableBody({ children }: { children: React.ReactNode }) {
   return <tbody className="bg-white/50 dark:bg-gray-800/50 divide-y divide-gray-100 dark:divide-gray-700/50">{children}</tbody>;
 }
 
-export function TableRow({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <tr className={`hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors ${className}`}>{children}</tr>;
+export function TableRow({ children, className = '', onClick }: { children: React.ReactNode; className?: string; onClick?: () => void }) {
+  return <tr className={`hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors ${className}`} onClick={onClick}>{children}</tr>;
 }
 
 export function TableHead({ children, className = '', onClick }: { children: React.ReactNode; className?: string; onClick?: () => void }) {

@@ -202,6 +202,16 @@ export const AttendanceRecords = () => {
 
   // Advanced Export Builder state
   const [showAdvancedExport, setShowAdvancedExport] = useState(false);
+  const [activeSection, setActiveSection] = useState<'records' | 'analytics' | 'matrix' | 'scoring'>(() => {
+    try {
+      const saved = localStorage.getItem('attendance_activeSection');
+      if (saved === 'analytics' || saved === 'matrix' || saved === 'scoring') return saved;
+      if (localStorage.getItem('attendance_showAnalytics') === 'true') return 'analytics';
+      return 'records';
+    } catch {
+      return 'records';
+    }
+  });
   const [exportDataType, setExportDataType] = useState<'records' | 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics' | 'specializationAnalytics'>('records');
 
   // Load saved field selections from localStorage
@@ -251,13 +261,7 @@ export const AttendanceRecords = () => {
   const [loading, setLoading] = useState(false);
   const [exportingWord, setExportingWord] = useState(false);
   const [, setIsTeacher] = useState(false);
-  const [showAnalytics, setShowAnalytics] = useState(() => {
-    try {
-      return localStorage.getItem('attendance_showAnalytics') === 'true';
-    } catch {
-      return false;
-    }
-  });
+  const showAnalytics = activeSection !== 'records';
   const [studentAnalytics, setStudentAnalytics] = useState<StudentAnalytics[]>([]);
   const [dateAnalytics, setDateAnalytics] = useState<DateAnalytics[]>([]);
   const [reportLanguage, setReportLanguage] = useState<'en' | 'ar'>('en');
@@ -312,7 +316,7 @@ export const AttendanceRecords = () => {
 
   useEffect(() => {
     try {
-      localStorage.setItem('attendance_showAnalytics', String(showAnalytics));
+      localStorage.setItem('attendance_activeSection', activeSection);
       localStorage.setItem('attendance_collapseStudentTable', String(collapseStudentTable));
       localStorage.setItem('attendance_collapseDateTable', String(collapseDateTable));
       localStorage.setItem('attendance_collapseHostTable', String(collapseHostTable));
@@ -323,7 +327,7 @@ export const AttendanceRecords = () => {
       /* ignore localStorage errors */
     }
   }, [
-    showAnalytics,
+    activeSection,
     collapseStudentTable,
     collapseDateTable,
     collapseHostTable,
@@ -5163,16 +5167,6 @@ export const AttendanceRecords = () => {
             
             {/* Action Buttons */}
             <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setShowAnalytics(!showAnalytics)}
-                className="px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 border border-white/20"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-                {showAnalytics ? t.hideAnalytics : t.showAnalytics}
-              </button>
-              
               {showAnalytics && (
                 <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg p-1 border border-white/20">
                   <button
@@ -5215,8 +5209,42 @@ export const AttendanceRecords = () => {
       {/* Main Content Container */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-4 space-y-6">
 
+      {/* Section Tab Navigation */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg dark:shadow-gray-900/30 border border-gray-100 dark:border-gray-700 p-1.5">
+        <div className="flex flex-wrap gap-1">
+          {([
+            { key: 'records' as const, icon: '📋', label: t.attendanceRecords, desc: t.totalRecords },
+            { key: 'analytics' as const, icon: '📊', label: t.studentPerformance, desc: t.summaryStatistics },
+            { key: 'matrix' as const, icon: '🗓️', label: t.crosstabTitle || 'Cross-Tab Matrix', desc: t.crosstabDesc || 'Student × Date Heatmap' },
+            { key: 'scoring' as const, icon: '🧮', label: 'Score Breakdown', desc: 'Weighted score explainer' },
+          ]).map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveSection(tab.key)}
+              className={`flex-1 min-w-[120px] px-4 py-3 rounded-xl text-left transition-all duration-200 ${
+                activeSection === tab.key
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                  : 'hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-lg">{tab.icon}</span>
+                <div className="min-w-0">
+                  <div className={`text-sm font-semibold truncate ${activeSection === tab.key ? 'text-white' : 'text-gray-800 dark:text-gray-200'}`}>
+                    {tab.label}
+                  </div>
+                  <div className={`text-[10px] truncate ${activeSection === tab.key ? 'text-blue-100' : 'text-gray-400 dark:text-gray-500'}`}>
+                    {tab.desc}
+                  </div>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Advanced Analytics Dashboard */}
-      {showAnalytics && (
+      {activeSection === 'analytics' && (
         <div className="space-y-4 sm:space-y-6">
           {/* Summary Statistics - Enhanced Cards */}
           {includedTables.summary && (
@@ -6316,12 +6344,14 @@ export const AttendanceRecords = () => {
             })()}
           </div>
           )}
+        </div>
+      )}
 
-          {/* ═══════════════════════════════════════════════════════════════
-              CROSS-TAB HEATMAP TABLE — Student × Date Matrix
-              Color-coded cells showing attendance status
-              ═══════════════════════════════════════════════════════════════ */}
-          {includedTables.crosstab && (
+      {/* ═══════════════════════════════════════════════════════════════
+          CROSS-TAB HEATMAP TABLE — Student × Date Matrix
+          Color-coded cells showing attendance status
+          ═══════════════════════════════════════════════════════════════ */}
+      {activeSection === 'matrix' && includedTables.crosstab && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
             <button
               onClick={() => setCollapseCrosstabTable(prev => !prev)}
@@ -6515,14 +6545,12 @@ export const AttendanceRecords = () => {
               </div>
             )}
           </div>
-          )}
-        </div>
       )}
 
       {/* ════════════════════════════════════════════════════════════════════
           WEIGHTED SCORE EXPLAINER — Bilingual, per-student breakdown
           ════════════════════════════════════════════════════════════════════ */}
-      {showAnalytics && studentAnalytics.length > 0 && (
+      {activeSection === 'scoring' && studentAnalytics.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg dark:shadow-gray-900/30 overflow-hidden border border-indigo-100 dark:border-indigo-900/40">
           {/* Header */}
           <button
@@ -7108,6 +7136,8 @@ export const AttendanceRecords = () => {
       )}
 
       {/* Summary Stats Cards - Enhanced Design */}
+      {activeSection === 'records' && (
+      <>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-800 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 dark:border-gray-700 group">
           <div className="flex items-center justify-between">
@@ -7597,6 +7627,8 @@ export const AttendanceRecords = () => {
           </div>
         )}
       </div>
+      </>
+      )}
       </div>
 
       <ConfirmDialog
