@@ -172,7 +172,7 @@ export function Attendance() {
   const [fbQuestions, setFbQuestions] = useState<FeedbackQuestion[]>([]);
   const [fbTemplates, setFbTemplates] = useState<FeedbackTemplate[]>([]);
   const [fbSelectedTemplateId, setFbSelectedTemplateId] = useState('');
-  const [, setFbApplyingTemplate] = useState(false);
+  const [fbApplyingTemplate, setFbApplyingTemplate] = useState(false);
   const [fbSavingQuestion, setFbSavingQuestion] = useState(false);
   const [fbEditingQuestionId, setFbEditingQuestionId] = useState<string | null>(null);
   const [showFeedbackSetup, setShowFeedbackSetup] = useState(false);
@@ -859,6 +859,7 @@ export function Attendance() {
       return;
     }
 
+    setFbQuestions([]);
     let cancelled = false;
 
     async function loadFb() {
@@ -893,8 +894,8 @@ export function Attendance() {
         options,
         attendance_date: selectedDate,
       });
-      if (error) { toast.error('Failed to update question'); }
-      else { toast.success('Question updated'); }
+      if (error) { toast.error('Failed to update question'); setFbSavingQuestion(false); return; }
+      toast.success('Question updated');
     } else {
       const { error } = await feedbackService.createQuestion({
         session_id: sessionId,
@@ -905,8 +906,8 @@ export function Attendance() {
         sort_order: fbQuestions.length + 1,
         attendance_date: selectedDate,
       });
-      if (error) { toast.error('Failed to add question'); }
-      else { toast.success('Question added'); }
+      if (error) { toast.error('Failed to add question'); setFbSavingQuestion(false); return; }
+      toast.success('Question added');
     }
 
     // Reset form
@@ -2434,99 +2435,110 @@ export function Attendance() {
       {selectedDate && session && (
         <Card>
           <CardContent className="pt-6 space-y-4">
-            <div className="flex items-center justify-between flex-wrap gap-3">
+            {/* Header */}
+            <div className="flex items-start justify-between flex-wrap gap-3">
               <div>
                 <h3 className="text-base font-bold text-gray-800 dark:text-white flex items-center gap-2">
                   📋 Feedback Setup
                 </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  This config applies only to {format(new Date(selectedDate), 'MMMM dd, yyyy')}.
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  Questions for {format(new Date(selectedDate), 'MMMM dd, yyyy')} only
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const next = !session?.feedback_enabled;
-                    const { error } = await feedbackService.toggleFeedback(sessionId!, next);
-                    if (error) { toast.error('Failed to toggle feedback'); return; }
-                    setSession(prev => prev ? { ...prev, feedback_enabled: next } : prev);
-                    toast.success(next ? 'Feedback enabled — students will see the form after check-in' : 'Feedback disabled');
-                  }}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    session?.feedback_enabled ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600'
-                  }`}
-                  title={session?.feedback_enabled ? 'Feedback is ON for students' : 'Feedback is OFF — students will NOT see the form'}
-                >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    session?.feedback_enabled ? 'translate-x-6' : 'translate-x-1'
-                  }`} />
-                </button>
-                <span className={`text-xs font-medium ${
-                  session?.feedback_enabled ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400'
-                }`}>
-                  {session?.feedback_enabled ? 'ON' : 'OFF'}
-                </span>
-                <span className="text-xs font-normal bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded-full">
-                  {fbQuestions.length} question{fbQuestions.length === 1 ? '' : 's'}
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const next = !session?.feedback_enabled;
+                      const { error } = await feedbackService.toggleFeedback(sessionId!, next);
+                      if (error) { toast.error('Failed to toggle feedback'); return; }
+                      setSession(prev => prev ? { ...prev, feedback_enabled: next } : prev);
+                      toast.success(next ? 'Feedback enabled — students will see the form after check-in' : 'Feedback disabled');
+                    }}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                      session?.feedback_enabled ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600'
+                    }`}
+                    aria-label={session?.feedback_enabled ? 'Feedback ON' : 'Feedback OFF'}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                      session?.feedback_enabled ? 'translate-x-6' : 'translate-x-1'
+                    }`} />
+                  </button>
+                  <span className={`text-xs font-semibold ${
+                    session?.feedback_enabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'
+                  }`}>
+                    {session?.feedback_enabled ? 'ON' : 'OFF'}
+                  </span>
+                </div>
+                <span className="text-xs font-medium bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 px-2.5 py-1 rounded-full">
+                  {fbQuestions.length} Q
                 </span>
                 <Button
                   type="button"
                   variant="outline"
+                  size="sm"
                   onClick={() => {
-                    if (showFeedbackSetup) {
-                      cancelEditQuestion();
-                    }
-                    setShowFeedbackSetup(prev => !prev);
+                    if (showFeedbackSetup) cancelEditQuestion();
+                    setShowFeedbackSetup(p => !p);
                   }}
-                  className="text-xs h-9"
                 >
-                  {showFeedbackSetup ? 'Hide Setup' : 'Open Setup'}
+                  {showFeedbackSetup ? '▲ Hide' : '▼ Edit Questions'}
                 </Button>
               </div>
             </div>
 
+            {/* Warning: questions ready but feedback is off */}
             {!session?.feedback_enabled && fbQuestions.length > 0 && (
-              <div className="rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-700 dark:text-amber-300 flex items-center gap-2">
-                <span className="text-lg">⚠️</span>
-                <span>You have {fbQuestions.length} question{fbQuestions.length === 1 ? '' : 's'} ready but feedback is <strong>OFF</strong>. Turn the toggle ON so students see the form after check-in.</span>
+              <div className="flex items-center gap-2 rounded-xl border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-4 py-2.5 text-xs text-amber-700 dark:text-amber-300">
+                <span>⚠️</span>
+                <span>
+                  {fbQuestions.length} question{fbQuestions.length !== 1 ? 's' : ''} ready but feedback is <strong>OFF</strong> — students won't see the form.
+                </span>
               </div>
             )}
 
-            {!showFeedbackSetup && (
-              <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-800/30 px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
-                Add the exact feedback questions for this attendance date before students scan the check-in code.
-              </div>
+            {/* Collapsed hint */}
+            {!showFeedbackSetup && fbQuestions.length === 0 && (
+              <p className="text-xs text-gray-400 dark:text-gray-500 border border-dashed border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2.5">
+                Click "Edit Questions" to add feedback questions for this date.
+              </p>
             )}
 
+            {/* Expanded Setup */}
             {showFeedbackSetup && (
-              <div className="space-y-4">
-                {fbTemplates.length > 0 && (
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2 p-3 bg-gray-50 dark:bg-gray-800/40 rounded-lg border border-gray-200 dark:border-gray-700">
-                    <div className="flex-1">
-                      <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">Reusable question set for {format(new Date(selectedDate), 'MMM dd, yyyy')} (optional)</label>
-                      <select
-                        value={fbSelectedTemplateId}
-                        onChange={e => void handleTemplateChange(e.target.value)}
-                        className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-white"
+              <div className="space-y-5">
+
+                {/* ── Template Section ── */}
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-800/30 p-3">
+                  <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide block mb-2">
+                    Apply saved template (optional)
+                  </label>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <select
+                      value={fbSelectedTemplateId}
+                      onChange={e => void handleTemplateChange(e.target.value)}
+                      className="flex-1 min-w-[160px] text-xs border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-white"
+                    >
+                      <option value="">— choose template —</option>
+                      {fbTemplates.map(t => (
+                        <option key={t.id} value={t.id}>
+                          {t.name} ({t.questions?.length || 0} Q)
+                        </option>
+                      ))}
+                    </select>
+                    {fbSelectedTemplateId && (
+                      <button
+                        type="button"
+                        disabled={fbApplyingTemplate}
+                        onClick={() => void handleApplyTemplate(fbSelectedTemplateId)}
+                        className="text-xs px-3 py-2 rounded-lg font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors whitespace-nowrap"
                       >
-                        <option value="">Choose template...</option>
-                        {fbTemplates.map(t => (
-                          <option key={t.id} value={t.id}>{t.name} ({t.questions?.length || 0} questions)</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {fbSelectedTemplateId && (
-                        <button
-                          type="button"
-                          onClick={() => void handleApplyTemplate(fbSelectedTemplateId)}
-                          className="text-xs px-2 py-2 rounded-lg text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 border border-green-300 dark:border-green-700 font-medium"
-                          title="Apply template — replaces current questions for this date"
-                        >▶ Apply</button>
-                      )}
-                      {fbSelectedTemplateId && !fbTemplates.find(t => t.id === fbSelectedTemplateId)?.is_default && (
-                        <>
+                        {fbApplyingTemplate ? 'Applying…' : '▶ Apply'}
+                      </button>
+                    )}
+                    {fbSelectedTemplateId && !fbTemplates.find(t => t.id === fbSelectedTemplateId)?.is_default && (
+                      <>
                         <button
                           type="button"
                           onClick={async () => {
@@ -2540,52 +2552,30 @@ export function Attendance() {
                             const { data } = await feedbackService.getTemplates();
                             if (data) setFbTemplates(data);
                           }}
-                          className="text-xs px-2 py-2 rounded-lg text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 border border-amber-200 dark:border-amber-700"
+                          className="text-xs px-2 py-2 rounded-lg text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 border border-amber-200 dark:border-amber-700 transition-colors"
                           title="Update template with current questions"
                         >🔄</button>
                         <button
                           type="button"
                           onClick={async () => {
-                            if (!confirm('Delete this template? Current questions for this date will NOT be affected.')) return;
+                            if (!confirm('Delete this template? Existing questions for this date are not affected.')) return;
                             const { error } = await feedbackService.deleteTemplate(fbSelectedTemplateId);
                             if (error) { toast.error('Failed to delete template'); return; }
-                            toast.success('Template deleted — existing questions remain unchanged');
+                            toast.success('Template deleted — questions for this date remain unchanged');
                             setFbSelectedTemplateId('');
                             const { data } = await feedbackService.getTemplates();
                             if (data) setFbTemplates(data);
                           }}
-                          className="text-xs px-2 py-2 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 border border-red-200 dark:border-red-800"
+                          className="text-xs px-2 py-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 border border-red-200 dark:border-red-800 transition-colors"
                           title="Delete this template"
                         >🗑️</button>
-                        </>
-                      )}
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (fbQuestions.length === 0) { toast.warning('Add at least one question first'); return; }
-                          const name = prompt('Name for the new template:');
-                          if (!name?.trim()) return;
-                          const { data: newTpl, error } = await feedbackService.createTemplate({
-                            name: name.trim(),
-                            questions: toTemplateQuestions(fbQuestions),
-                          });
-                          if (error) { toast.error('Failed to create template'); return; }
-                          toast.success(`Template "${name.trim()}" saved`);
-                          const { data } = await feedbackService.getTemplates();
-                          if (data) setFbTemplates(data);
-                          if (newTpl) setFbSelectedTemplateId(newTpl.id);
-                        }}
-                        className="text-xs px-3 py-2 rounded-lg text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 font-medium whitespace-nowrap"
-                      >💾 Save as New</button>
-                    </div>
-                  </div>
-                )}
-                {fbTemplates.length === 0 && fbQuestions.length > 0 && (
-                  <div className="p-3 bg-gray-50 dark:bg-gray-800/40 rounded-lg border border-gray-200 dark:border-gray-700">
+                      </>
+                    )}
                     <button
                       type="button"
                       onClick={async () => {
-                        const name = prompt('Name for the new template:');
+                        if (fbQuestions.length === 0) { toast.warning('Add at least one question first'); return; }
+                        const name = prompt('Template name:');
                         if (!name?.trim()) return;
                         const { data: newTpl, error } = await feedbackService.createTemplate({
                           name: name.trim(),
@@ -2597,23 +2587,25 @@ export function Attendance() {
                         if (data) setFbTemplates(data);
                         if (newTpl) setFbSelectedTemplateId(newTpl.id);
                       }}
-                      className="text-xs px-3 py-2 rounded-lg text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 font-medium"
-                    >💾 Save current questions as reusable template</button>
+                      className="text-xs px-3 py-2 rounded-lg text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 font-medium transition-colors whitespace-nowrap"
+                    >💾 Save as new</button>
                   </div>
-                )}
+                </div>
 
-                <div className="space-y-3 p-4 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/20 dark:to-purple-950/20 rounded-xl border border-indigo-200 dark:border-indigo-800">
+                {/* ── Add / Edit Question Form ── */}
+                <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/40 dark:bg-indigo-950/20 p-4 space-y-3">
                   <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
-                    {fbEditingQuestionId ? 'Edit Question' : 'Add Question'}
+                    {fbEditingQuestionId ? '✏️ Edit Question' : '+ Add Question'}
                   </p>
                   <input
                     type="text"
-                    placeholder="Enter question text"
+                    placeholder="Question text…"
                     value={fbQuestionText}
                     onChange={e => setFbQuestionText(e.target.value)}
-                    className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-white placeholder-gray-400"
+                    onKeyDown={e => { if (e.key === 'Enter' && fbQuestionText.trim()) void handleAddOrUpdateQuestion(); }}
+                    className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-700"
                   />
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-1.5">
                     {(['rating', 'text', 'multiple_choice'] as const).map(t => (
                       <button
                         key={t}
@@ -2625,106 +2617,102 @@ export function Attendance() {
                             : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-indigo-400'
                         }`}
                       >
-                        {t === 'rating' ? 'Rating' : t === 'text' ? 'Text' : 'Multiple Choice'}
+                        {t === 'rating' ? '⭐ Rating 1–5' : t === 'text' ? '💬 Open text' : '☑️ Multiple choice'}
                       </button>
                     ))}
                   </div>
                   {fbQuestionType === 'multiple_choice' && (
                     <input
                       type="text"
-                      placeholder="Options separated by commas"
+                      placeholder="Options separated by commas, e.g. Good, Average, Poor"
                       value={fbOptionsText}
                       onChange={e => setFbOptionsText(e.target.value)}
-                      className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-white placeholder-gray-400"
+                      className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-700"
                     />
                   )}
-                  <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
                     <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 cursor-pointer select-none">
                       <input
                         type="checkbox"
                         checked={fbQuestionRequired}
                         onChange={e => setFbQuestionRequired(e.target.checked)}
-                        className="rounded border-gray-300 dark:border-gray-600 text-indigo-600"
+                        className="rounded border-gray-300 dark:border-gray-600 accent-indigo-600"
                       />
-                      Required answer
+                      Required
                     </label>
                     <div className="flex gap-2">
                       {fbEditingQuestionId && (
-                        <Button
-                          onClick={cancelEditQuestion}
-                          variant="outline"
-                          className="text-xs h-8"
-                        >
+                        <Button type="button" variant="outline" size="sm" onClick={cancelEditQuestion}>
                           Cancel
                         </Button>
                       )}
                       <Button
+                        type="button"
+                        size="sm"
                         onClick={handleAddOrUpdateQuestion}
                         disabled={fbSavingQuestion || !fbQuestionText.trim()}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white"
                       >
-                        {fbSavingQuestion ? 'Saving...' : fbEditingQuestionId ? 'Update Question' : 'Add Question'}
+                        {fbSavingQuestion ? 'Saving…' : fbEditingQuestionId ? 'Update' : 'Add Question'}
                       </Button>
                     </div>
                   </div>
                 </div>
 
+                {/* ── Question List ── */}
                 {fbQuestions.length > 0 ? (
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold text-gray-600 dark:text-gray-400">
-                      Questions for {format(new Date(selectedDate), 'MMM dd, yyyy')}
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                      Questions for {format(new Date(selectedDate), 'MMM d, yyyy')} ({fbQuestions.length})
                     </p>
                     {fbQuestions.map((q, idx) => (
                       <div
                         key={q.id}
-                        className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${
+                        className={`group flex items-start gap-3 rounded-xl border px-4 py-3 transition-all ${
                           fbEditingQuestionId === q.id
                             ? 'bg-indigo-50 dark:bg-indigo-950/30 border-indigo-300 dark:border-indigo-700'
-                            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+                            : 'bg-white dark:bg-gray-800/60 border-gray-200 dark:border-gray-700 hover:border-indigo-200 dark:hover:border-indigo-700'
                         }`}
                       >
-                        <span className="text-xs font-bold text-gray-400 dark:text-gray-500 mt-0.5 shrink-0 w-5 text-right">
-                          {idx + 1}.
+                        <span className="text-xs font-bold text-gray-300 dark:text-gray-600 mt-0.5 shrink-0 w-4 text-right select-none">
+                          {idx + 1}
                         </span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm text-gray-800 dark:text-white break-words">{q.question_text}</p>
-                          <div className="flex flex-wrap gap-1.5 mt-1">
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-                              {q.question_type === 'rating' ? 'Rating' : q.question_type === 'text' ? 'Text' : 'Multiple Choice'}
+                          <p className="text-sm text-gray-800 dark:text-white break-words leading-snug">{q.question_text}</p>
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            <span className="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 font-medium">
+                              {q.question_type === 'rating' ? '⭐ rating' : q.question_type === 'text' ? '💬 text' : '☑️ choice'}
                             </span>
                             {q.is_required && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400">
-                                Required
+                              <span className="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 font-medium">
+                                required
                               </span>
                             )}
                           </div>
                         </div>
-                        <div className="flex gap-1 shrink-0">
+                        <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
                             type="button"
                             onClick={() => startEditQuestion(q)}
-                            className="text-xs p-1.5 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 transition-colors"
+                            className="p-1.5 rounded-lg text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors"
                             title="Edit"
-                          >
-                            ✏️
-                          </button>
+                          >✏️</button>
                           <button
                             type="button"
-                            onClick={() => handleDeleteQuestion(q.id)}
-                            className="text-xs p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 dark:text-red-400 transition-colors"
+                            onClick={() => void handleDeleteQuestion(q.id)}
+                            className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
                             title="Delete"
-                          >
-                            🗑️
-                          </button>
+                          >🗑️</button>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-center text-sm text-gray-400 dark:text-gray-500 py-4">
-                    No feedback questions for this date yet. Add them above or apply an optional saved question set.
+                  <p className="text-center text-xs text-gray-400 dark:text-gray-500 py-5">
+                    No questions yet for this date. Add one above or apply a saved template.
                   </p>
                 )}
+
               </div>
             )}
           </CardContent>

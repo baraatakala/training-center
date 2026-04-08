@@ -6,7 +6,7 @@ import { toast } from '@/shared/components/ui/toastUtils';
 import { useRefreshOnFocus } from '@/shared/hooks/useRefreshOnFocus';
 import { Breadcrumb } from '@/shared/components/ui/Breadcrumb';
 import { feedbackService } from '@/features/feedback/services/feedbackService';
-import type { SessionFeedback, FeedbackStats, FeedbackQuestion, FeedbackComparison, FeedbackTemplate } from '@/shared/types/database.types';
+import type { SessionFeedback, FeedbackStats, FeedbackQuestion, FeedbackComparison } from '@/shared/types/database.types';
 import {
   ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip,
   AreaChart, Area, Line, Legend,
@@ -16,7 +16,7 @@ import {
 const RATING_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#8b5cf6'];
 const RATING_EMOJIS = ['😢', '😕', '😐', '😊', '🤩'];
 
-type ActiveView = 'records' | 'analytics' | 'templates';
+type ActiveView = 'records' | 'analytics';
 type QuestionTypeFilter = 'all' | 'rating' | 'text' | 'multiple_choice';
 
 interface SessionOption {
@@ -27,13 +27,6 @@ interface SessionOption {
   end_date: string;
   feedback_enabled: boolean;
   feedback_anonymous_allowed: boolean;
-}
-
-interface TemplateQuestion {
-  type: 'rating' | 'text' | 'multiple_choice';
-  text: string;
-  required: boolean;
-  optionsText: string; // comma-separated string for multiple_choice options
 }
 
 // ─── Per-question analytics ────────────────────────────────
@@ -109,19 +102,6 @@ export function FeedbackAnalytics() {
   const [feedbackSearch, setFeedbackSearch] = useState('');
   const [recordsPage, setRecordsPage] = useState(0);
   const RECORDS_PER_PAGE = 15;
-
-  // Template management state
-  const [templates, setTemplates] = useState<FeedbackTemplate[]>([]);
-  const [loadingTemplates, setLoadingTemplates] = useState(false);
-  const [templateFormOpen, setTemplateFormOpen] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<FeedbackTemplate | null>(null);
-  const [savingTemplate, setSavingTemplate] = useState(false);
-  const [applyingTemplate, setApplyingTemplate] = useState<string | null>(null);
-  const [templateName, setTemplateName] = useState('');
-  const [templateDescription, setTemplateDescription] = useState('');
-  const [templateQuestions, setTemplateQuestions] = useState<TemplateQuestion[]>([
-    { type: 'rating', text: '', required: true, optionsText: '' },
-  ]);
 
   const selectedSession = sessions.find(s => s.session_id === selectedSessionId);
 
@@ -244,6 +224,7 @@ export function FeedbackAnalytics() {
     return questions
       .filter(q => questionTypeFilter === 'all' || q.question_type === questionTypeFilter)
       .map(q => ({ question: q, data: aggregateQuestionResponses(q, filteredFeedbacks) }))
+      .filter(item => item.data.total > 0)
       .sort((a, b) => b.data.total - a.data.total);
   }, [questions, questionTypeFilter, filteredFeedbacks]);
 
@@ -284,92 +265,6 @@ export function FeedbackAnalytics() {
     setSessions(c => c.map(s => s.session_id === selectedSession.session_id ? { ...s, feedback_anonymous_allowed: nextValue } : s));
     toast.success(nextValue ? 'Anonymous feedback allowed.' : 'Feedback now records identity.');
   };
-
-  // ─── Template management ───────────────────────────────────
-  const loadTemplates = useCallback(async () => {
-    setLoadingTemplates(true);
-    const { data, error } = await feedbackService.getTemplates();
-    setLoadingTemplates(false);
-    if (error) { toast.error((error as { message?: string }).message || 'Failed to load templates.', 5000); return; }
-    setTemplates(data || []);
-  }, []);
-
-  useEffect(() => { void loadTemplates(); }, [loadTemplates]);
-
-  const openNewTemplateForm = () => {
-    setEditingTemplate(null);
-    setTemplateName('');
-    setTemplateDescription('');
-    setTemplateQuestions([{ type: 'rating', text: '', required: true, optionsText: '' }]);
-    setTemplateFormOpen(true);
-  };
-
-  const openEditTemplateForm = (tmpl: FeedbackTemplate) => {
-    setEditingTemplate(tmpl);
-    setTemplateName(tmpl.name);
-    setTemplateDescription(tmpl.description || '');
-    const qs = Array.isArray(tmpl.questions) ? tmpl.questions : [];
-    setTemplateQuestions(qs.map((q: { type?: string; text?: string; required?: boolean; options?: string[] }) => ({
-      type: (q.type || 'rating') as 'rating' | 'text' | 'multiple_choice',
-      text: q.text || '',
-      required: Boolean(q.required),
-      optionsText: Array.isArray(q.options) ? q.options.join(', ') : '',
-    })));
-    setTemplateFormOpen(true);
-  };
-
-  const handleSaveTemplate = async () => {
-    if (!templateName.trim()) { toast.error('Template name is required.'); return; }
-    const validQs = templateQuestions.filter(q => q.text.trim());
-    if (validQs.length === 0) { toast.error('Add at least one question.'); return; }
-    const payload = {
-      name: templateName.trim(),
-      description: templateDescription.trim() || undefined,
-      questions: validQs.map(q => ({
-        type: q.type,
-        text: q.text.trim(),
-        required: q.required,
-        options: q.type === 'multiple_choice' ? q.optionsText.split(',').map(o => o.trim()).filter(Boolean) : [],
-      })),
-    };
-    setSavingTemplate(true);
-    if (editingTemplate) {
-      const { error } = await feedbackService.updateTemplate(editingTemplate.id, payload);
-      setSavingTemplate(false);
-      if (error) { toast.error((error as { message?: string }).message || 'Failed to update template.', 5000); return; }
-      toast.success('Template updated.');
-    } else {
-      const { error } = await feedbackService.createTemplate(payload);
-      setSavingTemplate(false);
-      if (error) { toast.error((error as { message?: string }).message || 'Failed to create template.', 5000); return; }
-      toast.success('Template created.');
-    }
-    setTemplateFormOpen(false);
-    void loadTemplates();
-  };
-
-  const handleDeleteTemplate = async (id: string) => {
-    const { error } = await feedbackService.deleteTemplate(id);
-    if (error) { toast.error((error as { message?: string }).message || 'Failed to delete template.', 5000); return; }
-    toast.success('Template deleted.');
-    setTemplates(prev => prev.filter(t => t.id !== id));
-  };
-
-  const handleApplyTemplate = async (templateId: string) => {
-    if (!selectedSessionId) return;
-    setApplyingTemplate(templateId);
-    const { error } = await feedbackService.applyTemplateToSession(templateId, selectedSessionId);
-    setApplyingTemplate(null);
-    if (error) { toast.error((error as { message?: string }).message || 'Failed to apply template.', 5000); return; }
-    toast.success('Template applied to session questions.');
-    const { data } = await feedbackService.getQuestions(selectedSessionId);
-    if (data) setQuestions(data);
-  };
-
-  const addTemplateQuestion = () => setTemplateQuestions(q => [...q, { type: 'rating', text: '', required: false, optionsText: '' }]);
-  const removeTemplateQuestion = (i: number) => setTemplateQuestions(q => q.filter((_, idx) => idx !== i));
-  const updateTemplateQuestion = (i: number, patch: Partial<TemplateQuestion>) =>
-    setTemplateQuestions(q => q.map((item, idx) => idx === i ? { ...item, ...patch } : item));
 
   // ─── AI Insights computation ───────────────────────────────
   const aiInsights = useMemo(() => {
@@ -590,7 +485,6 @@ export function FeedbackAnalytics() {
             {([
               { key: 'records' as ActiveView, icon: '📋', label: 'Feedback Records', badge: filteredFeedbacks.length },
               { key: 'analytics' as ActiveView, icon: '📊', label: 'Question Analytics', badge: questions.length },
-              { key: 'templates' as ActiveView, icon: '📄', label: 'Templates', badge: templates.length },
             ]).map(t => (
               <button
                 key={t.key}
@@ -955,160 +849,6 @@ export function FeedbackAnalytics() {
             </div>
           )}
 
-          {/* ═══════════════════════════════════════════════════ */}
-          {/* VIEW: TEMPLATES                                    */}
-          {/* ═══════════════════════════════════════════════════ */}
-          {activeView === 'templates' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Reusable question sets. Apply a template to quickly configure questions for any session.
-                </p>
-                <Button size="sm" onClick={openNewTemplateForm} className="rounded-full shrink-0">
-                  + New Template
-                </Button>
-              </div>
-
-              {/* Template Form (inline) */}
-              {templateFormOpen && (
-                <div className="rounded-2xl bg-white dark:bg-gray-800/60 border-2 border-purple-200 dark:border-purple-700 p-5 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-bold text-gray-900 dark:text-white">
-                      {editingTemplate ? 'Edit Template' : 'New Template'}
-                    </p>
-                    <button onClick={() => setTemplateFormOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none">×</button>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[11px] text-gray-400 block mb-1">Template Name *</label>
-                      <input type="text" value={templateName} onChange={e => setTemplateName(e.target.value)}
-                        placeholder="e.g. Standard Session Feedback"
-                        className="w-full text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white placeholder:text-gray-400" />
-                    </div>
-                    <div>
-                      <label className="text-[11px] text-gray-400 block mb-1">Description</label>
-                      <input type="text" value={templateDescription} onChange={e => setTemplateDescription(e.target.value)}
-                        placeholder="Optional description"
-                        className="w-full text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white placeholder:text-gray-400" />
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Questions</p>
-                      <button onClick={addTemplateQuestion}
-                        className="text-xs text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 px-2 py-1 rounded-lg">
-                        + Add Question
-                      </button>
-                    </div>
-                    {templateQuestions.map((q, i) => (
-                      <div key={i} className="flex items-start gap-2 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-700">
-                        <span className="text-[10px] font-bold text-purple-500 mt-2.5 shrink-0 w-5">Q{i+1}</span>
-                        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          <input type="text" value={q.text} onChange={e => updateTemplateQuestion(i, { text: e.target.value })}
-                            placeholder="Question text"
-                            className="text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1.5 text-gray-900 dark:text-white placeholder:text-gray-400" />
-                          <select value={q.type} onChange={e => updateTemplateQuestion(i, { type: e.target.value as TemplateQuestion['type'] })}
-                            className="text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1.5 text-gray-900 dark:text-white">
-                            <option value="rating">Rating (1-5)</option>
-                            <option value="text">Text / Open-ended</option>
-                            <option value="multiple_choice">Multiple Choice</option>
-                          </select>
-                          {q.type === 'multiple_choice' && (
-                            <input type="text" value={q.optionsText} onChange={e => updateTemplateQuestion(i, { optionsText: e.target.value })}
-                              placeholder="Options: Good, Average, Bad"
-                              className="text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1.5 text-gray-900 dark:text-white placeholder:text-gray-400 sm:col-span-2" />
-                          )}
-                          <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300 cursor-pointer">
-                            <input type="checkbox" checked={q.required} onChange={e => updateTemplateQuestion(i, { required: e.target.checked })}
-                              className="rounded accent-purple-600" />
-                            Required
-                          </label>
-                        </div>
-                        {templateQuestions.length > 1 && (
-                          <button onClick={() => removeTemplateQuestion(i)}
-                            className="text-xs text-red-400 hover:text-red-600 shrink-0 mt-2 px-1">✕</button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="flex justify-end gap-2 pt-1">
-                    <Button variant="outline" size="sm" onClick={() => setTemplateFormOpen(false)}>Cancel</Button>
-                    <Button size="sm" onClick={handleSaveTemplate} disabled={savingTemplate}>
-                      {savingTemplate ? 'Saving…' : editingTemplate ? 'Update Template' : 'Create Template'}
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Template List */}
-              {loadingTemplates ? (
-                <div className="flex justify-center py-10">
-                  <div className="animate-spin rounded-full h-6 w-6 border-2 border-purple-500 border-t-transparent" />
-                </div>
-              ) : templates.length === 0 ? (
-                <div className="text-center py-16">
-                  <span className="text-5xl block mb-3">📄</span>
-                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">No Templates Yet</p>
-                  <p className="text-xs text-gray-400 mt-1">Create a reusable question set to use across sessions.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  {templates.map(tmpl => {
-                    const qs = Array.isArray(tmpl.questions) ? tmpl.questions : [];
-                    return (
-                      <div key={tmpl.id} className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-4 space-y-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{tmpl.name}</p>
-                              {tmpl.is_default && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 font-bold shrink-0">Default</span>}
-                            </div>
-                            {tmpl.description && <p className="text-[11px] text-gray-400 mt-0.5 truncate">{tmpl.description}</p>}
-                            <p className="text-[11px] text-gray-400 mt-0.5">{qs.length} question{qs.length !== 1 ? 's' : ''}</p>
-                          </div>
-                          <div className="flex gap-1 shrink-0">
-                            <button onClick={() => openEditTemplateForm(tmpl)}
-                              className="text-[11px] px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
-                              Edit
-                            </button>
-                            <button onClick={() => handleDeleteTemplate(tmpl.id)}
-                              className="text-[11px] px-2 py-1 rounded-lg border border-red-200 dark:border-red-800 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                        {/* Questions preview */}
-                        <div className="space-y-1">
-                          {(qs as Array<{ type?: string; text?: string }>).slice(0, 3).map((q, i) => (
-                            <div key={i} className="flex items-center gap-2 text-[11px] text-gray-500">
-                              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
-                                q.type === 'rating' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600' :
-                                q.type === 'multiple_choice' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600' :
-                                'bg-gray-100 dark:bg-gray-700 text-gray-500'
-                              }`}>{q.type === 'multiple_choice' ? 'MC' : q.type === 'rating' ? '★' : 'T'}</span>
-                              <span className="truncate">{q.text || '(no text)'}</span>
-                            </div>
-                          ))}
-                          {qs.length > 3 && <p className="text-[11px] text-gray-400">+{qs.length - 3} more</p>}
-                        </div>
-                        {selectedSessionId && (
-                          <button
-                            onClick={() => handleApplyTemplate(tmpl.id)}
-                            disabled={applyingTemplate === tmpl.id}
-                            className="w-full text-xs font-semibold py-2 rounded-xl border-2 border-purple-200 dark:border-purple-700 text-purple-600 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all disabled:opacity-50"
-                          >
-                            {applyingTemplate === tmpl.id ? 'Applying…' : '⚡ Apply to Selected Session'}
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
         </>
       )}
     </div>
