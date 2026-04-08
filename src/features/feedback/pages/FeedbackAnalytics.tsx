@@ -224,7 +224,6 @@ export function FeedbackAnalytics() {
     return questions
       .filter(q => questionTypeFilter === 'all' || q.question_type === questionTypeFilter)
       .map(q => ({ question: q, data: aggregateQuestionResponses(q, filteredFeedbacks) }))
-      .filter(item => item.data.total > 0)
       .sort((a, b) => b.data.total - a.data.total);
   }, [questions, questionTypeFilter, filteredFeedbacks]);
 
@@ -359,7 +358,7 @@ export function FeedbackAnalytics() {
             Feedback Analytics
           </h1>
           <p className="text-sm text-gray-400 dark:text-gray-500 max-w-xl">
-            View feedback records, per-question analytics, and manage reusable templates.
+            View feedback records and per-question analytics across sessions.
           </p>
         </div>
         {feedbacks.length > 0 && activeView === 'records' && (

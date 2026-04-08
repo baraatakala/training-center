@@ -90,62 +90,6 @@ export function StatsGrid({ stats, pendingExcuses }: StatsGridProps) {
         </div>
       </div>
 
-      {/* Secondary Stats Row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
-        <Link to="/sessions" className="group">
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-cyan-100 dark:bg-cyan-900/40 flex items-center justify-center text-cyan-600 dark:text-cyan-400">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Today's Sessions</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-white">{stats.loading ? '...' : stats.todaySessions}</p>
-              </div>
-            </div>
-          </div>
-        </Link>
-        <Link to="/courses" className="group">
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Courses</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-white">{stats.loading ? '...' : stats.totalCourses}</p>
-              </div>
-            </div>
-          </div>
-        </Link>
-        <Link to="/certificates" className="group">
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center text-amber-600 dark:text-amber-400">
-                🎓
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Certificates</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-white">{stats.loading ? '...' : stats.issuedCertificates}</p>
-              </div>
-            </div>
-          </div>
-        </Link>
-        <Link to="/feedback-analytics" className="group">
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-rose-100 dark:bg-rose-900/40 flex items-center justify-center text-rose-600 dark:text-rose-400">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Feedback</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-white">Analytics 📊</p>
-              </div>
-            </div>
-          </div>
-        </Link>
-      </div>
-
       {/* Quick Actions */}
       <Card>
         <CardHeader>
