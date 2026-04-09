@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 import { isWithinProximity, formatDistance } from '@/shared/services/geocodingService';
 import { logInsert } from '@/shared/services/auditService';
 import { feedbackService } from '@/features/feedback/services/feedbackService';
+import { getSignedPhotoUrl } from '@/shared/utils/photoUtils';
 
 const SessionFeedbackForm = lazy(() => import('@/features/feedback/components/SessionFeedbackForm'));
 
@@ -44,7 +45,8 @@ export function StudentCheckIn() {
   const [wasLate, setWasLate] = useState(false);
   const [checkedInAfterSession, setCheckedInAfterSession] = useState(false);
   const [checkInData, setCheckInData] = useState<CheckInData | null>(null);
-  const [studentInfo, setStudentInfo] = useState<{ student_id: string; name: string; email: string } | null>(null);
+  const [studentInfo, setStudentInfo] = useState<{ student_id: string; name: string; email: string; photo_url: string | null } | null>(null);
+  const [signedPhotoUrl, setSignedPhotoUrl] = useState<string | null>(null);
   const [, setHostAddresses] = useState<HostInfo[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<string>('');
   const [feedbackEnabled, setFeedbackEnabled] = useState(false);
@@ -151,6 +153,12 @@ export function StudentCheckIn() {
       }
 
       setStudentInfo(student);
+
+      // Generate signed photo URL if student has a photo
+      if (student.photo_url) {
+        const url = await getSignedPhotoUrl(student.photo_url);
+        if (url) setSignedPhotoUrl(url);
+      }
 
       // STEP 4: Load session details
       const { data: session, error: sessionError } = await checkinService
@@ -586,6 +594,9 @@ export function StudentCheckIn() {
           </CardHeader>
           <CardContent>
             <div className="text-center py-4">
+              {signedPhotoUrl && (
+                <img src={signedPhotoUrl} alt={studentInfo?.name || 'Student'} className="w-16 h-16 rounded-full object-cover border-2 border-green-300 dark:border-green-600 mx-auto mb-2" />
+              )}
               <p className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
                 Welcome, {studentInfo?.name}!
               </p>
@@ -691,8 +702,12 @@ export function StudentCheckIn() {
 
           {/* Student Info */}
           <div className="bg-green-50 dark:bg-green-900/40 rounded-lg p-4">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">👤</span>
+            <div className="flex items-center gap-3">
+              {signedPhotoUrl ? (
+                <img src={signedPhotoUrl} alt={studentInfo?.name || 'Student'} className="w-12 h-12 rounded-full object-cover border-2 border-green-300 dark:border-green-600" />
+              ) : (
+                <span className="text-2xl">👤</span>
+              )}
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Student</p>
                 <p className="font-semibold text-gray-900 dark:text-white">{studentInfo?.name}</p>

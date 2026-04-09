@@ -178,7 +178,23 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
       qualityRate, attendanceRate, punctuality,
       accountable, total, config
     );
-    const weightedScore = Math.round(Math.min(100, Math.max(0, finalScore)) * 10) / 10;
+
+    // Apply bonuses & penalties (mirrors AttendanceRecords exactly)
+    let adjustedScore = finalScore;
+
+    // Perfect attendance bonus
+    if (attendanceRate >= 100 && config.perfect_attendance_bonus > 0) {
+      adjustedScore += config.perfect_attendance_bonus;
+    }
+
+    // Absence penalty multiplier
+    if (config.absence_penalty_multiplier > 1.0 && absent > 0) {
+      const baseDeduction = (absent / accountable) * 100;
+      const extraPenalty = baseDeduction * (config.absence_penalty_multiplier - 1);
+      adjustedScore = Math.max(0, adjustedScore - extraPenalty);
+    }
+
+    const weightedScore = Math.round(Math.min(100, Math.max(0, adjustedScore)) * 10) / 10;
 
     // 6. Trend — linear regression on cumulative attendance rate
     const sorted = [...accountableRecords].sort((a, b) => a.attendance_date.localeCompare(b.attendance_date));
@@ -323,9 +339,14 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
       if (count >= 3) insights.push({ text: `Frequently absent on ${day}s (${count} times)`, type: 'warning' });
     }
 
+    // Apply streak bonus (computed after maxStreak is known, mirrors AttendanceRecords)
+    const maxConsecutiveWeeks = Math.floor(maxStreak / 1); // streak is already in sessions
+    const streakBonusApplied = maxConsecutiveWeeks * config.streak_bonus_per_week;
+    const finalWeightedScore = Math.round(Math.min(100, Math.max(0, weightedScore + streakBonusApplied)) * 10) / 10;
+
     return {
       total, onTime, late, absent, excused, present, accountable,
-      attendanceRate, qualityRate, weightedScore, punctuality,
+      attendanceRate, qualityRate, weightedScore: finalWeightedScore, punctuality,
       trendClassification, trendSlope: Math.round(trendSlope * 100) / 100, trendR2: Math.round(trendR2 * 100) / 100,
       weeklyChange, consecutive, maxStreak,
       firstHalfRate, secondHalfRate, consistencyIndex,
@@ -472,16 +493,17 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                           stroke="currentColor" strokeWidth="3" strokeLinecap="round"
                           strokeDasharray={`${analytics.weightedScore} ${100 - analytics.weightedScore}`} />
                       </svg>
-                      <span className={`absolute inset-0 flex items-center justify-center text-sm font-black ${analytics.weightedScore >= 80 ? 'text-emerald-600' : analytics.weightedScore >= 60 ? 'text-amber-600' : 'text-red-600'}`}>
+                      <span className={`absolute inset-0 flex items-center justify-center text-sm font-black ${analytics.weightedScore >= 80 ? 'text-emerald-600 dark:text-emerald-400' : analytics.weightedScore >= 60 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>
                         {analytics.weightedScore}
                       </span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-bold text-gray-900 dark:text-white">Weighted Score</p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">
-                        Q{analytics.qualityRate}% × {analytics.configWeights.q}% + A{analytics.attendanceRate}% × {analytics.configWeights.a}% + P{analytics.punctuality}% × {analytics.configWeights.p}%
+                      <p className="text-[10px] text-gray-400 mt-0.5 font-mono">
+                        Q{analytics.qualityRate}×{analytics.configWeights.q}% + A{analytics.attendanceRate}×{analytics.configWeights.a}% + P{analytics.punctuality}×{analytics.configWeights.p}%
+                        {analytics.coverageFactor < 1 && <span className="text-purple-400"> × CF{analytics.coverageFactor}</span>}
                       </p>
-                      <div className="flex gap-3 mt-1.5">
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                         <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${analytics.trendClassification === 'IMPROVING' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : analytics.trendClassification === 'DECLINING' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : analytics.trendClassification === 'VOLATILE' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
                           {analytics.trendClassification === 'IMPROVING' ? '📈' : analytics.trendClassification === 'DECLINING' ? '📉' : analytics.trendClassification === 'VOLATILE' ? '🔀' : '➡️'} {analytics.trendClassification}
                         </span>
@@ -490,6 +512,9 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                             {analytics.weeklyChange > 0 ? '+' : ''}{analytics.weeklyChange}% week
                           </span>
                         )}
+                        {analytics.coverageFactor < 0.85 && (
+                          <span className="text-[9px] text-orange-500 dark:text-orange-400 font-medium">⚠ low coverage</span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -497,16 +522,37 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                   {/* ── Key Metrics Grid ────────────────────── */}
                   <div className="grid grid-cols-4 gap-2">
                     {([
-                      { label: 'Attendance', value: `${analytics.attendanceRate}%`, color: analytics.attendanceRate >= 80 ? 'text-emerald-600' : analytics.attendanceRate >= 60 ? 'text-amber-600' : 'text-red-600' },
-                      { label: 'Quality', value: `${analytics.qualityRate}%`, color: analytics.qualityRate >= 80 ? 'text-emerald-600' : analytics.qualityRate >= 60 ? 'text-amber-600' : 'text-red-600' },
-                      { label: 'Punctuality', value: `${analytics.punctuality}%`, color: analytics.punctuality >= 80 ? 'text-emerald-600' : analytics.punctuality >= 60 ? 'text-amber-600' : 'text-red-600' },
-                      { label: 'Consistency', value: `${Math.round(analytics.consistencyIndex * 100)}%`, color: analytics.consistencyIndex >= 0.8 ? 'text-emerald-600' : analytics.consistencyIndex >= 0.5 ? 'text-amber-600' : 'text-red-600' },
+                      { label: 'Attendance', value: `${analytics.attendanceRate}%`, threshold: analytics.attendanceRate },
+                      { label: 'Quality', value: `${analytics.qualityRate}%`, threshold: analytics.qualityRate },
+                      { label: 'Punctuality', value: `${analytics.punctuality}%`, threshold: analytics.punctuality },
+                      { label: 'Consistency', value: `${Math.round(analytics.consistencyIndex * 100)}%`, threshold: analytics.consistencyIndex * 100 },
                     ]).map(m => (
                       <div key={m.label} className="rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 p-2 text-center">
                         <p className="text-[9px] text-gray-400 uppercase tracking-wider">{m.label}</p>
-                        <p className={`text-base font-black ${m.color}`}>{m.value}</p>
+                        <p className={`text-base font-black ${m.threshold >= 80 ? 'text-emerald-600 dark:text-emerald-400' : m.threshold >= 60 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>{m.value}</p>
                       </div>
                     ))}
+                  </div>
+
+                  {/* ── Distribution Bar (with excused blur) ── */}
+                  <div className="rounded-xl border border-gray-100 dark:border-gray-700 p-3 space-y-1.5">
+                    <p className="text-[10px] font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Session Distribution</p>
+                    <div className="flex h-3 rounded-full overflow-hidden shadow-inner bg-gray-100 dark:bg-gray-800">
+                      <div className="bg-emerald-500 transition-all duration-500" style={{ width: `${(analytics.onTime / analytics.total) * 100}%` }} />
+                      <div className="bg-amber-500 transition-all duration-500" style={{ width: `${(analytics.late / analytics.total) * 100}%` }} />
+                      <div className="bg-red-500 transition-all duration-500" style={{ width: `${(analytics.absent / analytics.total) * 100}%` }} />
+                      {analytics.excused > 0 && (
+                        <div className="bg-purple-400/60 backdrop-blur-sm transition-all duration-500" style={{ width: `${(analytics.excused / analytics.total) * 100}%` }} />
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px]">
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> On Time {analytics.onTime} ({Math.round((analytics.onTime / analytics.total) * 100)}%)</span>
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" /> Late {analytics.late} ({Math.round((analytics.late / analytics.total) * 100)}%)</span>
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Absent {analytics.absent} ({Math.round((analytics.absent / analytics.total) * 100)}%)</span>
+                      {analytics.excused > 0 && (
+                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-400/60 inline-block ring-1 ring-purple-300/50" /> Excused {analytics.excused} ({Math.round((analytics.excused / analytics.total) * 100)}%)</span>
+                      )}
+                    </div>
                   </div>
 
                   {/* ── Performance DNA ─────────────────────── */}
@@ -515,11 +561,11 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px]">
                       <div className="flex justify-between">
                         <span className="text-gray-500">Sessions Tracked</span>
-                        <span className="font-semibold text-gray-800 dark:text-gray-200">{analytics.accountable}</span>
+                        <span className="font-semibold text-gray-800 dark:text-gray-200">{analytics.accountable} <span className="text-[9px] text-gray-400">/ {analytics.total} total</span></span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">Best Streak</span>
-                        <span className="font-semibold text-gray-800 dark:text-gray-200">{analytics.maxStreak} consecutive</span>
+                        <span className="font-semibold text-emerald-600 dark:text-emerald-400">{analytics.maxStreak} consecutive</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">First Half</span>
@@ -527,7 +573,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">Second Half</span>
-                        <span className={`font-semibold ${analytics.secondHalfRate > analytics.firstHalfRate ? 'text-emerald-600' : analytics.secondHalfRate < analytics.firstHalfRate ? 'text-red-600' : 'text-gray-800 dark:text-gray-200'}`}>
+                        <span className={`font-semibold ${analytics.secondHalfRate > analytics.firstHalfRate ? 'text-emerald-600 dark:text-emerald-400' : analytics.secondHalfRate < analytics.firstHalfRate ? 'text-red-600 dark:text-red-400' : 'text-gray-800 dark:text-gray-200'}`}>
                           {analytics.secondHalfRate}% {analytics.secondHalfRate > analytics.firstHalfRate + 5 ? '↑' : analytics.firstHalfRate > analytics.secondHalfRate + 5 ? '↓' : ''}
                         </span>
                       </div>
@@ -543,38 +589,32 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                           </div>
                         </>
                       )}
+                      {analytics.coverageFactor < 1 && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Coverage Factor</span>
+                          <span className={`font-semibold ${analytics.coverageFactor >= 0.8 ? 'text-gray-800 dark:text-gray-200' : 'text-orange-600'}`}>{analytics.coverageFactor}</span>
+                        </div>
+                      )}
                       {analytics.consecutive > 0 && (
                         <div className="flex justify-between col-span-2">
                           <span className="text-gray-500">Current Absence Streak</span>
-                          <span className={`font-semibold ${analytics.consecutive >= 3 ? 'text-red-600' : 'text-amber-600'}`}>{analytics.consecutive} sessions</span>
+                          <span className={`font-semibold ${analytics.consecutive >= 3 ? 'text-red-600 animate-pulse' : 'text-amber-600'}`}>{analytics.consecutive} sessions</span>
                         </div>
                       )}
-                    </div>
-                    {/* Mini status bar */}
-                    <div className="flex h-2 rounded-full overflow-hidden mt-1">
-                      <div className="bg-emerald-500" style={{ width: `${(analytics.onTime / analytics.accountable) * 100}%` }} title={`On Time: ${analytics.onTime}`} />
-                      <div className="bg-amber-500" style={{ width: `${(analytics.late / analytics.accountable) * 100}%` }} title={`Late: ${analytics.late}`} />
-                      <div className="bg-red-500" style={{ width: `${(analytics.absent / analytics.accountable) * 100}%` }} title={`Absent: ${analytics.absent}`} />
-                    </div>
-                    <div className="flex justify-between text-[9px] text-gray-400">
-                      <span>✓ {analytics.onTime}</span>
-                      <span>⏰ {analytics.late}{analytics.avgLateMinutes > 0 ? ` (avg ${analytics.avgLateMinutes}m)` : ''}</span>
-                      <span>✗ {analytics.absent}</span>
-                      {analytics.excused > 0 && <span>🔵 {analytics.excused} excused</span>}
                     </div>
                   </div>
 
                   {/* ── AI Insights ─────────────────────────── */}
                   {analytics.insights.length > 0 && (
-                    <div className="rounded-xl border border-purple-200 dark:border-purple-800/50 bg-purple-50/50 dark:bg-purple-900/10 p-3">
+                    <div className="rounded-xl border border-purple-200 dark:border-purple-800/50 bg-gradient-to-br from-purple-50/50 to-violet-50/30 dark:from-purple-900/10 dark:to-violet-900/5 p-3">
                       <p className="text-[10px] font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wide mb-2">🧠 AI Insights</p>
-                      <div className="space-y-1">
+                      <div className="space-y-1.5">
                         {analytics.insights.map((ins, i) => (
-                          <div key={i} className={`flex items-start gap-1.5 text-[11px] ${
-                            ins.type === 'positive' ? 'text-emerald-700 dark:text-emerald-300' :
-                            ins.type === 'danger' ? 'text-red-700 dark:text-red-300' :
-                            ins.type === 'warning' ? 'text-amber-700 dark:text-amber-300' :
-                            'text-blue-700 dark:text-blue-300'
+                          <div key={i} className={`flex items-start gap-2 text-[11px] px-2 py-1 rounded-lg ${
+                            ins.type === 'positive' ? 'bg-emerald-50/50 dark:bg-emerald-900/10 text-emerald-700 dark:text-emerald-300' :
+                            ins.type === 'danger' ? 'bg-red-50/50 dark:bg-red-900/10 text-red-700 dark:text-red-300' :
+                            ins.type === 'warning' ? 'bg-amber-50/50 dark:bg-amber-900/10 text-amber-700 dark:text-amber-300' :
+                            'bg-blue-50/50 dark:bg-blue-900/10 text-blue-700 dark:text-blue-300'
                           }`}>
                             <span className="shrink-0 mt-px">{ins.type === 'positive' ? '✅' : ins.type === 'danger' ? '🚨' : ins.type === 'warning' ? '⚠️' : 'ℹ️'}</span>
                             <span>{ins.text}</span>
@@ -743,39 +783,60 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
           ) : activeTab === 'certificates' ? (
             <div className="space-y-2">
               {certificates.length === 0 ? (
-                <div className="text-center py-8">
-                  <span className="text-4xl block mb-2">🏆</span>
-                  <p className="text-sm text-gray-500">No certificates issued yet</p>
+                <div className="text-center py-10">
+                  <div className="w-14 h-14 mx-auto rounded-full bg-gradient-to-br from-amber-100 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/10 flex items-center justify-center mb-3">
+                    <span className="text-3xl">🏆</span>
+                  </div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">No certificates yet</p>
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Certificates appear here once issued by a teacher</p>
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {certificates.map(cert => {
                     const courseName = cert.course?.course_name
                       || cert.session?.course?.course_name
                       || 'Unknown Course';
+                    const isRevoked = cert.status === 'revoked';
                     return (
-                      <div key={cert.certificate_id} className={`rounded-xl border p-3 transition-colors ${cert.status === 'revoked' ? 'border-red-200 dark:border-red-800/50 bg-red-50/30 dark:bg-red-900/5' : 'border-gray-100 dark:border-gray-700'}`}>
-                        <div className="flex items-start justify-between gap-2">
+                      <div key={cert.certificate_id} className={`rounded-xl border p-3.5 transition-all ${isRevoked ? 'border-red-200 dark:border-red-800/40 bg-red-50/20 dark:bg-red-950/10 opacity-75' : 'border-gray-100 dark:border-gray-700 bg-gradient-to-r from-white to-gray-50/50 dark:from-gray-800/40 dark:to-gray-900/20 hover:shadow-sm'}`}>
+                        <div className="flex items-start gap-3">
+                          {/* Certificate icon */}
+                          <div className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center text-lg ${isRevoked ? 'bg-red-100 dark:bg-red-900/20' : cert.status === 'issued' ? 'bg-gradient-to-br from-emerald-100 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/10' : 'bg-amber-100 dark:bg-amber-900/20'}`}>
+                            {isRevoked ? '🚫' : cert.status === 'issued' ? '📜' : '📑'}
+                          </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
-                              <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{courseName}</p>
-                              <span className={`shrink-0 text-[9px] px-1.5 py-0.5 rounded-full font-semibold ${
-                                cert.status === 'issued' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600' :
-                                cert.status === 'draft' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600' :
-                                'bg-red-100 dark:bg-red-900/30 text-red-500'
-                              }`}>{cert.status === 'issued' ? '✅' : cert.status === 'revoked' ? '🚫' : '📑'} {cert.status}</span>
+                              <p className={`text-sm font-semibold truncate ${isRevoked ? 'text-gray-500 line-through' : 'text-gray-900 dark:text-white'}`}>{courseName}</p>
+                              <span className={`shrink-0 text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide ${
+                                cert.status === 'issued' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' :
+                                cert.status === 'draft' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' :
+                                'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                              }`}>{cert.status}</span>
                             </div>
-                            <p className="text-[10px] text-gray-400 mt-0.5 font-mono">{cert.certificate_number}</p>
-                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[10px]">
-                              {cert.issued_at && <span className="text-gray-400">📅 {new Date(cert.issued_at).toLocaleDateString()}</span>}
-                              {cert.final_score != null && <span className="text-gray-500">Score: <span className="font-semibold">{cert.final_score}%</span></span>}
-                              {cert.attendance_rate != null && <span className="text-gray-500">Attendance: <span className="font-semibold">{cert.attendance_rate}%</span></span>}
-                              {cert.verification_code && <span className="text-blue-500 font-mono">{cert.verification_code}</span>}
+                            <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 font-mono tracking-wider">{cert.certificate_number}</p>
+                            {/* Score badges */}
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                              {cert.issued_at && (
+                                <span className="text-[10px] text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">📅 {new Date(cert.issued_at).toLocaleDateString()}</span>
+                              )}
+                              {cert.final_score != null && (
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${cert.final_score >= 80 ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400' : cert.final_score >= 60 ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'}`}>
+                                  Score {cert.final_score}%
+                                </span>
+                              )}
+                              {cert.attendance_rate != null && (
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${cert.attendance_rate >= 80 ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400' : 'bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400'}`}>
+                                  Attendance {cert.attendance_rate}%
+                                </span>
+                              )}
+                              {cert.verification_code && (
+                                <span className="text-[9px] text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/15 px-1.5 py-0.5 rounded font-mono">🔗 {cert.verification_code}</span>
+                              )}
                             </div>
                           </div>
                         </div>
                         {/* Actions */}
-                        <div className="flex gap-1.5 mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+                        <div className="flex gap-1.5 mt-2.5 pt-2 border-t border-gray-100 dark:border-gray-800">
                           <button
                             onClick={() => setPreviewCert(cert)}
                             className="text-[10px] px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 font-semibold transition-colors"

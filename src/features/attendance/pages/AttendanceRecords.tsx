@@ -4415,11 +4415,6 @@ export const AttendanceRecords = () => {
         icon: '✅',
         fields: [
           { key: 'status', label: 'Status', labelAr: 'الحالة', category: 'attendance', defaultSelected: true },
-          { key: 'status_display', label: 'Status (Display)', labelAr: 'الحالة (عرض)', category: 'attendance', defaultSelected: false },
-          { key: 'is_present', label: 'Is Present', labelAr: 'حاضر', category: 'attendance', defaultSelected: false },
-          { key: 'is_late', label: 'Is Late', labelAr: 'متأخر', category: 'attendance', defaultSelected: false },
-          { key: 'is_excused', label: 'Is Excused', labelAr: 'معذور', category: 'attendance', defaultSelected: false },
-          { key: 'is_absent', label: 'Is Absent', labelAr: 'غائب', category: 'attendance', defaultSelected: false },
         ]
       },
       {
@@ -4432,7 +4427,7 @@ export const AttendanceRecords = () => {
           { key: 'late_bracket', label: 'Late Bracket', labelAr: 'فئة التأخر', category: 'timing', defaultSelected: false },
           { key: 'early_minutes', label: 'Early (min)', labelAr: 'مبكر', category: 'timing', defaultSelected: false },
           { key: 'check_in_time', label: 'Check-in Time', labelAr: 'وقت الدخول', category: 'timing', defaultSelected: false },
-          { key: 'gps_timestamp', label: 'GPS Timestamp', labelAr: 'وقت GPS', category: 'timing', defaultSelected: false },
+          { key: 'check_in_method', label: 'Check-in Method', labelAr: 'طريقة التسجيل', category: 'timing', defaultSelected: false },
         ]
       },
       {
@@ -4442,7 +4437,6 @@ export const AttendanceRecords = () => {
         icon: '📝',
         fields: [
           { key: 'excuse_reason', label: 'Excuse Reason', labelAr: 'سبب العذر', category: 'excuse', defaultSelected: true },
-          { key: 'check_in_method', label: 'Check-in Method', labelAr: 'طريقة التسجيل', category: 'excuse', defaultSelected: false },
         ]
       },
       {
@@ -4454,7 +4448,6 @@ export const AttendanceRecords = () => {
           { key: 'host_address', label: 'Host Address', labelAr: 'عنوان المضيف', category: 'location', defaultSelected: true },
           { key: 'gps_latitude', label: 'GPS Latitude', labelAr: 'خط العرض', category: 'location', defaultSelected: false },
           { key: 'gps_longitude', label: 'GPS Longitude', labelAr: 'خط الطول', category: 'location', defaultSelected: false },
-          { key: 'gps_coordinates', label: 'GPS Coordinates', labelAr: 'إحداثيات GPS', category: 'location', defaultSelected: false },
           { key: 'gps_accuracy', label: 'GPS Accuracy (m)', labelAr: 'دقة GPS', category: 'location', defaultSelected: false },
           { key: 'distance_from_host', label: 'Distance from Host (m)', labelAr: 'المسافة من المضيف', category: 'location', defaultSelected: false },
         ]
