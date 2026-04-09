@@ -459,8 +459,6 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
     // ── N. Data Confidence Assessment ──
     if (accountable < 4) {
       insights.push({ text: `Limited data: only ${accountable} accountable sessions — metrics may not reflect true patterns`, type: 'info', priority: 45 });
-    } else if (accountable >= 20) {
-      insights.push({ text: `High-confidence analysis: ${accountable} data points provide statistically reliable metrics`, type: 'info', priority: 40 });
     }
 
     // ── O. Check-in Method Analysis ──
@@ -470,13 +468,19 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
       methods[m] = (methods[m] || 0) + 1;
     }
     const methodEntries = Object.entries(methods).sort((a, b) => b[1] - a[1]);
-    if (methodEntries.length > 1) {
+    if (methodEntries.length > 1 && methodEntries[0][1] < total * 0.9) {
       const primary = methodEntries[0];
-      insights.push({ text: `Primary check-in: ${primary[0].replace('_', ' ')} (${primary[1]}/${total} sessions, ${Math.round((primary[1] / total) * 100)}%)`, type: 'info', priority: 38 });
+      insights.push({ text: `Mixed check-in methods: ${primary[0].replace('_', ' ')} (${primary[1]}/${total}), ${methodEntries[1][0].replace('_', ' ')} (${methodEntries[1][1]}/${total})`, type: 'info', priority: 42 });
     }
 
-    // Sort by priority (highest first) and take top insights
+    // Sort by priority (highest first), drop low-value items, and cap at 5
     insights.sort((a, b) => b.priority - a.priority);
+    const topInsights = insights.filter(i => i.priority >= 50).slice(0, 5);
+    // If we got fewer than 3, add back highest-priority remaining ones
+    if (topInsights.length < 3) {
+      const remaining = insights.filter(i => !topInsights.includes(i));
+      topInsights.push(...remaining.slice(0, 3 - topInsights.length));
+    }
 
     // Apply streak bonus (computed after maxStreak is known, mirrors AttendanceRecords)
     const maxConsecutiveWeeks = Math.floor(maxStreak / 1); // streak is already in sessions
@@ -492,7 +496,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
       avgLateMinutes, maxLateMinutes, totalLateMinutes, lateScoreAvg,
       coverageFactor: Math.round(coverageFactor * 100) / 100,
       rawScore: Math.round(rawScore * 10) / 10,
-      insights,
+      insights: topInsights,
       configWeights: { q: config.weight_quality, a: config.weight_attendance, p: config.weight_punctuality },
     };
   }, [attendance]);

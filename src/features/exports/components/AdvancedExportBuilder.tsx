@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -212,7 +212,13 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
   const isAr = config.language === 'ar';
 
   // Clear field renames when language changes — renames are language-specific
+  // Skip initial mount so saved renames from savedSettings are preserved
+  const langInitRef = useRef(true);
   useEffect(() => {
+    if (langInitRef.current) {
+      langInitRef.current = false;
+      return;
+    }
     setFieldRenames({});
   }, [config.language]);
 

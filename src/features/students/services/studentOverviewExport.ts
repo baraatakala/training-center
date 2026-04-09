@@ -70,6 +70,17 @@ function getScoreColor(score: number): [number, number, number] {
   return COLORS.red;
 }
 
+/** Sanitize text for jsPDF — replaces non-Latin characters with readable fallback */
+function sanitizeForPdf(text: string): string {
+  if (!text) return '';
+  // Test if text contains non-Latin characters (Arabic, Chinese, etc.)
+  const hasNonLatin = /[^\u0000-\u024F\u1E00-\u1EFF]/.test(text);
+  if (!hasNonLatin) return text;
+  // Replace non-Latin chars with '?' but keep Latin parts
+  const latinParts = text.replace(/[^\u0000-\u024F\u1E00-\u1EFF]+/g, '').trim();
+  return latinParts || '(non-Latin text)';
+}
+
 export async function exportStudentOverviewPDF(options: ExportOptions): Promise<void> {
   const { student, analytics, enrollments, riskLevel, photoDataUrl } = options;
   const { default: jsPDF } = await import('jspdf');
@@ -127,7 +138,7 @@ export async function exportStudentOverviewPDF(options: ExportOptions): Promise<
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...COLORS.darkGray);
-  doc.text(student.name || 'Unknown', textX, y + 10);
+  doc.text(sanitizeForPdf(student.name || 'Unknown'), textX, y + 10);
 
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
@@ -139,18 +150,20 @@ export async function exportStudentOverviewPDF(options: ExportOptions): Promise<
   let badgeX = textX;
   const badgeY = y + 22;
   if (student.specialization) {
-    const specW = doc.getTextWidth(student.specialization) + 6;
+    const specText = sanitizeForPdf(student.specialization);
+    const specW = doc.getTextWidth(specText) + 6;
     drawRoundedRect(badgeX, badgeY, specW, 5, 2, [237, 233, 254]);
     doc.setFontSize(7);
     doc.setTextColor(109, 40, 217);
-    doc.text(student.specialization, badgeX + 3, badgeY + 3.5);
+    doc.text(specText, badgeX + 3, badgeY + 3.5);
     badgeX += specW + 3;
   }
   if (student.nationality) {
-    const natW = doc.getTextWidth(student.nationality) + 6;
+    const natText = sanitizeForPdf(student.nationality);
+    const natW = doc.getTextWidth(natText) + 6;
     drawRoundedRect(badgeX, badgeY, natW, 5, 2, [229, 231, 235]);
     doc.setTextColor(...COLORS.gray);
-    doc.text(student.nationality, badgeX + 3, badgeY + 3.5);
+    doc.text(natText, badgeX + 3, badgeY + 3.5);
     badgeX += natW + 3;
   }
 
@@ -412,9 +425,9 @@ export async function exportStudentOverviewPDF(options: ExportOptions): Promise<
       doc.setFontSize(7);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(...COLORS.darkGray);
-      doc.text(e.courseName, margin + 4, ey);
+      doc.text(sanitizeForPdf(e.courseName), margin + 4, ey);
       doc.setTextColor(...COLORS.gray);
-      doc.text(e.teacherName, margin + contentW - 4, ey, { align: 'right' });
+      doc.text(sanitizeForPdf(e.teacherName), margin + contentW - 4, ey, { align: 'right' });
       ey += 5.5;
     }
 
