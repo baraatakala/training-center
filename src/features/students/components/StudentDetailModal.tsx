@@ -8,6 +8,7 @@ import { CertificatePreview } from '@/features/certificates/components/Certifica
 import { loadConfigSync, calcWeightedScore, calcCoverageFactor, calcLateScore } from '@/features/scoring/services/scoringConfigService';
 import { getSignedPhotoUrl } from '@/shared/utils/photoUtils';
 import { useIsTeacher } from '@/shared/hooks/useIsTeacher';
+import { exportStudentOverviewPDF } from '@/features/students/services/studentOverviewExport';
 import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
 import { toast } from '@/shared/components/ui/toastUtils';
 import type { Student } from '@/shared/types/database.types';
@@ -304,40 +305,178 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
     const avgLateMinutes = lateRecords.length > 0 ? Math.round(totalLateMinutes / lateRecords.length) : 0;
     const maxLateMinutes = lateRecords.length > 0 ? Math.max(...lateRecords.map(a => a.late_minutes || 0)) : 0;
 
-    // 13. AI-generated insights
-    const insights: { text: string; type: 'positive' | 'warning' | 'danger' | 'info' }[] = [];
+    // 13. AI-generated insights — advanced multi-dimensional analysis
+    const insights: { text: string; type: 'positive' | 'warning' | 'danger' | 'info'; priority: number }[] = [];
 
-    if (weightedScore >= 90) insights.push({ text: 'Outstanding overall performance — top-tier student', type: 'positive' });
-    else if (weightedScore >= 80) insights.push({ text: 'Strong weighted score with room for improvement', type: 'positive' });
-    else if (weightedScore < 60) insights.push({ text: 'Weighted score below passing threshold — needs intervention', type: 'danger' });
+    // ── A. Performance Classification (weighted score thresholds) ──
+    if (weightedScore >= 95) insights.push({ text: `Elite performance (${weightedScore}) — top-tier across all metrics`, type: 'positive', priority: 100 });
+    else if (weightedScore >= 90) insights.push({ text: `Outstanding performance (${weightedScore}) — exceeds expectations in all areas`, type: 'positive', priority: 95 });
+    else if (weightedScore >= 80) insights.push({ text: `Strong performance (${weightedScore}) — solid results with minor improvement areas`, type: 'positive', priority: 80 });
+    else if (weightedScore >= 70) insights.push({ text: `Adequate performance (${weightedScore}) — meets minimum but significant room for growth`, type: 'info', priority: 70 });
+    else if (weightedScore >= 60) insights.push({ text: `Below target (${weightedScore}) — approaching risk threshold, needs focused improvement`, type: 'warning', priority: 65 });
+    else if (weightedScore >= 40) insights.push({ text: `Critical performance (${weightedScore}) — immediate intervention required`, type: 'danger', priority: 50 });
+    else insights.push({ text: `Severe underperformance (${weightedScore}) — emergency academic support needed`, type: 'danger', priority: 30 });
 
-    if (secondHalfRate > firstHalfRate + 10) insights.push({ text: `Performance improved ${Math.round(secondHalfRate - firstHalfRate)}% in second half of enrollment`, type: 'positive' });
-    else if (firstHalfRate > secondHalfRate + 10) insights.push({ text: `Performance dropped ${Math.round(firstHalfRate - secondHalfRate)}% — declining engagement`, type: 'warning' });
+    // ── B. Engagement Trajectory (first/second half + trend) ──
+    const halfDelta = secondHalfRate - firstHalfRate;
+    if (halfDelta > 15 && trendClassification === 'IMPROVING') {
+      insights.push({ text: `Strong recovery: ${Math.round(halfDelta)}% improvement in 2nd half, confirmed by upward trend (R²=${trendR2})`, type: 'positive', priority: 88 });
+    } else if (halfDelta > 10) {
+      insights.push({ text: `Performance improved ${Math.round(halfDelta)}% in second half (${firstHalfRate}% → ${secondHalfRate}%)`, type: 'positive', priority: 82 });
+    } else if (halfDelta < -15 && trendClassification === 'DECLINING') {
+      insights.push({ text: `Accelerating decline: ${Math.round(-halfDelta)}% drop in 2nd half, trend confirms disengagement (slope=${trendSlope})`, type: 'danger', priority: 92 });
+    } else if (halfDelta < -10) {
+      insights.push({ text: `Declining engagement: ${Math.round(-halfDelta)}% drop (${firstHalfRate}% → ${secondHalfRate}%)`, type: 'warning', priority: 78 });
+    }
 
-    if (punctuality < 50 && present > 0) insights.push({ text: `Only ${punctuality}% of attended sessions were on time — chronic lateness`, type: 'warning' });
-    if (punctuality >= 90 && present >= 5) insights.push({ text: 'Excellent punctuality — consistently arrives on time', type: 'positive' });
+    // ── C. Punctuality Deep Analysis ──
+    if (present > 0) {
+      const lateRatio = late / present;
+      if (punctuality >= 95 && present >= 5) {
+        insights.push({ text: `Exceptional punctuality: ${onTime}/${present} sessions on time (${punctuality}%)`, type: 'positive', priority: 85 });
+      } else if (punctuality < 40) {
+        insights.push({ text: `Chronic lateness: only ${punctuality}% on-time rate — ${late} of ${present} attended sessions were late`, type: 'danger', priority: 87 });
+      } else if (punctuality < 60) {
+        insights.push({ text: `Frequent lateness: ${punctuality}% punctuality — more than ${Math.round(lateRatio * 100)}% of attendances are late`, type: 'warning', priority: 75 });
+      }
+    }
 
-    if (consistencyIndex < 0.5) insights.push({ text: 'Absences are clustered in streaks — possible disengagement periods', type: 'danger' });
-    else if (consistencyIndex >= 0.9 && absent > 0) insights.push({ text: 'Absences are spread out — no disengagement pattern', type: 'info' });
+    // ── D. Late Duration Impact Analysis ──
+    if (late > 0 && avgLateMinutes > 0) {
+      const qualityLoss = Math.round(attendanceRate - qualityRate);
+      if (qualityLoss > 20) {
+        insights.push({ text: `Severe tardy impact: lateness reduces quality rate by ${qualityLoss}% (${attendanceRate}% attendance → ${qualityRate}% quality). Avg ${avgLateMinutes}min late`, type: 'danger', priority: 86 });
+      } else if (qualityLoss > 10) {
+        insights.push({ text: `Significant tardy penalty: ${qualityLoss}% quality gap from avg ${avgLateMinutes}min tardiness (max ${maxLateMinutes}min)`, type: 'warning', priority: 74 });
+      } else if (qualityLoss > 0 && avgLateMinutes <= 5) {
+        insights.push({ text: `Minor tardy impact: avg only ${avgLateMinutes}min late — quality loss minimal (${qualityLoss}%)`, type: 'info', priority: 50 });
+      }
+      if (maxLateMinutes >= 45) {
+        const creditAtMax = Math.round(Math.exp(-maxLateMinutes / config.late_decay_constant) * 100);
+        insights.push({ text: `Worst tardiness: ${maxLateMinutes}min late — earned only ${creditAtMax}% quality credit for that session`, type: 'warning', priority: 68 });
+      }
+    }
 
-    if (maxStreak >= 5) insights.push({ text: `Best attendance streak: ${maxStreak} consecutive sessions`, type: 'positive' });
+    // ── E. Consistency & Absence Pattern Analysis ──
+    if (absent > 0) {
+      if (consistencyIndex < 0.3 && absent >= 3) {
+        insights.push({ text: `Severe clustering: absences form consecutive blocks — indicates disengagement episodes, not random misses`, type: 'danger', priority: 90 });
+      } else if (consistencyIndex < 0.5) {
+        insights.push({ text: `Clustered absences (consistency ${Math.round(consistencyIndex * 100)}%) — suggests periodic disengagement rather than isolated events`, type: 'warning', priority: 76 });
+      } else if (consistencyIndex >= 0.9) {
+        insights.push({ text: `Scattered absence pattern (${Math.round(consistencyIndex * 100)}% consistency) — absences appear random/circumstantial, not behavioral`, type: 'info', priority: 55 });
+      }
+    }
 
-    if (avgLateMinutes > 20) insights.push({ text: `Average ${avgLateMinutes}min late — significantly impacts quality score`, type: 'warning' });
-    if (maxLateMinutes > 45) insights.push({ text: `Worst late: ${maxLateMinutes}min — near-zero quality credit for that session`, type: 'warning' });
+    // ── F. Current Absence Streak (urgency detection) ──
+    if (consecutive >= 5) {
+      insights.push({ text: `URGENT: ${consecutive} consecutive absences — at risk of course failure. Immediate outreach required`, type: 'danger', priority: 99 });
+    } else if (consecutive >= 3) {
+      insights.push({ text: `Active absence streak: ${consecutive} sessions — developing disengagement pattern. Intervention recommended`, type: 'danger', priority: 91 });
+    } else if (consecutive === 2) {
+      insights.push({ text: `Two consecutive absences detected — monitor for emerging pattern`, type: 'warning', priority: 60 });
+    }
 
-    if (consecutive >= 3) insights.push({ text: `Currently on a ${consecutive}-session absence streak`, type: 'danger' });
+    // ── G. Attendance Streak Achievement ──
+    if (maxStreak >= 10) {
+      insights.push({ text: `Impressive commitment: ${maxStreak} consecutive sessions attended — demonstrates strong dedication`, type: 'positive', priority: 84 });
+    } else if (maxStreak >= 7) {
+      insights.push({ text: `Best streak: ${maxStreak} consecutive sessions — shows capacity for consistent engagement`, type: 'positive', priority: 72 });
+    } else if (maxStreak <= 2 && accountable >= 6) {
+      insights.push({ text: `No sustained attendance streaks beyond ${maxStreak} sessions — lacks stable engagement period`, type: 'warning', priority: 64 });
+    }
 
-    if (qualityRate < attendanceRate - 15) insights.push({ text: `Quality score ${Math.round(attendanceRate - qualityRate)}% below attendance — lateness heavily penalizes`, type: 'warning' });
+    // ── H. Coverage Factor Impact ──
+    if (coverageFactor < 0.5) {
+      const coveragePenalty = Math.round((1 - coverageFactor) * rawScore);
+      insights.push({ text: `Low coverage (${Math.round(coverageFactor * 100)}%): score reduced by ~${coveragePenalty} points. Only ${accountable} of ${total} sessions are accountable`, type: 'warning', priority: 73 });
+    } else if (coverageFactor < 0.7) {
+      insights.push({ text: `Moderate coverage (${Math.round(coverageFactor * 100)}%): high excused count (${excused}) limits score ceiling`, type: 'info', priority: 58 });
+    }
 
-    // Day pattern detection
+    // ── I. Day-of-Week Absence Pattern Detection ──
     const dayAbsences: Record<string, number> = {};
-    for (const r of accountableRecords.filter(a => a.status === 'absent')) {
-      const day = new Date(`${r.attendance_date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long' });
-      dayAbsences[day] = (dayAbsences[day] || 0) + 1;
+    const dayTotal: Record<string, number> = {};
+    for (const r of accountableRecords) {
+      const day = new Date(`${r.attendance_date}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' });
+      dayTotal[day] = (dayTotal[day] || 0) + 1;
+      if (r.status === 'absent') dayAbsences[day] = (dayAbsences[day] || 0) + 1;
     }
     for (const [day, count] of Object.entries(dayAbsences)) {
-      if (count >= 3) insights.push({ text: `Frequently absent on ${day}s (${count} times)`, type: 'warning' });
+      const sessions = dayTotal[day] || 1;
+      const dayAbsenceRate = Math.round((count / sessions) * 100);
+      if (count >= 3 && dayAbsenceRate >= 50) {
+        insights.push({ text: `Pattern: absent ${count}/${sessions} ${day}s (${dayAbsenceRate}%) — systematic avoidance detected`, type: 'danger', priority: 83 });
+      } else if (count >= 2 && dayAbsenceRate >= 40) {
+        insights.push({ text: `Concentration: ${count} of ${sessions} absences fall on ${day}s (${dayAbsenceRate}%)`, type: 'warning', priority: 62 });
+      }
     }
+
+    // ── J. Day-of-Week Lateness Pattern ──
+    const dayLate: Record<string, number> = {};
+    for (const r of unique.filter(a => a.status === 'late')) {
+      const day = new Date(`${r.attendance_date}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' });
+      dayLate[day] = (dayLate[day] || 0) + 1;
+    }
+    for (const [day, count] of Object.entries(dayLate)) {
+      if (count >= 3) {
+        insights.push({ text: `Consistently late on ${day}s (${count} times) — possible scheduling conflict`, type: 'info', priority: 56 });
+      }
+    }
+
+    // ── K. Excused Ratio Analysis ──
+    if (excused > 0) {
+      const excusedRatio = excused / total;
+      if (excusedRatio > 0.5) {
+        insights.push({ text: `High excuse rate: ${excused}/${total} sessions (${Math.round(excusedRatio * 100)}%) excused — limited effective evaluation data`, type: 'warning', priority: 71 });
+      } else if (excusedRatio > 0.3) {
+        insights.push({ text: `Notable excuse frequency: ${excused} of ${total} sessions (${Math.round(excusedRatio * 100)}%) excused`, type: 'info', priority: 52 });
+      }
+    }
+
+    // ── L. Trend Reliability ──
+    if (accountable >= 5) {
+      if (trendClassification === 'VOLATILE') {
+        insights.push({ text: `Volatile pattern (R²=${trendR2}): attendance fluctuates unpredictably — no clear trajectory`, type: 'warning', priority: 66 });
+      } else if (trendClassification === 'IMPROVING' && trendR2 >= 0.7) {
+        insights.push({ text: `Confirmed upward trend (slope +${trendSlope}, R²=${trendR2}) — statistically significant improvement`, type: 'positive', priority: 79 });
+      } else if (trendClassification === 'DECLINING' && trendR2 >= 0.7) {
+        insights.push({ text: `Confirmed downward trend (slope ${trendSlope}, R²=${trendR2}) — statistically significant decline`, type: 'danger', priority: 89 });
+      }
+    }
+
+    // ── M. Cross-Metric Correlation Insights ──
+    if (attendanceRate >= 90 && punctuality < 60) {
+      insights.push({ text: `Paradox: ${attendanceRate}% attendance but only ${punctuality}% punctuality — shows up but consistently late`, type: 'info', priority: 69 });
+    }
+    if (attendanceRate < 70 && punctuality >= 90 && present >= 3) {
+      insights.push({ text: `When present, ${punctuality}% punctual — commitment exists but attendance barriers present`, type: 'info', priority: 63 });
+    }
+    if (present > 0 && absent === 0 && weightedScore < 80) {
+      insights.push({ text: `100% attendance but score only ${weightedScore} — lateness significantly drags quality component`, type: 'warning', priority: 77 });
+    }
+
+    // ── N. Data Confidence Assessment ──
+    if (accountable < 4) {
+      insights.push({ text: `Limited data: only ${accountable} accountable sessions — metrics may not reflect true patterns`, type: 'info', priority: 45 });
+    } else if (accountable >= 20) {
+      insights.push({ text: `High-confidence analysis: ${accountable} data points provide statistically reliable metrics`, type: 'info', priority: 40 });
+    }
+
+    // ── O. Check-in Method Analysis ──
+    const methods: Record<string, number> = {};
+    for (const r of unique) {
+      const m = r.check_in_method || 'unknown';
+      methods[m] = (methods[m] || 0) + 1;
+    }
+    const methodEntries = Object.entries(methods).sort((a, b) => b[1] - a[1]);
+    if (methodEntries.length > 1) {
+      const primary = methodEntries[0];
+      insights.push({ text: `Primary check-in: ${primary[0].replace('_', ' ')} (${primary[1]}/${total} sessions, ${Math.round((primary[1] / total) * 100)}%)`, type: 'info', priority: 38 });
+    }
+
+    // Sort by priority (highest first) and take top insights
+    insights.sort((a, b) => b.priority - a.priority);
 
     // Apply streak bonus (computed after maxStreak is known, mirrors AttendanceRecords)
     const maxConsecutiveWeeks = Math.floor(maxStreak / 1); // streak is already in sessions
@@ -660,6 +799,20 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                 >
                   📋 Full Records
                 </Link>
+                {analytics && (
+                  <button
+                    onClick={() => {
+                      const enrMapped = activeEnrollments.map(e => {
+                        const s = unwrap(e.session);
+                        return { courseName: unwrap(s?.course)?.course_name || 'Unknown', teacherName: unwrap(s?.teacher)?.name || '', status: e.status };
+                      });
+                      exportStudentOverviewPDF({ student, analytics, enrollments: enrMapped, riskLevel, photoDataUrl: photoSignedUrl });
+                    }}
+                    className="text-[11px] px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors font-semibold"
+                  >
+                    📄 Export PDF
+                  </button>
+                )}
                 {student.email && (
                   <a href={`mailto:${student.email}`} className="text-[11px] px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-semibold text-gray-700 dark:text-gray-300">📧 Email</a>
                 )}
