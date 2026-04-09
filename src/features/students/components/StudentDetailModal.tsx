@@ -4,8 +4,12 @@ import { attendanceService } from '@/features/attendance/services/attendanceServ
 import { studentService } from '@/features/students/services/studentService';
 import { certificateService } from '@/features/certificates/services/certificateService';
 import type { IssuedCertificate } from '@/features/certificates/services/certificateService';
-import { DEFAULT_SCORING_CONFIG, calcWeightedScore } from '@/features/scoring/services/scoringConfigService';
+import { CertificatePreview } from '@/features/certificates/components/CertificatePreview';
+import { DEFAULT_SCORING_CONFIG, calcWeightedScore, calcCoverageFactor, calcLateScore } from '@/features/scoring/services/scoringConfigService';
 import { getSignedPhotoUrl } from '@/shared/utils/photoUtils';
+import { useIsTeacher } from '@/shared/hooks/useIsTeacher';
+import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
+import { toast } from '@/shared/components/ui/toastUtils';
 import type { Student } from '@/shared/types/database.types';
 
 interface StudentDetailModalProps {
@@ -60,6 +64,9 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
   const [photoSignedUrl, setPhotoSignedUrl] = useState<string | null>(null);
   const [attSortCol, setAttSortCol] = useState<'date' | 'course' | 'status' | 'method'>('date');
   const [attSortDir, setAttSortDir] = useState<'asc' | 'desc'>('desc');
+  const [previewCert, setPreviewCert] = useState<IssuedCertificate | null>(null);
+  const [revokeConfirm, setRevokeConfirm] = useState<IssuedCertificate | null>(null);
+  const { isTeacher } = useIsTeacher();
 
   useEffect(() => {
     let cancelled = false;
@@ -97,7 +104,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
     return () => window.removeEventListener('keydown', handler);
   }, [onClose]);
 
-  // ─── Analytics (mirrors summarizeAttendanceRecords from attendanceService) ──
+  // ─── Full Analytics Engine (mirrors AttendanceRecords calculateAnalytics) ──
   const analytics = useMemo(() => {
     if (attendance.length === 0) return null;
 
@@ -133,7 +140,8 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
       }
     }
     const unique = [...byDate.values()];
-    const accountable = unique.filter(r => r.status !== 'excused' && r.status !== 'not enrolled').length;
+    const accountableRecords = unique.filter(r => r.status !== 'excused' && r.status !== 'not enrolled');
+    const accountable = accountableRecords.length;
     if (accountable === 0) return null;
 
     const onTime = unique.filter(r => r.status === 'on time').length;
@@ -146,71 +154,182 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
 
     // 3. Quality rate — exponential decay for late arrivals
     let qualitySum = 0;
+    const lateScores: number[] = [];
     for (const r of unique) {
-      if (r.status === 'on time') qualitySum += 1;
+      if (r.status === 'on time') { qualitySum += 1; }
       else if (r.status === 'late') {
-        qualitySum += Math.max(
-          config.late_minimum_credit,
-          Math.exp(-((r.late_minutes || 0) / config.late_decay_constant))
-        );
+        const score = calcLateScore(r.late_minutes, config);
+        qualitySum += score;
+        lateScores.push(score);
       }
     }
     const qualityRate = Math.round((qualitySum / accountable) * 1000) / 10;
+    const lateScoreAvg = lateScores.length > 0 ? Math.round(lateScores.reduce((s, v) => s + v, 0) / lateScores.length * 100) / 100 : 0;
 
-    // 4. Punctuality
-    const punctuality = accountable > 0 ? Math.round((onTime / accountable) * 1000) / 10 : 0;
+    // 4. Punctuality (on-time / present, not accountable)
+    const punctuality = present > 0 ? Math.round((onTime / present) * 1000) / 10 : 0;
 
-    // 5. Weighted score
-    const { finalScore } = calcWeightedScore(
+    // 5. Coverage factor & weighted score
+    const coverageFactor = calcCoverageFactor(accountable, accountable, config);
+    const { rawScore, finalScore } = calcWeightedScore(
       qualityRate, attendanceRate, punctuality,
       accountable, accountable, config
     );
-    const weightedScore = Math.round(finalScore * 10) / 10;
+    const weightedScore = Math.round(Math.min(100, Math.max(0, finalScore)) * 10) / 10;
 
-    // 6. Trend (last 5 vs previous 5 unique dates)
-    const sorted = [...unique].sort((a, b) => b.attendance_date.localeCompare(a.attendance_date));
-    const recent5 = sorted.slice(0, Math.min(5, sorted.length));
-    const prev5 = sorted.slice(5, Math.min(10, sorted.length));
-    const recentRate = recent5.length > 0 ? recent5.filter(r => r.status === 'on time' || r.status === 'late').length / recent5.length : 0;
-    const prevRate = prev5.length > 0 ? prev5.filter(r => r.status === 'on time' || r.status === 'late').length / prev5.length : 0;
-    let trend: 'improving' | 'declining' | 'stable' = 'stable';
-    if (prev5.length >= 3) {
-      if (recentRate - prevRate > 0.1) trend = 'improving';
-      else if (prevRate - recentRate > 0.1) trend = 'declining';
+    // 6. Trend — linear regression on cumulative attendance rate
+    const sorted = [...accountableRecords].sort((a, b) => a.attendance_date.localeCompare(b.attendance_date));
+    const cumulativeRates: number[] = [];
+    let cumPresent = 0;
+    for (let i = 0; i < sorted.length; i++) {
+      if (sorted[i].status === 'on time' || sorted[i].status === 'late') cumPresent++;
+      cumulativeRates.push((cumPresent / (i + 1)) * 100);
+    }
+    const recent = cumulativeRates.slice(-5);
+    let trendSlope = 0;
+    let trendR2 = 0;
+    let trendClassification: 'IMPROVING' | 'DECLINING' | 'STABLE' | 'VOLATILE' = 'STABLE';
+    if (recent.length >= 3) {
+      const n = recent.length;
+      const xMean = (n - 1) / 2;
+      const yMean = recent.reduce((s, v) => s + v, 0) / n;
+      let num = 0, den = 0;
+      for (let i = 0; i < n; i++) {
+        num += (i - xMean) * (recent[i] - yMean);
+        den += (i - xMean) ** 2;
+      }
+      trendSlope = den > 0 ? num / den : 0;
+      let ssTot = 0, ssRes = 0;
+      for (let i = 0; i < n; i++) {
+        const predicted = yMean + trendSlope * (i - xMean);
+        ssRes += (recent[i] - predicted) ** 2;
+        ssTot += (recent[i] - yMean) ** 2;
+      }
+      trendR2 = ssTot > 0 ? Math.max(0, 1 - ssRes / ssTot) : 0;
+      if (trendR2 < 0.3) trendClassification = 'VOLATILE';
+      else if (trendSlope > 2) trendClassification = 'IMPROVING';
+      else if (trendSlope < -2) trendClassification = 'DECLINING';
+      else trendClassification = 'STABLE';
     }
 
-    // 7. Consecutive absences (from most recent)
+    // 7. Weekly change
+    const recent5 = cumulativeRates.slice(-5);
+    const prev5 = cumulativeRates.slice(-10, -5);
+    const weeklyChange = (recent5.length > 0 && prev5.length > 0)
+      ? Math.round((recent5[recent5.length - 1] - prev5[prev5.length - 1]) * 10) / 10
+      : 0;
+
+    // 8. Consecutive absences (from most recent)
+    const sortedDesc = [...accountableRecords].sort((a, b) => b.attendance_date.localeCompare(a.attendance_date));
     let consecutive = 0;
-    for (const r of sorted) {
+    for (const r of sortedDesc) {
       if (r.status === 'absent') consecutive++;
       else break;
     }
 
-    // 8. Pattern detection (based on accountable records only)
-    const patterns: string[] = [];
-    const accountableRecords = unique.filter(r => r.status !== 'excused' && r.status !== 'not enrolled');
+    // 9. Max consecutive attendance streak (in weeks)
+    const sortedDates = sorted.map(r => new Date(r.attendance_date + 'T00:00:00').getTime());
+    let maxStreak = 0, currentStreak = 0;
+    for (let i = 0; i < sorted.length; i++) {
+      if (sorted[i].status === 'on time' || sorted[i].status === 'late') {
+        if (i === 0 || (sortedDates[i] - sortedDates[i - 1]) <= 8 * 86400000) {
+          currentStreak++;
+        } else {
+          currentStreak = 1;
+        }
+        maxStreak = Math.max(maxStreak, currentStreak);
+      } else {
+        currentStreak = 0;
+      }
+    }
+
+    // 10. First half vs second half comparison
+    const midpoint = Math.floor(sorted.length / 2);
+    const firstHalf = sorted.slice(0, midpoint);
+    const secondHalf = sorted.slice(midpoint);
+    const halfRate = (arr: typeof sorted) => {
+      const p = arr.filter(r => r.status === 'on time' || r.status === 'late').length;
+      return arr.length > 0 ? Math.round((p / arr.length) * 1000) / 10 : 0;
+    };
+    const firstHalfRate = halfRate(firstHalf);
+    const secondHalfRate = halfRate(secondHalf);
+
+    // 11. Consistency Index — measures clustering of absences
+    let consistencyIndex = 1;
+    if (absent > 0 && accountable > 1) {
+      const pattern = sorted.map(r => (r.status === 'on time' || r.status === 'late') ? 1 : 0);
+      // Count absence streaks
+      const streaks: number[] = [];
+      let streak = 0;
+      for (const v of pattern) {
+        if (v === 0) { streak++; }
+        else { if (streak > 0) streaks.push(streak); streak = 0; }
+      }
+      if (streak > 0) streaks.push(streak);
+
+      if (streaks.length > 0 && absent > 1) {
+        const scatterRatio = streaks.length / absent;
+        const longestStreak = Math.max(...streaks);
+        const streakPenalty = 1 - (longestStreak - 1) / (absent - 1 || 1);
+        const rawConsistency = 0.5 * scatterRatio + 0.5 * streakPenalty;
+        const dampening = Math.min(absent / 5, 1);
+        consistencyIndex = Math.round((rawConsistency * dampening + (1 - dampening)) * 100) / 100;
+      } else {
+        consistencyIndex = absent === 1 ? 0.95 : 1;
+      }
+    }
+
+    // 12. Late minutes stats
+    const lateRecords = unique.filter(a => a.status === 'late' && a.late_minutes);
+    const totalLateMinutes = lateRecords.reduce((s, a) => s + (a.late_minutes || 0), 0);
+    const avgLateMinutes = lateRecords.length > 0 ? Math.round(totalLateMinutes / lateRecords.length) : 0;
+    const maxLateMinutes = lateRecords.length > 0 ? Math.max(...lateRecords.map(a => a.late_minutes || 0)) : 0;
+
+    // 13. AI-generated insights
+    const insights: { text: string; type: 'positive' | 'warning' | 'danger' | 'info' }[] = [];
+
+    if (weightedScore >= 90) insights.push({ text: 'Outstanding overall performance — top-tier student', type: 'positive' });
+    else if (weightedScore >= 80) insights.push({ text: 'Strong weighted score with room for improvement', type: 'positive' });
+    else if (weightedScore < 60) insights.push({ text: 'Weighted score below passing threshold — needs intervention', type: 'danger' });
+
+    if (secondHalfRate > firstHalfRate + 10) insights.push({ text: `Performance improved ${Math.round(secondHalfRate - firstHalfRate)}% in second half of enrollment`, type: 'positive' });
+    else if (firstHalfRate > secondHalfRate + 10) insights.push({ text: `Performance dropped ${Math.round(firstHalfRate - secondHalfRate)}% — declining engagement`, type: 'warning' });
+
+    if (punctuality < 50 && present > 0) insights.push({ text: `Only ${punctuality}% of attended sessions were on time — chronic lateness`, type: 'warning' });
+    if (punctuality >= 90 && present >= 5) insights.push({ text: 'Excellent punctuality — consistently arrives on time', type: 'positive' });
+
+    if (consistencyIndex < 0.5) insights.push({ text: 'Absences are clustered in streaks — possible disengagement periods', type: 'danger' });
+    else if (consistencyIndex >= 0.9 && absent > 0) insights.push({ text: 'Absences are spread out — no disengagement pattern', type: 'info' });
+
+    if (maxStreak >= 5) insights.push({ text: `Best attendance streak: ${maxStreak} consecutive sessions`, type: 'positive' });
+
+    if (avgLateMinutes > 20) insights.push({ text: `Average ${avgLateMinutes}min late — significantly impacts quality score`, type: 'warning' });
+    if (maxLateMinutes > 45) insights.push({ text: `Worst late: ${maxLateMinutes}min — near-zero quality credit for that session`, type: 'warning' });
+
+    if (consecutive >= 3) insights.push({ text: `Currently on a ${consecutive}-session absence streak`, type: 'danger' });
+
+    if (qualityRate < attendanceRate - 15) insights.push({ text: `Quality score ${Math.round(attendanceRate - qualityRate)}% below attendance — lateness heavily penalizes`, type: 'warning' });
+
+    // Day pattern detection
     const dayAbsences: Record<string, number> = {};
     for (const r of accountableRecords.filter(a => a.status === 'absent')) {
       const day = new Date(`${r.attendance_date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long' });
       dayAbsences[day] = (dayAbsences[day] || 0) + 1;
     }
     for (const [day, count] of Object.entries(dayAbsences)) {
-      if (count >= 3) patterns.push(`Frequently absent on ${day}s`);
+      if (count >= 3) insights.push({ text: `Frequently absent on ${day}s (${count} times)`, type: 'warning' });
     }
-    if (consecutive >= 3) patterns.push(`${consecutive} consecutive absences`);
-    if (attendanceRate < 50) patterns.push('Below 50% attendance');
-    if (qualityRate < attendanceRate - 10) patterns.push('Late arrivals reducing quality score');
-
-    // 9. Late stats
-    const avgLateMinutes = late > 0
-      ? Math.round(unique.filter(a => a.status === 'late' && a.late_minutes).reduce((s, a) => s + (a.late_minutes || 0), 0) / late)
-      : 0;
 
     return {
       total, onTime, late, absent, excused, present, accountable,
       attendanceRate, qualityRate, weightedScore, punctuality,
-      trend, consecutive, patterns, avgLateMinutes,
-      lastDate: sorted[0]?.attendance_date || null,
+      trendClassification, trendSlope: Math.round(trendSlope * 100) / 100, trendR2: Math.round(trendR2 * 100) / 100,
+      weeklyChange, consecutive, maxStreak,
+      firstHalfRate, secondHalfRate, consistencyIndex,
+      avgLateMinutes, maxLateMinutes, totalLateMinutes, lateScoreAvg,
+      coverageFactor: Math.round(coverageFactor * 100) / 100,
+      rawScore: Math.round(rawScore * 10) / 10,
+      insights,
     };
   }, [attendance]);
 
@@ -240,6 +359,18 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
   const handleBackdropClick = useCallback((e: React.MouseEvent) => {
     if (e.target === e.currentTarget) onClose();
   }, [onClose]);
+
+  // Handle certificate revoke
+  const handleRevoke = useCallback(async () => {
+    if (!revokeConfirm) return;
+    const { error } = await certificateService.revokeCertificate(revokeConfirm.certificate_id, 'Revoked by admin');
+    if (error) { toast.error('Failed to revoke certificate'); }
+    else {
+      toast.success('Certificate revoked');
+      setCertificates(prev => prev.map(c => c.certificate_id === revokeConfirm.certificate_id ? { ...c, status: 'revoked' as const } : c));
+    }
+    setRevokeConfirm(null);
+  }, [revokeConfirm]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={handleBackdropClick}>
@@ -324,113 +455,150 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
               <div className="animate-spin rounded-full h-6 w-6 border-2 border-purple-500 border-t-transparent" />
             </div>
           ) : activeTab === 'overview' ? (
-            <div className="space-y-4">
-              {/* KPI Row */}
+            <div className="space-y-3">
               {analytics ? (
                 <>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 p-3 text-center">
-                      <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">Attendance</p>
-                      <p className={`text-xl font-black ${analytics.attendanceRate >= 80 ? 'text-emerald-600' : analytics.attendanceRate >= 60 ? 'text-amber-600' : 'text-red-600'}`}>
-                        {analytics.attendanceRate}%
-                      </p>
+                  {/* ── Hero: Weighted Score Ring ────────────── */}
+                  <div className="flex items-center gap-4 p-4 rounded-xl bg-gradient-to-r from-gray-50 to-white dark:from-gray-800/50 dark:to-gray-900/50 border border-gray-100 dark:border-gray-700">
+                    <div className="relative w-16 h-16 shrink-0">
+                      <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                        <circle cx="18" cy="18" r="15.9" fill="none" stroke="currentColor" className="text-gray-200 dark:text-gray-700" strokeWidth="3" />
+                        <circle cx="18" cy="18" r="15.9" fill="none"
+                          className={analytics.weightedScore >= 80 ? 'text-emerald-500' : analytics.weightedScore >= 60 ? 'text-amber-500' : 'text-red-500'}
+                          stroke="currentColor" strokeWidth="3" strokeLinecap="round"
+                          strokeDasharray={`${analytics.weightedScore} ${100 - analytics.weightedScore}`} />
+                      </svg>
+                      <span className={`absolute inset-0 flex items-center justify-center text-sm font-black ${analytics.weightedScore >= 80 ? 'text-emerald-600' : analytics.weightedScore >= 60 ? 'text-amber-600' : 'text-red-600'}`}>
+                        {analytics.weightedScore}
+                      </span>
                     </div>
-                    <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 p-3 text-center">
-                      <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">Quality</p>
-                      <p className={`text-xl font-black ${analytics.qualityRate >= 80 ? 'text-emerald-600' : analytics.qualityRate >= 60 ? 'text-amber-600' : 'text-red-600'}`}>
-                        {analytics.qualityRate}%
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-gray-900 dark:text-white">Weighted Score</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">
+                        Q{analytics.qualityRate}% × {DEFAULT_SCORING_CONFIG.weight_quality}% + A{analytics.attendanceRate}% × {DEFAULT_SCORING_CONFIG.weight_attendance}% + P{analytics.punctuality}% × {DEFAULT_SCORING_CONFIG.weight_punctuality}%
                       </p>
-                    </div>
-                    <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 p-3 text-center">
-                      <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">Weighted Score</p>
-                      <p className={`text-xl font-black ${analytics.weightedScore >= 80 ? 'text-emerald-600' : analytics.weightedScore >= 60 ? 'text-amber-600' : 'text-red-600'}`}>
-                        {analytics.weightedScore}%
-                      </p>
-                    </div>
-                    <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 p-3 text-center">
-                      <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">Trend</p>
-                      <p className={`text-sm font-bold ${analytics.trend === 'improving' ? 'text-emerald-600' : analytics.trend === 'declining' ? 'text-red-600' : 'text-gray-500'}`}>
-                        {analytics.trend === 'improving' ? '📈 Improving' : analytics.trend === 'declining' ? '📉 Declining' : '➡️ Stable'}
-                      </p>
+                      <div className="flex gap-3 mt-1.5">
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${analytics.trendClassification === 'IMPROVING' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : analytics.trendClassification === 'DECLINING' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : analytics.trendClassification === 'VOLATILE' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
+                          {analytics.trendClassification === 'IMPROVING' ? '📈' : analytics.trendClassification === 'DECLINING' ? '📉' : analytics.trendClassification === 'VOLATILE' ? '🔀' : '➡️'} {analytics.trendClassification}
+                        </span>
+                        {analytics.weeklyChange !== 0 && (
+                          <span className={`text-[10px] font-medium ${analytics.weeklyChange > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {analytics.weeklyChange > 0 ? '+' : ''}{analytics.weeklyChange}% week
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Secondary Stats */}
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 p-2.5 text-center">
-                      <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">Sessions</p>
-                      <p className="text-lg font-black text-gray-900 dark:text-white">{analytics.accountable}</p>
-                    </div>
-                    <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 p-2.5 text-center">
-                      <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">Punctuality</p>
-                      <p className={`text-lg font-black ${analytics.punctuality >= 80 ? 'text-emerald-600' : analytics.punctuality >= 60 ? 'text-amber-600' : 'text-red-600'}`}>
-                        {analytics.punctuality}%
-                      </p>
-                    </div>
-                    <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 p-2.5 text-center">
-                      <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">Streak</p>
-                      <p className={`text-lg font-black ${analytics.consecutive >= 3 ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>
-                        {analytics.consecutive > 0 ? `${analytics.consecutive} absent` : '✓'}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Status Breakdown */}
-                  <div className="rounded-xl border border-gray-100 dark:border-gray-700 p-4 space-y-2">
-                    <p className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-2">Status Breakdown</p>
+                  {/* ── Key Metrics Grid ────────────────────── */}
+                  <div className="grid grid-cols-4 gap-2">
                     {([
-                      { label: 'On Time', count: analytics.onTime, color: 'bg-emerald-500', pct: analytics.accountable > 0 ? (analytics.onTime / analytics.accountable) * 100 : 0 },
-                      { label: 'Late', count: analytics.late, color: 'bg-amber-500', pct: analytics.accountable > 0 ? (analytics.late / analytics.accountable) * 100 : 0, sub: analytics.avgLateMinutes > 0 ? `avg ${analytics.avgLateMinutes}min` : undefined },
-                      { label: 'Absent', count: analytics.absent, color: 'bg-red-500', pct: analytics.accountable > 0 ? (analytics.absent / analytics.accountable) * 100 : 0 },
-                      { label: 'Excused', count: analytics.excused, color: 'bg-blue-500', pct: analytics.total > 0 ? (analytics.excused / analytics.total) * 100 : 0 },
-                    ]).map(s => (
-                      <div key={s.label} className="flex items-center gap-2">
-                        <span className="text-[11px] text-gray-600 dark:text-gray-300 w-16 shrink-0">{s.label}</span>
-                        <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
-                          <div className={`h-full rounded-full ${s.color}`} style={{ width: `${s.pct}%` }} />
-                        </div>
-                        <span className="text-[11px] text-gray-500 w-12 text-right">{s.count} ({Math.round(s.pct)}%)</span>
-                        {s.sub && <span className="text-[10px] text-gray-400">{s.sub}</span>}
+                      { label: 'Attendance', value: `${analytics.attendanceRate}%`, color: analytics.attendanceRate >= 80 ? 'text-emerald-600' : analytics.attendanceRate >= 60 ? 'text-amber-600' : 'text-red-600' },
+                      { label: 'Quality', value: `${analytics.qualityRate}%`, color: analytics.qualityRate >= 80 ? 'text-emerald-600' : analytics.qualityRate >= 60 ? 'text-amber-600' : 'text-red-600' },
+                      { label: 'Punctuality', value: `${analytics.punctuality}%`, color: analytics.punctuality >= 80 ? 'text-emerald-600' : analytics.punctuality >= 60 ? 'text-amber-600' : 'text-red-600' },
+                      { label: 'Consistency', value: `${Math.round(analytics.consistencyIndex * 100)}%`, color: analytics.consistencyIndex >= 0.8 ? 'text-emerald-600' : analytics.consistencyIndex >= 0.5 ? 'text-amber-600' : 'text-red-600' },
+                    ]).map(m => (
+                      <div key={m.label} className="rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 p-2 text-center">
+                        <p className="text-[9px] text-gray-400 uppercase tracking-wider">{m.label}</p>
+                        <p className={`text-base font-black ${m.color}`}>{m.value}</p>
                       </div>
                     ))}
                   </div>
 
-                  {/* Patterns */}
-                  {analytics.patterns.length > 0 && (
-                    <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/10 p-4">
-                      <p className="text-xs font-bold text-amber-700 dark:text-amber-300 mb-2">🔍 Detected Patterns</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {analytics.patterns.map((p, i) => (
-                          <span key={i} className="text-[11px] px-2 py-1 bg-white dark:bg-gray-800 border border-amber-200 dark:border-amber-700 rounded-lg text-amber-700 dark:text-amber-300">{p}</span>
+                  {/* ── Performance DNA ─────────────────────── */}
+                  <div className="rounded-xl border border-gray-100 dark:border-gray-700 p-3 space-y-2">
+                    <p className="text-[10px] font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Performance DNA</p>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px]">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Sessions Tracked</span>
+                        <span className="font-semibold text-gray-800 dark:text-gray-200">{analytics.accountable}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Best Streak</span>
+                        <span className="font-semibold text-gray-800 dark:text-gray-200">{analytics.maxStreak} consecutive</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">First Half</span>
+                        <span className="font-semibold text-gray-800 dark:text-gray-200">{analytics.firstHalfRate}%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Second Half</span>
+                        <span className={`font-semibold ${analytics.secondHalfRate > analytics.firstHalfRate ? 'text-emerald-600' : analytics.secondHalfRate < analytics.firstHalfRate ? 'text-red-600' : 'text-gray-800 dark:text-gray-200'}`}>
+                          {analytics.secondHalfRate}% {analytics.secondHalfRate > analytics.firstHalfRate + 5 ? '↑' : analytics.firstHalfRate > analytics.secondHalfRate + 5 ? '↓' : ''}
+                        </span>
+                      </div>
+                      {analytics.late > 0 && (
+                        <>
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Avg Late</span>
+                            <span className="font-semibold text-amber-600">{analytics.avgLateMinutes}min</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Late Credit</span>
+                            <span className="font-semibold text-gray-800 dark:text-gray-200">{Math.round(analytics.lateScoreAvg * 100)}%</span>
+                          </div>
+                        </>
+                      )}
+                      {analytics.consecutive > 0 && (
+                        <div className="flex justify-between col-span-2">
+                          <span className="text-gray-500">Current Absence Streak</span>
+                          <span className={`font-semibold ${analytics.consecutive >= 3 ? 'text-red-600' : 'text-amber-600'}`}>{analytics.consecutive} sessions</span>
+                        </div>
+                      )}
+                    </div>
+                    {/* Mini status bar */}
+                    <div className="flex h-2 rounded-full overflow-hidden mt-1">
+                      <div className="bg-emerald-500" style={{ width: `${(analytics.onTime / analytics.accountable) * 100}%` }} title={`On Time: ${analytics.onTime}`} />
+                      <div className="bg-amber-500" style={{ width: `${(analytics.late / analytics.accountable) * 100}%` }} title={`Late: ${analytics.late}`} />
+                      <div className="bg-red-500" style={{ width: `${(analytics.absent / analytics.accountable) * 100}%` }} title={`Absent: ${analytics.absent}`} />
+                    </div>
+                    <div className="flex justify-between text-[9px] text-gray-400">
+                      <span>✓ {analytics.onTime}</span>
+                      <span>⏰ {analytics.late}{analytics.avgLateMinutes > 0 ? ` (avg ${analytics.avgLateMinutes}m)` : ''}</span>
+                      <span>✗ {analytics.absent}</span>
+                      {analytics.excused > 0 && <span>🔵 {analytics.excused} excused</span>}
+                    </div>
+                  </div>
+
+                  {/* ── AI Insights ─────────────────────────── */}
+                  {analytics.insights.length > 0 && (
+                    <div className="rounded-xl border border-purple-200 dark:border-purple-800/50 bg-purple-50/50 dark:bg-purple-900/10 p-3">
+                      <p className="text-[10px] font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wide mb-2">🧠 AI Insights</p>
+                      <div className="space-y-1">
+                        {analytics.insights.map((ins, i) => (
+                          <div key={i} className={`flex items-start gap-1.5 text-[11px] ${
+                            ins.type === 'positive' ? 'text-emerald-700 dark:text-emerald-300' :
+                            ins.type === 'danger' ? 'text-red-700 dark:text-red-300' :
+                            ins.type === 'warning' ? 'text-amber-700 dark:text-amber-300' :
+                            'text-blue-700 dark:text-blue-300'
+                          }`}>
+                            <span className="shrink-0 mt-px">{ins.type === 'positive' ? '✅' : ins.type === 'danger' ? '🚨' : ins.type === 'warning' ? '⚠️' : 'ℹ️'}</span>
+                            <span>{ins.text}</span>
+                          </div>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  {/* Enrollments summary */}
-                  <div className="rounded-xl border border-gray-100 dark:border-gray-700 p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Active Enrollments</p>
-                      <span className="text-[10px] text-purple-600 dark:text-purple-400 font-bold">{activeEnrollments.length}</span>
-                    </div>
-                    {activeEnrollments.length === 0 ? (
-                      <p className="text-xs text-gray-400">No active enrollments</p>
-                    ) : (
-                      <div className="space-y-1.5">
+                  {/* ── Enrollments summary ─────────────────── */}
+                  {activeEnrollments.length > 0 && (
+                    <div className="rounded-xl border border-gray-100 dark:border-gray-700 p-3">
+                      <p className="text-[10px] font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5">Active Enrollments <span className="text-purple-500">({activeEnrollments.length})</span></p>
+                      <div className="space-y-1">
                         {activeEnrollments.slice(0, 3).map(e => {
                           const session = unwrap(e.session);
                           const course = unwrap(session?.course);
                           const teacher = unwrap(session?.teacher);
                           return (
-                            <div key={e.enrollment_id} className="flex items-center justify-between text-xs py-1">
+                            <div key={e.enrollment_id} className="flex items-center justify-between text-[11px] py-0.5">
                               <span className="text-gray-700 dark:text-gray-300 font-medium">{course?.course_name || 'Unknown'}</span>
                               <span className="text-gray-400">{teacher?.name || ''}</span>
                             </div>
                           );
                         })}
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="text-center py-8">
@@ -440,24 +608,20 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
               )}
 
               {/* Quick Actions */}
-              <div className="flex flex-wrap gap-2 pt-2">
+              <div className="flex flex-wrap gap-2 pt-1">
                 <Link
                   to={`/attendance-records?studentName=${encodeURIComponent(student.name)}`}
                   onClick={onClose}
-                  className="text-xs px-3 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition-colors font-semibold"
+                  className="text-[11px] px-3 py-1.5 rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition-colors font-semibold"
                 >
-                  📋 Full Attendance Records
+                  📋 Full Records
                 </Link>
                 {student.email && (
-                  <a href={`mailto:${student.email}`} className="text-xs px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-semibold text-gray-700 dark:text-gray-300">
-                    📧 Email
-                  </a>
+                  <a href={`mailto:${student.email}`} className="text-[11px] px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-semibold text-gray-700 dark:text-gray-300">📧 Email</a>
                 )}
                 {student.phone && (
                   <a href={`https://wa.me/${student.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer"
-                    className="text-xs px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-semibold text-gray-700 dark:text-gray-300">
-                    📱 WhatsApp
-                  </a>
+                    className="text-[11px] px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-semibold text-gray-700 dark:text-gray-300">📱 WhatsApp</a>
                 )}
               </div>
             </div>
@@ -575,7 +739,10 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
           ) : activeTab === 'certificates' ? (
             <div className="space-y-2">
               {certificates.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-8">No certificates issued yet</p>
+                <div className="text-center py-8">
+                  <span className="text-4xl block mb-2">🏆</span>
+                  <p className="text-sm text-gray-500">No certificates issued yet</p>
+                </div>
               ) : (
                 <div className="space-y-2">
                   {certificates.map(cert => {
@@ -583,28 +750,42 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                       || cert.session?.course?.course_name
                       || 'Unknown Course';
                     return (
-                      <div key={cert.certificate_id} className="rounded-xl border border-gray-100 dark:border-gray-700 p-3">
+                      <div key={cert.certificate_id} className={`rounded-xl border p-3 transition-colors ${cert.status === 'revoked' ? 'border-red-200 dark:border-red-800/50 bg-red-50/30 dark:bg-red-900/5' : 'border-gray-100 dark:border-gray-700'}`}>
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{courseName}</p>
-                            <p className="text-[11px] text-gray-400 mt-0.5">#{cert.certificate_number}</p>
-                            {cert.issued_at && (
-                              <p className="text-[11px] text-gray-400">
-                                Issued: {new Date(cert.issued_at).toLocaleDateString()}
-                              </p>
-                            )}
-                            {cert.final_score != null && (
-                              <p className="text-[11px] text-gray-500">Score: {cert.final_score}%</p>
-                            )}
-                            {cert.attendance_rate != null && (
-                              <p className="text-[11px] text-gray-500">Attendance: {cert.attendance_rate}%</p>
-                            )}
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{courseName}</p>
+                              <span className={`shrink-0 text-[9px] px-1.5 py-0.5 rounded-full font-semibold ${
+                                cert.status === 'issued' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600' :
+                                cert.status === 'draft' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600' :
+                                'bg-red-100 dark:bg-red-900/30 text-red-500'
+                              }`}>{cert.status === 'issued' ? '✅' : cert.status === 'revoked' ? '🚫' : '📑'} {cert.status}</span>
+                            </div>
+                            <p className="text-[10px] text-gray-400 mt-0.5 font-mono">{cert.certificate_number}</p>
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[10px]">
+                              {cert.issued_at && <span className="text-gray-400">📅 {new Date(cert.issued_at).toLocaleDateString()}</span>}
+                              {cert.final_score != null && <span className="text-gray-500">Score: <span className="font-semibold">{cert.final_score}%</span></span>}
+                              {cert.attendance_rate != null && <span className="text-gray-500">Attendance: <span className="font-semibold">{cert.attendance_rate}%</span></span>}
+                              {cert.verification_code && <span className="text-blue-500 font-mono">{cert.verification_code}</span>}
+                            </div>
                           </div>
-                          <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full font-semibold ${
-                            cert.status === 'issued' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600' :
-                            cert.status === 'draft' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600' :
-                            'bg-red-100 dark:bg-red-900/30 text-red-500'
-                          }`}>{cert.status}</span>
+                        </div>
+                        {/* Actions */}
+                        <div className="flex gap-1.5 mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+                          <button
+                            onClick={() => setPreviewCert(cert)}
+                            className="text-[10px] px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 font-semibold transition-colors"
+                          >
+                            👁 Preview
+                          </button>
+                          {isTeacher && cert.status === 'issued' && (
+                            <button
+                              onClick={() => setRevokeConfirm(cert)}
+                              className="text-[10px] px-2 py-1 rounded-md bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 font-semibold transition-colors"
+                            >
+                              🚫 Revoke
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
@@ -614,6 +795,24 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
             </div>
           ) : null}
         </div>
+
+        {/* ─── Certificate Preview Modal ─────────────── */}
+        {previewCert && (
+          <CertificatePreview certificate={previewCert} onClose={() => setPreviewCert(null)} />
+        )}
+
+        {/* ─── Revoke Confirm Dialog ─────────────────── */}
+        {revokeConfirm && (
+          <ConfirmDialog
+            isOpen={true}
+            title="Revoke Certificate"
+            message={`Revoke certificate ${revokeConfirm.certificate_number}?`}
+            confirmText="Revoke"
+            type="danger"
+            onConfirm={handleRevoke}
+            onCancel={() => setRevokeConfirm(null)}
+          />
+        )}
       </div>
     </div>
   );

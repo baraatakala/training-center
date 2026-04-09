@@ -300,7 +300,7 @@ export function Students() {
       {/* Certificates Tab */}
       {activeTab === 'certificates' && (
         <Suspense fallback={<TableSkeleton rows={6} columns={5} />}>
-          <Certificates />
+          <Certificates embedded />
         </Suspense>
       )}
 

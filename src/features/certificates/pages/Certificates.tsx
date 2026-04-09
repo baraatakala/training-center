@@ -18,7 +18,7 @@ import { TemplateModal } from '@/features/certificates/components/TemplateModal'
 import { IssueModal } from '@/features/certificates/components/IssueModal';
 import { CertificatePreview } from '@/features/certificates/components/CertificatePreview';
 
-export function Certificates() {
+export function Certificates({ embedded }: { embedded?: boolean } = {}) {
   const { user } = useAuth();
   const { isTeacher, loading: roleLoading } = useIsTeacher();
 
@@ -129,8 +129,9 @@ export function Certificates() {
   }
 
   return (
-    <div className="space-y-4 md:space-y-6">
-      {/* Header */}
+    <div className={embedded ? 'space-y-4' : 'space-y-4 md:space-y-6'}>
+      {/* Header — hidden when embedded as a tab */}
+      {!embedded && (
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -150,6 +151,16 @@ export function Certificates() {
           </div>
         )}
       </div>
+      )}
+
+      {/* Action buttons when embedded */}
+      {embedded && isTeacher && (
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={fetchData}>🔄 Refresh</Button>
+          <Button size="sm" onClick={() => setShowIssueModal(true)}>🎓 Issue Certificate</Button>
+          <Button variant="outline" size="sm" onClick={() => { setEditingTemplate(null); setShowTemplateModal(true); }}>✏️ New Template</Button>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="border-b border-gray-200 dark:border-gray-700 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
