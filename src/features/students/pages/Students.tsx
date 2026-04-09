@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/shared/components/ui/Button';
 import { Modal } from '@/shared/components/ui/Modal';
 import { SearchBar } from '@/shared/components/ui/SearchBar';
@@ -18,11 +19,14 @@ import { Specializations } from '@/features/specializations/pages/Specialization
 import { StudentDetailModal } from '@/features/students/components/StudentDetailModal';
 
 const PhotoUpload = lazy(() => import('@/features/students/components/PhotoUpload').then((module) => ({ default: module.PhotoUpload })));
+const Certificates = lazy(() => import('@/features/certificates/pages/Certificates').then((module) => ({ default: module.Certificates })));
 
-type Tab = 'students' | 'specializations';
+type Tab = 'students' | 'specializations' | 'certificates';
 
 export function Students() {
-  const [activeTab, setActiveTab] = useState<Tab>('students');
+  const [searchParams] = useSearchParams();
+  const initialTab = (searchParams.get('tab') as Tab) || 'students';
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -226,6 +230,7 @@ export function Students() {
           <nav className="flex gap-4" aria-label="Tabs">
             <button onClick={() => setActiveTab('students')} className="px-1 pb-3 text-sm font-semibold border-b-2 border-blue-500 text-blue-600 dark:text-blue-400">Students</button>
             <button onClick={() => setActiveTab('specializations')} className="px-1 pb-3 text-sm font-medium border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300">Specializations</button>
+            <button onClick={() => setActiveTab('certificates')} className="px-1 pb-3 text-sm font-medium border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300">Certificates</button>
           </nav>
         </div>
         <div className="flex justify-between items-center animate-pulse">
@@ -273,11 +278,31 @@ export function Students() {
               Specializations
             </span>
           </button>
+          <button
+            onClick={() => setActiveTab('certificates')}
+            className={`px-1 pb-3 text-sm font-semibold border-b-2 transition-colors ${
+              activeTab === 'certificates'
+                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>
+              Certificates
+            </span>
+          </button>
         </nav>
       </div>
 
       {/* Specializations Tab */}
       {activeTab === 'specializations' && <Specializations />}
+
+      {/* Certificates Tab */}
+      {activeTab === 'certificates' && (
+        <Suspense fallback={<TableSkeleton rows={6} columns={5} />}>
+          <Certificates />
+        </Suspense>
+      )}
 
       {/* Students Tab */}
       {activeTab === 'students' && (

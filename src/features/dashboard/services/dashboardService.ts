@@ -135,14 +135,19 @@ export const dashboardService = {
   async getOperationalPulse() {
     const today = new Date().toISOString().split('T')[0];
     const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+    const todayDayName = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
 
-    const [upcomingRes, todayAttendanceRes, recentExcusesRes] = await Promise.all([
+    const [upcomingRes, dayChangesRes, todayAttendanceRes, recentExcusesRes] = await Promise.all([
       supabase.from('session')
-        .select('session_id, start_date, end_date, feedback_enabled, session_days, course:course_id(course_name), teacher:teacher_id(name)')
+        .select('session_id, start_date, end_date, feedback_enabled, day, time, course:course_id(course_name), teacher:teacher_id(name)')
         .lte('start_date', nextWeek)
         .gte('end_date', today)
         .order('start_date')
         .limit(20),
+      supabase.from('session_day_change')
+        .select('session_id, new_day, effective_date')
+        .lte('effective_date', today)
+        .order('effective_date', { ascending: false }),
       supabase.from('attendance')
         .select('status', { count: 'exact' })
         .eq('attendance_date', today),
@@ -150,6 +155,14 @@ export const dashboardService = {
         .select('id, status', { count: 'exact' })
         .eq('status', 'pending'),
     ]);
+
+    // Build a map of latest day change per session
+    const latestDayChange = new Map<string, string>();
+    for (const dc of (dayChangesRes.data || [])) {
+      if (!latestDayChange.has(dc.session_id)) {
+        latestDayChange.set(dc.session_id, dc.new_day);
+      }
+    }
 
     // Count today's attendance by status
     const todayRecords = todayAttendanceRes.data || [];
@@ -164,15 +177,26 @@ export const dashboardService = {
       upcomingSessions: (upcomingRes.data || []).map((s: Record<string, unknown>) => {
         const course = s.course as Record<string, string> | Record<string, string>[] | null;
         const teacher = s.teacher as Record<string, string> | Record<string, string>[] | null;
+        const sessionId = s.session_id as string;
+        const startDate = String(s.start_date || '');
+        const endDate = String(s.end_date || '');
+        const inDateRange = startDate <= today && endDate >= today;
+
+        // Determine effective session day(s) — use day change if it exists
+        const effectiveDay = latestDayChange.get(sessionId) || (s.day as string) || '';
+        const sessionDayNames = effectiveDay.split(',').map(d => d.trim().toLowerCase());
+        const runsToday = inDateRange && sessionDayNames.some(d => d === todayDayName);
+
         return {
-          session_id: s.session_id as string,
+          session_id: sessionId,
           course_name: (Array.isArray(course) ? course[0]?.course_name : course?.course_name) ?? 'Unknown',
           teacher_name: (Array.isArray(teacher) ? teacher[0]?.name : teacher?.name) ?? 'Unknown',
-          start_date: String(s.start_date || ''),
-          end_date: String(s.end_date || ''),
-          session_days: s.session_days as string || '',
+          start_date: startDate,
+          end_date: endDate,
+          session_days: effectiveDay,
+          time: String(s.time || ''),
           feedback_enabled: Boolean(s.feedback_enabled),
-          isToday: String(s.start_date || '') <= today && String(s.end_date || '') >= today,
+          isToday: runsToday,
         };
       }),
       todayStats,

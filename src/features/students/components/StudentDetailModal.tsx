@@ -4,6 +4,7 @@ import { attendanceService } from '@/features/attendance/services/attendanceServ
 import { studentService } from '@/features/students/services/studentService';
 import { certificateService } from '@/features/certificates/services/certificateService';
 import type { IssuedCertificate } from '@/features/certificates/services/certificateService';
+import { DEFAULT_SCORING_CONFIG, calcWeightedScore } from '@/features/scoring/services/scoringConfigService';
 import { getSignedPhotoUrl } from '@/shared/utils/photoUtils';
 import type { Student } from '@/shared/types/database.types';
 
@@ -57,6 +58,8 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'attendance' | 'enrollments' | 'certificates'>('overview');
   const [photoSignedUrl, setPhotoSignedUrl] = useState<string | null>(null);
+  const [attSortCol, setAttSortCol] = useState<'date' | 'course' | 'status' | 'method'>('date');
+  const [attSortDir, setAttSortDir] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     let cancelled = false;
@@ -94,23 +97,78 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
     return () => window.removeEventListener('keydown', handler);
   }, [onClose]);
 
-  // ─── Analytics ───────────────────────────────────────────
+  // ─── Analytics (mirrors summarizeAttendanceRecords from attendanceService) ──
   const analytics = useMemo(() => {
     if (attendance.length === 0) return null;
 
-    const held = attendance.filter(a => a.status !== 'not enrolled');
-    const total = held.length;
-    if (total === 0) return null;
+    const config = DEFAULT_SCORING_CONFIG;
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
 
-    const onTime = held.filter(a => a.status === 'on time').length;
-    const late = held.filter(a => a.status === 'late').length;
-    const absent = held.filter(a => a.status === 'absent').length;
-    const excused = held.filter(a => a.status === 'excused').length;
+    // 1. Filter: exclude future dates and "session not held"
+    const filtered = attendance.filter(a => {
+      if (!a.attendance_date) return false;
+      if (new Date(a.attendance_date) > today) return false;
+      if ((a as { excuse_reason?: string }).excuse_reason === 'session not held') return false;
+      if ((a as { host_address?: string }).host_address === 'SESSION_NOT_HELD') return false;
+      return true;
+    });
+
+    if (filtered.length === 0) return null;
+
+    // 2. Dedupe by date — keep highest-priority status per date
+    const priority = (status: string) => {
+      if (status === 'absent') return 5;
+      if (status === 'late') return 4;
+      if (status === 'on time') return 3;
+      if (status === 'excused') return 2;
+      if (status === 'not enrolled') return 1;
+      return 0;
+    };
+    const byDate = new Map<string, AttendanceRecord>();
+    for (const r of filtered) {
+      const existing = byDate.get(r.attendance_date);
+      if (!existing || priority(r.status) > priority(existing.status)) {
+        byDate.set(r.attendance_date, r);
+      }
+    }
+    const unique = [...byDate.values()];
+    const accountable = unique.filter(r => r.status !== 'excused' && r.status !== 'not enrolled').length;
+    if (accountable === 0) return null;
+
+    const onTime = unique.filter(r => r.status === 'on time').length;
+    const late = unique.filter(r => r.status === 'late').length;
+    const absent = unique.filter(r => r.status === 'absent').length;
+    const excused = unique.filter(r => r.status === 'excused').length;
     const present = onTime + late;
-    const attendanceRate = total > 0 ? Math.round((present / total) * 100) : 0;
+    const total = unique.length;
+    const attendanceRate = Math.round((present / accountable) * 1000) / 10;
 
-    // Trend (last 5 vs previous 5)
-    const sorted = [...held].sort((a, b) => b.attendance_date.localeCompare(a.attendance_date));
+    // 3. Quality rate — exponential decay for late arrivals
+    let qualitySum = 0;
+    for (const r of unique) {
+      if (r.status === 'on time') qualitySum += 1;
+      else if (r.status === 'late') {
+        qualitySum += Math.max(
+          config.late_minimum_credit,
+          Math.exp(-((r.late_minutes || 0) / config.late_decay_constant))
+        );
+      }
+    }
+    const qualityRate = Math.round((qualitySum / accountable) * 1000) / 10;
+
+    // 4. Punctuality
+    const punctuality = accountable > 0 ? Math.round((onTime / accountable) * 1000) / 10 : 0;
+
+    // 5. Weighted score
+    const { finalScore } = calcWeightedScore(
+      qualityRate, attendanceRate, punctuality,
+      accountable, accountable, config
+    );
+    const weightedScore = Math.round(finalScore * 10) / 10;
+
+    // 6. Trend (last 5 vs previous 5 unique dates)
+    const sorted = [...unique].sort((a, b) => b.attendance_date.localeCompare(a.attendance_date));
     const recent5 = sorted.slice(0, Math.min(5, sorted.length));
     const prev5 = sorted.slice(5, Math.min(10, sorted.length));
     const recentRate = recent5.length > 0 ? recent5.filter(r => r.status === 'on time' || r.status === 'late').length / recent5.length : 0;
@@ -121,17 +179,18 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
       else if (prevRate - recentRate > 0.1) trend = 'declining';
     }
 
-    // Consecutive absences
+    // 7. Consecutive absences (from most recent)
     let consecutive = 0;
     for (const r of sorted) {
       if (r.status === 'absent') consecutive++;
       else break;
     }
 
-    // Patterns
+    // 8. Pattern detection (based on accountable records only)
     const patterns: string[] = [];
+    const accountableRecords = unique.filter(r => r.status !== 'excused' && r.status !== 'not enrolled');
     const dayAbsences: Record<string, number> = {};
-    for (const r of held.filter(a => a.status === 'absent')) {
+    for (const r of accountableRecords.filter(a => a.status === 'absent')) {
       const day = new Date(`${r.attendance_date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long' });
       dayAbsences[day] = (dayAbsences[day] || 0) + 1;
     }
@@ -140,15 +199,17 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
     }
     if (consecutive >= 3) patterns.push(`${consecutive} consecutive absences`);
     if (attendanceRate < 50) patterns.push('Below 50% attendance');
+    if (qualityRate < attendanceRate - 10) patterns.push('Late arrivals reducing quality score');
 
-    // Late stats
+    // 9. Late stats
     const avgLateMinutes = late > 0
-      ? Math.round(held.filter(a => a.status === 'late' && a.late_minutes).reduce((s, a) => s + (a.late_minutes || 0), 0) / late)
+      ? Math.round(unique.filter(a => a.status === 'late' && a.late_minutes).reduce((s, a) => s + (a.late_minutes || 0), 0) / late)
       : 0;
 
     return {
-      total, onTime, late, absent, excused, present,
-      attendanceRate, trend, consecutive, patterns, avgLateMinutes,
+      total, onTime, late, absent, excused, present, accountable,
+      attendanceRate, qualityRate, weightedScore, punctuality,
+      trend, consecutive, patterns, avgLateMinutes,
       lastDate: sorted[0]?.attendance_date || null,
     };
   }, [attendance]);
@@ -275,8 +336,16 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                       </p>
                     </div>
                     <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 p-3 text-center">
-                      <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">Sessions</p>
-                      <p className="text-xl font-black text-gray-900 dark:text-white">{analytics.total}</p>
+                      <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">Quality</p>
+                      <p className={`text-xl font-black ${analytics.qualityRate >= 80 ? 'text-emerald-600' : analytics.qualityRate >= 60 ? 'text-amber-600' : 'text-red-600'}`}>
+                        {analytics.qualityRate}%
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 p-3 text-center">
+                      <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">Weighted Score</p>
+                      <p className={`text-xl font-black ${analytics.weightedScore >= 80 ? 'text-emerald-600' : analytics.weightedScore >= 60 ? 'text-amber-600' : 'text-red-600'}`}>
+                        {analytics.weightedScore}%
+                      </p>
                     </div>
                     <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 p-3 text-center">
                       <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">Trend</p>
@@ -284,9 +353,23 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                         {analytics.trend === 'improving' ? '📈 Improving' : analytics.trend === 'declining' ? '📉 Declining' : '➡️ Stable'}
                       </p>
                     </div>
-                    <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 p-3 text-center">
+                  </div>
+
+                  {/* Secondary Stats */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 p-2.5 text-center">
+                      <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">Sessions</p>
+                      <p className="text-lg font-black text-gray-900 dark:text-white">{analytics.accountable}</p>
+                    </div>
+                    <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 p-2.5 text-center">
+                      <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">Punctuality</p>
+                      <p className={`text-lg font-black ${analytics.punctuality >= 80 ? 'text-emerald-600' : analytics.punctuality >= 60 ? 'text-amber-600' : 'text-red-600'}`}>
+                        {analytics.punctuality}%
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 p-2.5 text-center">
                       <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">Streak</p>
-                      <p className={`text-xl font-black ${analytics.consecutive >= 3 ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>
+                      <p className={`text-lg font-black ${analytics.consecutive >= 3 ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>
                         {analytics.consecutive > 0 ? `${analytics.consecutive} absent` : '✓'}
                       </p>
                     </div>
@@ -296,9 +379,9 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                   <div className="rounded-xl border border-gray-100 dark:border-gray-700 p-4 space-y-2">
                     <p className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-2">Status Breakdown</p>
                     {([
-                      { label: 'On Time', count: analytics.onTime, color: 'bg-emerald-500', pct: analytics.total > 0 ? (analytics.onTime / analytics.total) * 100 : 0 },
-                      { label: 'Late', count: analytics.late, color: 'bg-amber-500', pct: analytics.total > 0 ? (analytics.late / analytics.total) * 100 : 0, sub: analytics.avgLateMinutes > 0 ? `avg ${analytics.avgLateMinutes}min` : undefined },
-                      { label: 'Absent', count: analytics.absent, color: 'bg-red-500', pct: analytics.total > 0 ? (analytics.absent / analytics.total) * 100 : 0 },
+                      { label: 'On Time', count: analytics.onTime, color: 'bg-emerald-500', pct: analytics.accountable > 0 ? (analytics.onTime / analytics.accountable) * 100 : 0 },
+                      { label: 'Late', count: analytics.late, color: 'bg-amber-500', pct: analytics.accountable > 0 ? (analytics.late / analytics.accountable) * 100 : 0, sub: analytics.avgLateMinutes > 0 ? `avg ${analytics.avgLateMinutes}min` : undefined },
+                      { label: 'Absent', count: analytics.absent, color: 'bg-red-500', pct: analytics.accountable > 0 ? (analytics.absent / analytics.accountable) * 100 : 0 },
                       { label: 'Excused', count: analytics.excused, color: 'bg-blue-500', pct: analytics.total > 0 ? (analytics.excused / analytics.total) * 100 : 0 },
                     ]).map(s => (
                       <div key={s.label} className="flex items-center gap-2">
@@ -388,37 +471,71 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b border-gray-100 dark:border-gray-800">
-                        <th className="text-left py-2 px-2 text-gray-400 font-semibold">Date</th>
-                        <th className="text-left py-2 px-2 text-gray-400 font-semibold">Course</th>
-                        <th className="text-left py-2 px-2 text-gray-400 font-semibold">Status</th>
-                        <th className="text-left py-2 px-2 text-gray-400 font-semibold">Method</th>
+                        {([
+                          { key: 'date' as const, label: 'Date' },
+                          { key: 'course' as const, label: 'Course' },
+                          { key: 'status' as const, label: 'Status' },
+                          { key: 'method' as const, label: 'Method' },
+                        ]).map(col => (
+                          <th
+                            key={col.key}
+                            className="text-left py-2 px-2 text-gray-400 font-semibold cursor-pointer select-none hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                            onClick={() => {
+                              if (attSortCol === col.key) setAttSortDir(d => d === 'asc' ? 'desc' : 'asc');
+                              else { setAttSortCol(col.key); setAttSortDir('asc'); }
+                            }}
+                          >
+                            <span className="inline-flex items-center gap-1">
+                              {col.label}
+                              {attSortCol === col.key ? (
+                                <svg className={`w-3 h-3 transition-transform ${attSortDir === 'desc' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
+                              ) : (
+                                <svg className="w-3 h-3 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" /></svg>
+                              )}
+                            </span>
+                          </th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                      {attendance.slice(0, 50).map((a, i) => {
-                        const session = unwrap(a.session);
-                        const course = unwrap(session?.course);
-                        const statusColors: Record<string, string> = {
-                          'on time': 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20',
-                          'late': 'text-amber-600 bg-amber-50 dark:bg-amber-900/20',
-                          'absent': 'text-red-600 bg-red-50 dark:bg-red-900/20',
-                          'excused': 'text-blue-600 bg-blue-50 dark:bg-blue-900/20',
-                          'not enrolled': 'text-gray-400 bg-gray-50 dark:bg-gray-800',
-                        };
-                        return (
-                          <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/30">
-                            <td className="py-1.5 px-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">{a.attendance_date}</td>
-                            <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400 truncate max-w-[120px]">{course?.course_name || '—'}</td>
-                            <td className="py-1.5 px-2">
-                              <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${statusColors[a.status] || 'text-gray-500'}`}>
-                                {a.status}
-                                {a.status === 'late' && a.late_minutes ? ` (${a.late_minutes}m)` : ''}
-                              </span>
-                            </td>
-                            <td className="py-1.5 px-2 text-gray-400">{a.check_in_method || '—'}</td>
-                          </tr>
-                        );
-                      })}
+                      {(() => {
+                        const statusOrder: Record<string, number> = { 'on time': 1, 'late': 2, 'absent': 3, 'excused': 4, 'not enrolled': 5 };
+                        const sorted = [...attendance].sort((a, b) => {
+                          let cmp = 0;
+                          if (attSortCol === 'date') cmp = a.attendance_date.localeCompare(b.attendance_date);
+                          else if (attSortCol === 'course') {
+                            const ca = unwrap(unwrap(a.session)?.course)?.course_name || '';
+                            const cb = unwrap(unwrap(b.session)?.course)?.course_name || '';
+                            cmp = ca.localeCompare(cb);
+                          } else if (attSortCol === 'status') cmp = (statusOrder[a.status] || 9) - (statusOrder[b.status] || 9);
+                          else if (attSortCol === 'method') cmp = (a.check_in_method || '').localeCompare(b.check_in_method || '');
+                          return attSortDir === 'asc' ? cmp : -cmp;
+                        });
+                        return sorted.slice(0, 50).map((a, i) => {
+                          const session = unwrap(a.session);
+                          const course = unwrap(session?.course);
+                          const statusColors: Record<string, string> = {
+                            'on time': 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20',
+                            'late': 'text-amber-600 bg-amber-50 dark:bg-amber-900/20',
+                            'absent': 'text-red-600 bg-red-50 dark:bg-red-900/20',
+                            'excused': 'text-blue-600 bg-blue-50 dark:bg-blue-900/20',
+                            'not enrolled': 'text-gray-400 bg-gray-50 dark:bg-gray-800',
+                          };
+                          return (
+                            <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/30">
+                              <td className="py-1.5 px-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">{a.attendance_date}</td>
+                              <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400 truncate max-w-[120px]">{course?.course_name || '—'}</td>
+                              <td className="py-1.5 px-2">
+                                <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${statusColors[a.status] || 'text-gray-500'}`}>
+                                  {a.status}
+                                  {a.status === 'late' && a.late_minutes ? ` (${a.late_minutes}m)` : ''}
+                                </span>
+                              </td>
+                              <td className="py-1.5 px-2 text-gray-400">{a.check_in_method || '—'}</td>
+                            </tr>
+                          );
+                        });
+                      })()}
                     </tbody>
                   </table>
                   {attendance.length > 50 && (

@@ -10,6 +10,7 @@ interface UpcomingSession {
   start_date: string;
   end_date: string;
   session_days: string;
+  time: string;
   feedback_enabled: boolean;
   isToday: boolean;
 }
@@ -124,7 +125,7 @@ export function OperationalPulse() {
               >
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{s.course_name}</p>
-                  <p className="text-[11px] text-gray-400">{s.teacher_name} · {s.session_days}</p>
+                  <p className="text-[11px] text-gray-400">{s.teacher_name}{s.time ? ` · ${s.time}` : ''}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0 ml-3">
                   {s.feedback_enabled && (

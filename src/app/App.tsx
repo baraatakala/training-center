@@ -25,7 +25,6 @@ const Announcements = lazy(() => import('@/features/communication/pages/Announce
 const Messages = lazy(() => import('@/features/communication/pages/Messages').then(m => ({ default: m.Messages })));
 const ScoringConfiguration = lazy(() => import('@/features/scoring/pages/ScoringConfiguration').then(m => ({ default: m.ScoringConfiguration })));
 const ExcuseRequests = lazy(() => import('@/features/excuses/pages/ExcuseRequests').then(m => ({ default: m.ExcuseRequests })));
-const Certificates = lazy(() => import('@/features/certificates/pages/Certificates').then(m => ({ default: m.Certificates })));
 const FeedbackAnalytics = lazy(() => import('@/features/feedback/pages/FeedbackAnalytics').then(m => ({ default: m.FeedbackAnalytics })));
 const NotFound = lazy(() => import('@/app/NotFound').then(m => ({ default: m.NotFound })));
 
@@ -93,7 +92,6 @@ function App() {
                     <Route path="/messages" element={<SafePage><Messages /></SafePage>} />
                     <Route path="/scoring-config" element={<SafePage><ScoringConfiguration /></SafePage>} />
                     <Route path="/excuse-requests" element={<SafePage><ExcuseRequests /></SafePage>} />
-                    <Route path="/certificates" element={<SafePage><Certificates /></SafePage>} />
                     <Route path="/feedback-analytics" element={<SafePage><FeedbackAnalytics /></SafePage>} />
                     <Route path="*" element={<SafePage><NotFound /></SafePage>} />
                   </Routes>

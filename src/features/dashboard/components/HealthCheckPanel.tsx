@@ -58,7 +58,9 @@ export function HealthCheckPanel() {
       );
       const liveFeedbackDateKeys = new Map<string, { session_id: string; attendance_date: string }>();
 
-      for (const row of hostRows) {
+      // Only include dates with active check-in tokens or actual attendance —
+      // session_date_host alone doesn't let students reach feedback.
+      for (const row of activeQrRows) {
         if (!feedbackEnabledSessionIds.has(row.session_id)) continue;
         liveFeedbackDateKeys.set(`${row.session_id}|${row.attendance_date}`, {
           session_id: row.session_id,
@@ -66,11 +68,11 @@ export function HealthCheckPanel() {
         });
       }
 
-      for (const row of activeQrRows) {
-        if (!feedbackEnabledSessionIds.has(row.session_id)) continue;
-        liveFeedbackDateKeys.set(`${row.session_id}|${row.attendance_date}`, {
-          session_id: row.session_id,
-          attendance_date: row.attendance_date,
+      for (const row of activePhotoRows) {
+        if (!feedbackEnabledSessionIds.has((row as Record<string, unknown>).session_id as string)) continue;
+        liveFeedbackDateKeys.set(`${(row as Record<string, unknown>).session_id}|${(row as Record<string, unknown>).attendance_date}`, {
+          session_id: (row as Record<string, unknown>).session_id as string,
+          attendance_date: (row as Record<string, unknown>).attendance_date as string,
         });
       }
 
@@ -443,7 +445,7 @@ export function HealthCheckPanel() {
           : 'Scoring configurations cover all active-session teachers.',
         icon: scoringGap > 0 ? '⚠️' : '✅',
         actionLabel: scoringGap > 0 ? 'Scoring Setup' : undefined,
-        actionPath: scoringGap > 0 ? '/scoring-configuration' : undefined,
+        actionPath: scoringGap > 0 ? '/scoring-config' : undefined,
         category: 'config',
       });
 

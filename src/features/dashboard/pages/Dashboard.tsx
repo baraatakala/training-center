@@ -168,7 +168,7 @@ export function Dashboard() {
                 </CardContent>
               </Card>
             </Link>
-            <Link to="/certificates">
+            <Link to="/students?tab=certificates">
               <Card className="hover:shadow-lg transition-shadow cursor-pointer">
                 <CardContent className="py-6 text-center">
                   <div className="text-3xl mb-2">🏆</div>
