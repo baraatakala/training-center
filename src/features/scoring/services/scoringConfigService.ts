@@ -393,8 +393,24 @@ export async function saveScoringConfig(config: Partial<ScoringConfig>): Promise
           return { data: { ...updateData, ...normalized } as ScoringConfig, error: null };
         }
       } else {
-        // Step 2b: No row exists yet — INSERT a new one with current user as owner
-        const insertPayload = { ...dataFields, teacher_id: user.id };
+        // Step 2b: No row exists yet — INSERT a new one.
+        // teacher_id FK references public.teacher(teacher_id), NOT auth.users(id).
+        // Look up the actual teacher record for the current user's email.
+        // The column is nullable (migration 025), so admins without a teacher
+        // record can still create the global config row with teacher_id = null.
+        let resolvedTeacherId: string | null = null;
+        if (user.email) {
+          const { data: teacherRow } = await supabase
+            .from('teacher')
+            .select('teacher_id')
+            .ilike('email', user.email)
+            .maybeSingle();
+          resolvedTeacherId = teacherRow?.teacher_id ?? null;
+        }
+
+        const insertPayload = resolvedTeacherId
+          ? { ...dataFields, teacher_id: resolvedTeacherId }
+          : dataFields; // teacher_id is nullable after migration 025
         const { data: insertData, error: insertError } = await supabase
           .from('scoring_config')
           .insert(insertPayload)
@@ -422,10 +438,10 @@ export async function saveScoringConfig(config: Partial<ScoringConfig>): Promise
     // If DB failed but localStorage succeeded, return partial success
     if (dbError) {
       console.warn('Scoring config saved to localStorage only:', dbError.message);
-      return { data: { ...dataFields, teacher_id: user.id } as ScoringConfig, error: dbError };
+      return { data: dataFields as ScoringConfig, error: dbError };
     }
     
-    return { data: { ...dataFields, teacher_id: user.id } as ScoringConfig, error: null };
+    return { data: dataFields as ScoringConfig, error: null };
   } catch (err) {
     return { data: null, error: err instanceof Error ? err : new Error('Save failed') };
   }

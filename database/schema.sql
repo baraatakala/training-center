@@ -314,7 +314,7 @@ CREATE TABLE IF NOT EXISTS public.session_book_coverage (
 
 CREATE TABLE IF NOT EXISTS public.scoring_config (
   id UUID NOT NULL DEFAULT gen_random_uuid(),
-  teacher_id UUID NOT NULL,
+  teacher_id UUID,
   config_name TEXT NOT NULL DEFAULT 'Default Scoring',
   is_default BOOLEAN NOT NULL DEFAULT true,
   weight_quality NUMERIC NOT NULL DEFAULT 55.00,
