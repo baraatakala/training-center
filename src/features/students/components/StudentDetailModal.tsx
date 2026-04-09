@@ -5,7 +5,7 @@ import { studentService } from '@/features/students/services/studentService';
 import { certificateService } from '@/features/certificates/services/certificateService';
 import type { IssuedCertificate } from '@/features/certificates/services/certificateService';
 import { CertificatePreview } from '@/features/certificates/components/CertificatePreview';
-import { DEFAULT_SCORING_CONFIG, calcWeightedScore, calcCoverageFactor, calcLateScore } from '@/features/scoring/services/scoringConfigService';
+import { loadConfigSync, calcWeightedScore, calcCoverageFactor, calcLateScore } from '@/features/scoring/services/scoringConfigService';
 import { getSignedPhotoUrl } from '@/shared/utils/photoUtils';
 import { useIsTeacher } from '@/shared/hooks/useIsTeacher';
 import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
@@ -108,7 +108,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
   const analytics = useMemo(() => {
     if (attendance.length === 0) return null;
 
-    const config = DEFAULT_SCORING_CONFIG;
+    const config = loadConfigSync();
     const today = new Date();
     today.setHours(23, 59, 59, 999);
 
@@ -170,10 +170,13 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
     const punctuality = present > 0 ? Math.round((onTime / present) * 1000) / 10 : 0;
 
     // 5. Coverage factor & weighted score
-    const coverageFactor = calcCoverageFactor(accountable, accountable, config);
+    // total = all unique dates (including excused) = student's "daysCovered"
+    // accountable = effective days (on_time + late + absent) = student's "effectiveBase"
+    // Coverage ratio uses total as denominator (matches AttendanceRecords' globalTotalSessionDays concept)
+    const coverageFactor = calcCoverageFactor(accountable, total, config);
     const { rawScore, finalScore } = calcWeightedScore(
       qualityRate, attendanceRate, punctuality,
-      accountable, accountable, config
+      accountable, total, config
     );
     const weightedScore = Math.round(Math.min(100, Math.max(0, finalScore)) * 10) / 10;
 
@@ -330,6 +333,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
       coverageFactor: Math.round(coverageFactor * 100) / 100,
       rawScore: Math.round(rawScore * 10) / 10,
       insights,
+      configWeights: { q: config.weight_quality, a: config.weight_attendance, p: config.weight_punctuality },
     };
   }, [attendance]);
 
@@ -475,7 +479,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-bold text-gray-900 dark:text-white">Weighted Score</p>
                       <p className="text-[10px] text-gray-400 mt-0.5">
-                        Q{analytics.qualityRate}% × {DEFAULT_SCORING_CONFIG.weight_quality}% + A{analytics.attendanceRate}% × {DEFAULT_SCORING_CONFIG.weight_attendance}% + P{analytics.punctuality}% × {DEFAULT_SCORING_CONFIG.weight_punctuality}%
+                        Q{analytics.qualityRate}% × {analytics.configWeights.q}% + A{analytics.attendanceRate}% × {analytics.configWeights.a}% + P{analytics.punctuality}% × {analytics.configWeights.p}%
                       </p>
                       <div className="flex gap-3 mt-1.5">
                         <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${analytics.trendClassification === 'IMPROVING' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : analytics.trendClassification === 'DECLINING' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : analytics.trendClassification === 'VOLATILE' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
