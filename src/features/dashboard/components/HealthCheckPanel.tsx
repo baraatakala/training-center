@@ -118,6 +118,11 @@ export function HealthCheckPanel() {
         if (sessionNotHeldDates.has(key)) continue;
         const host = hostMap.get(key);
         if (!host || !host.host_address || !String(host.host_address).trim()) {
+          // Fallback: check if attendance records themselves have host_address set
+          // (this happens when host was resolved from teacher/student profile instead of session_date_host)
+          const dateRows = activeAttendance.filter(a => `${a.session_id}|${a.attendance_date}` === key);
+          const hasHostInAttendance = dateRows.some(a => a.host_address && String(a.host_address).trim() && a.host_address !== 'SESSION_NOT_HELD');
+          if (hasHostInAttendance) continue;
           hostMissingCount++;
           if (!hostMissingSample) {
             const [sampleSessionId, sampleDate] = key.split('|');

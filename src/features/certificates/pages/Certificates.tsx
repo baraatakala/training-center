@@ -23,7 +23,7 @@ export function Certificates({ embedded }: { embedded?: boolean } = {}) {
   const { isTeacher, loading: roleLoading } = useIsTeacher();
 
   // Active tab
-  const [tab, setTab] = useState<'certificates' | 'templates' | 'verify'>('certificates');
+  const [tab, setTab] = useState<'certificates' | 'templates' | 'verify'>(embedded ? 'templates' : 'certificates');
 
   // Data
   const [certificates, setCertificates] = useState<IssuedCertificate[]>([]);
@@ -165,7 +165,9 @@ export function Certificates({ embedded }: { embedded?: boolean } = {}) {
       {/* Tabs */}
       <div className="border-b border-gray-200 dark:border-gray-700 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
         <nav className="flex gap-4 sm:gap-6 min-w-max">
-          {(['certificates', 'templates', 'verify'] as const).map(t => (
+          {(['certificates', 'templates', 'verify'] as const)
+            .filter(t => !(embedded && t === 'certificates'))
+            .map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}

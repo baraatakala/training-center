@@ -234,9 +234,9 @@ export async function exportStudentOverviewPDF(options: ExportOptions): Promise<
   const metricW = (contentW - 9) / 4;
   const metrics = [
     { label: 'ATTENDANCE', value: `${analytics.attendanceRate}%`, score: analytics.attendanceRate },
-    { label: 'QUALITY', value: `${analytics.qualityRate}%`, score: analytics.qualityRate },
+    { label: 'WEIGHTED SCORE', value: `${analytics.weightedScore}`, score: analytics.weightedScore },
     { label: 'PUNCTUALITY', value: `${analytics.punctuality}%`, score: analytics.punctuality },
-    { label: 'CONSISTENCY', value: `${Math.round(analytics.consistencyIndex * 100)}%`, score: analytics.consistencyIndex * 100 },
+    { label: 'BEST STREAK', value: `${analytics.maxStreak}`, score: analytics.maxStreak >= 7 ? 80 : analytics.maxStreak >= 4 ? 60 : 40 },
   ];
 
   metrics.forEach((m, i) => {

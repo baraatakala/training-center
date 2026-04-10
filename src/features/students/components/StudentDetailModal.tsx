@@ -9,6 +9,7 @@ import { loadConfigSync, calcWeightedScore, calcCoverageFactor, calcLateScore } 
 import { getSignedPhotoUrl } from '@/shared/utils/photoUtils';
 import { useIsTeacher } from '@/shared/hooks/useIsTeacher';
 import { exportStudentOverviewPDF } from '@/features/students/services/studentOverviewExport';
+import { exportStudentOverviewWord } from '@/features/students/services/studentOverviewWord';
 import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
 import { toast } from '@/shared/components/ui/toastUtils';
 import type { Student } from '@/shared/types/database.types';
@@ -67,6 +68,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
   const [attSortDir, setAttSortDir] = useState<'asc' | 'desc'>('desc');
   const [previewCert, setPreviewCert] = useState<IssuedCertificate | null>(null);
   const [revokeConfirm, setRevokeConfirm] = useState<IssuedCertificate | null>(null);
+  const [arabicMode, setArabicMode] = useState(false);
   const { isTeacher } = useIsTeacher();
 
   useEffect(() => {
@@ -114,6 +116,16 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
     today.setHours(23, 59, 59, 999);
 
     // 1. Filter: exclude future dates and "session not held"
+    // Capture session-not-held dates BEFORE filtering (needed for streak gap bridging)
+    const sessionNotHeldTimestamps = new Set<number>();
+    for (const a of attendance) {
+      if (!a.attendance_date) continue;
+      if ((a as { excuse_reason?: string }).excuse_reason === 'session not held' ||
+          (a as { host_address?: string }).host_address === 'SESSION_NOT_HELD') {
+        sessionNotHeldTimestamps.add(new Date(a.attendance_date + 'T00:00:00').getTime());
+      }
+    }
+
     const filtered = attendance.filter(a => {
       if (!a.attendance_date) return false;
       if (new Date(a.attendance_date) > today) return false;
@@ -247,15 +259,29 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
       else break;
     }
 
-    // 9. Max consecutive attendance streak (in weeks)
+    // 9. Max consecutive attendance streak (session-not-held dates bridge gaps)
     const sortedDates = sorted.map(r => new Date(r.attendance_date + 'T00:00:00').getTime());
     let maxStreak = 0, currentStreak = 0;
     for (let i = 0; i < sorted.length; i++) {
       if (sorted[i].status === 'on time' || sorted[i].status === 'late') {
-        if (i === 0 || (sortedDates[i] - sortedDates[i - 1]) <= 8 * 86400000) {
-          currentStreak++;
-        } else {
+        if (i === 0) {
           currentStreak = 1;
+        } else {
+          const gap = sortedDates[i] - sortedDates[i - 1];
+          if (gap <= 8 * 86400000) {
+            currentStreak++;
+          } else {
+            // Check if session-not-held dates bridge this gap
+            const bridgeDates = [...sessionNotHeldTimestamps]
+              .filter(d => d > sortedDates[i - 1] && d < sortedDates[i])
+              .sort((a, b) => a - b);
+            const chain = [sortedDates[i - 1], ...bridgeDates, sortedDates[i]];
+            let bridged = true;
+            for (let j = 1; j < chain.length; j++) {
+              if (chain[j] - chain[j - 1] > 8 * 86400000) { bridged = false; break; }
+            }
+            if (bridged) { currentStreak++; } else { currentStreak = 1; }
+          }
         }
         maxStreak = Math.max(maxStreak, currentStreak);
       } else {
@@ -523,6 +549,62 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
 
   const initials = student.name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
 
+  // Arabic translations
+  const t = useMemo(() => {
+    const ar: Record<string, string> = {
+      'Weighted Score': 'الدرجة المرجحة',
+      'Overview': 'نظرة عامة',
+      'Attendance': 'الحضور',
+      'Enrollments': 'التسجيلات',
+      'Certificates': 'الشهادات',
+      'Punctuality': 'الالتزام بالوقت',
+      'Best Streak': 'أفضل سلسلة',
+      'Session Distribution': 'توزيع الجلسات',
+      'On Time': 'في الوقت',
+      'Late': 'متأخر',
+      'Absent': 'غائب',
+      'Excused': 'معذور',
+      'Performance DNA': 'تحليل الأداء',
+      'Sessions Tracked': 'الجلسات المسجلة',
+      'First Half': 'النصف الأول',
+      'Second Half': 'النصف الثاني',
+      'Avg Late': 'متوسط التأخر',
+      'Late Credit': 'رصيد التأخر',
+      'Coverage Factor': 'عامل التغطية',
+      'Current Absence Streak': 'سلسلة الغياب الحالية',
+      'consecutive': 'متتالي',
+      'sessions': 'جلسات',
+      'total': 'المجموع',
+      'AI Insights': 'رؤى ذكية',
+      'Active Enrollments': 'التسجيلات النشطة',
+      'No attendance data': 'لا توجد بيانات حضور',
+      'Export Word': 'تصدير Word',
+      'Export PDF': 'تصدير PDF',
+      'Email': 'بريد إلكتروني',
+      'WhatsApp': 'واتساب',
+      'Good standing': 'أداء جيد',
+      'critical risk': 'خطر حرج',
+      'high risk': 'خطر عالي',
+      'medium risk': 'خطر متوسط',
+      'good risk': 'أداء جيد',
+      'IMPROVING': 'تحسّن',
+      'DECLINING': 'تراجع',
+      'STABLE': 'مستقر',
+      'VOLATILE': 'متذبذب',
+      'Date': 'التاريخ',
+      'Course': 'الدورة',
+      'Status': 'الحالة',
+      'Method': 'الطريقة',
+      'No attendance records': 'لا توجد سجلات حضور',
+      'on time': 'في الوقت',
+      'late': 'متأخر',
+      'absent': 'غائب',
+      'excused': 'معذور',
+      'not enrolled': 'غير مسجل',
+    };
+    return (key: string) => arabicMode ? (ar[key] || key) : key;
+  }, [arabicMode]);
+
   // Handle backdrop click
   const handleBackdropClick = useCallback((e: React.MouseEvent) => {
     if (e.target === e.currentTarget) onClose();
@@ -542,13 +624,18 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={handleBackdropClick}>
-      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-2xl flex flex-col" dir={arabicMode ? 'rtl' : 'ltr'} onClick={e => e.stopPropagation()}>
 
         {/* ─── Header ───────────────────────────────────── */}
         <div className="relative px-6 pt-6 pb-4 border-b border-gray-100 dark:border-gray-800">
-          <button onClick={onClose} className="absolute top-4 right-4 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 transition-colors">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
+          <div className="absolute top-4 right-4 flex items-center gap-1">
+            <button onClick={() => setArabicMode(v => !v)} className={`p-1.5 rounded-lg text-xs font-semibold transition-colors ${arabicMode ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400'}`} title={arabicMode ? 'Switch to English' : 'التبديل للعربية'}>
+              {arabicMode ? 'EN' : 'ع'}
+            </button>
+            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 transition-colors">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
 
           <div className="flex items-center gap-4">
             <div className="relative w-14 h-14 rounded-full overflow-hidden shadow-lg shrink-0 group">
@@ -597,22 +684,22 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
         <div className="overflow-x-auto px-6 -mb-px">
           <div className="flex border-b border-gray-100 dark:border-gray-800 min-w-max">
           {([
-            { key: 'overview' as const, label: 'Overview' },
-            { key: 'attendance' as const, label: 'Attendance', count: attendance.length },
-            { key: 'enrollments' as const, label: 'Enrollments', count: activeEnrollments.length },
-            { key: 'certificates' as const, label: 'Certificates', count: certificates.filter(c => c.status === 'issued').length },
-          ]).map(t => (
+            { key: 'overview' as const, label: t('Overview') },
+            { key: 'attendance' as const, label: t('Attendance'), count: attendance.length },
+            { key: 'enrollments' as const, label: t('Enrollments'), count: activeEnrollments.length },
+            { key: 'certificates' as const, label: t('Certificates'), count: certificates.filter(c => c.status === 'issued').length },
+          ]).map(tab => (
             <button
-              key={t.key}
-              onClick={() => setActiveTab(t.key)}
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
               className={`px-3 py-2.5 text-xs font-semibold border-b-2 transition-all ${
-                activeTab === t.key
+                activeTab === tab.key
                   ? 'border-purple-500 text-purple-600 dark:text-purple-400'
                   : 'border-transparent text-gray-400 hover:text-gray-600'
               }`}
             >
-              {t.label}
-              {t.count != null && <span className="ml-1 text-[10px] text-gray-400">({t.count})</span>}
+              {tab.label}
+              {tab.count != null && <span className="ml-1 text-[10px] text-gray-400">({tab.count})</span>}
             </button>
           ))}
           </div>
@@ -643,14 +730,14 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                       </span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-gray-900 dark:text-white">Weighted Score</p>
+                      <p className="text-xs font-bold text-gray-900 dark:text-white">{t('Weighted Score')}</p>
                       <p className="text-[10px] text-gray-400 mt-0.5 font-mono">
                         Q{analytics.qualityRate}×{analytics.configWeights.q}% + A{analytics.attendanceRate}×{analytics.configWeights.a}% + P{analytics.punctuality}×{analytics.configWeights.p}%
                         {analytics.coverageFactor < 1 && <span className="text-purple-400"> × CF{analytics.coverageFactor}</span>}
                       </p>
                       <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                         <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${analytics.trendClassification === 'IMPROVING' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : analytics.trendClassification === 'DECLINING' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : analytics.trendClassification === 'VOLATILE' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
-                          {analytics.trendClassification === 'IMPROVING' ? '📈' : analytics.trendClassification === 'DECLINING' ? '📉' : analytics.trendClassification === 'VOLATILE' ? '🔀' : '➡️'} {analytics.trendClassification}
+                          {analytics.trendClassification === 'IMPROVING' ? '📈' : analytics.trendClassification === 'DECLINING' ? '📉' : analytics.trendClassification === 'VOLATILE' ? '🔀' : '➡️'} {t(analytics.trendClassification)}
                         </span>
                         {analytics.weeklyChange !== 0 && (
                           <span className={`text-[10px] font-medium ${analytics.weeklyChange > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
@@ -667,10 +754,10 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                   {/* ── Key Metrics Grid ────────────────────── */}
                   <div className="grid grid-cols-4 gap-2">
                     {([
-                      { label: 'Attendance', value: `${analytics.attendanceRate}%`, threshold: analytics.attendanceRate },
-                      { label: 'Quality', value: `${analytics.qualityRate}%`, threshold: analytics.qualityRate },
-                      { label: 'Punctuality', value: `${analytics.punctuality}%`, threshold: analytics.punctuality },
-                      { label: 'Consistency', value: `${Math.round(analytics.consistencyIndex * 100)}%`, threshold: analytics.consistencyIndex * 100 },
+                      { label: t('Attendance'), value: `${analytics.attendanceRate}%`, threshold: analytics.attendanceRate },
+                      { label: t('Weighted Score'), value: `${analytics.weightedScore}`, threshold: analytics.weightedScore },
+                      { label: t('Punctuality'), value: `${analytics.punctuality}%`, threshold: analytics.punctuality },
+                      { label: t('Best Streak'), value: `${analytics.maxStreak}`, threshold: analytics.maxStreak >= 7 ? 80 : analytics.maxStreak >= 4 ? 60 : 40 },
                     ]).map(m => (
                       <div key={m.label} className="rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 p-2 text-center">
                         <p className="text-[9px] text-gray-400 uppercase tracking-wider">{m.label}</p>
@@ -681,7 +768,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
 
                   {/* ── Distribution Bar (with excused blur) ── */}
                   <div className="rounded-xl border border-gray-100 dark:border-gray-700 p-3 space-y-1.5">
-                    <p className="text-[10px] font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Session Distribution</p>
+                    <p className="text-[10px] font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">{t('Session Distribution')}</p>
                     <div className="flex h-3 rounded-full overflow-hidden shadow-inner bg-gray-100 dark:bg-gray-800">
                       <div className="bg-emerald-500 transition-all duration-500" style={{ width: `${(analytics.onTime / analytics.total) * 100}%` }} />
                       <div className="bg-amber-500 transition-all duration-500" style={{ width: `${(analytics.late / analytics.total) * 100}%` }} />
@@ -691,33 +778,33 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                       )}
                     </div>
                     <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px]">
-                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> On Time {analytics.onTime} ({Math.round((analytics.onTime / analytics.total) * 100)}%)</span>
-                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" /> Late {analytics.late} ({Math.round((analytics.late / analytics.total) * 100)}%)</span>
-                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Absent {analytics.absent} ({Math.round((analytics.absent / analytics.total) * 100)}%)</span>
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> {t('On Time')} {analytics.onTime} ({Math.round((analytics.onTime / analytics.total) * 100)}%)</span>
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" /> {t('Late')} {analytics.late} ({Math.round((analytics.late / analytics.total) * 100)}%)</span>
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> {t('Absent')} {analytics.absent} ({Math.round((analytics.absent / analytics.total) * 100)}%)</span>
                       {analytics.excused > 0 && (
-                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-400/60 inline-block ring-1 ring-purple-300/50" /> Excused {analytics.excused} ({Math.round((analytics.excused / analytics.total) * 100)}%)</span>
+                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-400/60 inline-block ring-1 ring-purple-300/50" /> {t('Excused')} {analytics.excused} ({Math.round((analytics.excused / analytics.total) * 100)}%)</span>
                       )}
                     </div>
                   </div>
 
                   {/* ── Performance DNA ─────────────────────── */}
                   <div className="rounded-xl border border-gray-100 dark:border-gray-700 p-3 space-y-2">
-                    <p className="text-[10px] font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Performance DNA</p>
+                    <p className="text-[10px] font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">{t('Performance DNA')}</p>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px]">
                       <div className="flex justify-between">
-                        <span className="text-gray-500">Sessions Tracked</span>
-                        <span className="font-semibold text-gray-800 dark:text-gray-200">{analytics.accountable} <span className="text-[9px] text-gray-400">/ {analytics.total} total</span></span>
+                        <span className="text-gray-500">{t('Sessions Tracked')}</span>
+                        <span className="font-semibold text-gray-800 dark:text-gray-200">{analytics.accountable} <span className="text-[9px] text-gray-400">/ {analytics.total} {t('total')}</span></span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-500">Best Streak</span>
-                        <span className="font-semibold text-emerald-600 dark:text-emerald-400">{analytics.maxStreak} consecutive</span>
+                        <span className="text-gray-500">{t('Best Streak')}</span>
+                        <span className="font-semibold text-emerald-600 dark:text-emerald-400">{analytics.maxStreak} {t('consecutive')}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-500">First Half</span>
+                        <span className="text-gray-500">{t('First Half')}</span>
                         <span className="font-semibold text-gray-800 dark:text-gray-200">{analytics.firstHalfRate}%</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-500">Second Half</span>
+                        <span className="text-gray-500">{t('Second Half')}</span>
                         <span className={`font-semibold ${analytics.secondHalfRate > analytics.firstHalfRate ? 'text-emerald-600 dark:text-emerald-400' : analytics.secondHalfRate < analytics.firstHalfRate ? 'text-red-600 dark:text-red-400' : 'text-gray-800 dark:text-gray-200'}`}>
                           {analytics.secondHalfRate}% {analytics.secondHalfRate > analytics.firstHalfRate + 5 ? '↑' : analytics.firstHalfRate > analytics.secondHalfRate + 5 ? '↓' : ''}
                         </span>
@@ -725,25 +812,25 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                       {analytics.late > 0 && (
                         <>
                           <div className="flex justify-between">
-                            <span className="text-gray-500">Avg Late</span>
+                            <span className="text-gray-500">{t('Avg Late')}</span>
                             <span className="font-semibold text-amber-600">{analytics.avgLateMinutes}min</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-gray-500">Late Credit</span>
+                            <span className="text-gray-500">{t('Late Credit')}</span>
                             <span className="font-semibold text-gray-800 dark:text-gray-200">{Math.round(analytics.lateScoreAvg * 100)}%</span>
                           </div>
                         </>
                       )}
                       {analytics.coverageFactor < 1 && (
                         <div className="flex justify-between">
-                          <span className="text-gray-500">Coverage Factor</span>
+                          <span className="text-gray-500">{t('Coverage Factor')}</span>
                           <span className={`font-semibold ${analytics.coverageFactor >= 0.8 ? 'text-gray-800 dark:text-gray-200' : 'text-orange-600'}`}>{analytics.coverageFactor}</span>
                         </div>
                       )}
                       {analytics.consecutive > 0 && (
                         <div className="flex justify-between col-span-2">
-                          <span className="text-gray-500">Current Absence Streak</span>
-                          <span className={`font-semibold ${analytics.consecutive >= 3 ? 'text-red-600 animate-pulse' : 'text-amber-600'}`}>{analytics.consecutive} sessions</span>
+                          <span className="text-gray-500">{t('Current Absence Streak')}</span>
+                          <span className={`font-semibold ${analytics.consecutive >= 3 ? 'text-red-600 animate-pulse' : 'text-amber-600'}`}>{analytics.consecutive} {t('sessions')}</span>
                         </div>
                       )}
                     </div>
@@ -752,7 +839,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                   {/* ── AI Insights ─────────────────────────── */}
                   {analytics.insights.length > 0 && (
                     <div className="rounded-xl border border-purple-200 dark:border-purple-800/50 bg-gradient-to-br from-purple-50/50 to-violet-50/30 dark:from-purple-900/10 dark:to-violet-900/5 p-3">
-                      <p className="text-[10px] font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wide mb-2">🧠 AI Insights</p>
+                      <p className="text-[10px] font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wide mb-2">🧠 {t('AI Insights')}</p>
                       <div className="space-y-1.5">
                         {analytics.insights.map((ins, i) => (
                           <div key={i} className={`flex items-start gap-2 text-[11px] px-2 py-1 rounded-lg ${
@@ -772,7 +859,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                   {/* ── Enrollments summary ─────────────────── */}
                   {activeEnrollments.length > 0 && (
                     <div className="rounded-xl border border-gray-100 dark:border-gray-700 p-3">
-                      <p className="text-[10px] font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5">Active Enrollments <span className="text-purple-500">({activeEnrollments.length})</span></p>
+                      <p className="text-[10px] font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5">{t('Active Enrollments')} <span className="text-purple-500">({activeEnrollments.length})</span></p>
                       <div className="space-y-1">
                         {activeEnrollments.slice(0, 3).map(e => {
                           const session = unwrap(e.session);
@@ -792,7 +879,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
               ) : (
                 <div className="text-center py-8">
                   <span className="text-4xl block mb-2">📊</span>
-                  <p className="text-sm text-gray-500">No attendance data yet</p>
+                  <p className="text-sm text-gray-500">{t('No attendance data')}</p>
                 </div>
               )}
 
@@ -812,11 +899,25 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                         const s = unwrap(e.session);
                         return { courseName: unwrap(s?.course)?.course_name || 'Unknown', teacherName: unwrap(s?.teacher)?.name || '', status: e.status };
                       });
-                      exportStudentOverviewPDF({ student, analytics, enrollments: enrMapped, riskLevel, photoDataUrl: photoSignedUrl });
+                      exportStudentOverviewWord({ student, analytics, enrollments: enrMapped, riskLevel, arabicMode });
                     }}
                     className="text-[11px] px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors font-semibold"
                   >
-                    📄 Export PDF
+                    📝 {t('Export Word')}
+                  </button>
+                )}
+                {analytics && (
+                  <button
+                    onClick={() => {
+                      const enrMapped = activeEnrollments.map(e => {
+                        const s = unwrap(e.session);
+                        return { courseName: unwrap(s?.course)?.course_name || 'Unknown', teacherName: unwrap(s?.teacher)?.name || '', status: e.status };
+                      });
+                      exportStudentOverviewPDF({ student, analytics, enrollments: enrMapped, riskLevel, photoDataUrl: photoSignedUrl });
+                    }}
+                    className="text-[11px] px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors font-semibold"
+                  >
+                    📄 {t('Export PDF')}
                   </button>
                 )}
                 {student.email && (
@@ -832,17 +933,17 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
           ) : activeTab === 'attendance' ? (
             <div className="space-y-2">
               {attendance.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-8">No attendance records</p>
+                <p className="text-sm text-gray-400 text-center py-8">{t('No attendance records')}</p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b border-gray-100 dark:border-gray-800">
                         {([
-                          { key: 'date' as const, label: 'Date' },
-                          { key: 'course' as const, label: 'Course' },
-                          { key: 'status' as const, label: 'Status' },
-                          { key: 'method' as const, label: 'Method' },
+                          { key: 'date' as const, label: t('Date') },
+                          { key: 'course' as const, label: t('Course') },
+                          { key: 'status' as const, label: t('Status') },
+                          { key: 'method' as const, label: t('Method') },
                         ]).map(col => (
                           <th
                             key={col.key}
@@ -894,7 +995,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                               <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400 truncate max-w-[120px]">{course?.course_name || '—'}</td>
                               <td className="py-1.5 px-2">
                                 <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${statusColors[a.status] || 'text-gray-500'}`}>
-                                  {a.status}
+                                  {t(a.status)}
                                   {a.status === 'late' && a.late_minutes ? ` (${a.late_minutes}m)` : ''}
                                 </span>
                               </td>
