@@ -566,19 +566,48 @@ export function Attendance() {
           }
         }
       } else {
-        // Address is saved but no host_id - need to find matching student
+        // Address is saved but no host_id - need to find matching student or teacher
         const { data: students, error: studentError } = await supabase
           .from(Tables.STUDENT)
-          .select('student_id, address')
+          .select('student_id, address, address_latitude, address_longitude')
           .eq('address', savedHostAddress)
           .limit(1);
 
         if (students && students.length > 0 && !studentError) {
           // Found match - use proper format
           setSelectedAddress(`${students[0].student_id}|||${savedHostAddress}`);
+          // Load coordinates from student profile
+          if (students[0].address_latitude && students[0].address_longitude) {
+            setHostCoordinates({
+              lat: Number(students[0].address_latitude),
+              lon: Number(students[0].address_longitude)
+            });
+          } else {
+            setHostCoordinates(null);
+          }
         } else {
-          // No match found - just use plain address (backwards compatibility)
-          setSelectedAddress(savedHostAddress);
+          // Try matching teachers
+          const { data: teachers, error: teacherError } = await supabase
+            .from(Tables.TEACHER)
+            .select('teacher_id, address, address_latitude, address_longitude')
+            .eq('address', savedHostAddress)
+            .limit(1);
+
+          if (teachers && teachers.length > 0 && !teacherError) {
+            setSelectedAddress(`${teachers[0].teacher_id}|||${savedHostAddress}`);
+            if (teachers[0].address_latitude && teachers[0].address_longitude) {
+              setHostCoordinates({
+                lat: Number(teachers[0].address_latitude),
+                lon: Number(teachers[0].address_longitude)
+              });
+            } else {
+              setHostCoordinates(null);
+            }
+          } else {
+            // No match found - just use plain address (backwards compatibility)
+            setSelectedAddress(savedHostAddress);
+            setHostCoordinates(null);
+          }
         }
         setSessionNotHeld(false);
       }

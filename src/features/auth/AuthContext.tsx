@@ -1,12 +1,18 @@
-import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '@/shared/lib/supabase';
 import type { User } from '@supabase/supabase-js';
+
+const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+const IDLE_CHECK_INTERVAL_MS = 60 * 1000; // check every minute
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<{ error: Error | null }>;
+  updatePassword: (newPassword: string) => Promise<{ error: Error | null }>;
+  isPasswordRecovery: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -14,12 +20,43 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   const initialCheckDone = useRef(false);
   const userRef = useRef<User | null>(null);
+  const lastActivityRef = useRef(Date.now());
 
   useEffect(() => {
     userRef.current = user;
   }, [user]);
+
+  // Track user activity for idle timeout
+  const handleActivity = useCallback(() => {
+    lastActivityRef.current = Date.now();
+  }, []);
+
+  useEffect(() => {
+    const events = ['mousedown', 'keydown', 'touchstart', 'scroll'] as const;
+    events.forEach(evt => window.addEventListener(evt, handleActivity, { passive: true }));
+    return () => {
+      events.forEach(evt => window.removeEventListener(evt, handleActivity));
+    };
+  }, [handleActivity]);
+
+  // Idle timeout check
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!userRef.current) return;
+      const rememberMe = localStorage.getItem('rememberMe') === 'true';
+      if (rememberMe) return; // skip idle timeout when "remember me" is active
+
+      const elapsed = Date.now() - lastActivityRef.current;
+      if (elapsed >= IDLE_TIMEOUT_MS) {
+        void supabase.auth.signOut().then(() => setUser(null));
+      }
+    }, IDLE_CHECK_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const refreshSession = async (showLoader = false) => {
@@ -71,7 +108,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     // Listen for auth state changes
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsPasswordRecovery(true);
+      }
       setUser(session?.user ?? null);
       // Only update loading if initial check is done to prevent race condition
       if (initialCheckDone.current) {
@@ -101,6 +141,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Immediately update user state to avoid race conditions with navigation
       if (data?.user) {
         setUser(data.user);
+        lastActivityRef.current = Date.now();
       }
       return { error: null };
     } catch (err) {
@@ -115,10 +156,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw error;
     }
     setUser(null);
+    setIsPasswordRecovery(false);
+  };
+
+  const resetPassword = async (email: string): Promise<{ error: Error | null }> => {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) return { error };
+      return { error: null };
+    } catch (err) {
+      return { error: err as Error };
+    }
+  };
+
+  const updatePassword = async (newPassword: string): Promise<{ error: Error | null }> => {
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) return { error };
+      setIsPasswordRecovery(false);
+      return { error: null };
+    } catch (err) {
+      return { error: err as Error };
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signOut, resetPassword, updatePassword, isPasswordRecovery }}>
       {children}
     </AuthContext.Provider>
   );

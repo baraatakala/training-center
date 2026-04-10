@@ -1189,11 +1189,13 @@ export const AttendanceRecords = () => {
     const def = RECORD_COLUMN_DEFS[colKey];
     if (!def) return null;
     const si = def.sortKey ? getRecordsSortIndicator(def.sortKey) : null;
+    // Apply field rename from export builder if available
+    const displayLabel = savedExportSettings.records?.fieldRenames?.[colKey] || def.label;
     return (
       <th key={colKey} className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
         <div className="flex items-center gap-1">
           {def.icon && def.icon}
-          {def.label}
+          {displayLabel}
           {si && <span className="ml-1 text-blue-500 dark:text-blue-400 text-[10px] font-bold">{si.direction === 'asc' ? '↑' : '↓'}{si.total > 1 ? si.priority : ''}</span>}
         </div>
       </th>

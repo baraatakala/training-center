@@ -594,7 +594,8 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
         </div>
 
         {/* ─── Tabs ─────────────────────────────────────── */}
-        <div className="flex border-b border-gray-100 dark:border-gray-800 px-6">
+        <div className="overflow-x-auto px-6 -mb-px">
+          <div className="flex border-b border-gray-100 dark:border-gray-800 min-w-max">
           {([
             { key: 'overview' as const, label: 'Overview' },
             { key: 'attendance' as const, label: 'Attendance', count: attendance.length },
@@ -614,6 +615,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
               {t.count != null && <span className="ml-1 text-[10px] text-gray-400">({t.count})</span>}
             </button>
           ))}
+          </div>
         </div>
 
         {/* ─── Content ──────────────────────────────────── */}

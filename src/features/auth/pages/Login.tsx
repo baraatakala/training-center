@@ -39,9 +39,14 @@ export const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<{ email?: string; password?: string }>({});
+  const [rememberMe, setRememberMe] = useState(() => localStorage.getItem('rememberMe') === 'true');
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetMessage, setResetMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, loading: authLoading, signIn } = useAuth();
+  const { user, loading: authLoading, signIn, resetPassword } = useAuth();
   
   // Sanitize returnUrl to prevent XSS attacks
   const returnUrl = useMemo(() => sanitizeReturnUrl(searchParams.get('returnUrl')), [searchParams]);
@@ -96,6 +101,9 @@ export const Login: React.FC = () => {
         setLoading(false);
         return;
       }
+
+      // Store remember me preference
+      localStorage.setItem('rememberMe', String(rememberMe));
 
       // Redirect to sanitized return URL or dashboard on successful login
       navigate(returnUrl);
@@ -226,6 +234,31 @@ export const Login: React.FC = () => {
               )}
             </div>
 
+            {/* Remember me + Forgot password row */}
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700"
+                  disabled={loading}
+                />
+                <span className="text-sm text-gray-600 dark:text-gray-400">Remember me</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowForgotPassword(true);
+                  setResetEmail(email);
+                  setResetMessage(null);
+                }}
+                className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+              >
+                Forgot password?
+              </button>
+            </div>
+
             {error && (
               <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700/50 text-red-700 dark:text-red-300 rounded-xl" role="alert">
                 <span className="flex items-center gap-3">
@@ -251,13 +284,61 @@ export const Login: React.FC = () => {
                 </span>
               ) : 'Sign in'}
             </button>
-
-            <div className="text-center">
-              <a href="mailto:baraatakala2004@gmail.com" className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors">
-                Forgot password?
-              </a>
-            </div>
           </form>
+
+          {/* Forgot Password Modal */}
+          {showForgotPassword && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowForgotPassword(false)}>
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 w-full max-w-sm border border-gray-200 dark:border-gray-700" onClick={e => e.stopPropagation()}>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Reset Password</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Enter your email and we'll send you a reset link.</p>
+                <input
+                  type="email"
+                  value={resetEmail}
+                  onChange={e => setResetEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="w-full px-4 py-3 border-2 rounded-xl bg-gray-50 dark:bg-gray-700/50 dark:text-white border-gray-200 dark:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none mb-3"
+                  disabled={resetLoading}
+                />
+                {resetMessage && (
+                  <div className={`p-3 rounded-lg text-sm mb-3 ${resetMessage.type === 'success' ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-700/50' : 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-700/50'}`}>
+                    {resetMessage.text}
+                  </div>
+                )}
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotPassword(false)}
+                    className="flex-1 px-4 py-2.5 rounded-xl border-2 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all text-sm font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={resetLoading || !resetEmail.trim()}
+                    onClick={async () => {
+                      if (!isValidEmail(resetEmail.trim())) {
+                        setResetMessage({ type: 'error', text: 'Please enter a valid email.' });
+                        return;
+                      }
+                      setResetLoading(true);
+                      setResetMessage(null);
+                      const { error: resetError } = await resetPassword(resetEmail.trim());
+                      setResetLoading(false);
+                      if (resetError) {
+                        setResetMessage({ type: 'error', text: resetError.message });
+                      } else {
+                        setResetMessage({ type: 'success', text: 'Reset link sent! Check your email.' });
+                      }
+                    }}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium text-sm hover:from-blue-700 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-500 transition-all"
+                  >
+                    {resetLoading ? 'Sending...' : 'Send Link'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <p className="text-center text-gray-500 dark:text-gray-400 text-sm mt-6">

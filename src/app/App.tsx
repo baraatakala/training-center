@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import { Layout } from './Layout';
 import { Login } from '@/features/auth/pages/Login';
+import { ResetPassword } from '@/features/auth/pages/ResetPassword';
 import { PrivateRoute } from '@/shared/components/PrivateRoute';
 import { AuthProvider } from '@/features/auth/AuthContext';
 import { ToastContainer } from '@/shared/components/ui/Toast';
@@ -71,6 +72,7 @@ function App() {
         <ScrollToTop />
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/checkin/:token" element={<SafePage><StudentCheckIn /></SafePage>} />
           <Route path="/photo-checkin/:token" element={<SafePage><PhotoCheckIn /></SafePage>} />
           <Route

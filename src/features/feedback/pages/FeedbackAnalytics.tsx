@@ -18,6 +18,8 @@ const RATING_EMOJIS = ['😢', '😕', '😐', '😊', '🤩'];
 
 type ActiveView = 'records' | 'analytics';
 type QuestionTypeFilter = 'all' | 'rating' | 'text' | 'multiple_choice';
+type SortField = 'studentName' | 'attendanceDate' | 'questionType' | 'questionText' | 'answer' | 'comment';
+type SortDirection = 'asc' | 'desc';
 
 interface SessionOption {
   session_id: string;
@@ -148,17 +150,20 @@ export function FeedbackAnalytics() {
   const [questions, setQuestions] = useState<FeedbackQuestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeView, setActiveView] = useState<ActiveView>('records');
-  const [updatingFeedbackEnabled, setUpdatingFeedbackEnabled] = useState(false);
-  const [updatingAnonymousAllowed, setUpdatingAnonymousAllowed] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
 
   // Date Comparison
   const [dateComparison, setDateComparison] = useState<FeedbackComparison | null>(null);
+  // ─── Global Filters (shared by Records & Analytics tabs) ───
   const [selectedAnalyticsDate, setSelectedAnalyticsDate] = useState<string>('');
   const [questionTypeFilter, setQuestionTypeFilter] = useState<QuestionTypeFilter>('all');
   const [feedbackSearch, setFeedbackSearch] = useState('');
+  const [studentFilter, setStudentFilter] = useState<string>('');
   const [recordsPage, setRecordsPage] = useState(0);
   const RECORDS_PER_PAGE = 15;
+  // ─── Sorting (Records tab) ─────────────────────────────────
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
   const selectedSession = sessions.find(s => s.session_id === selectedSessionId);
 
@@ -242,6 +247,10 @@ export function FeedbackAnalytics() {
   const filteredFeedbacks = useMemo(() => {
     return feedbacks.filter(fb => {
       if (selectedAnalyticsDate && fb.attendance_date !== selectedAnalyticsDate) return false;
+      if (studentFilter) {
+        const name = fb.is_anonymous ? 'Anonymous' : (fb.student_name || 'Unknown');
+        if (name !== studentFilter) return false;
+      }
       if (feedbackSearch.trim()) {
         const haystack = [fb.student_name, fb.comment, ...Object.values(fb.responses || {}).map(String)]
           .filter(Boolean).join(' ').toLowerCase();
@@ -249,7 +258,15 @@ export function FeedbackAnalytics() {
       }
       return true;
     });
-  }, [feedbacks, selectedAnalyticsDate, feedbackSearch]);
+  }, [feedbacks, selectedAnalyticsDate, feedbackSearch, studentFilter]);
+
+  const uniqueStudents = useMemo(() => {
+    const names = new Set<string>();
+    for (const fb of feedbacks) {
+      names.add(fb.is_anonymous ? 'Anonymous' : (fb.student_name || 'Unknown'));
+    }
+    return [...names].sort();
+  }, [feedbacks]);
 
   const filteredStats = useMemo(() => {
     const rated = filteredFeedbacks.filter(fb => fb.overall_rating != null);
@@ -286,20 +303,28 @@ export function FeedbackAnalytics() {
       const studentName = fb.is_anonymous ? 'Anonymous' : (fb.student_name || 'Unknown');
 
       if (entries.length === 0 && (fb.overall_rating != null || fb.comment)) {
-        rows.push({
-          feedbackId: fb.id, studentName, isAnonymous: fb.is_anonymous,
-          attendanceDate: fb.attendance_date, questionType: 'rating',
-          questionText: 'Overall Rating',
-          answer: fb.overall_rating != null ? String(fb.overall_rating) : '—',
-          comment: fb.comment,
-        });
+        if (questionTypeFilter === 'all' || questionTypeFilter === 'rating') {
+          rows.push({
+            feedbackId: fb.id, studentName, isAnonymous: fb.is_anonymous,
+            attendanceDate: fb.attendance_date, questionType: 'rating',
+            questionText: 'Overall Rating',
+            answer: fb.overall_rating != null ? String(fb.overall_rating) : '—',
+            comment: fb.comment,
+          });
+        }
       } else {
         for (const [qId, val] of entries) {
           const q = qMap.get(qId);
+          const qType = q?.question_type?.replace('_', ' ') || '—';
+          // Apply question type filter
+          if (questionTypeFilter !== 'all') {
+            const rawType = q?.question_type || '';
+            if (rawType !== questionTypeFilter) continue;
+          }
           rows.push({
             feedbackId: fb.id, studentName, isAnonymous: fb.is_anonymous,
             attendanceDate: fb.attendance_date,
-            questionType: q?.question_type?.replace('_', ' ') || '—',
+            questionType: qType,
             questionText: q?.question_text || '—',
             answer: val != null ? String(val) : '—',
             comment: fb.comment,
@@ -308,7 +333,7 @@ export function FeedbackAnalytics() {
       }
     }
     return rows;
-  }, [filteredFeedbacks, questions]);
+  }, [filteredFeedbacks, questions, questionTypeFilter]);
 
   // ─── Response-centric analytics ────────────────────────────
   const allResponseAnalytics = useMemo(() =>
@@ -329,33 +354,29 @@ export function FeedbackAnalytics() {
   }, [dateComparison]);
 
   const paginatedRecords = useMemo(() => {
+    let sorted = [...flattenedRecords];
+    if (sortField) {
+      sorted.sort((a, b) => {
+        const valA = (a[sortField] ?? '').toString().toLowerCase();
+        const valB = (b[sortField] ?? '').toString().toLowerCase();
+        const cmp = valA.localeCompare(valB, undefined, { numeric: true });
+        return sortDirection === 'asc' ? cmp : -cmp;
+      });
+    }
     const start = recordsPage * RECORDS_PER_PAGE;
-    return flattenedRecords.slice(start, start + RECORDS_PER_PAGE);
-  }, [flattenedRecords, recordsPage]);
+    return sorted.slice(start, start + RECORDS_PER_PAGE);
+  }, [flattenedRecords, recordsPage, sortField, sortDirection]);
 
   const totalPages = Math.ceil(flattenedRecords.length / RECORDS_PER_PAGE);
 
-  // ─── Toggle handlers ──────────────────────────────────────
-  const handleToggleFeedbackEnabled = async () => {
-    if (!selectedSession) return;
-    const nextValue = !selectedSession.feedback_enabled;
-    setUpdatingFeedbackEnabled(true);
-    const { error } = await feedbackService.toggleFeedback(selectedSession.session_id, nextValue);
-    setUpdatingFeedbackEnabled(false);
-    if (error) { toast.error(error.message || 'Unable to update feedback availability.', 7000); return; }
-    setSessions(c => c.map(s => s.session_id === selectedSession.session_id ? { ...s, feedback_enabled: nextValue } : s));
-    toast.success(nextValue ? 'Feedback is now live.' : 'Feedback is now hidden.');
-  };
-
-  const handleToggleAnonymousAllowed = async () => {
-    if (!selectedSession) return;
-    const nextValue = !selectedSession.feedback_anonymous_allowed;
-    setUpdatingAnonymousAllowed(true);
-    const { error } = await feedbackService.setAnonymousAllowed(selectedSession.session_id, nextValue);
-    setUpdatingAnonymousAllowed(false);
-    if (error) { toast.error(error.message || 'Unable to update anonymous feedback setting.', 7000); return; }
-    setSessions(c => c.map(s => s.session_id === selectedSession.session_id ? { ...s, feedback_anonymous_allowed: nextValue } : s));
-    toast.success(nextValue ? 'Anonymous feedback allowed.' : 'Feedback now records identity.');
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+    setRecordsPage(0);
   };
 
   // ─── AI Insights computation ───────────────────────────────
@@ -462,45 +483,17 @@ export function FeedbackAnalytics() {
       </div>
 
       {/* ─── Session Selector ────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-        <div className="flex-1 min-w-0">
-          <Select
-            label=""
-            value={selectedSessionId}
-            onChange={setSelectedSessionId}
-            options={sessions.map(s => ({
-              value: s.session_id,
-              label: `${s.course_name} · ${s.teacher_name}${s.feedback_enabled ? '' : ' · OFF'}`,
-            }))}
-            placeholder="Select session..."
-          />
-        </div>
-        {selectedSession && (
-          <div className="flex gap-2 shrink-0">
-            <button
-              onClick={handleToggleFeedbackEnabled}
-              disabled={updatingFeedbackEnabled}
-              className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all border ${
-                selectedSession.feedback_enabled
-                  ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300'
-                  : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500'
-              } disabled:opacity-50`}
-            >
-              {updatingFeedbackEnabled ? '...' : selectedSession.feedback_enabled ? '✓ Live' : '○ Off'}
-            </button>
-            <button
-              onClick={handleToggleAnonymousAllowed}
-              disabled={updatingAnonymousAllowed || !selectedSession.feedback_enabled}
-              className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all border ${
-                selectedSession.feedback_anonymous_allowed
-                  ? 'bg-violet-50 dark:bg-violet-900/20 border-violet-200 dark:border-violet-700 text-violet-700 dark:text-violet-300'
-                  : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500'
-              } disabled:opacity-50`}
-            >
-              {updatingAnonymousAllowed ? '...' : selectedSession.feedback_anonymous_allowed ? '🕵️ Anon' : '👤 Named'}
-            </button>
-          </div>
-        )}
+      <div className="flex-1 min-w-0">
+        <Select
+          label=""
+          value={selectedSessionId}
+          onChange={setSelectedSessionId}
+          options={sessions.map(s => ({
+            value: s.session_id,
+            label: `${s.course_name} · ${s.teacher_name}${s.feedback_enabled ? '' : ' · OFF'}`,
+          }))}
+          placeholder="Select session..."
+        />
       </div>
 
       {/* ─── Loading / Empty States ──────────────────────────── */}
@@ -572,6 +565,65 @@ export function FeedbackAnalytics() {
             </div>
           </div>
 
+          {/* ─── Global Filters (shared by Records & Analytics) ─── */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 items-end">
+            <div className="min-w-0">
+              <label className="text-[11px] text-gray-400 block mb-1">Date</label>
+              <select
+                value={selectedAnalyticsDate}
+                onChange={e => { setSelectedAnalyticsDate(e.target.value); setRecordsPage(0); }}
+                className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white"
+              >
+                <option value="">All Dates</option>
+                {uniqueDates.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+            <div className="min-w-0">
+              <label className="text-[11px] text-gray-400 block mb-1">Student</label>
+              <select
+                value={studentFilter}
+                onChange={e => { setStudentFilter(e.target.value); setRecordsPage(0); }}
+                className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white"
+              >
+                <option value="">All Students</option>
+                {uniqueStudents.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div className="min-w-0">
+              <label className="text-[11px] text-gray-400 block mb-1">Question Type</label>
+              <select
+                value={questionTypeFilter}
+                onChange={e => { setQuestionTypeFilter(e.target.value as QuestionTypeFilter); setRecordsPage(0); }}
+                className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white"
+              >
+                <option value="all">All Types</option>
+                <option value="rating">Rating</option>
+                <option value="text">Text</option>
+                <option value="multiple_choice">Multiple Choice</option>
+              </select>
+            </div>
+            <div className="min-w-0">
+              <label className="text-[11px] text-gray-400 block mb-1">Search</label>
+              <input
+                type="text"
+                value={feedbackSearch}
+                onChange={e => { setFeedbackSearch(e.target.value); setRecordsPage(0); }}
+                placeholder="Search answers, comments..."
+                className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white placeholder:text-gray-400"
+              />
+            </div>
+          </div>
+          {(feedbackSearch || selectedAnalyticsDate || studentFilter || questionTypeFilter !== 'all') && (
+            <div className="flex justify-end -mt-1">
+              <button
+                onClick={() => { setFeedbackSearch(''); setSelectedAnalyticsDate(''); setStudentFilter(''); setQuestionTypeFilter('all'); setRecordsPage(0); }}
+                className="text-xs text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 px-3 py-1.5 rounded-lg border border-purple-200 dark:border-purple-700"
+              >
+                ✕ Clear Filters
+              </button>
+            </div>
+          )}
+
           {/* ─── View Tabs ──────────────────────────────────── */}
           <div className="flex items-center gap-1 p-1.5 bg-gray-100/80 dark:bg-gray-800/80 rounded-2xl backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50">
             {([
@@ -605,39 +657,6 @@ export function FeedbackAnalytics() {
           {/* ═══════════════════════════════════════════════════ */}
           {activeView === 'records' && (
             <div className="space-y-3 sm:space-y-4">
-              {/* Filters Row */}
-              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-end">
-                <div className="flex-1 min-w-0">
-                  <label className="text-[11px] text-gray-400 block mb-1">Search</label>
-                  <input
-                    type="text"
-                    value={feedbackSearch}
-                    onChange={e => { setFeedbackSearch(e.target.value); setRecordsPage(0); }}
-                    placeholder="Search student, answer, comment..."
-                    className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white placeholder:text-gray-400"
-                  />
-                </div>
-                <div className="w-full sm:w-auto sm:min-w-[140px]">
-                  <label className="text-[11px] text-gray-400 block mb-1">Date</label>
-                  <select
-                    value={selectedAnalyticsDate}
-                    onChange={e => { setSelectedAnalyticsDate(e.target.value); setRecordsPage(0); }}
-                    className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white"
-                  >
-                    <option value="">All Dates</option>
-                    {uniqueDates.map(d => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                </div>
-                {(feedbackSearch || selectedAnalyticsDate) && (
-                  <button
-                    onClick={() => { setFeedbackSearch(''); setSelectedAnalyticsDate(''); setRecordsPage(0); }}
-                    className="text-xs text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 px-3 py-2 rounded-lg border border-purple-200 dark:border-purple-700"
-                  >
-                    ✕ Clear
-                  </button>
-                )}
-              </div>
-
               {/* Records Table — one row per question-answer */}
               {flattenedRecords.length === 0 ? (
                 <div className="text-center py-12">
@@ -650,8 +669,28 @@ export function FeedbackAnalytics() {
                     <table className="w-full text-xs">
                       <thead className="bg-gray-50 dark:bg-gray-800/60">
                         <tr>
-                          {['Student', 'Date', 'Type', 'Question', 'Answer', 'Comment'].map(h => (
-                            <th key={h} className="px-3 py-2.5 text-gray-400 font-semibold text-left first:pl-4 sm:first:pl-5 whitespace-nowrap">{h}</th>
+                          {([
+                            { key: 'studentName' as SortField, label: 'Student' },
+                            { key: 'attendanceDate' as SortField, label: 'Date' },
+                            { key: 'questionType' as SortField, label: 'Type' },
+                            { key: 'questionText' as SortField, label: 'Question' },
+                            { key: 'answer' as SortField, label: 'Answer' },
+                            { key: 'comment' as SortField, label: 'Comment' },
+                          ]).map(col => (
+                            <th
+                              key={col.key}
+                              onClick={() => handleSort(col.key)}
+                              className="px-3 py-2.5 text-gray-400 font-semibold text-left first:pl-4 sm:first:pl-5 whitespace-nowrap cursor-pointer select-none hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                            >
+                              <span className="inline-flex items-center gap-1">
+                                {col.label}
+                                {sortField === col.key ? (
+                                  <span className="text-purple-500">{sortDirection === 'asc' ? '▲' : '▼'}</span>
+                                ) : (
+                                  <span className="text-gray-300 dark:text-gray-600">⇅</span>
+                                )}
+                              </span>
+                            </th>
                           ))}
                         </tr>
                       </thead>
@@ -738,44 +777,6 @@ export function FeedbackAnalytics() {
           {/* ═══════════════════════════════════════════════════ */}
           {activeView === 'analytics' && (
             <div className="space-y-4 sm:space-y-5">
-              {/* Filters: Date + Question Type */}
-              <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
-                <div className="w-full sm:w-auto sm:min-w-[160px]">
-                  <label className="text-[11px] text-gray-400 block mb-1">Date</label>
-                  <select
-                    value={selectedAnalyticsDate}
-                    onChange={e => setSelectedAnalyticsDate(e.target.value)}
-                    className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white"
-                  >
-                    <option value="">All Dates</option>
-                    {uniqueDates.map(d => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {(['all', 'rating', 'text', 'multiple_choice'] as const).map(t => (
-                    <button
-                      key={t}
-                      onClick={() => setQuestionTypeFilter(t)}
-                      className={`text-xs px-3 py-1.5 rounded-full border transition-all ${
-                        questionTypeFilter === t
-                          ? 'border-purple-500 bg-purple-600 text-white'
-                          : 'border-gray-200 dark:border-gray-600 text-gray-500 hover:border-purple-300'
-                      }`}
-                    >
-                      {t === 'all' ? 'All Types' : t === 'multiple_choice' ? 'Multiple Choice' : t.charAt(0).toUpperCase() + t.slice(1)}
-                    </button>
-                  ))}
-                </div>
-                {(selectedAnalyticsDate || questionTypeFilter !== 'all') && (
-                  <button
-                    onClick={() => { setSelectedAnalyticsDate(''); setQuestionTypeFilter('all'); }}
-                    className="text-xs text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 px-3 py-1.5 rounded-lg border border-purple-200 dark:border-purple-700 self-start sm:self-auto"
-                  >
-                    ✕ Clear
-                  </button>
-                )}
-              </div>
-
               {/* Per-Question Analytics Cards */}
               {responseAnalytics.length === 0 ? (
                 <div className="text-center py-16">
