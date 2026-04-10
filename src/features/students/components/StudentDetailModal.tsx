@@ -1014,15 +1014,15 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                 {analytics && (
                   <div className="relative">
                     <button
-                      onClick={() => setShowExportMenu(prev => !prev)}
+                      onClick={(e) => { e.stopPropagation(); setShowExportMenu(prev => !prev); }}
                       className="text-[11px] px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors font-semibold"
                     >
                       📄 {t('Export PDF')}
                     </button>
                     {showExportMenu && (
                       <>
-                        <div className="fixed inset-0 z-40" onClick={() => setShowExportMenu(false)} />
-                        <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 w-56">
+                        <div className="fixed inset-0" style={{ zIndex: 9998 }} onClick={() => setShowExportMenu(false)} />
+                        <div className="absolute left-0 bottom-full mb-1 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 w-56" style={{ zIndex: 9999 }}>
                         <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Select sections</p>
                         {([
                           { key: 'overview' as ExportSection, label: 'Overview', icon: '📊' },
