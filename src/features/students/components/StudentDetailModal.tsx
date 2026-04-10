@@ -580,6 +580,8 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
       'No attendance data': 'لا توجد بيانات حضور',
       'Export Word': 'تصدير Word',
       'Export PDF': 'تصدير PDF',
+      'Total Present': 'إجمالي الحضور',
+      'Total Absent': 'إجمالي الغياب',
       'Email': 'بريد إلكتروني',
       'WhatsApp': 'واتساب',
       'Good standing': 'أداء جيد',
@@ -755,9 +757,9 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                   <div className="grid grid-cols-4 gap-2">
                     {([
                       { label: t('Attendance'), value: `${analytics.attendanceRate}%`, threshold: analytics.attendanceRate },
-                      { label: t('Weighted Score'), value: `${analytics.weightedScore}`, threshold: analytics.weightedScore },
+                      { label: t('Total Present'), value: `${analytics.present}`, threshold: analytics.attendanceRate },
                       { label: t('Punctuality'), value: `${analytics.punctuality}%`, threshold: analytics.punctuality },
-                      { label: t('Best Streak'), value: `${analytics.maxStreak}`, threshold: analytics.maxStreak >= 7 ? 80 : analytics.maxStreak >= 4 ? 60 : 40 },
+                      { label: t('Total Absent'), value: `${analytics.absent}`, threshold: analytics.absent === 0 ? 90 : analytics.absent <= 2 ? 70 : 40 },
                     ]).map(m => (
                       <div key={m.label} className="rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 p-2 text-center">
                         <p className="text-[9px] text-gray-400 uppercase tracking-wider">{m.label}</p>
@@ -913,7 +915,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                         const s = unwrap(e.session);
                         return { courseName: unwrap(s?.course)?.course_name || 'Unknown', teacherName: unwrap(s?.teacher)?.name || '', status: e.status };
                       });
-                      exportStudentOverviewPDF({ student, analytics, enrollments: enrMapped, riskLevel, photoDataUrl: photoSignedUrl });
+                      exportStudentOverviewPDF({ student, analytics, enrollments: enrMapped, riskLevel, photoDataUrl: photoSignedUrl, arabicMode });
                     }}
                     className="text-[11px] px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors font-semibold"
                   >

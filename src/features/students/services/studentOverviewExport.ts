@@ -48,6 +48,7 @@ interface ExportOptions {
   enrollments: EnrollmentInfo[];
   riskLevel: string;
   photoDataUrl?: string | null;
+  arabicMode?: boolean;
 }
 
 // Color constants (RGB tuples)
@@ -82,6 +83,11 @@ function sanitizeForPdf(text: string): string {
 }
 
 export async function exportStudentOverviewPDF(options: ExportOptions): Promise<void> {
+  // Arabic mode: use html-to-image capture for proper Arabic text rendering
+  if (options.arabicMode) {
+    return exportArabicPDF(options);
+  }
+
   const { student, analytics, enrollments, riskLevel, photoDataUrl } = options;
   const { default: jsPDF } = await import('jspdf');
 
@@ -234,9 +240,9 @@ export async function exportStudentOverviewPDF(options: ExportOptions): Promise<
   const metricW = (contentW - 9) / 4;
   const metrics = [
     { label: 'ATTENDANCE', value: `${analytics.attendanceRate}%`, score: analytics.attendanceRate },
-    { label: 'WEIGHTED SCORE', value: `${analytics.weightedScore}`, score: analytics.weightedScore },
+    { label: 'TOTAL PRESENT', value: `${analytics.present}`, score: analytics.attendanceRate },
     { label: 'PUNCTUALITY', value: `${analytics.punctuality}%`, score: analytics.punctuality },
-    { label: 'BEST STREAK', value: `${analytics.maxStreak}`, score: analytics.maxStreak >= 7 ? 80 : analytics.maxStreak >= 4 ? 60 : 40 },
+    { label: 'TOTAL ABSENT', value: `${analytics.absent}`, score: analytics.absent === 0 ? 90 : analytics.absent <= 2 ? 70 : 40 },
   ];
 
   metrics.forEach((m, i) => {
@@ -450,4 +456,296 @@ export async function exportStudentOverviewPDF(options: ExportOptions): Promise<
   // Save
   const safeName = (student.name || 'student').replace(/[^a-zA-Z0-9]/g, '_');
   doc.save(`${safeName}_Overview_Report.pdf`);
+}
+
+// ══════════════════════════════════════════════════════════════
+// ARABIC PDF EXPORT (html-to-image capture)
+// Uses browser rendering for proper Arabic text shaping & RTL
+// ══════════════════════════════════════════════════════════════
+
+const arLabels: Record<string, string> = {
+  'Student Overview Report': 'تقرير نظرة عامة على الطالب',
+  'Weighted Score': 'الدرجة المرجحة',
+  'Trend': 'الاتجاه',
+  'Key Metrics': 'المقاييس الرئيسية',
+  'Attendance': 'الحضور',
+  'Total Present': 'إجمالي الحضور',
+  'Punctuality': 'الالتزام بالوقت',
+  'Total Absent': 'إجمالي الغياب',
+  'Session Distribution': 'توزيع الجلسات',
+  'On Time': 'في الوقت',
+  'Late': 'متأخر',
+  'Absent': 'غائب',
+  'Excused': 'معذور',
+  'Performance DNA': 'تحليل الأداء',
+  'Sessions Tracked': 'الجلسات المسجلة',
+  'Best Streak': 'أفضل سلسلة',
+  'First Half Rate': 'معدل النصف الأول',
+  'Second Half Rate': 'معدل النصف الثاني',
+  'Avg Late Duration': 'متوسط مدة التأخر',
+  'Late Quality Credit': 'رصيد جودة التأخر',
+  'Coverage Factor': 'عامل التغطية',
+  'Current Absence Streak': 'سلسلة الغياب الحالية',
+  'sessions': 'جلسات',
+  'consecutive': 'متتالي',
+  'total': 'المجموع',
+  'AI Insights': 'رؤى ذكية',
+  'Active Enrollments': 'التسجيلات النشطة',
+  'IMPROVING': 'تحسّن',
+  'DECLINING': 'تراجع',
+  'STABLE': 'مستقر',
+  'VOLATILE': 'متذبذب',
+  'Risk Level': 'مستوى الخطورة',
+  'CRITICAL': 'حرج',
+  'AT RISK': 'في خطر',
+  'NEEDS ATTENTION': 'يحتاج اهتمام',
+  'GOOD STANDING': 'وضع جيد',
+  'Generated': 'تم الإنشاء',
+  'Training Center': 'مركز التدريب',
+};
+
+function scoreHex(score: number): string {
+  if (score >= 80) return '#10B981';
+  if (score >= 60) return '#F59E0B';
+  return '#EF4444';
+}
+
+function buildArabicReportHTML(options: ExportOptions): string {
+  const { student, analytics, enrollments, riskLevel } = options;
+  const t = (key: string) => arLabels[key] || key;
+
+  const riskLabels: Record<string, string> = { critical: 'CRITICAL', high: 'AT RISK', medium: 'NEEDS ATTENTION', good: 'GOOD STANDING', unknown: 'N/A' };
+  const riskColors: Record<string, string> = { critical: '#EF4444', high: '#F97316', medium: '#F59E0B', good: '#10B981', unknown: '#6B7280' };
+  const riskLabel = t(riskLabels[riskLevel] || 'N/A');
+  const riskColor = riskColors[riskLevel] || '#6B7280';
+
+  const initials = student.name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
+  const scoreColor = scoreHex(analytics.weightedScore);
+  const formula = `Q${analytics.qualityRate}×${analytics.configWeights.q}% + A${analytics.attendanceRate}×${analytics.configWeights.a}% + P${analytics.punctuality}×${analytics.configWeights.p}%${analytics.coverageFactor < 1 ? ` × CF${analytics.coverageFactor}` : ''}`;
+
+  const trendColors: Record<string, string> = { IMPROVING: '#10B981', DECLINING: '#EF4444', VOLATILE: '#8B5CF6', STABLE: '#6B7280' };
+  const trendColor = trendColors[analytics.trendClassification] || '#6B7280';
+
+  // Metrics grid
+  const absentScore = analytics.absent === 0 ? 90 : analytics.absent <= 2 ? 70 : 40;
+  const metrics = [
+    { label: t('Attendance'), value: `${analytics.attendanceRate}%`, color: scoreHex(analytics.attendanceRate) },
+    { label: t('Total Present'), value: `${analytics.present}`, color: scoreHex(analytics.attendanceRate) },
+    { label: t('Punctuality'), value: `${analytics.punctuality}%`, color: scoreHex(analytics.punctuality) },
+    { label: t('Total Absent'), value: `${analytics.absent}`, color: scoreHex(absentScore) },
+  ];
+
+  // Distribution
+  const onTimePct = Math.round((analytics.onTime / analytics.total) * 100);
+  const latePct = Math.round((analytics.late / analytics.total) * 100);
+  const absentPct = Math.round((analytics.absent / analytics.total) * 100);
+  const excusedPct = analytics.excused > 0 ? Math.round((analytics.excused / analytics.total) * 100) : 0;
+
+  // Performance DNA entries
+  const dnaEntries: { label: string; value: string; color: string }[] = [
+    { label: t('Sessions Tracked'), value: `${analytics.accountable} / ${analytics.total} ${t('total')}`, color: '#1F2937' },
+    { label: t('Best Streak'), value: `${analytics.maxStreak} ${t('consecutive')}`, color: '#10B981' },
+    { label: t('First Half Rate'), value: `${analytics.firstHalfRate}%`, color: '#1F2937' },
+    { label: t('Second Half Rate'), value: `${analytics.secondHalfRate}%`, color: analytics.secondHalfRate > analytics.firstHalfRate ? '#10B981' : analytics.secondHalfRate < analytics.firstHalfRate ? '#EF4444' : '#1F2937' },
+  ];
+  if (analytics.late > 0) {
+    dnaEntries.push({ label: t('Avg Late Duration'), value: `${analytics.avgLateMinutes}min`, color: '#F59E0B' });
+    dnaEntries.push({ label: t('Late Quality Credit'), value: `${Math.round(analytics.lateScoreAvg * 100)}%`, color: '#1F2937' });
+  }
+  if (analytics.coverageFactor < 1) {
+    dnaEntries.push({ label: t('Coverage Factor'), value: `${analytics.coverageFactor}`, color: analytics.coverageFactor < 0.8 ? '#F97316' : '#1F2937' });
+  }
+  if (analytics.consecutive > 0) {
+    dnaEntries.push({ label: t('Current Absence Streak'), value: `${analytics.consecutive} ${t('sessions')}`, color: analytics.consecutive >= 3 ? '#EF4444' : '#F59E0B' });
+  }
+
+  // Insight styling
+  const insightBg: Record<string, string> = { positive: '#ECFDF5', danger: '#FEF2F2', warning: '#FFFBEB', info: '#EFF6FF' };
+  const insightFg: Record<string, string> = { positive: '#059669', danger: '#B91C1C', warning: '#B45309', info: '#1D4ED8' };
+  const insightIcon: Record<string, string> = { positive: '✅', danger: '🚨', warning: '⚠️', info: 'ℹ️' };
+
+  return `
+    <!-- Title -->
+    <div style="text-align:center;margin-bottom:16px;">
+      <span style="font-size:18px;font-weight:bold;color:#6D28D9;">${t('Student Overview Report')}</span>
+    </div>
+
+    <!-- Header Card -->
+    <div style="background:#F5F3FF;border:1px solid #C8BEF0;border-radius:8px;padding:14px 18px;margin-bottom:14px;display:flex;align-items:center;gap:14px;">
+      <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#8B5CF6,#6D28D9);display:flex;align-items:center;justify-content:center;color:white;font-size:15px;font-weight:bold;flex-shrink:0;">
+        ${initials}
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:17px;font-weight:bold;color:#1F2937;">${student.name || 'Unknown'}</div>
+        <div style="font-size:9px;color:#6B7280;margin-top:2px;">${[student.email, student.phone].filter(Boolean).join('  ·  ')}</div>
+        <div style="display:flex;gap:5px;margin-top:5px;flex-wrap:wrap;">
+          ${student.specialization ? `<span style="font-size:8px;padding:2px 6px;border-radius:10px;background:#EDE9FE;color:#6D28D9;font-weight:600;">${student.specialization}</span>` : ''}
+          ${student.nationality ? `<span style="font-size:8px;padding:2px 6px;border-radius:10px;background:#E5E7EB;color:#6B7280;">${student.nationality}</span>` : ''}
+          <span style="font-size:8px;padding:2px 6px;border-radius:10px;background:${riskColor};color:white;font-weight:700;">${riskLabel}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Weighted Score Hero -->
+    <div style="border:1px solid #E0E0E0;border-radius:8px;padding:12px 18px;margin-bottom:14px;display:flex;align-items:center;gap:14px;">
+      <div style="width:44px;height:44px;border-radius:50%;background:${scoreColor};display:flex;align-items:center;justify-content:center;color:white;font-size:16px;font-weight:bold;flex-shrink:0;">
+        ${analytics.weightedScore}
+      </div>
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:bold;color:#1F2937;">${t('Weighted Score')}</div>
+        <div style="font-size:8px;color:#9CA3AF;font-family:'Courier New',monospace;margin-top:2px;">${formula}</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:5px;">
+          <span style="font-size:8px;padding:2px 6px;border-radius:3px;background:${trendColor};color:white;font-weight:700;">${t(analytics.trendClassification)}</span>
+          ${analytics.weeklyChange !== 0 ? `<span style="font-size:8px;color:${analytics.weeklyChange > 0 ? '#10B981' : '#EF4444'};">${analytics.weeklyChange > 0 ? '+' : ''}${analytics.weeklyChange}%/wk</span>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <!-- Key Metrics Grid -->
+    <table style="width:100%;border-collapse:separate;border-spacing:5px;margin-bottom:14px;">
+      <tr>
+        ${metrics.map(m => `
+          <td style="width:25%;background:#F9FAFB;border:1px solid #E6E6E6;border-radius:6px;text-align:center;padding:8px 4px;">
+            <div style="font-size:7px;color:#6B7280;text-transform:uppercase;letter-spacing:1px;font-weight:600;">${m.label}</div>
+            <div style="font-size:16px;font-weight:900;color:${m.color};margin-top:3px;">${m.value}</div>
+          </td>
+        `).join('')}
+      </tr>
+    </table>
+
+    <!-- Session Distribution -->
+    <div style="border:1px solid #E6E6E6;border-radius:8px;padding:10px 14px;margin-bottom:14px;">
+      <div style="font-size:8px;font-weight:bold;color:#1F2937;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">${t('Session Distribution')}</div>
+      <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;background:#E5E7EB;">
+        <div style="width:${onTimePct}%;background:#10B981;"></div>
+        <div style="width:${latePct}%;background:#F59E0B;"></div>
+        <div style="width:${absentPct}%;background:#EF4444;"></div>
+        ${excusedPct > 0 ? `<div style="width:${excusedPct}%;background:#A78BFA;"></div>` : ''}
+      </div>
+      <div style="display:flex;gap:12px;margin-top:6px;font-size:7px;color:#6B7280;">
+        <span>🟢 ${t('On Time')}: ${analytics.onTime} (${onTimePct}%)</span>
+        <span>🟡 ${t('Late')}: ${analytics.late} (${latePct}%)</span>
+        <span>🔴 ${t('Absent')}: ${analytics.absent} (${absentPct}%)</span>
+        ${analytics.excused > 0 ? `<span>🟣 ${t('Excused')}: ${analytics.excused} (${excusedPct}%)</span>` : ''}
+      </div>
+    </div>
+
+    <!-- Performance DNA -->
+    <div style="border:1px solid #E6E6E6;border-radius:8px;padding:10px 14px;margin-bottom:14px;">
+      <div style="font-size:8px;font-weight:bold;color:#1F2937;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">${t('Performance DNA')}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 20px;">
+        ${dnaEntries.map(e => `
+          <div style="display:flex;justify-content:space-between;font-size:8px;padding:3px 0;border-bottom:1px solid #F3F4F6;">
+            <span style="color:#6B7280;">${e.label}</span>
+            <span style="font-weight:700;color:${e.color};">${e.value}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <!-- AI Insights -->
+    ${analytics.insights.length > 0 ? `
+      <div style="border:1px solid #DDD6FE;border-radius:8px;padding:10px 14px;margin-bottom:14px;background:linear-gradient(135deg,#FAF5FF,#F5F3FF);">
+        <div style="font-size:8px;font-weight:bold;color:#6D28D9;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">🧠 ${t('AI Insights')}</div>
+        ${analytics.insights.map(ins => `
+          <div style="display:flex;align-items:flex-start;gap:6px;font-size:8px;padding:4px 8px;margin-bottom:4px;border-radius:4px;background:${insightBg[ins.type] || '#EFF6FF'};color:${insightFg[ins.type] || '#1D4ED8'};">
+            <span style="flex-shrink:0;">${insightIcon[ins.type] || 'ℹ️'}</span>
+            <span>${ins.text}</span>
+          </div>
+        `).join('')}
+      </div>
+    ` : ''}
+
+    <!-- Active Enrollments -->
+    ${enrollments.length > 0 ? `
+      <div style="border:1px solid #E6E6E6;border-radius:8px;padding:10px 14px;margin-bottom:14px;">
+        <div style="font-size:8px;font-weight:bold;color:#1F2937;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">${t('Active Enrollments')} (${enrollments.length})</div>
+        ${enrollments.map(e => `
+          <div style="display:flex;justify-content:space-between;font-size:8px;padding:3px 0;border-bottom:1px solid #F3F4F6;">
+            <span style="color:#1F2937;font-weight:500;">${e.courseName}</span>
+            <span style="color:#6B7280;">${e.teacherName}</span>
+          </div>
+        `).join('')}
+      </div>
+    ` : ''}
+
+    <!-- Footer -->
+    <div style="border-top:1px solid #E5E7EB;padding-top:8px;margin-top:12px;display:flex;justify-content:space-between;font-size:7px;color:#A0A0A0;">
+      <span>${t('Generated')}: ${new Date().toLocaleString('ar', { dateStyle: 'long', timeStyle: 'short' })}</span>
+      <span>${t('Training Center')} — ${t('Student Overview Report')}</span>
+    </div>
+  `;
+}
+
+async function exportArabicPDF(options: ExportOptions): Promise<void> {
+  const { toPng } = await import('html-to-image');
+  const { default: jsPDF } = await import('jspdf');
+  const { student } = options;
+
+  // Create offscreen styled container
+  const container = document.createElement('div');
+  container.setAttribute('dir', 'rtl');
+  container.style.cssText = 'position:fixed;left:-9999px;top:0;width:750px;background:#ffffff;padding:30px;font-family:"Segoe UI",Tahoma,Arial,sans-serif;color:#1F2937;line-height:1.5;';
+  container.innerHTML = buildArabicReportHTML(options);
+  document.body.appendChild(container);
+
+  try {
+    // Small delay for font rendering
+    await new Promise(resolve => setTimeout(resolve, 150));
+
+    const dataUrl = await toPng(container, {
+      backgroundColor: '#ffffff',
+      pixelRatio: 2,
+    });
+
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageW = 190; // 210 - 2*10 margins
+    const pageH = 277; // 297 - 2*10 margins
+
+    // Load image to get dimensions
+    const img = new Image();
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
+
+    const imgH = (img.height * pageW) / img.width;
+
+    if (imgH <= pageH) {
+      doc.addImage(dataUrl, 'PNG', 10, 10, pageW, imgH);
+    } else {
+      // Multi-page: split into page-sized chunks
+      const scaleFactor = pageW / img.width;
+      const pageImgH = pageH / scaleFactor;
+      let offset = 0;
+      let pageNum = 0;
+
+      const sourceCanvas = document.createElement('canvas');
+      sourceCanvas.width = img.width;
+      sourceCanvas.height = img.height;
+      const sourceCtx = sourceCanvas.getContext('2d')!;
+      sourceCtx.drawImage(img, 0, 0);
+
+      while (offset < img.height) {
+        if (pageNum > 0) doc.addPage();
+
+        const sliceH = Math.min(pageImgH, img.height - offset);
+        const sliceCanvas = document.createElement('canvas');
+        sliceCanvas.width = img.width;
+        sliceCanvas.height = sliceH;
+        const ctx = sliceCanvas.getContext('2d')!;
+        ctx.drawImage(sourceCanvas, 0, offset, img.width, sliceH, 0, 0, img.width, sliceH);
+
+        doc.addImage(sliceCanvas.toDataURL('image/png'), 'PNG', 10, 10, pageW, sliceH * scaleFactor);
+        offset += pageImgH;
+        pageNum++;
+      }
+    }
+
+    const safeName = (student.name || 'student').replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '_');
+    doc.save(`${safeName}_Overview_Report.pdf`);
+  } finally {
+    document.body.removeChild(container);
+  }
 }

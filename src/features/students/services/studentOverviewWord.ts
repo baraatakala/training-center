@@ -82,6 +82,8 @@ const ar: Record<string, string> = {
   'consecutive': 'متتالي',
   'AI Insights': 'رؤى ذكية',
   'Active Enrollments': 'التسجيلات النشطة',
+  'Total Present': 'إجمالي الحضور',
+  'Total Absent': 'إجمالي الغياب',
   'IMPROVING': 'تحسّن',
   'DECLINING': 'تراجع',
   'STABLE': 'مستقر',
@@ -188,7 +190,6 @@ export async function exportStudentOverviewWord(options: ExportOptions): Promise
     ]}),
   );
 
-  const streakThreshold = analytics.maxStreak >= 7 ? 80 : analytics.maxStreak >= 4 ? 60 : 40;
   sections.push(new Paragraph({
     children: [], spacing: { after: 0 },
   }));
@@ -199,9 +200,9 @@ export async function exportStudentOverviewWord(options: ExportOptions): Promise
       new TableRow({
         children: [
           metricCell(t('Attendance'), `${analytics.attendanceRate}%`, getScoreHex(analytics.attendanceRate)),
-          metricCell(t('Weighted Score'), `${analytics.weightedScore}`, getScoreHex(analytics.weightedScore)),
+          metricCell(t('Total Present'), `${analytics.present}`, getScoreHex(analytics.attendanceRate)),
           metricCell(t('Punctuality'), `${analytics.punctuality}%`, getScoreHex(analytics.punctuality)),
-          metricCell(t('Best Streak'), `${analytics.maxStreak}`, getScoreHex(streakThreshold)),
+          metricCell(t('Total Absent'), `${analytics.absent}`, analytics.absent === 0 ? '10B981' : analytics.absent <= 2 ? 'F59E0B' : 'EF4444'),
         ],
       }),
     ],
