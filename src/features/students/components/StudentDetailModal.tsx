@@ -115,7 +115,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
     today.setHours(23, 59, 59, 999);
 
     // 1. Filter: exclude future dates and "session not held"
-    // Capture session-not-held dates BEFORE filtering (needed for streak gap bridging)
+    // Capture session-not-held dates BEFORE filtering (needed for insight Q: session-not-held impact)
     const sessionNotHeldTimestamps = new Set<number>();
     for (const a of attendance) {
       if (!a.attendance_date) continue;
@@ -258,23 +258,31 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
       else break;
     }
 
-    // 9. Max consecutive attendance streak
+    // 9. Max consecutive attendance streak + current active streak
     // Only present sessions (on_time / late) increment the streak.
     // Absent resets to 0. Excused records are skipped (neither count nor break streak).
     const allSortedForStreak = [...unique].sort((a, b) => a.attendance_date.localeCompare(b.attendance_date));
     let maxStreak = 0, currentStreak = 0;
+    // Also track perfect streak (on_time only, late breaks it)
+    let maxPerfectStreak = 0, currentPerfectStreak = 0;
     for (const r of allSortedForStreak) {
-      if (r.status === 'absent' || r.status === 'excused') {
-        // absent = no show; excused (personal reason) = also breaks streak
-        // Note: "session not held" records are filtered out before unique is built, so
-        // any excused record here is a genuine personal excuse — it resets the streak.
+      if (r.status === 'absent') {
         currentStreak = 0;
-      } else if (r.status === 'on time' || r.status === 'late') {
+        currentPerfectStreak = 0;
+      } else if (r.status === 'on time') {
         currentStreak++;
         maxStreak = Math.max(maxStreak, currentStreak);
+        currentPerfectStreak++;
+        maxPerfectStreak = Math.max(maxPerfectStreak, currentPerfectStreak);
+      } else if (r.status === 'late') {
+        currentStreak++;
+        maxStreak = Math.max(maxStreak, currentStreak);
+        currentPerfectStreak = 0; // late breaks perfect streak
       }
-      // not_enrolled: skip — don't count, don't break
+      // excused / not_enrolled: skip — don't count, don't break
     }
+    // currentStreak now holds the live active streak at end of data
+    const activeStreak = currentStreak;
 
     // 10. First half vs second half comparison
     const midpoint = Math.floor(sorted.length / 2);
@@ -392,13 +400,17 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
 
     // ── G. Attendance Streak Achievement ──
     if (maxStreak >= 15) {
-      insights.push({ text: `Outstanding commitment: ${maxStreak} consecutive sessions without absence — exceptional dedication`, textAr: `التزام مبهر: ${maxStreak} جلسة متتالية بدون غياب — إخلاص استثنائي`, type: 'positive', priority: 86 });
+      insights.push({ text: `Outstanding commitment: ${maxStreak} consecutive sessions without absence — exceptional dedication${activeStreak === maxStreak ? ' (still active 🔥)' : ''}`, textAr: `التزام مبهر: ${maxStreak} جلسة متتالية بدون غياب — إخلاص استثنائي${activeStreak === maxStreak ? ' (لا تزال نشطة 🔥)' : ''}`, type: 'positive', priority: 86 });
     } else if (maxStreak >= 10) {
-      insights.push({ text: `Impressive commitment: ${maxStreak} consecutive sessions attended — demonstrates strong dedication`, textAr: `التزام رائع: ${maxStreak} جلسة متتالية — يظهر إخلاصاً قوياً`, type: 'positive', priority: 84 });
+      insights.push({ text: `Impressive commitment: ${maxStreak} consecutive sessions attended — demonstrates strong dedication${activeStreak === maxStreak ? ' (still active 🔥)' : ''}`, textAr: `التزام رائع: ${maxStreak} جلسة متتالية — يظهر إخلاصاً قوياً${activeStreak === maxStreak ? ' (لا تزال نشطة 🔥)' : ''}`, type: 'positive', priority: 84 });
     } else if (maxStreak >= 7) {
-      insights.push({ text: `Best streak: ${maxStreak} consecutive sessions — shows capacity for consistent engagement`, textAr: `أفضل سلسلة: ${maxStreak} جلسات متتالية — يُظهر قدرة على الالتزام المستمر`, type: 'positive', priority: 72 });
+      insights.push({ text: `Best streak: ${maxStreak} consecutive sessions — shows capacity for consistent engagement${activeStreak === maxStreak ? ' (active)' : ''}`, textAr: `أفضل سلسلة: ${maxStreak} جلسات متتالية — يُظهر قدرة على الالتزام المستمر${activeStreak === maxStreak ? ' (نشطة)' : ''}`, type: 'positive', priority: 72 });
     } else if (maxStreak <= 2 && accountable >= 6) {
       insights.push({ text: `No sustained attendance streaks beyond ${maxStreak} sessions — lacks stable engagement period`, textAr: `لا توجد سلسلة حضور مستدامة تتجاوز ${maxStreak} جلسات — يفتقر لفترة التزام مستقرة`, type: 'warning', priority: 64 });
+    }
+    // Active streak vs best comparisons
+    if (activeStreak > 0 && activeStreak < maxStreak && maxStreak >= 5) {
+      insights.push({ text: `Current streak: ${activeStreak} sessions — rebuilding toward best of ${maxStreak}`, textAr: `السلسلة الحالية: ${activeStreak} جلسات — يعيد البناء نحو أفضل سلسلة ${maxStreak}`, type: 'info', priority: 54 });
     }
 
     // ── H. Coverage Factor Impact ──
@@ -528,6 +540,70 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
       }
     }
 
+    // ── S. Post-Absence Recovery Analysis ──
+    if (absent >= 1 && present >= 3) {
+      // Find each absence and check what happened in the next 3 accountable sessions
+      const sortedAccountable = [...accountableRecords].sort((a, b) => a.attendance_date.localeCompare(b.attendance_date));
+      let recoveries = 0, totalRecoveryOps = 0;
+      for (let i = 0; i < sortedAccountable.length; i++) {
+        if (sortedAccountable[i].status === 'absent') {
+          const next3 = sortedAccountable.slice(i + 1, i + 4);
+          if (next3.length >= 2) {
+            totalRecoveryOps++;
+            const presentAfter = next3.filter(r => r.status === 'on time' || r.status === 'late').length;
+            if (presentAfter === next3.length) recoveries++;
+          }
+        }
+      }
+      if (totalRecoveryOps > 0) {
+        if (recoveries === totalRecoveryOps) {
+          insights.push({ text: `Strong recovery pattern: returned to full attendance after every absence (${recoveries}/${totalRecoveryOps} recoveries)`, textAr: `نمط تعافٍ قوي: عاد للحضور الكامل بعد كل غياب (${recoveries}/${totalRecoveryOps} تعافٍ)`, type: 'positive', priority: 74 });
+        } else if (recoveries === 0 && totalRecoveryOps >= 2) {
+          insights.push({ text: `Poor recovery: failed to maintain attendance after any absence (0/${totalRecoveryOps}) — absences tend to cascade`, textAr: `تعافٍ ضعيف: لم يحافظ على الحضور بعد أي غياب (0/${totalRecoveryOps}) — الغياب يميل للتسلسل`, type: 'danger', priority: 80 });
+        }
+      }
+    }
+
+    // ── T. Perfect Punctuality Streak Detection ──
+    if (maxPerfectStreak >= 5 && punctuality < 80) {
+      insights.push({ text: `Hidden potential: achieved ${maxPerfectStreak} consecutive on-time sessions — capable of punctuality when focused`, textAr: `إمكانية مخفية: حقّق ${maxPerfectStreak} جلسات متتالية في الوقت — قادر على الانضباط عند التركيز`, type: 'info', priority: 60 });
+    } else if (maxPerfectStreak >= 8) {
+      insights.push({ text: `Punctuality excellence: ${maxPerfectStreak} consecutive on-time arrivals — outstanding time management`, textAr: `تميّز في الانضباط: ${maxPerfectStreak} وصول متتالي في الوقت — إدارة وقت ممتازة`, type: 'positive', priority: 73 });
+    }
+
+    // ── U. Monthly Attendance Trend (detect specific declining months) ──
+    if (accountable >= 8) {
+      const monthBuckets: Record<string, { present: number; total: number }> = {};
+      const monthNameAr: Record<string, string> = { Jan: 'يناير', Feb: 'فبراير', Mar: 'مارس', Apr: 'أبريل', May: 'مايو', Jun: 'يونيو', Jul: 'يوليو', Aug: 'أغسطس', Sep: 'سبتمبر', Oct: 'أكتوبر', Nov: 'نوفمبر', Dec: 'ديسمبر' };
+      for (const r of accountableRecords) {
+        const d = new Date(`${r.attendance_date}T00:00:00`);
+        const key = `${d.toLocaleDateString('en-US', { month: 'short' })} ${d.getFullYear()}`;
+        if (!monthBuckets[key]) monthBuckets[key] = { present: 0, total: 0 };
+        monthBuckets[key].total++;
+        if (r.status === 'on time' || r.status === 'late') monthBuckets[key].present++;
+      }
+      const monthEntries = Object.entries(monthBuckets).filter(([, v]) => v.total >= 2);
+      const worstMonth = monthEntries.reduce((worst, curr) =>
+        (curr[1].present / curr[1].total) < (worst[1].present / worst[1].total) ? curr : worst, monthEntries[0]);
+      if (worstMonth) {
+        const worstRate = Math.round((worstMonth[1].present / worstMonth[1].total) * 100);
+        if (worstRate < 60 && worstRate < attendanceRate - 20) {
+          const [monthShort] = worstMonth[0].split(' ');
+          const monthAr = monthNameAr[monthShort] || monthShort;
+          insights.push({ text: `Weakest period: ${worstMonth[0]} at ${worstRate}% (${worstMonth[1].present}/${worstMonth[1].total}) — significant drop from overall ${attendanceRate}%`, textAr: `أضعف فترة: ${monthAr} بنسبة ${worstRate}% (${worstMonth[1].present}/${worstMonth[1].total}) — انخفاض ملحوظ عن الإجمالي ${attendanceRate}%`, type: 'warning', priority: 67 });
+        }
+      }
+    }
+
+    // ── V. Score Potential Analysis (what-if absent sessions were present) ──
+    if (absent >= 2 && absent <= 5) {
+      const potentialRate = Math.round(((present + absent) / accountable) * 1000) / 10;
+      const potentialScore = Math.round(potentialRate * 0.85 * 10) / 10; // rough estimate
+      if (potentialScore > weightedScore + 5) {
+        insights.push({ text: `Potential unlocked: eliminating ${absent} absences would raise attendance to ${potentialRate}% — estimated ~${Math.round(potentialScore - weightedScore)}pt score gain`, textAr: `إمكانية مفتوحة: إزالة ${absent} غيابات سترفع الحضور إلى ${potentialRate}% — تقدير ~${Math.round(potentialScore - weightedScore)} نقطة إضافية`, type: 'info', priority: 59 });
+      }
+    }
+
     // Sort by priority (highest first), drop low-value items, and cap at 6
     insights.sort((a, b) => b.priority - a.priority);
     const topInsights = insights.filter(i => i.priority >= 50).slice(0, 6);
@@ -546,7 +622,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
       total, onTime, late, absent, excused, present, accountable,
       attendanceRate, qualityRate, weightedScore: finalWeightedScore, punctuality,
       trendClassification, trendSlope: Math.round(trendSlope * 100) / 100, trendR2: Math.round(trendR2 * 100) / 100,
-      weeklyChange, consecutive, maxStreak,
+      weeklyChange, consecutive, maxStreak, activeStreak, maxPerfectStreak,
       firstHalfRate, secondHalfRate, consistencyIndex,
       avgLateMinutes, maxLateMinutes, totalLateMinutes, lateScoreAvg,
       coverageFactor: Math.round(coverageFactor * 100) / 100,
@@ -588,6 +664,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
       'Certificates': 'الشهادات',
       'Punctuality': 'الالتزام بالوقت',
       'Best Streak': 'أفضل سلسلة',
+      'Current Streak': 'السلسلة الحالية',
       'Session Distribution': 'توزيع الجلسات',
       'On Time': 'في الوقت',
       'Late': 'متأخر',
@@ -827,8 +904,17 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">{t('Best Streak')}</span>
-                        <span className="font-semibold text-emerald-600 dark:text-emerald-400">{analytics.maxStreak} {t('consecutive')}</span>
+                        <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                          {analytics.maxStreak} {t('consecutive')}
+                          {analytics.activeStreak === analytics.maxStreak && analytics.activeStreak > 0 && <span className="ml-1 text-[9px]">🔥</span>}
+                        </span>
                       </div>
+                      {analytics.activeStreak > 0 && analytics.activeStreak !== analytics.maxStreak && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">{t('Current Streak')}</span>
+                          <span className="font-semibold text-blue-600 dark:text-blue-400">{analytics.activeStreak} {t('consecutive')}</span>
+                        </div>
+                      )}
                       <div className="flex justify-between">
                         <span className="text-gray-500">{t('First Half')}</span>
                         <span className="font-semibold text-gray-800 dark:text-gray-200">{analytics.firstHalfRate}%</span>
