@@ -42,12 +42,36 @@ interface EnrollmentInfo {
   status: string;
 }
 
+interface AttendanceExportRecord {
+  attendance_date: string;
+  status: string;
+  check_in_method?: string | null;
+  late_minutes?: number | null;
+  courseName: string;
+}
+
+interface CertificateExportRecord {
+  certificate_number: string;
+  courseName: string;
+  status: 'draft' | 'issued' | 'revoked';
+  final_score: number | null;
+  attendance_rate: number | null;
+  issued_at: string | null;
+  signature_name: string | null;
+  signature_title: string | null;
+}
+
+export type ExportSection = 'overview' | 'attendance' | 'certificates';
+
 interface ExportOptions {
   student: Student;
   analytics: AnalyticsData;
   enrollments: EnrollmentInfo[];
   riskLevel: string;
   photoDataUrl?: string | null;
+  sections: ExportSection[];
+  attendanceRecords?: AttendanceExportRecord[];
+  certificates?: CertificateExportRecord[];
 }
 
 // Color constants (RGB tuples)
@@ -82,7 +106,7 @@ function sanitizeForPdf(text: string): string {
 }
 
 export async function exportStudentOverviewPDF(options: ExportOptions): Promise<void> {
-  const { student, analytics, enrollments, riskLevel, photoDataUrl } = options;
+  const { student, analytics, enrollments, riskLevel, photoDataUrl, sections, attendanceRecords, certificates } = options;
   const { default: jsPDF } = await import('jspdf');
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -98,6 +122,23 @@ export async function exportStudentOverviewPDF(options: ExportOptions): Promise<
     doc.roundedRect(x, yPos, w, h, r, r, fillColor && strokeColor ? 'FD' : fillColor ? 'F' : 'S');
   };
 
+  const addFooter = () => {
+    const totalPages = doc.getNumberOfPages();
+    for (let p = 1; p <= totalPages; p++) {
+      doc.setPage(p);
+      const footerY = 287;
+      doc.setDrawColor(200, 200, 200);
+      doc.setLineWidth(0.2);
+      doc.line(margin, footerY, margin + contentW, footerY);
+      doc.setFontSize(6);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(160, 160, 160);
+      doc.text(`Generated: ${new Date().toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' })}`, margin, footerY + 3);
+      doc.text(`Page ${p} of ${totalPages}`, margin + contentW / 2, footerY + 3, { align: 'center' });
+      doc.text('Training Center — Student Report', margin + contentW, footerY + 3, { align: 'right' });
+    }
+  };
+
   const checkPageBreak = (needed: number) => {
     if (y + needed > 280) {
       doc.addPage();
@@ -106,7 +147,7 @@ export async function exportStudentOverviewPDF(options: ExportOptions): Promise<
   };
 
   // ══════════════════════════════════════════════════════════════
-  // HEADER: Student Identity
+  // HEADER: Student Identity (always rendered)
   // ══════════════════════════════════════════════════════════════
   drawRoundedRect(margin, y, contentW, 32, 3, [245, 243, 255], [200, 190, 240]);
 
@@ -181,6 +222,7 @@ export async function exportStudentOverviewPDF(options: ExportOptions): Promise<
 
   y += 36;
 
+  if (sections.includes('overview')) {
   // ══════════════════════════════════════════════════════════════
   // WEIGHTED SCORE HERO
   // ══════════════════════════════════════════════════════════════
@@ -434,20 +476,207 @@ export async function exportStudentOverviewPDF(options: ExportOptions): Promise<
     y += enrH + 4;
   }
 
+  } // end sections.includes('overview')
+
   // ══════════════════════════════════════════════════════════════
-  // FOOTER
+  // ATTENDANCE RECORDS TABLE
   // ══════════════════════════════════════════════════════════════
-  const footerY = 287;
-  doc.setDrawColor(200, 200, 200);
-  doc.setLineWidth(0.2);
-  doc.line(margin, footerY, margin + contentW, footerY);
-  doc.setFontSize(6);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(160, 160, 160);
-  doc.text(`Generated: ${new Date().toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' })}`, margin, footerY + 3);
-  doc.text('Training Center — Student Overview Report', margin + contentW, footerY + 3, { align: 'right' });
+  if (sections.includes('attendance') && attendanceRecords && attendanceRecords.length > 0) {
+    // Section header on new page if overview was also included
+    if (sections.includes('overview')) {
+      doc.addPage();
+      y = margin;
+    }
+
+    drawRoundedRect(margin, y, contentW, 8, 3, [240, 249, 255], [180, 220, 240]);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 64, 175);
+    doc.text(`ATTENDANCE RECORDS (${attendanceRecords.length})`, margin + 4, y + 5.5);
+    y += 10;
+
+    // Table header
+    const colWidths = { date: 25, course: 52, status: 22, late: 18, method: contentW - 25 - 52 - 22 - 18 };
+    checkPageBreak(10);
+    drawRoundedRect(margin, y, contentW, 6, 1, [243, 244, 246]);
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...COLORS.gray);
+    let hx = margin + 2;
+    doc.text('DATE', hx, y + 4); hx += colWidths.date;
+    doc.text('COURSE', hx, y + 4); hx += colWidths.course;
+    doc.text('STATUS', hx, y + 4); hx += colWidths.status;
+    doc.text('LATE', hx, y + 4); hx += colWidths.late;
+    doc.text('METHOD', hx, y + 4);
+    y += 7;
+
+    // Table rows
+    const statusColorMap: Record<string, [number, number, number]> = {
+      'on time': COLORS.emerald,
+      'late': COLORS.amber,
+      'absent': COLORS.red,
+      'excused': COLORS.purple,
+      'not enrolled': COLORS.gray,
+    };
+
+    attendanceRecords.forEach((rec, i) => {
+      checkPageBreak(6);
+      // Alternate row background
+      if (i % 2 === 0) {
+        drawRoundedRect(margin, y, contentW, 5.5, 0, [250, 250, 252]);
+      }
+
+      doc.setFontSize(6.5);
+      doc.setFont('helvetica', 'normal');
+      let rx = margin + 2;
+
+      // Date
+      doc.setTextColor(...COLORS.darkGray);
+      doc.text(rec.attendance_date, rx, y + 3.8); rx += colWidths.date;
+
+      // Course
+      doc.setTextColor(...COLORS.gray);
+      const courseText = sanitizeForPdf(rec.courseName || '—');
+      const truncCourse = courseText.length > 30 ? courseText.slice(0, 28) + '..' : courseText;
+      doc.text(truncCourse, rx, y + 3.8); rx += colWidths.course;
+
+      // Status
+      const sColor = statusColorMap[rec.status] || COLORS.gray;
+      doc.setTextColor(...sColor);
+      doc.setFont('helvetica', 'bold');
+      const statusLabel = rec.status === 'on time' ? 'On Time' : rec.status.charAt(0).toUpperCase() + rec.status.slice(1);
+      doc.text(statusLabel, rx, y + 3.8); rx += colWidths.status;
+
+      // Late minutes
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...COLORS.gray);
+      doc.text(rec.status === 'late' && rec.late_minutes ? `${rec.late_minutes}m` : '—', rx, y + 3.8); rx += colWidths.late;
+
+      // Method
+      doc.text(rec.check_in_method || '—', rx, y + 3.8);
+
+      y += 5.5;
+    });
+
+    y += 4;
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // CERTIFICATES
+  // ══════════════════════════════════════════════════════════════
+  if (sections.includes('certificates') && certificates && certificates.length > 0) {
+    // Only issued/draft certificates, skip revoked
+    const validCerts = certificates.filter(c => c.status !== 'revoked');
+    if (validCerts.length > 0) {
+      // New page if previous sections were included
+      if (sections.includes('overview') || sections.includes('attendance')) {
+        doc.addPage();
+        y = margin;
+      }
+
+      // Re-render student name header for certificate page
+      if (!sections.includes('overview')) {
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...COLORS.darkGray);
+        doc.text(sanitizeForPdf(student.name || 'Unknown'), margin, y + 4);
+        y += 8;
+      }
+
+      drawRoundedRect(margin, y, contentW, 8, 3, [255, 251, 235], [220, 200, 150]);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(180, 83, 9);
+      doc.text(`CERTIFICATES (${validCerts.length})`, margin + 4, y + 5.5);
+      y += 11;
+
+      validCerts.forEach(cert => {
+        const cardH = 22;
+        checkPageBreak(cardH + 4);
+        drawRoundedRect(margin, y, contentW, cardH, 2, COLORS.white, [230, 230, 230]);
+
+        // Status badge
+        const statusBg: [number, number, number] = cert.status === 'issued' ? [220, 252, 231] : [254, 249, 195];
+        const statusFg: [number, number, number] = cert.status === 'issued' ? [5, 150, 105] : [180, 83, 9];
+        const statusText = cert.status.toUpperCase();
+        const sW = 18;
+        drawRoundedRect(margin + contentW - sW - 4, y + 2, sW, 5, 2, statusBg);
+        doc.setFontSize(5.5);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...statusFg);
+        doc.text(statusText, margin + contentW - 4 - sW / 2, y + 5.5, { align: 'center' });
+
+        // Course name
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...COLORS.darkGray);
+        doc.text(sanitizeForPdf(cert.courseName), margin + 4, y + 6);
+
+        // Certificate number
+        doc.setFontSize(6);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...COLORS.gray);
+        doc.text(cert.certificate_number, margin + 4, y + 10.5);
+
+        // Scores row
+        let sx = margin + 4;
+        const scoreY = y + 15;
+        if (cert.final_score != null) {
+          doc.setFontSize(6);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(...COLORS.gray);
+          doc.text('Score:', sx, scoreY);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(...getScoreColor(cert.final_score));
+          doc.text(`${cert.final_score}%`, sx + 12, scoreY);
+          sx += 28;
+        }
+        if (cert.attendance_rate != null) {
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(...COLORS.gray);
+          doc.text('Attendance:', sx, scoreY);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(...getScoreColor(cert.attendance_rate));
+          doc.text(`${cert.attendance_rate}%`, sx + 20, scoreY);
+          sx += 38;
+        }
+        if (cert.issued_at) {
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(...COLORS.gray);
+          doc.text('Issued:', sx, scoreY);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(...COLORS.darkGray);
+          doc.text(new Date(cert.issued_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }), sx + 13, scoreY);
+        }
+
+        // Signer
+        if (cert.signature_name) {
+          doc.setFontSize(5.5);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(140, 140, 140);
+          const sigText = `Signed by: ${sanitizeForPdf(cert.signature_name)}${cert.signature_title ? ` — ${sanitizeForPdf(cert.signature_title)}` : ''}`;
+          doc.text(sigText, margin + 4, y + 19.5);
+        }
+
+        y += cardH + 3;
+      });
+
+      y += 3;
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // FOOTER (all pages)
+  // ══════════════════════════════════════════════════════════════
+  addFooter();
 
   // Save
+  const sectionNames = sections.filter(s => {
+    if (s === 'certificates' && (!certificates || certificates.filter(c => c.status !== 'revoked').length === 0)) return false;
+    if (s === 'attendance' && (!attendanceRecords || attendanceRecords.length === 0)) return false;
+    return true;
+  });
+  const suffix = sectionNames.length === 1 ? sectionNames[0].charAt(0).toUpperCase() + sectionNames[0].slice(1) : 'Full';
   const safeName = (student.name || 'student').replace(/[^a-zA-Z0-9]/g, '_');
-  doc.save(`${safeName}_Overview_Report.pdf`);
+  doc.save(`${safeName}_${suffix}_Report.pdf`);
 }

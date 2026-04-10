@@ -9,6 +9,7 @@ import { loadConfigSync, calcWeightedScore, calcCoverageFactor, calcLateScore } 
 import { getSignedPhotoUrl } from '@/shared/utils/photoUtils';
 import { useIsTeacher } from '@/shared/hooks/useIsTeacher';
 import { exportStudentOverviewPDF } from '@/features/students/services/studentOverviewExport';
+import type { ExportSection } from '@/features/students/services/studentOverviewExport';
 import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
 import { toast } from '@/shared/components/ui/toastUtils';
 import type { Student } from '@/shared/types/database.types';
@@ -68,6 +69,8 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
   const [previewCert, setPreviewCert] = useState<IssuedCertificate | null>(null);
   const [revokeConfirm, setRevokeConfirm] = useState<IssuedCertificate | null>(null);
   const [arabicMode, setArabicMode] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [exportSections, setExportSections] = useState<ExportSection[]>(['overview', 'attendance', 'certificates']);
   const { isTeacher } = useIsTeacher();
 
   useEffect(() => {
@@ -1009,18 +1012,88 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                   📋 Full Records
                 </Link>
                 {analytics && (
-                  <button
-                    onClick={() => {
-                      const enrMapped = activeEnrollments.map(e => {
-                        const s = unwrap(e.session);
-                        return { courseName: unwrap(s?.course)?.course_name || 'Unknown', teacherName: unwrap(s?.teacher)?.name || '', status: e.status };
-                      });
-                      exportStudentOverviewPDF({ student, analytics, enrollments: enrMapped, riskLevel, photoDataUrl: photoSignedUrl });
-                    }}
-                    className="text-[11px] px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors font-semibold"
-                  >
-                    📄 {t('Export PDF')}
-                  </button>
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowExportMenu(prev => !prev)}
+                      className="text-[11px] px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors font-semibold"
+                    >
+                      📄 {t('Export PDF')}
+                    </button>
+                    {showExportMenu && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setShowExportMenu(false)} />
+                        <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 w-56">
+                        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Select sections</p>
+                        {([
+                          { key: 'overview' as ExportSection, label: 'Overview', icon: '📊' },
+                          { key: 'attendance' as ExportSection, label: 'Attendance Records', icon: '📋' },
+                          { key: 'certificates' as ExportSection, label: 'Certificates', icon: '📜' },
+                        ] as const).map(opt => (
+                          <label key={opt.key} className="flex items-center gap-2 py-1.5 cursor-pointer group">
+                            <input
+                              type="checkbox"
+                              checked={exportSections.includes(opt.key)}
+                              onChange={() => setExportSections(prev =>
+                                prev.includes(opt.key) ? prev.filter(s => s !== opt.key) : [...prev, opt.key]
+                              )}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5"
+                            />
+                            <span className="text-xs text-gray-700 dark:text-gray-300 group-hover:text-blue-600 transition-colors">{opt.icon} {opt.label}</span>
+                          </label>
+                        ))}
+                        <button
+                          disabled={exportSections.length === 0}
+                          onClick={() => {
+                            setShowExportMenu(false);
+                            const enrMapped = activeEnrollments.map(e => {
+                              const s = unwrap(e.session);
+                              return { courseName: unwrap(s?.course)?.course_name || 'Unknown', teacherName: unwrap(s?.teacher)?.name || '', status: e.status };
+                            });
+                            // Sort attendance same as current UI sort
+                            const statusOrder: Record<string, number> = { 'on time': 1, 'late': 2, 'absent': 3, 'excused': 4, 'not enrolled': 5 };
+                            const sortedAtt = [...attendance].sort((a, b) => {
+                              let cmp = 0;
+                              if (attSortCol === 'date') cmp = a.attendance_date.localeCompare(b.attendance_date);
+                              else if (attSortCol === 'course') {
+                                const ca = unwrap(unwrap(a.session)?.course)?.course_name || '';
+                                const cb = unwrap(unwrap(b.session)?.course)?.course_name || '';
+                                cmp = ca.localeCompare(cb);
+                              } else if (attSortCol === 'status') cmp = (statusOrder[a.status] || 9) - (statusOrder[b.status] || 9);
+                              else if (attSortCol === 'method') cmp = (a.check_in_method || '').localeCompare(b.check_in_method || '');
+                              return attSortDir === 'asc' ? cmp : -cmp;
+                            });
+                            const attExport = sortedAtt.map(a => ({
+                              attendance_date: a.attendance_date,
+                              status: a.status,
+                              check_in_method: a.check_in_method,
+                              late_minutes: a.late_minutes,
+                              courseName: unwrap(unwrap(a.session)?.course)?.course_name || '—',
+                            }));
+                            const certExport = certificates.map(c => ({
+                              certificate_number: c.certificate_number,
+                              courseName: c.course?.course_name || c.session?.course?.course_name || 'Unknown Course',
+                              status: c.status,
+                              final_score: c.final_score,
+                              attendance_rate: c.attendance_rate,
+                              issued_at: c.issued_at,
+                              signature_name: c.signature_name,
+                              signature_title: c.signature_title,
+                            }));
+                            exportStudentOverviewPDF({
+                              student, analytics, enrollments: enrMapped, riskLevel, photoDataUrl: photoSignedUrl,
+                              sections: exportSections,
+                              attendanceRecords: attExport,
+                              certificates: certExport,
+                            });
+                          }}
+                          className="mt-2 w-full text-[11px] px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-semibold"
+                        >
+                          Download PDF
+                        </button>
+                      </div>
+                      </>
+                    )}
+                  </div>
                 )}
                 {student.email && (
                   <a href={`mailto:${student.email}`} className="text-[11px] px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-semibold text-gray-700 dark:text-gray-300">📧 Email</a>
