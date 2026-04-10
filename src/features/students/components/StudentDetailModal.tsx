@@ -259,6 +259,8 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
     }
 
     // 9. Max consecutive attendance streak (session-not-held dates bridge gaps)
+    // Use 10-day gap threshold to handle weekly sessions that shift days (session day changes)
+    const STREAK_GAP_MS = 10 * 86400000;
     const sortedDates = sorted.map(r => new Date(r.attendance_date + 'T00:00:00').getTime());
     let maxStreak = 0, currentStreak = 0;
     for (let i = 0; i < sorted.length; i++) {
@@ -267,7 +269,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
           currentStreak = 1;
         } else {
           const gap = sortedDates[i] - sortedDates[i - 1];
-          if (gap <= 8 * 86400000) {
+          if (gap <= STREAK_GAP_MS) {
             currentStreak++;
           } else {
             // Check if session-not-held dates bridge this gap
@@ -277,7 +279,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
             const chain = [sortedDates[i - 1], ...bridgeDates, sortedDates[i]];
             let bridged = true;
             for (let j = 1; j < chain.length; j++) {
-              if (chain[j] - chain[j - 1] > 8 * 86400000) { bridged = false; break; }
+              if (chain[j] - chain[j - 1] > STREAK_GAP_MS) { bridged = false; break; }
             }
             if (bridged) { currentStreak++; } else { currentStreak = 1; }
           }
