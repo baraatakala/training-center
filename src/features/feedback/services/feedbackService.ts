@@ -448,10 +448,18 @@ export const feedbackService = {
 
     const totalResponses = feedbacks.length;
     if (totalResponses === 0) {
+      // Still fetch enrolled count even when no responses
+      const { count: enrolledCount } = await supabase
+        .from('enrollment')
+        .select('enrollment_id', { count: 'exact', head: true })
+        .eq('session_id', sessionId)
+        .eq('status', 'active');
+
       return {
         data: {
           totalResponses: 0,
           engagedStudents: 0,
+          enrolledCount: enrolledCount || 0,
           averageRating: 0,
           ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
           responseRate: 0,
@@ -505,6 +513,7 @@ export const feedbackService = {
       data: {
         totalResponses,
         engagedStudents,
+        enrolledCount: enrolledCount || 0,
         averageRating: Math.round(avgRating * 10) / 10,
         ratingDistribution,
         responseRate,
@@ -716,9 +725,15 @@ export const feedbackService = {
 
     const totalResponses = feedbacks.length;
     if (totalResponses === 0) {
+      const { count: enrolledCount } = await supabase
+        .from('enrollment')
+        .select('enrollment_id', { count: 'exact', head: true })
+        .eq('session_id', sessionId)
+        .eq('status', 'active');
+
       return {
         data: {
-          totalResponses: 0, engagedStudents: 0, averageRating: 0,
+          totalResponses: 0, engagedStudents: 0, enrolledCount: enrolledCount || 0, averageRating: 0,
           ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
           responseRate: 0, datesCovered: 1, latestResponseDate: date, recentComments: [],
         },
@@ -748,7 +763,7 @@ export const feedbackService = {
 
     return {
       data: {
-        totalResponses, engagedStudents,
+        totalResponses, engagedStudents, enrolledCount: enrolledCount || 0,
         averageRating: Math.round(avgRating * 10) / 10,
         ratingDistribution, responseRate, datesCovered: 1,
         latestResponseDate: date, recentComments,

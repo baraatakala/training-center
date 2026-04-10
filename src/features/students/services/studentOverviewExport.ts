@@ -32,7 +32,7 @@ interface AnalyticsData {
   lateScoreAvg: number;
   coverageFactor: number;
   rawScore: number;
-  insights: { text: string; type: 'positive' | 'warning' | 'danger' | 'info'; priority?: number }[];
+  insights: { text: string; textAr?: string; type: 'positive' | 'warning' | 'danger' | 'info'; priority?: number }[];
   configWeights: { q: number; a: number; p: number };
 }
 

@@ -281,14 +281,25 @@ export function FeedbackAnalytics() {
   }, [filteredFeedbacks]);
 
   const filteredResponseRate = useMemo(() => {
-    if (!stats || stats.responseRate === 0) return stats?.responseRate ?? 0;
-    if (filteredStats.engagedStudents === stats.engagedStudents) return stats.responseRate;
-    if (stats.responseRate > 0) {
-      const enrolled = Math.round(stats.engagedStudents * 100 / stats.responseRate);
-      return enrolled > 0 ? Math.min(100, Math.round((filteredStats.engagedStudents / enrolled) * 100)) : 0;
+    if (!stats) return 0;
+    const enrolled = stats.enrolledCount;
+    if (enrolled === 0) return 0;
+
+    // Compute per-date average participation: for each date, what % of enrolled students gave feedback
+    const dateStudents = new Map<string, Set<string>>();
+    for (const fb of filteredFeedbacks) {
+      if (!fb.attendance_date || !fb.student_id) continue;
+      if (!dateStudents.has(fb.attendance_date)) dateStudents.set(fb.attendance_date, new Set());
+      dateStudents.get(fb.attendance_date)!.add(fb.student_id);
     }
-    return 0;
-  }, [filteredStats.engagedStudents, stats]);
+    if (dateStudents.size === 0) return 0;
+
+    let totalRate = 0;
+    for (const students of dateStudents.values()) {
+      totalRate += Math.min(100, (students.size / enrolled) * 100);
+    }
+    return Math.round(totalRate / dateStudents.size);
+  }, [filteredFeedbacks, stats]);
 
   const uniqueDates = useMemo(() =>
     [...new Set(feedbacks.map(f => f.attendance_date))].sort().reverse(),
@@ -546,11 +557,12 @@ export function FeedbackAnalytics() {
               <p className="text-[10px] text-gray-400">{RATING_EMOJIS[Math.round(filteredStats.averageRating) - 1] || ''}</p>
             </div>
             <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-3 sm:p-4">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Engagement</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1" title="Avg % of enrolled students who submitted feedback per date">Participation</p>
               <p className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400">{filteredResponseRate}%</p>
               <div className="w-full bg-gray-100 dark:bg-gray-700 h-1.5 rounded-full overflow-hidden mt-1">
                 <div className="h-full rounded-full bg-emerald-500" style={{ width: `${filteredResponseRate}%` }} />
               </div>
+              <p className="text-[10px] text-gray-400 mt-0.5">{filteredStats.engagedStudents} / {stats?.enrolledCount ?? '?'} students</p>
             </div>
             <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-3 sm:p-4">
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Dates</p>

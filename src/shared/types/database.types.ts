@@ -300,6 +300,7 @@ export interface FeedbackTemplate {
 export interface FeedbackStats {
   totalResponses: number;
   engagedStudents: number;
+  enrolledCount: number;
   averageRating: number;
   ratingDistribution: Record<number, number>;
   responseRate: number;

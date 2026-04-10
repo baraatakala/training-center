@@ -259,19 +259,18 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
     }
 
     // 9. Max consecutive attendance streak
-    // Count ALL session dates: present (on_time/late) AND excused/session-not-held count toward streak.
-    // Only 'absent' breaks the streak. This way a student who attends every session
-    // that was actually held gets credit for the full run including cancelled dates.
+    // Only present sessions (on_time / late) increment the streak.
+    // Absent resets to 0. Excused records are skipped (neither count nor break streak).
     const allSortedForStreak = [...unique].sort((a, b) => a.attendance_date.localeCompare(b.attendance_date));
     let maxStreak = 0, currentStreak = 0;
     for (const r of allSortedForStreak) {
       if (r.status === 'absent') {
         currentStreak = 0;
-      } else {
-        // on_time, late, excused (including session-not-held) all count
+      } else if (r.status === 'on time' || r.status === 'late') {
         currentStreak++;
         maxStreak = Math.max(maxStreak, currentStreak);
       }
+      // excused / not_enrolled: skip — don't count, don't break
     }
 
     // 10. First half vs second half comparison
