@@ -9,7 +9,6 @@ import { loadConfigSync, calcWeightedScore, calcCoverageFactor, calcLateScore } 
 import { getSignedPhotoUrl } from '@/shared/utils/photoUtils';
 import { useIsTeacher } from '@/shared/hooks/useIsTeacher';
 import { exportStudentOverviewPDF } from '@/features/students/services/studentOverviewExport';
-import { exportStudentOverviewWord } from '@/features/students/services/studentOverviewWord';
 import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
 import { toast } from '@/shared/components/ui/toastUtils';
 import type { Student } from '@/shared/types/database.types';
@@ -578,7 +577,6 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
       'AI Insights': 'رؤى ذكية',
       'Active Enrollments': 'التسجيلات النشطة',
       'No attendance data': 'لا توجد بيانات حضور',
-      'Export Word': 'تصدير Word',
       'Export PDF': 'تصدير PDF',
       'Total Present': 'إجمالي الحضور',
       'Total Absent': 'إجمالي الغياب',
@@ -901,23 +899,9 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                         const s = unwrap(e.session);
                         return { courseName: unwrap(s?.course)?.course_name || 'Unknown', teacherName: unwrap(s?.teacher)?.name || '', status: e.status };
                       });
-                      exportStudentOverviewWord({ student, analytics, enrollments: enrMapped, riskLevel, arabicMode });
+                      exportStudentOverviewPDF({ student, analytics, enrollments: enrMapped, riskLevel, photoDataUrl: photoSignedUrl });
                     }}
                     className="text-[11px] px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors font-semibold"
-                  >
-                    📝 {t('Export Word')}
-                  </button>
-                )}
-                {analytics && (
-                  <button
-                    onClick={() => {
-                      const enrMapped = activeEnrollments.map(e => {
-                        const s = unwrap(e.session);
-                        return { courseName: unwrap(s?.course)?.course_name || 'Unknown', teacherName: unwrap(s?.teacher)?.name || '', status: e.status };
-                      });
-                      exportStudentOverviewPDF({ student, analytics, enrollments: enrMapped, riskLevel, photoDataUrl: photoSignedUrl, arabicMode });
-                    }}
-                    className="text-[11px] px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors font-semibold"
                   >
                     📄 {t('Export PDF')}
                   </button>
