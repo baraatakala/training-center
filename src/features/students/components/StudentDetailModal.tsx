@@ -264,13 +264,16 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
     const allSortedForStreak = [...unique].sort((a, b) => a.attendance_date.localeCompare(b.attendance_date));
     let maxStreak = 0, currentStreak = 0;
     for (const r of allSortedForStreak) {
-      if (r.status === 'absent') {
+      if (r.status === 'absent' || r.status === 'excused') {
+        // absent = no show; excused (personal reason) = also breaks streak
+        // Note: "session not held" records are filtered out before unique is built, so
+        // any excused record here is a genuine personal excuse — it resets the streak.
         currentStreak = 0;
       } else if (r.status === 'on time' || r.status === 'late') {
         currentStreak++;
         maxStreak = Math.max(maxStreak, currentStreak);
       }
-      // excused / not_enrolled: skip — don't count, don't break
+      // not_enrolled: skip — don't count, don't break
     }
 
     // 10. First half vs second half comparison
