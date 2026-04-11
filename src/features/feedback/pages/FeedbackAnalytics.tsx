@@ -376,23 +376,22 @@ export function FeedbackAnalytics() {
     });
   }, [flattenedRecords, correctnessFilter]);
 
-  // ─── Records summary (before correctness filter) ───────────
-  const recordsSummary = useMemo(() => {
-    const correct = flattenedRecords.filter(r => r.isCorrect === true).length;
-    const incorrect = flattenedRecords.filter(r => r.isCorrect === false).length;
-    const notGraded = flattenedRecords.filter(r => r.isCorrect === null).length;
-    return { total: flattenedRecords.length, correct, incorrect, notGraded };
-  }, [flattenedRecords]);
-
   // ─── Response-centric analytics ────────────────────────────
   const allResponseAnalytics = useMemo(() =>
     buildResponseAnalytics(filteredFeedbacks, questions),
     [filteredFeedbacks, questions]);
 
-  const responseAnalytics = useMemo(() => {
-    if (questionTypeFilter === 'all') return allResponseAnalytics;
-    return allResponseAnalytics.filter(a => a.questionType === questionTypeFilter);
-  }, [allResponseAnalytics, questionTypeFilter]);
+  // ─── Filtered Overall Rating Distribution ─────────────────
+  const filteredRatingDistribution = useMemo(() => {
+    const dist: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    for (const fb of filteredFeedbacks) {
+      if (fb.overall_rating != null) {
+        const r = Number(fb.overall_rating);
+        if (r >= 1 && r <= 5) dist[r] = (dist[r] || 0) + 1;
+      }
+    }
+    return dist;
+  }, [filteredFeedbacks]);
 
   const trendData = useMemo(() => {
     if (!dateComparison || dateComparison.dates.length < 2) return [];
@@ -768,28 +767,6 @@ export function FeedbackAnalytics() {
             </div>
           </div>
 
-          {/* ─── Test Score Banner (appears when test questions exist) ─ */}
-          {knowledgeAssessment && (
-            <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700">
-              <span className="text-lg">🎯</span>
-              <div className="flex-1 flex flex-wrap items-center gap-x-4 gap-y-1">
-                <p className="text-sm font-bold text-amber-800 dark:text-amber-300">
-                  Test Score: <span className="text-lg">{knowledgeAssessment.overallPct}%</span>
-                </p>
-                <span className="text-xs text-amber-600 dark:text-amber-400">{knowledgeAssessment.perQuestion.length} test Q{knowledgeAssessment.perQuestion.length !== 1 ? 's' : ''}</span>
-                {recordsSummary.correct > 0 && <span className="text-xs text-green-600 dark:text-green-400">✓ {recordsSummary.correct} correct</span>}
-                {recordsSummary.incorrect > 0 && <span className="text-xs text-red-600 dark:text-red-400">✗ {recordsSummary.incorrect} incorrect</span>}
-              </div>
-              <div className={`px-2.5 py-1 rounded-full text-xs font-black ${
-                knowledgeAssessment.overallPct >= 80 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                : knowledgeAssessment.overallPct >= 50 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
-                : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-              }`}>
-                {knowledgeAssessment.overallPct >= 80 ? '🌟 Excellent' : knowledgeAssessment.overallPct >= 50 ? '💪 Good' : '⚠️ Needs Work'}
-              </div>
-            </div>
-          )}
-
           {/* ─── Global Filters (shared by Records & Analytics) ─── */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 items-end">
             <div className="min-w-0">
@@ -898,29 +875,6 @@ export function FeedbackAnalytics() {
           {/* ═══════════════════════════════════════════════════ */}
           {activeView === 'records' && (
             <div className="space-y-3 sm:space-y-4">
-              {/* Records Summary Bar */}
-              <div className="flex flex-wrap items-center gap-3 text-xs">
-                <span className="text-gray-500 dark:text-gray-400 font-medium">{recordsSummary.total} records</span>
-                {recordsSummary.correct > 0 && (
-                  <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 font-semibold">
-                    <span className="w-2 h-2 rounded-full bg-green-500" /> {recordsSummary.correct} correct
-                  </span>
-                )}
-                {recordsSummary.incorrect > 0 && (
-                  <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 font-semibold">
-                    <span className="w-2 h-2 rounded-full bg-red-500" /> {recordsSummary.incorrect} incorrect
-                  </span>
-                )}
-                {recordsSummary.notGraded > 0 && (
-                  <span className="text-gray-400">{recordsSummary.notGraded} ungraded</span>
-                )}
-                {recordsSummary.correct + recordsSummary.incorrect > 0 && (
-                  <span className="ml-auto text-gray-400 font-mono">
-                    Accuracy: {Math.round((recordsSummary.correct / (recordsSummary.correct + recordsSummary.incorrect)) * 100)}%
-                  </span>
-                )}
-              </div>
-
               {/* Records Table — one row per question-answer */}
               {displayRecords.length === 0 ? (
                 <div className="text-center py-12">
@@ -1073,12 +1027,12 @@ export function FeedbackAnalytics() {
                     </ResponsiveContainer>
                   </div>
 
-                  {/* Overall Rating Distribution (Bar) */}
-                  {stats?.ratingDistribution && (
+                  {/* Overall Rating Distribution (Bar) — uses filtered data */}
+                  {Object.values(filteredRatingDistribution).some(v => v > 0) && (
                     <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-4 sm:p-5">
                       <p className="text-sm font-bold text-gray-900 dark:text-white mb-3">Overall Rating Distribution</p>
                       <ResponsiveContainer width="100%" height={200}>
-                        <BarChart data={[5, 4, 3, 2, 1].map(r => ({ rating: `${r} ${RATING_EMOJIS[r - 1]}`, count: stats.ratingDistribution[r] || 0, fill: RATING_COLORS[r - 1] }))}>
+                        <BarChart data={[5, 4, 3, 2, 1].map(r => ({ rating: `${r} ${RATING_EMOJIS[r - 1]}`, count: filteredRatingDistribution[r] || 0, fill: RATING_COLORS[r - 1] }))}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.4} />
                           <XAxis dataKey="rating" tick={{ fontSize: 11 }} stroke="#9ca3af" />
                           <YAxis allowDecimals={false} tick={{ fontSize: 10 }} stroke="#9ca3af" />
@@ -1090,101 +1044,6 @@ export function FeedbackAnalytics() {
                       </ResponsiveContainer>
                     </div>
                   )}
-                </div>
-              )}
-
-              {/* Per-Question Analytics Cards */}
-              {responseAnalytics.length === 0 ? (
-                <div className="text-center py-16">
-                  <span className="text-5xl block mb-3">📊</span>
-                  <h3 className="text-base font-semibold text-gray-900 dark:text-white">No Response Data</h3>
-                  <p className="text-sm text-gray-500 mt-1 max-w-md mx-auto">
-                    {questionTypeFilter !== 'all'
-                      ? 'No responses match this type filter. Try "All Types".'
-                      : 'No student responses found for this session/date. Questions are analyzed only after students submit answers.'}
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 sm:gap-4">
-                  {responseAnalytics.map((item, index) => (
-                    <div key={item.questionId} className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-4 sm:p-5 space-y-3">
-                      <div className="flex items-start gap-2">
-                        <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 px-1.5 py-0.5 rounded shrink-0">Q{index + 1}</span>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">{item.questionText}</p>
-                          <div className="flex flex-wrap gap-1.5 mt-1">
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500">{item.questionType.replace('_', ' ')}</span>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-300 font-semibold">{item.data.total} answers</span>
-                            {item.attendanceDate && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600">{item.attendanceDate}</span>}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Rating visualization */}
-                      {item.data.type === 'rating' && (() => {
-                        const rd = item.data as { type: 'rating'; distribution: Record<number, number>; avg: number; total: number };
-                        return (
-                        <div className="space-y-1.5">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-lg font-bold text-purple-600 dark:text-purple-400">{rd.avg}</span>
-                            <span className="text-sm text-gray-400">/ 5</span>
-                            <span>{RATING_EMOJIS[Math.round(rd.avg) - 1] || ''}</span>
-                          </div>
-                          {[5, 4, 3, 2, 1].map(r => {
-                            const count = rd.distribution[r] || 0;
-                            const width = rd.total > 0 ? (count / rd.total) * 100 : 0;
-                            return (
-                              <div key={r} className="flex items-center gap-2">
-                                <span className="text-[10px] w-4 text-right text-gray-500">{r}</span>
-                                <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
-                                  <div className="h-full rounded-full transition-all" style={{ width: `${width}%`, backgroundColor: RATING_COLORS[r - 1] }} />
-                                </div>
-                                <span className="text-[10px] text-gray-400 w-7 text-right">{count}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                        );
-                      })()}
-
-                      {/* Multiple choice distribution */}
-                      {item.data.type === 'multiple_choice' && (() => {
-                        const mc = item.data as { type: 'multiple_choice'; distribution: Record<string, number>; total: number };
-                        const correctAns = questions.find(q => q.id === item.questionId)?.correct_answer?.trim().toLowerCase();
-                        return (
-                        <div className="space-y-2">
-                          {Object.entries(mc.distribution).sort(([, a], [, b]) => b - a).map(([option, count]) => {
-                            const width = mc.total > 0 ? (count / mc.total) * 100 : 0;
-                            const isCorrectOption = correctAns != null && option.trim().toLowerCase() === correctAns;
-                            return (
-                              <div key={option} className="flex items-center gap-2">
-                                <span className={`text-[10px] w-24 truncate shrink-0 ${isCorrectOption ? 'font-bold text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-gray-300'}`} title={option}>
-                                  {isCorrectOption && '✓ '}{option}
-                                </span>
-                                <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
-                                  <div className={`h-full rounded-full transition-all ${isCorrectOption ? 'bg-green-500' : 'bg-purple-500'}`} style={{ width: `${width}%` }} />
-                                </div>
-                                <span className="text-[10px] text-gray-400 w-14 text-right">{count} ({Math.round(width)}%)</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                        );
-                      })()}
-
-                      {/* Text responses */}
-                      {item.data.type === 'text' && (() => {
-                        const td = item.data as { type: 'text'; answers: string[]; total: number };
-                        return (
-                        <div className="space-y-1 max-h-40 overflow-y-auto">
-                          {td.answers.map((answer, ai) => (
-                            <p key={ai} className="text-[11px] text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/50 rounded px-2 py-1.5">"{answer}"</p>
-                          ))}
-                        </div>
-                        );
-                      })()}
-                    </div>
-                  ))}
                 </div>
               )}
 

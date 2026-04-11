@@ -432,7 +432,7 @@ export function Students() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-2">
+                <div className="grid grid-cols-1 gap-2" onClick={e => e.stopPropagation()}>
                   {isAdmin && (
                     <>
                       <button
@@ -506,7 +506,7 @@ export function Students() {
                       <TableCell className="text-gray-600 dark:text-gray-300 hidden xl:table-cell whitespace-nowrap">{student.specialization || '-'}</TableCell>
                       <TableCell className="text-gray-600 dark:text-gray-300 hidden xl:table-cell">{student.age || '-'}</TableCell>
                       <TableCell className="text-right">
-                        <div className="flex gap-1 md:gap-2 justify-end flex-nowrap">
+                        <div className="flex gap-1 md:gap-2 justify-end flex-nowrap" onClick={e => e.stopPropagation()}>
                           {isAdmin && (
                             <>
                               <button

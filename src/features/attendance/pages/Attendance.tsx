@@ -1286,6 +1286,17 @@ export function Attendance() {
       if (error) {
         console.error('Error saving host address:', error);
         toast.error('Failed to save host address selection');
+      } else {
+        // Cascade: update all existing attendance records for this session/date
+        // so they stay consistent with the new host address
+        const { error: cascadeError } = await supabase
+          .from(Tables.ATTENDANCE)
+          .update({ host_address: hostAddress })
+          .eq('session_id', sessionId)
+          .eq('attendance_date', selectedDate);
+        if (cascadeError) {
+          console.error('Error cascading host address to attendance:', cascadeError);
+        }
       }
     } else {
       // Delete if empty/cleared
