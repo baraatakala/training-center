@@ -172,6 +172,7 @@ export function FeedbackAnalytics() {
   // ─── Sorting (Records tab) ─────────────────────────────────
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [heatmapDateAsc, setHeatmapDateAsc] = useState(false);
 
   const selectedSession = sessions.find(s => s.session_id === selectedSessionId);
 
@@ -431,8 +432,9 @@ export function FeedbackAnalytics() {
   // ─── Participation Heatmap (students × dates) ──────────────
   const participationGrid = useMemo(() => {
     if (uniqueDates.length < 2 || uniqueStudents.length < 2) return null;
+    const sortedDates = heatmapDateAsc ? [...uniqueDates].reverse() : uniqueDates;
     const grid = uniqueStudents.slice(0, 30).map(student => {
-      const cells = uniqueDates.map(date => {
+      const cells = sortedDates.map(date => {
         const fb = feedbacks.find(f => {
           const name = f.is_anonymous ? 'Anonymous' : (f.student_name || 'Unknown');
           return name === student && f.attendance_date === date;
@@ -441,8 +443,8 @@ export function FeedbackAnalytics() {
       });
       return { student, cells };
     });
-    return { dates: uniqueDates, students: grid };
-  }, [uniqueDates, uniqueStudents, feedbacks]);
+    return { dates: sortedDates, students: grid };
+  }, [uniqueDates, uniqueStudents, feedbacks, heatmapDateAsc]);
 
   const paginatedRecords = useMemo(() => {
     const sorted = [...displayRecords];
@@ -487,31 +489,35 @@ export function FeedbackAnalytics() {
         insights.push({ type: 'positive', message: `Avg rating ${avgRating.toFixed(1)}/5 — ${pct5}% gave 5 stars.` });
       else if (avgRating < 3)
         insights.push({ type: 'warning', message: `Avg rating ${avgRating.toFixed(1)}/5 — ${pctLow}% rated 1-2. Needs attention.` });
+      else
+        insights.push({ type: 'info', message: `Avg rating ${avgRating.toFixed(1)}/5 across ${ratingFeedbacks.length} responses.` });
     }
 
-    // 2. Trend (only if significant multi-date data)
-    if (dateComparison && dateComparison.dates.length >= 3) {
+    // 2. Trend
+    if (dateComparison && dateComparison.dates.length >= 2) {
       if (dateComparison.trendDirection === 'declining')
         insights.push({ type: 'warning', message: 'Ratings declining over sessions — review recent changes.' });
       else if (dateComparison.trendDirection === 'improving')
         insights.push({ type: 'positive', message: 'Ratings improving across sessions.' });
     }
 
-    // 3. Participation gap (actionable)
+    // 3. Participation gap
     if (stats && stats.enrolledCount > 0) {
       const participated = new Set(feedbacks.map(f => f.student_id).filter(Boolean)).size;
       const missing = stats.enrolledCount - participated;
       const missPct = Math.round((missing / stats.enrolledCount) * 100);
       if (missPct > 50)
         insights.push({ type: 'warning', message: `${missing}/${stats.enrolledCount} students (${missPct}%) never responded.` });
-      else if (missing > 0 && missPct > 20)
+      else if (missing > 0)
         insights.push({ type: 'info', message: `${missing} student${missing !== 1 ? 's' : ''} (${missPct}%) haven't submitted feedback.` });
+      else
+        insights.push({ type: 'positive', message: `All ${stats.enrolledCount} enrolled students submitted feedback.` });
     }
 
     // 4. Polarized questions (divisive opinions)
     const polarized: string[] = [];
     for (const item of allResponseAnalytics) {
-      if (item.data.type === 'rating' && item.data.total >= 5) {
+      if (item.data.type === 'rating' && item.data.total >= 2) {
         const high = (item.data.distribution[4] || 0) + (item.data.distribution[5] || 0);
         const low = (item.data.distribution[1] || 0) + (item.data.distribution[2] || 0);
         if (high > 0 && low > 0 && (Math.min(high, low) / item.data.total) > 0.25)
@@ -521,9 +527,9 @@ export function FeedbackAnalytics() {
     if (polarized.length > 0)
       insights.push({ type: 'warning', message: `Divisive opinions on ${polarized.join(', ')} — ratings split between high and low.` });
 
-    // 5. Worst-rated question (actionable)
-    const ratingQs = allResponseAnalytics.filter(q => q.data.type === 'rating' && q.data.total >= 3);
-    if (ratingQs.length > 1) {
+    // 5. Worst-rated question
+    const ratingQs = allResponseAnalytics.filter(q => q.data.type === 'rating' && q.data.total >= 2);
+    if (ratingQs.length >= 1) {
       const worst = ratingQs.reduce((a, b) => (a.data as { avg: number }).avg < (b.data as { avg: number }).avg ? a : b);
       const worstData = worst.data as { avg: number };
       if (worstData.avg < 3.5)
@@ -533,7 +539,7 @@ export function FeedbackAnalytics() {
     // 6. Frequently skipped questions
     const skipped = allResponseAnalytics.filter(item => {
       const skipRate = 1 - (item.data.total / feedbacks.length);
-      return feedbacks.length >= 5 && skipRate > 0.4;
+      return feedbacks.length >= 3 && skipRate > 0.4;
     });
     if (skipped.length > 0)
       insights.push({ type: 'info', message: `${skipped.length} question${skipped.length !== 1 ? 's' : ''} skipped by >40% — consider simplifying or making required.` });
@@ -549,17 +555,17 @@ export function FeedbackAnalytics() {
         const pct = attempts.length > 0 ? Math.round((correct.length / attempts.length) * 100) : 100;
         if (pct < worstPct) { worstPct = pct; worstQ = q; }
       }
-      if (worstPct < 50)
+      if (worstPct <= 50)
         insights.push({ type: 'warning', message: `"${worstQ.question_text}" — only ${worstPct}% correct. May need review.` });
     }
 
     // 8. Anonymous honesty gap
     const anonSub = feedbacks.filter(f => f.is_anonymous && f.overall_rating != null);
     const namedSub = feedbacks.filter(f => !f.is_anonymous && f.overall_rating != null);
-    if (anonSub.length >= 3 && namedSub.length >= 3) {
+    if (anonSub.length >= 2 && namedSub.length >= 2) {
       const anonAvg = anonSub.reduce((s, f) => s + Number(f.overall_rating), 0) / anonSub.length;
       const namedAvg = namedSub.reduce((s, f) => s + Number(f.overall_rating), 0) / namedSub.length;
-      if (Math.abs(anonAvg - namedAvg) > 1.0)
+      if (Math.abs(anonAvg - namedAvg) > 0.8)
         insights.push({ type: 'info', message: `Anonymous avg ${anonAvg.toFixed(1)} vs named ${namedAvg.toFixed(1)} — ${anonAvg < namedAvg ? 'students rate lower anonymously' : 'students rate higher anonymously'}.` });
     }
 
@@ -1028,6 +1034,13 @@ export function FeedbackAnalytics() {
                     <span className="text-lg">🗓️</span>
                     <p className="text-sm font-bold text-gray-900 dark:text-white">Participation Heatmap</p>
                     <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 font-semibold">{participationGrid.students.length} students × {participationGrid.dates.length} dates</span>
+                    <button
+                      onClick={() => setHeatmapDateAsc(v => !v)}
+                      className="ml-auto text-[10px] px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                      title={heatmapDateAsc ? 'Oldest first' : 'Newest first'}
+                    >
+                      Date {heatmapDateAsc ? '↑ Old→New' : '↓ New→Old'}
+                    </button>
                   </div>
                   <div className="overflow-x-auto pb-2">
                     <div className="inline-grid gap-[3px]" style={{ gridTemplateColumns: `minmax(80px, 120px) repeat(${participationGrid.dates.length}, 28px)` }}>
@@ -1146,41 +1159,7 @@ export function FeedbackAnalytics() {
                       ))}
                     </div>
 
-                    {/* Student scores table */}
-                    {knowledgeAssessment.studentScores.length > 0 && (
-                      <div className="space-y-2">
-                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Student Scores</p>
-                        <div className="rounded-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
-                          <table className="w-full text-xs">
-                            <thead className="bg-gray-50 dark:bg-gray-800/60">
-                              <tr>
-                                {['#', 'Student', 'Correct', 'Attempted', 'Score'].map(h => (
-                                  <th key={h} className="px-3 py-2 text-gray-400 font-semibold text-left first:pl-4">{h}</th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
-                              {knowledgeAssessment.studentScores.map((s, rank) => (
-                                <tr key={s.studentId} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                                  <td className="px-3 py-2 pl-4 text-gray-400 font-bold">{rank + 1}</td>
-                                  <td className="px-3 py-2 font-medium text-gray-900 dark:text-white">{s.studentName}</td>
-                                  <td className="px-3 py-2 text-green-600 dark:text-green-400 font-bold">{s.correct}</td>
-                                  <td className="px-3 py-2 text-gray-500">{s.attempted}</td>
-                                  <td className="px-3 py-2">
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-16 bg-gray-100 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-                                        <div className={`h-full rounded-full ${s.scorePct >= 80 ? 'bg-green-500' : s.scorePct >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${s.scorePct}%` }} />
-                                      </div>
-                                      <span className={`font-bold ${s.scorePct >= 80 ? 'text-green-600 dark:text-green-400' : s.scorePct >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>{s.scorePct}%</span>
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    )}
+
                   </div>
                 </div>
               )}
