@@ -273,12 +273,13 @@ export async function exportStudentOverviewPDF(options: ExportOptions): Promise<
   // KEY METRICS GRID (4 columns)
   // ══════════════════════════════════════════════════════════════
   checkPageBreak(22);
-  const metricW = (contentW - 9) / 4;
+  const metricW = (contentW - 12) / 5;
   const metrics = [
     { label: 'ATTENDANCE', value: `${analytics.attendanceRate}%`, score: analytics.attendanceRate },
     { label: 'TOTAL PRESENT', value: `${analytics.present}`, score: analytics.attendanceRate },
     { label: 'PUNCTUALITY', value: `${analytics.punctuality}%`, score: analytics.punctuality },
-    { label: 'TOTAL ABSENT', value: `${analytics.absent}`, score: analytics.absent === 0 ? 90 : analytics.absent <= 2 ? 70 : 40 },
+    { label: 'ABSENT', value: `${analytics.absent}`, score: analytics.absent === 0 ? 90 : analytics.absent <= 2 ? 70 : 40 },
+    { label: 'TOTAL ABSENT', value: `${analytics.absent + analytics.excused}`, score: (analytics.absent + analytics.excused) === 0 ? 90 : (analytics.absent + analytics.excused) <= 3 ? 70 : 40 },
   ];
 
   metrics.forEach((m, i) => {

@@ -862,7 +862,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                   </div>
 
                   {/* ── Key Metrics Grid ────────────────────── */}
-                  <div className="grid grid-cols-5 gap-2">
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                     {([
                       { label: t('Attendance'), value: `${analytics.attendanceRate}%`, threshold: analytics.attendanceRate },
                       { label: t('Total Present'), value: `${analytics.present}`, threshold: analytics.attendanceRate },
@@ -871,8 +871,8 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                       { label: t('Total Absent'), value: `${analytics.absent + analytics.excused}`, threshold: (analytics.absent + analytics.excused) === 0 ? 90 : (analytics.absent + analytics.excused) <= 3 ? 70 : 40 },
                     ]).map(m => (
                       <div key={m.label} className="rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 p-2 text-center">
-                        <p className="text-[9px] text-gray-400 uppercase tracking-wider">{m.label}</p>
-                        <p className={`text-base font-black ${m.threshold >= 80 ? 'text-emerald-600 dark:text-emerald-400' : m.threshold >= 60 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>{m.value}</p>
+                        <p className="text-[8px] sm:text-[9px] text-gray-400 uppercase tracking-wider leading-tight">{m.label}</p>
+                        <p className={`text-sm sm:text-base font-black ${m.threshold >= 80 ? 'text-emerald-600 dark:text-emerald-400' : m.threshold >= 60 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>{m.value}</p>
                       </div>
                     ))}
                   </div>

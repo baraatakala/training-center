@@ -10,13 +10,12 @@ import type { SessionFeedback, FeedbackStats, FeedbackQuestion, FeedbackComparis
 import {
   ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip,
   AreaChart, Area, Line, Legend,
-  BarChart, Bar, PieChart, Pie, Cell,
+  BarChart, Bar, Cell,
 } from 'recharts';
 
 // ─── Constants ─────────────────────────────────────────────
 const RATING_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#8b5cf6'];
 const RATING_EMOJIS = ['😢', '😕', '😐', '😊', '🤩'];
-const PIE_COLORS = ['#8b5cf6', '#06b6d4', '#f59e0b', '#10b981'];
 
 type ActiveView = 'records' | 'analytics';
 type QuestionTypeFilter = 'all' | 'rating' | 'text' | 'multiple_choice';
@@ -401,17 +400,6 @@ export function FeedbackAnalytics() {
     }));
   }, [dateComparison]);
 
-  // ─── Response Type Summary (for donut chart) ───────────────
-  const responseTypeSummary = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const item of allResponseAnalytics) {
-      const label = item.questionType === 'multiple_choice' ? 'Multiple Choice'
-        : item.questionType.charAt(0).toUpperCase() + item.questionType.slice(1);
-      counts[label] = (counts[label] || 0) + item.data.total;
-    }
-    return Object.entries(counts).filter(([, v]) => v > 0).map(([name, value]) => ({ name, value }));
-  }, [allResponseAnalytics]);
-
   // ─── Word Frequency (text responses) ───────────────────────
   const wordFrequency = useMemo(() => {
     const textItems = allResponseAnalytics.filter(a => a.data.type === 'text');
@@ -486,115 +474,96 @@ export function FeedbackAnalytics() {
   const aiInsights = useMemo(() => {
     if (feedbacks.length < 3) return [];
     const insights: { type: 'positive' | 'warning' | 'info'; message: string }[] = [];
+    const ratingFeedbacks = feedbacks.filter(f => f.overall_rating != null);
+    const avgRating = ratingFeedbacks.length > 0
+      ? ratingFeedbacks.reduce((s, f) => s + Number(f.overall_rating), 0) / ratingFeedbacks.length
+      : 0;
 
-    // Trend
-    if (dateComparison?.trendDirection === 'declining')
-      insights.push({ type: 'warning', message: 'Ratings are declining over time — consider reviewing session content or pace.' });
-    if (dateComparison?.trendDirection === 'improving')
-      insights.push({ type: 'positive', message: 'Ratings are improving across sessions — students are responding well.' });
-
-    // Low engagement dates
-    if (dateComparison) {
-      const lowEng = dateComparison.dates.filter(d => d.responseRate < 30 && d.responseRate > 0);
-      if (lowEng.length > 0)
-        insights.push({ type: 'warning', message: `Low engagement (<30%) on ${lowEng.length} date(s): ${lowEng.map(d => d.date).join(', ')}` });
+    // 1. Overall satisfaction summary
+    if (ratingFeedbacks.length > 0) {
+      const pct5 = Math.round(ratingFeedbacks.filter(f => Number(f.overall_rating) === 5).length / ratingFeedbacks.length * 100);
+      const pctLow = Math.round(ratingFeedbacks.filter(f => Number(f.overall_rating) <= 2).length / ratingFeedbacks.length * 100);
+      if (avgRating >= 4.2)
+        insights.push({ type: 'positive', message: `Avg rating ${avgRating.toFixed(1)}/5 — ${pct5}% gave 5 stars.` });
+      else if (avgRating < 3)
+        insights.push({ type: 'warning', message: `Avg rating ${avgRating.toFixed(1)}/5 — ${pctLow}% rated 1-2. Needs attention.` });
     }
 
-    // Check-in method correlation
-    const rateBy = (method: string) => {
-      const sub = feedbacks.filter(f => f.check_in_method === method && f.overall_rating != null);
-      return sub.length > 2 ? sub.reduce((s, f) => s + Number(f.overall_rating), 0) / sub.length : null;
-    };
-    const qrAvg = rateBy('qr'); const faceAvg = rateBy('face'); const manualAvg = rateBy('manual');
-    if (qrAvg && faceAvg && Math.abs(qrAvg - faceAvg) > 0.6)
-      insights.push({ type: 'info', message: `QR check-in avg rating: ${qrAvg.toFixed(1)} vs Face: ${faceAvg.toFixed(1)} — noticeable difference in satisfaction by check-in method.` });
-    if (qrAvg && manualAvg && Math.abs(qrAvg - manualAvg) > 0.6)
-      insights.push({ type: 'info', message: `QR check-in avg rating: ${qrAvg.toFixed(1)} vs Manual: ${manualAvg.toFixed(1)}` });
-
-    // Anonymous vs named
-    const anonSub = feedbacks.filter(f => f.is_anonymous && f.overall_rating != null);
-    const namedSub = feedbacks.filter(f => !f.is_anonymous && f.overall_rating != null);
-    if (anonSub.length > 2 && namedSub.length > 2) {
-      const anonAvg = anonSub.reduce((s, f) => s + Number(f.overall_rating), 0) / anonSub.length;
-      const namedAvg = namedSub.reduce((s, f) => s + Number(f.overall_rating), 0) / namedSub.length;
-      if (Math.abs(anonAvg - namedAvg) > 0.7)
-        insights.push({ type: 'info', message: `Anonymous ratings (${anonAvg.toFixed(1)}) differ from named (${namedAvg.toFixed(1)}) — students may feel more comfortable rating honestly when anonymous.` });
+    // 2. Trend (only if significant multi-date data)
+    if (dateComparison && dateComparison.dates.length >= 3) {
+      if (dateComparison.trendDirection === 'declining')
+        insights.push({ type: 'warning', message: 'Ratings declining over sessions — review recent changes.' });
+      else if (dateComparison.trendDirection === 'improving')
+        insights.push({ type: 'positive', message: 'Ratings improving across sessions.' });
     }
 
-    // Text sentiment analysis
-    const textQs = questions.filter(q => q.question_type === 'text');
-    if (textQs.length > 0) {
-      const allText = feedbacks.flatMap(f => textQs.map(q => String(f.responses?.[q.id] || '')).filter(Boolean));
-      const positive = ['good', 'great', 'excellent', 'helpful', 'clear', 'interesting', 'enjoyed', 'best', 'amazing', 'wonderful', 'fantastic'];
-      const negative = ['bad', 'boring', 'confusing', 'difficult', 'slow', 'unclear', 'hard', 'worse', 'complicated', 'unhelpful', 'poor'];
-      const posCount = allText.reduce((s, t) => s + positive.filter(w => t.toLowerCase().includes(w)).length, 0);
-      const negCount = allText.reduce((s, t) => s + negative.filter(w => t.toLowerCase().includes(w)).length, 0);
-      if (allText.length >= 3) {
-        if (posCount > negCount * 2)
-          insights.push({ type: 'positive', message: `Text responses are predominantly positive (${posCount} positive vs ${negCount} concern signals detected).` });
-        else if (negCount > posCount * 1.5)
-          insights.push({ type: 'warning', message: `Text responses show more concerns (${negCount} negative vs ${posCount} positive signals). Review comments for specific issues.` });
-        else
-          insights.push({ type: 'info', message: `Text feedback sentiment is mixed (${posCount} positive, ${negCount} negative signals across ${allText.length} responses).` });
-      }
+    // 3. Participation gap (actionable)
+    if (stats && stats.enrolledCount > 0) {
+      const participated = new Set(feedbacks.map(f => f.student_id).filter(Boolean)).size;
+      const missing = stats.enrolledCount - participated;
+      const missPct = Math.round((missing / stats.enrolledCount) * 100);
+      if (missPct > 50)
+        insights.push({ type: 'warning', message: `${missing}/${stats.enrolledCount} students (${missPct}%) never responded.` });
+      else if (missing > 0 && missPct > 20)
+        insights.push({ type: 'info', message: `${missing} student${missing !== 1 ? 's' : ''} (${missPct}%) haven't submitted feedback.` });
     }
 
-    // Polarized question detection
+    // 4. Polarized questions (divisive opinions)
+    const polarized: string[] = [];
     for (const item of allResponseAnalytics) {
       if (item.data.type === 'rating' && item.data.total >= 5) {
         const high = (item.data.distribution[4] || 0) + (item.data.distribution[5] || 0);
         const low = (item.data.distribution[1] || 0) + (item.data.distribution[2] || 0);
-        if (high > 0 && low > 0 && (Math.min(high, low) / item.data.total) > 0.2)
-          insights.push({ type: 'warning', message: `"${item.questionText}" has polarized opinions — ${Math.round((low / item.data.total) * 100)}% low, ${Math.round((high / item.data.total) * 100)}% high ratings.` });
+        if (high > 0 && low > 0 && (Math.min(high, low) / item.data.total) > 0.25)
+          polarized.push(`"${item.questionText}"`);
       }
     }
+    if (polarized.length > 0)
+      insights.push({ type: 'warning', message: `Divisive opinions on ${polarized.join(', ')} — ratings split between high and low.` });
 
-    // Best question (highest avg rating)
+    // 5. Worst-rated question (actionable)
     const ratingQs = allResponseAnalytics.filter(q => q.data.type === 'rating' && q.data.total >= 3);
     if (ratingQs.length > 1) {
-      const best = ratingQs.reduce((a, b) => (a.data as { avg: number }).avg > (b.data as { avg: number }).avg ? a : b);
-      const bestData = best.data as { avg: number };
-      if (bestData.avg >= 4.2)
-        insights.push({ type: 'positive', message: `Highest-rated aspect: "${best.questionText}" with avg ${bestData.avg}/5.` });
+      const worst = ratingQs.reduce((a, b) => (a.data as { avg: number }).avg < (b.data as { avg: number }).avg ? a : b);
+      const worstData = worst.data as { avg: number };
+      if (worstData.avg < 3.5)
+        insights.push({ type: 'warning', message: `Lowest-rated: "${worst.questionText}" at ${worstData.avg.toFixed(1)}/5.` });
     }
 
-    // Participation gap
-    if (stats && stats.enrolledCount > 0) {
-      const participated = new Set(feedbacks.map(f => f.student_id).filter(Boolean)).size;
-      const missing = stats.enrolledCount - participated;
-      if (missing > 0 && missing <= stats.enrolledCount * 0.5)
-        insights.push({ type: 'info', message: `${missing} enrolled student${missing !== 1 ? 's' : ''} never submitted feedback. Consider following up.` });
-      else if (missing > stats.enrolledCount * 0.5)
-        insights.push({ type: 'warning', message: `${missing} of ${stats.enrolledCount} enrolled students never responded — over half the class is missing.` });
-    }
-
-    // Question skip rate
-    for (const item of allResponseAnalytics) {
+    // 6. Frequently skipped questions
+    const skipped = allResponseAnalytics.filter(item => {
       const skipRate = 1 - (item.data.total / feedbacks.length);
-      if (feedbacks.length >= 5 && skipRate > 0.4)
-        insights.push({ type: 'warning', message: `"${item.questionText}" was skipped by ${Math.round(skipRate * 100)}% of respondents — consider making it simpler or required.` });
-    }
+      return feedbacks.length >= 5 && skipRate > 0.4;
+    });
+    if (skipped.length > 0)
+      insights.push({ type: 'info', message: `${skipped.length} question${skipped.length !== 1 ? 's' : ''} skipped by >40% — consider simplifying or making required.` });
 
-    // Test question difficulty
+    // 7. Test difficulty (only the hardest)
     const testQs = questions.filter(q => q.correct_answer);
     if (testQs.length > 0) {
-      const hardest = testQs.reduce((worst, q) => {
+      let worstPct = 100;
+      let worstQ = testQs[0];
+      for (const q of testQs) {
         const attempts = feedbacks.filter(fb => fb.responses?.[q.id] !== undefined && fb.responses?.[q.id] !== '');
         const correct = attempts.filter(fb => String(fb.responses?.[q.id] ?? '').trim().toLowerCase() === q.correct_answer!.trim().toLowerCase());
-        const pct = attempts.length > 0 ? correct.length / attempts.length : 1;
-        const worstAttempts = feedbacks.filter(fb => fb.responses?.[worst.id] !== undefined && fb.responses?.[worst.id] !== '');
-        const worstCorrect = worstAttempts.filter(fb => String(fb.responses?.[worst.id] ?? '').trim().toLowerCase() === worst.correct_answer!.trim().toLowerCase());
-        const worstPct = worstAttempts.length > 0 ? worstCorrect.length / worstAttempts.length : 1;
-        return pct < worstPct ? q : worst;
-      });
-      const hAttempts = feedbacks.filter(fb => fb.responses?.[hardest.id] !== undefined && fb.responses?.[hardest.id] !== '');
-      const hCorrect = hAttempts.filter(fb => String(fb.responses?.[hardest.id] ?? '').trim().toLowerCase() === hardest.correct_answer!.trim().toLowerCase());
-      const hPct = hAttempts.length > 0 ? Math.round((hCorrect.length / hAttempts.length) * 100) : 100;
-      if (hPct < 50 && hAttempts.length >= 3)
-        insights.push({ type: 'warning', message: `Hardest test question: "${hardest.question_text}" — only ${hPct}% got it right. Review if it's too difficult.` });
+        const pct = attempts.length > 0 ? Math.round((correct.length / attempts.length) * 100) : 100;
+        if (pct < worstPct) { worstPct = pct; worstQ = q; }
+      }
+      if (worstPct < 50)
+        insights.push({ type: 'warning', message: `"${worstQ.question_text}" — only ${worstPct}% correct. May need review.` });
     }
 
-    return insights;
+    // 8. Anonymous honesty gap
+    const anonSub = feedbacks.filter(f => f.is_anonymous && f.overall_rating != null);
+    const namedSub = feedbacks.filter(f => !f.is_anonymous && f.overall_rating != null);
+    if (anonSub.length >= 3 && namedSub.length >= 3) {
+      const anonAvg = anonSub.reduce((s, f) => s + Number(f.overall_rating), 0) / anonSub.length;
+      const namedAvg = namedSub.reduce((s, f) => s + Number(f.overall_rating), 0) / namedSub.length;
+      if (Math.abs(anonAvg - namedAvg) > 1.0)
+        insights.push({ type: 'info', message: `Anonymous avg ${anonAvg.toFixed(1)} vs named ${namedAvg.toFixed(1)} — ${anonAvg < namedAvg ? 'students rate lower anonymously' : 'students rate higher anonymously'}.` });
+    }
+
+    return insights.slice(0, 6);
   }, [feedbacks, dateComparison, questions, allResponseAnalytics, stats]);
 
   // ─── Knowledge Assessment (test questions only) ────────────
@@ -1010,40 +979,21 @@ export function FeedbackAnalytics() {
           {activeView === 'analytics' && (
             <div className="space-y-4 sm:space-y-5">
 
-              {/* ─── Response Overview (Pie + Bar) ─────────────── */}
-              {responseTypeSummary.length > 0 && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-                  {/* Response Type Distribution (Donut) */}
-                  <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-4 sm:p-5">
-                    <p className="text-sm font-bold text-gray-900 dark:text-white mb-3">Response Type Distribution</p>
-                    <ResponsiveContainer width="100%" height={200}>
-                      <PieChart>
-                        <Pie data={responseTypeSummary} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value">
-                          {responseTypeSummary.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                        </Pie>
-                        <Tooltip formatter={(value: number) => [`${value} responses`, '']} />
-                        <Legend iconType="circle" wrapperStyle={{ fontSize: '11px' }} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-
-                  {/* Overall Rating Distribution (Bar) — uses filtered data */}
-                  {Object.values(filteredRatingDistribution).some(v => v > 0) && (
-                    <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-4 sm:p-5">
-                      <p className="text-sm font-bold text-gray-900 dark:text-white mb-3">Overall Rating Distribution</p>
-                      <ResponsiveContainer width="100%" height={200}>
-                        <BarChart data={[5, 4, 3, 2, 1].map(r => ({ rating: `${r} ${RATING_EMOJIS[r - 1]}`, count: filteredRatingDistribution[r] || 0, fill: RATING_COLORS[r - 1] }))}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.4} />
-                          <XAxis dataKey="rating" tick={{ fontSize: 11 }} stroke="#9ca3af" />
-                          <YAxis allowDecimals={false} tick={{ fontSize: 10 }} stroke="#9ca3af" />
-                          <Tooltip />
-                          <Bar dataKey="count" name="Responses" radius={[6, 6, 0, 0]}>
-                            {[5, 4, 3, 2, 1].map((r, i) => <Cell key={i} fill={RATING_COLORS[r - 1]} />)}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  )}
+              {/* ─── Overall Rating Distribution ─────────────── */}
+              {Object.values(filteredRatingDistribution).some(v => v > 0) && (
+                <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-4 sm:p-5">
+                  <p className="text-sm font-bold text-gray-900 dark:text-white mb-3">Overall Rating Distribution</p>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={[5, 4, 3, 2, 1].map(r => ({ rating: `${r} ${RATING_EMOJIS[r - 1]}`, count: filteredRatingDistribution[r] || 0, fill: RATING_COLORS[r - 1] }))}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.4} />
+                      <XAxis dataKey="rating" tick={{ fontSize: 11 }} stroke="#9ca3af" />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 10 }} stroke="#9ca3af" />
+                      <Tooltip />
+                      <Bar dataKey="count" name="Responses" radius={[6, 6, 0, 0]}>
+                        {[5, 4, 3, 2, 1].map((r, i) => <Cell key={i} fill={RATING_COLORS[r - 1]} />)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
               )}
 
@@ -1115,49 +1065,6 @@ export function FeedbackAnalytics() {
                     <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-yellow-300" /> Rating 3</span>
                     <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-red-300" /> Rating 1-2</span>
                     <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-blue-200" /> Responded (no rating)</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Date Comparison Table */}
-              {dateComparison && dateComparison.dates.length > 1 && (
-                <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 overflow-hidden">
-                  <div className="px-4 sm:px-5 py-3 border-b border-gray-100 dark:border-gray-700">
-                    <p className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide">Date Comparison</p>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead className="bg-gray-50 dark:bg-gray-800/60">
-                        <tr>
-                          {['Date', 'Avg Rating', 'Responses', 'Students', 'Engagement'].map(h => (
-                            <th key={h} className="px-3 py-2.5 text-gray-400 font-semibold text-left first:pl-4 sm:first:pl-5 whitespace-nowrap">{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
-                        {dateComparison.dates.map(d => (
-                          <tr key={d.date} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                            <td className="px-3 py-2.5 pl-4 sm:pl-5 font-medium text-gray-900 dark:text-white whitespace-nowrap">
-                              {d.date}
-                              {dateComparison.bestDate === d.date && <span className="ml-1 text-[10px] text-emerald-600">★</span>}
-                            </td>
-                            <td className={`px-3 py-2.5 font-bold ${d.averageRating >= 4 ? 'text-emerald-600' : d.averageRating >= 3 ? 'text-amber-600' : 'text-red-600'}`}>
-                              {d.averageRating} {RATING_EMOJIS[Math.round(d.averageRating) - 1] || ''}
-                            </td>
-                            <td className="px-3 py-2.5 text-gray-700 dark:text-gray-300">{d.responses}</td>
-                            <td className="px-3 py-2.5 text-gray-700 dark:text-gray-300">{d.uniqueStudents}</td>
-                            <td className="px-3 py-2.5">
-                              <div className="flex items-center gap-1.5">
-                                <div className="w-12 sm:w-16 bg-gray-100 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-                                  <div className="h-full rounded-full bg-purple-500" style={{ width: `${d.responseRate}%` }} />
-                                </div>
-                                <span className="text-gray-500">{d.responseRate}%</span>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
                   </div>
                 </div>
               )}
