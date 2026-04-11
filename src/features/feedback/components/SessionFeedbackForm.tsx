@@ -33,6 +33,7 @@ export default function SessionFeedbackForm({
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
   const [feedbackEnabled, setFeedbackEnabled] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [gradedResults, setGradedResults] = useState<Array<{ question: FeedbackQuestion; isCorrect: boolean; userAnswer: string }>>([]);
   const primaryRatingQuestion = customQuestions.find((question) => question.question_type === 'rating') || null;
   const hasConfiguredQuestions = customQuestions.length > 0;
 
@@ -127,9 +128,21 @@ export default function SessionFeedbackForm({
       setSubmitting(false);
       return;
     }
+    // Compute graded results for test questions
+    const graded = customQuestions
+      .filter(q => q.correct_answer)
+      .map(q => {
+        const userAnswer = String(responses[q.id] ?? '').trim();
+        const isCorrect = userAnswer.toLowerCase() === q.correct_answer!.trim().toLowerCase();
+        return { question: q, isCorrect, userAnswer };
+      });
+    setGradedResults(graded);
     setSubmitted(true);
     setSubmitting(false);
-    setTimeout(onComplete, 1500);
+    // Delay auto-close only when there are no graded test questions to review
+    if (graded.length === 0) {
+      setTimeout(onComplete, 1500);
+    }
   };
 
   if (loading) {
@@ -144,15 +157,82 @@ export default function SessionFeedbackForm({
   }
 
   if (submitted) {
+    const correctCount = gradedResults.filter(r => r.isCorrect).length;
+    const totalTest = gradedResults.length;
+    const hasScoredQuestions = totalTest > 0;
+    const allCorrect = hasScoredQuestions && correctCount === totalTest;
+
     return (
-      <div className="animate-scale-in mt-6 text-center p-6 bg-purple-50 dark:bg-purple-900/30 rounded-2xl border border-purple-200 dark:border-purple-700">
-        <span className="text-5xl block mb-3">💜</span>
-        <p className="text-lg font-semibold text-purple-700 dark:text-purple-300">
-          Thank you for your feedback!
-        </p>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Your response helps improve future sessions.
-        </p>
+      <div className="animate-scale-in mt-6 space-y-4">
+        {/* Thank-you banner */}
+        <div className="text-center p-5 bg-purple-50 dark:bg-purple-900/30 rounded-2xl border border-purple-200 dark:border-purple-700">
+          <span className="text-4xl block mb-2">💜</span>
+          <p className="text-base font-semibold text-purple-700 dark:text-purple-300">Thank you for your feedback!</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Your response helps improve future sessions.</p>
+        </div>
+
+        {/* Test question results */}
+        {hasScoredQuestions && (
+          <div className="rounded-2xl border border-amber-200 dark:border-amber-700 bg-amber-50/60 dark:bg-amber-900/20 overflow-hidden">
+            {/* Score header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-amber-200 dark:border-amber-700">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">{allCorrect ? '🏆' : '🎯'}</span>
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Knowledge Check Results</p>
+              </div>
+              <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-bold ${
+                correctCount === totalTest
+                  ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400'
+                  : correctCount === 0
+                  ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400'
+                  : 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400'
+              }`}>
+                {correctCount}/{totalTest} correct
+              </div>
+            </div>
+
+            {/* Per-question breakdown */}
+            <div className="divide-y divide-amber-100 dark:divide-amber-800/40">
+              {gradedResults.map(({ question, isCorrect, userAnswer }) => (
+                <div key={question.id} className="px-4 py-3 space-y-1">
+                  <div className="flex items-start gap-2">
+                    <span className="mt-0.5 text-base shrink-0">{isCorrect ? '✅' : '❌'}</span>
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{question.question_text}</p>
+                  </div>
+                  <div className="ml-7 space-y-0.5">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Your answer:{' '}
+                      <span className={`font-semibold ${
+                        isCorrect
+                          ? 'text-green-600 dark:text-green-400'
+                          : 'text-red-600 dark:text-red-400'
+                      }`}>
+                        {userAnswer || '—'}
+                      </span>
+                    </p>
+                    {!isCorrect && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Correct answer:{' '}
+                        <span className="font-semibold text-green-600 dark:text-green-400">{question.correct_answer}</span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Continue button when there are graded results */}
+        {hasScoredQuestions && (
+          <button
+            type="button"
+            onClick={onComplete}
+            className="w-full py-2.5 text-sm font-medium text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 transition-colors"
+          >
+            Continue →
+          </button>
+        )}
       </div>
     );
   }

@@ -19,12 +19,13 @@ import { excuseRequestService, EXCUSE_REASONS as SERVICE_EXCUSE_REASONS, type Ex
 import { sessionRecordingService } from '@/features/sessions/services/sessionRecordingService';
 import { feedbackService, type FeedbackQuestion, type FeedbackTemplate } from '@/features/feedback/services/feedbackService';
 
-function toTemplateQuestions(questions: Array<Pick<FeedbackQuestion, 'question_type' | 'question_text' | 'is_required' | 'options'>>) {
+function toTemplateQuestions(questions: Array<Pick<FeedbackQuestion, 'question_type' | 'question_text' | 'is_required' | 'options' | 'correct_answer'>>) {
   return questions.map((question) => ({
     type: question.question_type,
     text: question.question_text,
     required: question.is_required,
     options: question.options?.length ? question.options : undefined,
+    correct_answer: question.correct_answer ?? undefined,
   }));
 }
 
@@ -57,6 +58,7 @@ type HostInfo = {
   host_date: string | null;
   is_active?: boolean;
   is_teacher?: boolean;
+  can_host?: boolean;
   address_latitude?: number | null;
   address_longitude?: number | null;
 };
@@ -180,6 +182,7 @@ export function Attendance() {
   const [fbQuestionType, setFbQuestionType] = useState<'rating' | 'text' | 'emoji' | 'multiple_choice'>('rating');
   const [fbQuestionRequired, setFbQuestionRequired] = useState(false);
   const [fbOptionsText, setFbOptionsText] = useState('');
+  const [fbCorrectAnswer, setFbCorrectAnswer] = useState('');
 
   // Memoized attendance stats to avoid re-filtering on every render
   const attendanceStats = useMemo(() => ({
@@ -385,8 +388,7 @@ export function Attendance() {
             )
           `)
           .eq('session_id', sessionId)
-          .eq('status', 'active')
-          .eq('can_host', true),
+          .eq('status', 'active'),
       ]);
 
       const sessionData = sessionResult.data;
@@ -404,7 +406,7 @@ export function Attendance() {
 
       const enrollments = enrollmentResult.data;
 
-      // Filter students with addresses
+      // Filter students with addresses (ANY enrolled student with an address is shown)
       const hostsWithAddresses = (enrollments || [])
         .filter(e => {
           const student = Array.isArray(e.student) ? e.student[0] : e.student;
@@ -419,15 +421,15 @@ export function Attendance() {
             host_date: e.host_date || null,
             is_active: true,
             is_teacher: false,
+            can_host: Boolean(e.can_host),
             address_latitude: student.address_latitude ? Number(student.address_latitude) : null,
             address_longitude: student.address_longitude ? Number(student.address_longitude) : null
           };
         });
     
-    // Add teacher as first option only if teacher_can_host is enabled and they have address
-    const teacherCanHost = sessionData?.teacher_can_host !== false; // default true if not set
+    // Add teacher as first option if they have an address (shown regardless of teacher_can_host)
     const teacher = Array.isArray(sessionData?.teacher) ? sessionData?.teacher[0] : sessionData?.teacher;
-    if (teacherCanHost && teacher?.address && teacher.address.trim() !== '') {
+    if (teacher?.address && teacher.address.trim() !== '') {
       // Load teacher's host_date from teacher_host_schedule
       const { data: teacherHostData } = await supabase
         .from('teacher_host_schedule')
@@ -443,15 +445,20 @@ export function Attendance() {
         host_date: teacherHostData?.host_date || null,
         is_active: true,
         is_teacher: true,
+        can_host: sessionData?.teacher_can_host !== false,
         address_latitude: teacher.address_latitude ? Number(teacher.address_latitude) : null,
         address_longitude: teacher.address_longitude ? Number(teacher.address_longitude) : null
       });
     }
     
-    // Sort student hosts alphabetically (teacher already at top)
-    const teacherHost = hostsWithAddresses.filter(h => h.student_name.includes('Teacher'));
-    const studentHosts = hostsWithAddresses.filter(h => !h.student_name.includes('Teacher'));
-    studentHosts.sort((a, b) => a.student_name.localeCompare(b.student_name));
+    // Sort student hosts: can_host=true first, then alphabetically within each group
+    const teacherHost = hostsWithAddresses.filter(h => h.is_teacher);
+    const studentHosts = hostsWithAddresses.filter(h => !h.is_teacher);
+    studentHosts.sort((a, b) => {
+      // can_host=true students come first
+      if (a.can_host !== b.can_host) return a.can_host ? -1 : 1;
+      return a.student_name.localeCompare(b.student_name);
+    });
     
     setHostAddresses([...teacherHost, ...studentHosts]);
     } catch (err) {
@@ -885,6 +892,7 @@ export function Attendance() {
       setFbQuestionType('rating');
       setFbQuestionRequired(false);
       setFbOptionsText('');
+      setFbCorrectAnswer('');
       return;
     }
 
@@ -915,12 +923,17 @@ export function Attendance() {
     const options = fbQuestionType === 'multiple_choice'
       ? fbOptionsText.split(/[,،]/).map(o => o.trim()).filter(Boolean)
       : [];
+    // Only text and multiple_choice support correct answers
+    const correctAnswer = (fbQuestionType === 'text' || fbQuestionType === 'multiple_choice')
+      ? (fbCorrectAnswer.trim() || null)
+      : null;
     if (fbEditingQuestionId) {
       const { error } = await feedbackService.updateQuestion(fbEditingQuestionId, {
         question_text: fbQuestionText.trim(),
         question_type: fbQuestionType,
         is_required: fbQuestionRequired,
         options,
+        correct_answer: correctAnswer,
         attendance_date: selectedDate,
       });
       if (error) { toast.error('Failed to update question'); setFbSavingQuestion(false); return; }
@@ -932,6 +945,7 @@ export function Attendance() {
         question_type: fbQuestionType,
         is_required: fbQuestionRequired,
         options,
+        correct_answer: correctAnswer,
         sort_order: fbQuestions.length + 1,
         attendance_date: selectedDate,
       });
@@ -945,6 +959,7 @@ export function Attendance() {
     setFbQuestionType('rating');
     setFbQuestionRequired(false);
     setFbOptionsText('');
+    setFbCorrectAnswer('');
     setFbSavingQuestion(false);
 
     // Reload questions
@@ -952,7 +967,7 @@ export function Attendance() {
     if (data) {
       setFbQuestions(data);
     }
-  }, [sessionId, selectedDate, fbQuestionText, fbQuestionType, fbQuestionRequired, fbOptionsText, fbEditingQuestionId, fbQuestions.length]);
+  }, [sessionId, selectedDate, fbQuestionText, fbQuestionType, fbQuestionRequired, fbOptionsText, fbCorrectAnswer, fbEditingQuestionId, fbQuestions.length]);
 
   const handleDeleteQuestion = useCallback(async (questionId: string) => {
     if (!sessionId) return;
@@ -982,6 +997,7 @@ export function Attendance() {
     setFbQuestionType(q.question_type);
     setFbQuestionRequired(q.is_required);
     setFbOptionsText(q.options?.join(', ') || '');
+    setFbCorrectAnswer(q.correct_answer || '');
   }, []);
 
   const cancelEditQuestion = useCallback(() => {
@@ -990,6 +1006,7 @@ export function Attendance() {
     setFbQuestionType('rating');
     setFbQuestionRequired(false);
     setFbOptionsText('');
+    setFbCorrectAnswer('');
   }, []);
 
   const handleTemplateChange = useCallback(async (templateId: string) => {
@@ -1061,7 +1078,7 @@ export function Attendance() {
     }
   }, [selectedDate, hostDataLoaded, hostAddresses, selectedAddress, sessionNotHeld, sessionId]);
 
-  // Validate saved host is still in the valid host list (can_host may have changed)
+  // Validate saved host is still enrolled with an address (covers unenrollment / address removal)
   useEffect(() => {
     if (!hostDataLoaded || !selectedAddress || selectedAddress === 'SESSION_NOT_HELD' || hostAddresses.length === 0) return;
 
@@ -1071,7 +1088,7 @@ export function Attendance() {
 
     const isStillValid = hostAddresses.some(h => h.student_id === savedHostId);
     if (!isStillValid) {
-      toast.warning('⚠️ The previously selected host is no longer allowed to host. Please select a new host address.');
+      toast.warning('⚠️ The previously selected host is no longer enrolled or their address was removed. Please select a new host address.');
       setSelectedAddress('');
       setHostCoordinates(null);
       // Clear stale session_date_host record
@@ -2126,14 +2143,21 @@ export function Attendance() {
             <Select
               value={selectedAddress}
               onChange={handleHostAddressChange}
-              options={hostAddresses.map(host => ({
-                value: `${host.student_id}|||${host.address}`,
-                label: host.host_date === selectedDate 
-                  ? `📅 ${host.student_name} - ${host.address} (Scheduled Today)`
-                  : `${host.student_name} - ${host.address}`
-              }))}
+              options={hostAddresses.map(host => {
+                const scheduledBadge = host.host_date === selectedDate ? '📅 ' : '';
+                const canHostBadge = host.can_host ? ' ✓' : ' —';
+                return {
+                  value: `${host.student_id}|||${host.address}`,
+                  label: host.host_date === selectedDate
+                    ? `${scheduledBadge}${host.student_name}${canHostBadge} — ${host.address} (Scheduled Today)`
+                    : `${host.student_name}${canHostBadge} — ${host.address}`
+                };
+              })}
               placeholder="Select host address"
             />
+            <p className="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500">
+              ✓ = marked "can host" in schedule &nbsp;|&nbsp; — = not flagged for hosting &nbsp;|&nbsp; 📅 = scheduled for today
+            </p>
             {selectedAddress && selectedAddress !== 'SESSION_NOT_HELD' && (
               <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-blue-800">
@@ -2655,10 +2679,48 @@ export function Attendance() {
                       type="text"
                       placeholder="Options separated by commas, e.g. Good, Average, Poor"
                       value={fbOptionsText}
-                      onChange={e => setFbOptionsText(e.target.value)}
+                      onChange={e => {
+                        setFbOptionsText(e.target.value);
+                        // Reset correct answer when options change
+                        setFbCorrectAnswer('');
+                      }}
                       className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-700"
                     />
                   )}
+
+                  {/* ── Correct Answer (test question) — text and multiple_choice only ── */}
+                  {(fbQuestionType === 'text' || fbQuestionType === 'multiple_choice') && (
+                    <div className="rounded-lg border border-amber-200 dark:border-amber-700 bg-amber-50/60 dark:bg-amber-900/20 p-3 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">🎯</span>
+                        <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">Test question (optional)</p>
+                        <span className="text-[10px] text-amber-600 dark:text-amber-500 ml-auto">Leave blank → regular feedback</span>
+                      </div>
+                      {fbQuestionType === 'multiple_choice' ? (
+                        // For multiple_choice: pick from defined options
+                        <select
+                          value={fbCorrectAnswer}
+                          onChange={e => setFbCorrectAnswer(e.target.value)}
+                          className="w-full text-sm border border-amber-300 dark:border-amber-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-300"
+                        >
+                          <option value="">— no correct answer —</option>
+                          {fbOptionsText.split(/[,،]/).map(o => o.trim()).filter(Boolean).map(opt => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        // For text: free input (matched case-insensitively)
+                        <input
+                          type="text"
+                          placeholder="Correct answer (case-insensitive matching)"
+                          value={fbCorrectAnswer}
+                          onChange={e => setFbCorrectAnswer(e.target.value)}
+                          className="w-full text-sm border border-amber-300 dark:border-amber-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                        />
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
                     <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 cursor-pointer select-none">
                       <input
@@ -2715,6 +2777,11 @@ export function Attendance() {
                             {q.is_required && (
                               <span className="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 font-medium">
                                 required
+                              </span>
+                            )}
+                            {q.correct_answer && (
+                              <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium" title={`Correct answer: ${q.correct_answer}`}>
+                                🎯 test — <span className="font-semibold">{q.correct_answer}</span>
                               </span>
                             )}
                           </div>

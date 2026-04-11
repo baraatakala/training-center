@@ -41,6 +41,9 @@ interface FlattenedRecord {
   questionText: string;
   answer: string;
   comment: string | null;
+  /** null = not a test question; true/false = graded result */
+  isCorrect: boolean | null;
+  correctAnswer: string | null;
 }
 
 // ─── Response-centric analytics ────────────────────────────
@@ -121,10 +124,12 @@ function buildResponseAnalytics(feedbacks: SessionFeedback[], questions: Feedbac
 
 // ─── CSV export (one row per question-answer) ───────────────
 function exportFeedbackCSV(records: FlattenedRecord[], courseName: string, selectedDate?: string) {
-  const headers = ['Student', 'Date', 'Question Type', 'Question', 'Answer', 'Comment'];
+  const headers = ['Student', 'Date', 'Question Type', 'Question', 'Answer', 'Correct?', 'Comment'];
   const rows = records.map(r => [
     r.studentName, r.attendanceDate, r.questionType,
-    r.questionText, r.answer, r.comment || '',
+    r.questionText, r.answer,
+    r.isCorrect === null ? '' : r.isCorrect ? 'Yes' : 'No',
+    r.comment || '',
   ]);
   const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -321,6 +326,8 @@ export function FeedbackAnalytics() {
             questionText: 'Overall Rating',
             answer: fb.overall_rating != null ? String(fb.overall_rating) : '—',
             comment: fb.comment,
+            isCorrect: null,
+            correctAnswer: null,
           });
         }
       } else {
@@ -332,6 +339,13 @@ export function FeedbackAnalytics() {
             const rawType = q?.question_type || '';
             if (rawType !== questionTypeFilter) continue;
           }
+          // Compute graded result for test questions
+          let isCorrect: boolean | null = null;
+          let correctAnswer: string | null = null;
+          if (q?.correct_answer) {
+            correctAnswer = q.correct_answer;
+            isCorrect = String(val ?? '').trim().toLowerCase() === q.correct_answer.trim().toLowerCase();
+          }
           rows.push({
             feedbackId: fb.id, studentName, isAnonymous: fb.is_anonymous,
             attendanceDate: fb.attendance_date,
@@ -339,6 +353,8 @@ export function FeedbackAnalytics() {
             questionText: q?.question_text || '—',
             answer: val != null ? String(val) : '—',
             comment: fb.comment,
+            isCorrect,
+            correctAnswer,
           });
         }
       }
@@ -365,7 +381,7 @@ export function FeedbackAnalytics() {
   }, [dateComparison]);
 
   const paginatedRecords = useMemo(() => {
-    let sorted = [...flattenedRecords];
+    const sorted = [...flattenedRecords];
     if (sortField) {
       sorted.sort((a, b) => {
         const valA = (a[sortField] ?? '').toString().toLowerCase();
@@ -468,6 +484,68 @@ export function FeedbackAnalytics() {
 
     return insights;
   }, [feedbacks, dateComparison, questions, allResponseAnalytics]);
+
+  // ─── Knowledge Assessment (test questions only) ────────────
+  const knowledgeAssessment = useMemo(() => {
+    const testQuestions = questions.filter(q => q.correct_answer);
+    if (testQuestions.length === 0) return null;
+
+    // Per-question accuracy
+    interface QuestionAccuracy {
+      questionId: string;
+      questionText: string;
+      correctAnswer: string;
+      totalAttempts: number;
+      correctCount: number;
+      accuracyPct: number;
+    }
+    const perQuestion: QuestionAccuracy[] = testQuestions.map(q => {
+      const attempts = filteredFeedbacks.filter(fb => fb.responses?.[q.id] !== undefined && fb.responses?.[q.id] !== '');
+      const correct = attempts.filter(fb =>
+        String(fb.responses?.[q.id] ?? '').trim().toLowerCase() === q.correct_answer!.trim().toLowerCase()
+      );
+      return {
+        questionId: q.id,
+        questionText: q.question_text,
+        correctAnswer: q.correct_answer!,
+        totalAttempts: attempts.length,
+        correctCount: correct.length,
+        accuracyPct: attempts.length > 0 ? Math.round((correct.length / attempts.length) * 100) : 0,
+      };
+    }).filter(q => q.totalAttempts > 0);
+
+    if (perQuestion.length === 0) return null;
+
+    // Per-student scores
+    interface StudentScore {
+      studentId: string;
+      studentName: string;
+      attempted: number;
+      correct: number;
+      scorePct: number;
+    }
+    const studentMap = new Map<string, StudentScore>();
+    for (const fb of filteredFeedbacks) {
+      const sid = fb.student_id || fb.id;
+      const name = fb.is_anonymous ? 'Anonymous' : (fb.student_name || 'Unknown');
+      if (!studentMap.has(sid)) studentMap.set(sid, { studentId: sid, studentName: name, attempted: 0, correct: 0, scorePct: 0 });
+      const entry = studentMap.get(sid)!;
+      for (const q of testQuestions) {
+        const val = fb.responses?.[q.id];
+        if (val === undefined || val === '') continue;
+        entry.attempted++;
+        if (String(val).trim().toLowerCase() === q.correct_answer!.trim().toLowerCase()) entry.correct++;
+      }
+    }
+    for (const entry of studentMap.values()) {
+      entry.scorePct = entry.attempted > 0 ? Math.round((entry.correct / entry.attempted) * 100) : 0;
+    }
+    const studentScores = [...studentMap.values()].filter(s => s.attempted > 0).sort((a, b) => b.scorePct - a.scorePct);
+
+    const overallPct = perQuestion.reduce((s, q) => s + q.accuracyPct, 0) / perQuestion.length;
+
+    return { perQuestion, studentScores, overallPct: Math.round(overallPct) };
+  }, [filteredFeedbacks, questions]);
 
   // ═══════════════════════════════════════════════════════════
   // RENDER
@@ -687,20 +765,21 @@ export function FeedbackAnalytics() {
                             { key: 'questionType' as SortField, label: 'Type' },
                             { key: 'questionText' as SortField, label: 'Question' },
                             { key: 'answer' as SortField, label: 'Answer' },
+                            { key: null, label: 'Correct?' },
                             { key: 'comment' as SortField, label: 'Comment' },
                           ]).map(col => (
                             <th
-                              key={col.key}
-                              onClick={() => handleSort(col.key)}
-                              className="px-3 py-2.5 text-gray-400 font-semibold text-left first:pl-4 sm:first:pl-5 whitespace-nowrap cursor-pointer select-none hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                              key={col.label}
+                              onClick={() => col.key && handleSort(col.key)}
+                              className={`px-3 py-2.5 text-gray-400 font-semibold text-left first:pl-4 sm:first:pl-5 whitespace-nowrap ${col.key ? 'cursor-pointer select-none hover:text-gray-600 dark:hover:text-gray-200 transition-colors' : ''}`}
                             >
                               <span className="inline-flex items-center gap-1">
                                 {col.label}
-                                {sortField === col.key ? (
+                                {col.key && (sortField === col.key ? (
                                   <span className="text-purple-500">{sortDirection === 'asc' ? '▲' : '▼'}</span>
                                 ) : (
                                   <span className="text-gray-300 dark:text-gray-600">⇅</span>
-                                )}
+                                ))}
                               </span>
                             </th>
                           ))}
@@ -727,6 +806,15 @@ export function FeedbackAnalytics() {
                             </td>
                             <td className="px-3 py-3 max-w-[160px]">
                               <span className="font-medium text-gray-900 dark:text-white truncate block" title={row.answer}>{row.answer}</span>
+                            </td>
+                            <td className="px-3 py-3 text-center">
+                              {row.isCorrect === null ? (
+                                <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>
+                              ) : row.isCorrect ? (
+                                <span title={`Correct answer: ${row.correctAnswer}`}>✅</span>
+                              ) : (
+                                <span title={`Correct answer: ${row.correctAnswer}`}>❌</span>
+                              )}
                             </td>
                             <td className="px-3 py-3 max-w-[140px]">
                               {row.comment ? (
@@ -943,6 +1031,95 @@ export function FeedbackAnalytics() {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                </div>
+              )}
+
+              {/* ─── Knowledge Assessment Panel ─────────────── */}
+              {knowledgeAssessment && (
+                <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-amber-200 dark:border-amber-700 overflow-hidden">
+                  {/* Header */}
+                  <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-amber-100 dark:border-amber-800/40 bg-amber-50/60 dark:bg-amber-900/10">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">🎯</span>
+                      <p className="text-sm font-bold text-amber-900 dark:text-amber-300">Knowledge Assessment</p>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-bold">
+                        {knowledgeAssessment.perQuestion.length} test Q{knowledgeAssessment.perQuestion.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <div className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-black ${
+                      knowledgeAssessment.overallPct >= 80 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                      : knowledgeAssessment.overallPct >= 50 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                      : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                    }`}>
+                      {knowledgeAssessment.overallPct}% overall
+                    </div>
+                  </div>
+
+                  <div className="p-4 sm:p-5 space-y-5">
+                    {/* Per-question accuracy bars */}
+                    <div className="space-y-3">
+                      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Question Accuracy</p>
+                      {knowledgeAssessment.perQuestion.map(q => (
+                        <div key={q.questionId} className="space-y-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate flex-1" title={q.questionText}>{q.questionText}</p>
+                            <span className={`text-xs font-bold shrink-0 ${
+                              q.accuracyPct >= 80 ? 'text-green-600 dark:text-green-400'
+                              : q.accuracyPct >= 50 ? 'text-amber-600 dark:text-amber-400'
+                              : 'text-red-600 dark:text-red-400'
+                            }`}>{q.correctCount}/{q.totalAttempts} — {q.accuracyPct}%</span>
+                          </div>
+                          <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                q.accuracyPct >= 80 ? 'bg-green-500'
+                                : q.accuracyPct >= 50 ? 'bg-amber-500'
+                                : 'bg-red-500'
+                              }`}
+                              style={{ width: `${q.accuracyPct}%` }}
+                            />
+                          </div>
+                          <p className="text-[10px] text-gray-400">✓ Correct answer: <span className="font-semibold text-gray-600 dark:text-gray-300">{q.correctAnswer}</span></p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Student scores table */}
+                    {knowledgeAssessment.studentScores.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Student Scores</p>
+                        <div className="rounded-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+                          <table className="w-full text-xs">
+                            <thead className="bg-gray-50 dark:bg-gray-800/60">
+                              <tr>
+                                {['#', 'Student', 'Correct', 'Attempted', 'Score'].map(h => (
+                                  <th key={h} className="px-3 py-2 text-gray-400 font-semibold text-left first:pl-4">{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
+                              {knowledgeAssessment.studentScores.map((s, rank) => (
+                                <tr key={s.studentId} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                                  <td className="px-3 py-2 pl-4 text-gray-400 font-bold">{rank + 1}</td>
+                                  <td className="px-3 py-2 font-medium text-gray-900 dark:text-white">{s.studentName}</td>
+                                  <td className="px-3 py-2 text-green-600 dark:text-green-400 font-bold">{s.correct}</td>
+                                  <td className="px-3 py-2 text-gray-500">{s.attempted}</td>
+                                  <td className="px-3 py-2">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-16 bg-gray-100 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+                                        <div className={`h-full rounded-full ${s.scorePct >= 80 ? 'bg-green-500' : s.scorePct >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${s.scorePct}%` }} />
+                                      </div>
+                                      <span className={`font-bold ${s.scorePct >= 80 ? 'text-green-600 dark:text-green-400' : s.scorePct >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>{s.scorePct}%</span>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

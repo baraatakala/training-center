@@ -8,7 +8,7 @@ export type { FeedbackQuestion, SessionFeedback, FeedbackTemplate, FeedbackStats
 export interface FeedbackTemplateInput {
   name: string;
   description?: string | null;
-  questions: Array<{ type: string; text: string; required: boolean; options?: string[] }>;
+  questions: Array<{ type: string; text: string; required: boolean; options?: string[]; correct_answer?: string | null }>;
   is_default?: boolean;
 }
 
@@ -379,6 +379,7 @@ export const feedbackService = {
           question_text: question.text,
           question_type: question.type,
           options: question.options || [],
+          correct_answer: question.correct_answer ?? null,
           sort_order: index,
           is_required: Boolean(question.required),
           attendance_date: attendanceDate || null,

@@ -378,6 +378,7 @@ CREATE TABLE IF NOT EXISTS public.feedback_question (
   question_text TEXT NOT NULL,
   question_type TEXT NOT NULL DEFAULT 'rating' CHECK (question_type = ANY (ARRAY['rating', 'text', 'multiple_choice'])),
   options JSONB DEFAULT '[]'::JSONB,
+  correct_answer TEXT DEFAULT NULL,
   sort_order INTEGER NOT NULL DEFAULT 0,
   is_required BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

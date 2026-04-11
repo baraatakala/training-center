@@ -268,6 +268,9 @@ export interface FeedbackQuestion {
   question_text: string;
   question_type: 'rating' | 'text' | 'emoji' | 'multiple_choice';
   options: string[];
+  /** Non-null marks this as a "test question". Grading compares student responses
+   *  (trimmed, case-insensitive) to this value. Only valid for text/multiple_choice. */
+  correct_answer: string | null;
   sort_order: number;
   is_required: boolean;
   attendance_date: string | null;
@@ -292,7 +295,7 @@ export interface FeedbackTemplate {
   id: string;
   name: string;
   description: string | null;
-  questions: Array<{ type: string; text: string; required: boolean; options?: string[] }>;
+  questions: Array<{ type: string; text: string; required: boolean; options?: string[]; correct_answer?: string | null }>;
   is_default: boolean;
   created_at: string;
 }
