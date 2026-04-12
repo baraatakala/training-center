@@ -11,6 +11,7 @@ export function SessionTableRow({
   enrollmentCount,
   isTeacher,
   isAdmin,
+  cloneCount,
   onOpenSchedule,
   onOpenRecordings,
   onClone,
@@ -22,6 +23,7 @@ export function SessionTableRow({
   enrollmentCount: number;
   isTeacher: boolean;
   isAdmin: boolean;
+  cloneCount?: number;
   onOpenSchedule: (session: SessionWithDetails) => void;
   onOpenRecordings: (session: SessionWithDetails) => void;
   onClone: (session: SessionWithDetails) => void;
@@ -78,6 +80,12 @@ export function SessionTableRow({
             </Badge>
             {session.feedback_enabled && <Badge variant="info">💬 Feedback</Badge>}
             {session.requires_recording && <Badge variant="success">🎥 Rec</Badge>}
+            {session.parent_session_id && (
+              <Badge variant="default">🔗 Clone</Badge>
+            )}
+            {!session.parent_session_id && (cloneCount ?? 0) > 0 && (
+              <Badge variant="info">📋 {cloneCount} clone{cloneCount! > 1 ? 's' : ''}</Badge>
+            )}
           </div>
         </div>
       </TableCell>

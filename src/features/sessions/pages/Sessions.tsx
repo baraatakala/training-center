@@ -33,6 +33,7 @@ export function Sessions() {
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebounce(searchQuery, 300);
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'upcoming' | 'completed'>('all');
+  const [cloneFilter, setCloneFilter] = useState<'all' | 'roots' | 'clones'>('all');
   const [sortBy, setSortBy] = useState<'course' | 'teacher' | 'startDate' | 'endDate'>('startDate');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -176,6 +177,12 @@ export function Sessions() {
       });
     }
 
+    if (cloneFilter === 'roots') {
+      filtered = filtered.filter(s => !s.parent_session_id);
+    } else if (cloneFilter === 'clones') {
+      filtered = filtered.filter(s => !!s.parent_session_id);
+    }
+
     filtered.sort((a, b) => {
       let aVal: string, bVal: string;
       
@@ -206,12 +213,12 @@ export function Sessions() {
     });
 
     return filtered;
-  }, [debouncedSearch, statusFilter, sessions, sortBy, sortOrder]);
+  }, [debouncedSearch, statusFilter, cloneFilter, sessions, sortBy, sortOrder]);
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, statusFilter, sortBy, sortOrder]);
+  }, [debouncedSearch, statusFilter, cloneFilter, sortBy, sortOrder]);
 
   // Removed unused toggleSort function - sorting is handled by dropdown and toggle button
 
@@ -478,6 +485,17 @@ export function Sessions() {
     toast.success(`Exported ${filteredSessions.length} sessions to CSV`);
   }, [filteredSessions, enrollmentCounts]);
 
+  // Clone counts: how many clones each root session has
+  const cloneCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const s of sessions) {
+      if (s.parent_session_id) {
+        counts[s.parent_session_id] = (counts[s.parent_session_id] || 0) + 1;
+      }
+    }
+    return counts;
+  }, [sessions]);
+
   const handleDownloadTemplate = async () => {
     const [{ buildImportTemplateWithData }, XLSX] = await Promise.all([
       import('@/features/data-import/services/masterDataImportService'),
@@ -592,6 +610,17 @@ export function Sessions() {
               ]}
             />
           </div>
+          <div className="w-full sm:w-44">
+            <Select
+              value={cloneFilter}
+              onChange={(value) => setCloneFilter(value as typeof cloneFilter)}
+              options={[
+                { value: 'all', label: 'All (Root + Clones)' },
+                { value: 'roots', label: '📋 Root Only' },
+                { value: 'clones', label: '🔗 Clones Only' }
+              ]}
+            />
+          </div>
         </div>
         
         {/* Sort Controls */}
@@ -678,6 +707,7 @@ export function Sessions() {
                       enrollmentCount={enrollmentCounts[session.session_id] || 0}
                       isTeacher={isTeacher}
                       isAdmin={isAdmin}
+                      cloneCount={cloneCounts[session.session_id] || 0}
                       onOpenSchedule={(s) => { setSelectedSessionForSchedule(s); setIsScheduleModalOpen(true); }}
                       onOpenRecordings={setSelectedSessionForRecordings}
                       onClone={openCloneModal}
@@ -746,6 +776,7 @@ export function Sessions() {
                       enrollmentCount={enrollmentCounts[session.session_id] || 0}
                       isTeacher={isTeacher}
                       isAdmin={isAdmin}
+                      cloneCount={cloneCounts[session.session_id] || 0}
                       onOpenSchedule={(s) => { setSelectedSessionForSchedule(s); setIsScheduleModalOpen(true); }}
                       onOpenRecordings={setSelectedSessionForRecordings}
                       onClone={openCloneModal}

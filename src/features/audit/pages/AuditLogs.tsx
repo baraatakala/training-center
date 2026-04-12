@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/Card';
 import { Button } from '@/shared/components/ui/Button';
 import { useDebounce } from '@/shared/hooks/useDebounce';
@@ -10,8 +11,9 @@ import { useIsTeacher } from '@/shared/hooks/useIsTeacher';
 import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
 import { toast } from '@/shared/components/ui/toastUtils';
 import { useRefreshOnFocus } from '@/shared/hooks/useRefreshOnFocus';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
-import { getActor, describeAction, getChangedFields, formatValue, NOISE_FIELDS } from '@/features/audit/utils/auditHelpers';
+import { getActor, describeAction, getChangedFields, formatValue, NOISE_FIELDS, getEntityRoute } from '@/features/audit/utils/auditHelpers';
 import { TABLE_ICONS, OP_ICONS } from '@/features/audit/constants/auditConstants';
 import { DataSummaryGrid } from '@/features/audit/components/DataSummaryGrid';
 // =====================================================
@@ -28,6 +30,7 @@ export function AuditLogs() {
   });
   const [viewMode, setViewMode] = useState<'timeline' | 'table'>('timeline');
   const { isAdmin } = useIsTeacher();
+  const navigate = useNavigate();
   const [deletingLog, setDeletingLog] = useState<AuditLogEntry | null>(null);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [selectedLogs, setSelectedLogs] = useState<Set<string>>(new Set());
@@ -35,6 +38,7 @@ export function AuditLogs() {
   // Filters
   const [filterTable, setFilterTable] = useState('');
   const [filterOp, setFilterOp] = useState('');
+  const [filterUser, setFilterUser] = useState('');
   const [filterDateRange, setFilterDateRange] = useState('30d');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
@@ -159,8 +163,23 @@ export function AuditLogs() {
       });
     }
 
+    // User filter
+    if (filterUser) {
+      result = result.filter((l) => getActor(l) === filterUser);
+    }
+
     return result;
-  }, [logs, filterDateRange, customStart, customEnd, debouncedSearch]);
+  }, [logs, filterDateRange, customStart, customEnd, debouncedSearch, filterUser]);
+
+  // Unique actors list for the user filter dropdown
+  const uniqueActors = useMemo(() => {
+    const actors = new Set<string>();
+    logs.forEach(l => {
+      const actor = getActor(l);
+      if (actor && actor !== 'system') actors.add(actor);
+    });
+    return Array.from(actors).sort();
+  }, [logs]);
 
   // Pagination
   const totalPages = Math.ceil(filteredLogs.length / PAGE_SIZE);
@@ -191,8 +210,6 @@ export function AuditLogs() {
 
     return { deletes, updates, inserts, dailyActivity, mostActiveTable };
   }, [filteredLogs]);
-
-  const maxDailyCount = Math.max(1, ...stats.dailyActivity.map(([, c]) => c));
 
   const exportToCSV = useCallback(() => {
     const headers = ['Timestamp', 'Table', 'Operation', 'User', 'Description', 'Details'];
@@ -325,7 +342,7 @@ export function AuditLogs() {
         </div>
       </div>
 
-      {/* Activity Sparkline */}
+      {/* Activity Chart */}
       {stats.dailyActivity.length > 1 && (
         <Card>
           <CardContent className="pt-4">
@@ -333,23 +350,23 @@ export function AuditLogs() {
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Daily Activity</span>
               <span className="text-xs text-gray-500 dark:text-gray-500">(last 14 days)</span>
             </div>
-            <div className="flex items-end gap-1 h-16">
-              {stats.dailyActivity.map(([day, count]) => (
-                <div key={day} className="flex-1 flex flex-col items-center group relative">
-                  <div
-                    className="w-full bg-blue-400 dark:bg-blue-500 rounded-t transition-all group-hover:bg-blue-600 dark:group-hover:bg-blue-400"
-                    style={{ height: `${Math.max(4, (count / maxDailyCount) * 60)}px` }}
-                  />
-                  <span className="text-[9px] text-gray-400 dark:text-gray-500 mt-1 hidden sm:block">{day}</span>
-                  {/* Tooltip */}
-                  <div className="absolute bottom-full mb-2 hidden group-hover:block z-10">
-                    <div className="bg-gray-900 dark:bg-gray-700 text-white text-xs rounded px-2 py-1 whitespace-nowrap">
-                      {day}: {count} events
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <ResponsiveContainer width="100%" height={100}>
+              <BarChart data={stats.dailyActivity.map(([day, count]) => ({ day, count }))}>
+                <XAxis dataKey="day" tick={{ fontSize: 10 }} interval={0} className="text-gray-400 dark:text-gray-500" />
+                <YAxis hide />
+                <Tooltip
+                  contentStyle={{ backgroundColor: 'rgba(17,24,39,0.9)', border: 'none', borderRadius: 8, fontSize: 12 }}
+                  labelStyle={{ color: '#9ca3af' }}
+                  itemStyle={{ color: '#60a5fa' }}
+                  formatter={(value: number) => [`${value} events`, 'Count']}
+                />
+                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                  {stats.dailyActivity.map(([day], i) => (
+                    <Cell key={day} fill={i === stats.dailyActivity.length - 1 ? '#3b82f6' : '#93c5fd'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
       )}
@@ -413,6 +430,18 @@ export function AuditLogs() {
             </div>
 
             <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">User</label>
+              <Select
+                value={filterUser}
+                onChange={(v) => { setFilterUser(v); setPage(1); }}
+                options={[
+                  { value: '', label: 'All Users' },
+                  ...uniqueActors.map(a => ({ value: a, label: a })),
+                ]}
+              />
+            </div>
+
+            <div>
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Date Range</label>
               <Select
                 value={filterDateRange}
@@ -461,9 +490,9 @@ export function AuditLogs() {
                 <span> (filtered from {logs.length})</span>
               )}
             </p>
-            {(filterTable || filterOp || searchQuery || filterDateRange !== '30d') && (
+            {(filterTable || filterOp || filterUser || searchQuery || filterDateRange !== '30d') && (
               <button
-                onClick={() => { setFilterTable(''); setFilterOp(''); setSearchQuery(''); setFilterDateRange('30d'); setPage(1); }}
+                onClick={() => { setFilterTable(''); setFilterOp(''); setFilterUser(''); setSearchQuery(''); setFilterDateRange('30d'); setPage(1); }}
                 className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
               >
                 Clear all filters
@@ -668,7 +697,19 @@ export function AuditLogs() {
                                 </div>
                               )}
 
-                              <div className="flex items-center justify-end">
+                              <div className="flex items-center justify-end gap-2">
+                                {(() => {
+                                  const route = getEntityRoute(log);
+                                  return route ? (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); navigate(route); }}
+                                      className="px-2 py-1 text-xs rounded border text-blue-600 border-blue-300 bg-blue-50 hover:bg-blue-100 dark:text-blue-400 dark:border-blue-700 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 transition-colors"
+                                      title="View related entity"
+                                    >
+                                      🔗 View {log.table_name}
+                                    </button>
+                                  ) : null;
+                                })()}
                                 {isAdmin && (
                                   <button
                                     onClick={(e) => { e.stopPropagation(); setDeletingLog(log); }}

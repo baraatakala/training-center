@@ -144,3 +144,27 @@ export const getSummaryEntries = (
     .filter(({ field }) => data[field] != null && data[field] !== '')
     .map(({ field, label }) => ({ label, value: formatValue(data[field]) }));
 };
+
+/** Return the route path to view the entity related to an audit log entry */
+export const getEntityRoute = (log: AuditLogEntry): string | null => {
+  const data = { ...(log.old_data || {}), ...(log.new_data || {}) } as Record<string, unknown>;
+  switch (log.table_name) {
+    case 'student': return '/students';
+    case 'teacher': return '/teachers';
+    case 'course': return '/courses';
+    case 'session': return '/sessions';
+    case 'enrollment': return '/enrollments';
+    case 'attendance':
+      return data.session_id ? `/attendance/${data.session_id}` : '/attendance-records';
+    case 'session_feedback':
+      return data.session_id ? `/feedback-analytics?session=${data.session_id}` : '/feedback-analytics';
+    case 'feedback_question':
+      return data.session_id ? `/attendance/${data.session_id}` : null;
+    case 'feedback_template': return null;
+    case 'session_recording':
+      return '/sessions';
+    case 'announcement': return '/announcements';
+    case 'message': return '/messages';
+    default: return null;
+  }
+};

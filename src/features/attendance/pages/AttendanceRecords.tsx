@@ -372,7 +372,7 @@ export const AttendanceRecords = () => {
     specialization: boolean;
     crosstab: boolean;
   }>(() => {
-    const defaults = { summary: true, student: true, date: true, host: true, specialization: true, crosstab: false };
+    const defaults = { summary: true, student: true, date: true, host: true, specialization: true, crosstab: true };
     try {
       const saved = localStorage.getItem('analyticsIncludedTables');
       if (saved) return { ...defaults, ...JSON.parse(saved) };
@@ -6380,7 +6380,7 @@ export const AttendanceRecords = () => {
           CROSS-TAB HEATMAP TABLE — Student × Date Matrix
           Color-coded cells showing attendance status
           ═══════════════════════════════════════════════════════════════ */}
-      {activeSection === 'matrix' && includedTables.crosstab && (
+      {activeSection === 'matrix' && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
             <button
               onClick={() => setCollapseCrosstabTable(prev => !prev)}

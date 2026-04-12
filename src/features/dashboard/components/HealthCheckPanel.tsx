@@ -7,6 +7,7 @@ import { dashboardService } from '@/features/dashboard/services/dashboardService
 import { toast } from '@/shared/components/ui/toastUtils';
 import type { HealthCheck, HealthCheckCategory } from '../constants/dashboardConstants';
 import { HEALTH_CATEGORY_LABELS } from '../constants/dashboardConstants';
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
 
 export function HealthCheckPanel() {
   const navigate = useNavigate();
@@ -612,6 +613,28 @@ export function HealthCheckPanel() {
                   <strong>{errorCount} blocking issue{errorCount > 1 ? 's' : ''}</strong> found. These indicate data integrity problems that need immediate attention.
                 </div>
               )}
+              {/* Radar Chart — category health scores */}
+              {(() => {
+                const radarData = categoryOrder.map(cat => {
+                  const catChecks = grouped.get(cat) || [];
+                  if (catChecks.length === 0) return { category: HEALTH_CATEGORY_LABELS[cat].label, score: 100 };
+                  const catMax = catChecks.length * 3;
+                  const catLost = catChecks.filter(c => c.status === 'error').length * 3 + catChecks.filter(c => c.status === 'warn').length;
+                  return { category: HEALTH_CATEGORY_LABELS[cat].label, score: Math.round(((catMax - catLost) / catMax) * 100) };
+                });
+                return (
+                  <div className="flex justify-center">
+                    <ResponsiveContainer width="100%" height={220}>
+                      <RadarChart data={radarData} outerRadius="70%">
+                        <PolarGrid stroke="#d1d5db" />
+                        <PolarAngleAxis dataKey="category" tick={{ fontSize: 11, fill: '#6b7280' }} />
+                        <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 9 }} />
+                        <Radar name="Health" dataKey="score" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.25} />
+                      </RadarChart>
+                    </ResponsiveContainer>
+                  </div>
+                );
+              })()}
               {/* Category-grouped checks */}
               {categoryOrder.map(cat => {
                 const catChecks = grouped.get(cat) || [];
