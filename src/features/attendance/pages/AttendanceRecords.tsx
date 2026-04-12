@@ -120,6 +120,9 @@ interface FilterOptions {
   course_ids: string[];
   teacher_ids: string[];
   statuses: string[];
+  host_addresses: string[];
+  checkInTimeStart: string;
+  checkInTimeEnd: string;
   startDate: string;
   endDate: string;
 }
@@ -282,6 +285,13 @@ export const AttendanceRecords = () => {
       return false;
     }
   });
+  const [collapseSpecTable, setCollapseSpecTable] = useState(() => {
+    try {
+      return localStorage.getItem('attendance_collapseSpecTable') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [collapseCrosstabTable, setCollapseCrosstabTable] = useState(() => {
     try {
       return localStorage.getItem('attendance_collapseCrosstabTable') === 'true';
@@ -302,6 +312,7 @@ export const AttendanceRecords = () => {
       localStorage.setItem('attendance_collapseStudentTable', String(collapseStudentTable));
       localStorage.setItem('attendance_collapseDateTable', String(collapseDateTable));
       localStorage.setItem('attendance_collapseHostTable', String(collapseHostTable));
+      localStorage.setItem('attendance_collapseSpecTable', String(collapseSpecTable));
       localStorage.setItem('attendance_collapseCrosstabTable', String(collapseCrosstabTable));
       localStorage.setItem('attendance_collapseChartsSection', String(collapseChartsSection));
     } catch {
@@ -311,6 +322,7 @@ export const AttendanceRecords = () => {
     collapseStudentTable,
     collapseDateTable,
     collapseHostTable,
+    collapseSpecTable,
     collapseCrosstabTable,
     collapseChartsSection,
   ]);
@@ -473,6 +485,9 @@ export const AttendanceRecords = () => {
     course_ids: [],
     teacher_ids: [],
     statuses: [],
+    host_addresses: [],
+    checkInTimeStart: '',
+    checkInTimeEnd: '',
     startDate: '',
     endDate: format(new Date(), 'yyyy-MM-dd'),
   });
@@ -497,6 +512,7 @@ export const AttendanceRecords = () => {
   const [students, setStudents] = useState<{ value: string; label: string }[]>([]);
   const [courses, setCourses] = useState<{ value: string; label: string }[]>([]);
   const [instructors, setInstructors] = useState<{ value: string; label: string }[]>([]);
+  const [hostAddresses, setHostAddresses] = useState<{ value: string; label: string }[]>([]);
 
   useEffect(() => {
     // Initialize: fetch earliest and latest attendance dates and then load filters + records
@@ -645,6 +661,23 @@ export const AttendanceRecords = () => {
       filtered = filtered.filter(r => filters.statuses.includes(r.status));
     }
 
+    // Filter by host addresses (multi-select)
+    if (filters.host_addresses.length > 0) {
+      filtered = filtered.filter(r => r.host_address && filters.host_addresses.includes(r.host_address));
+    }
+
+    // Filter by check-in time range
+    if (filters.checkInTimeStart || filters.checkInTimeEnd) {
+      filtered = filtered.filter(r => {
+        if (!r.gps_timestamp) return false;
+        const checkInTime = new Date(r.gps_timestamp);
+        const hhmm = `${String(checkInTime.getHours()).padStart(2, '0')}:${String(checkInTime.getMinutes()).padStart(2, '0')}`;
+        if (filters.checkInTimeStart && hhmm < filters.checkInTimeStart) return false;
+        if (filters.checkInTimeEnd && hhmm > filters.checkInTimeEnd) return false;
+        return true;
+      });
+    }
+
     // Filter by startDate and endDate (inclusive)
     if (filters.startDate) {
       filtered = filtered.filter(r => {
@@ -680,7 +713,7 @@ export const AttendanceRecords = () => {
   const loadFilterOptions = async () => {
     try {
       // Load all filter options in parallel for better performance
-      const [studentsRes, coursesRes, teachersRes] = await Promise.all([
+      const [studentsRes, coursesRes, teachersRes, hostRes] = await Promise.all([
         supabase
           .from('student')
           .select('student_id, name')
@@ -692,7 +725,11 @@ export const AttendanceRecords = () => {
         supabase
           .from('teacher')
           .select('teacher_id, name')
-          .order('name')
+          .order('name'),
+        supabase
+          .from('session')
+          .select('host_address')
+          .not('host_address', 'is', null)
       ]);
 
       if (studentsRes.data) {
@@ -714,6 +751,11 @@ export const AttendanceRecords = () => {
       }
       if (teachersRes.error) {
         console.error('Error loading teachers:', teachersRes.error);
+      }
+
+      if (hostRes.data) {
+        const unique = [...new Set(hostRes.data.map((h: { host_address: string }) => h.host_address).filter(Boolean))].sort();
+        setHostAddresses(unique.map(a => ({ value: a, label: a })));
       }
 
       // Show warning if any filter options failed to load
@@ -823,6 +865,11 @@ export const AttendanceRecords = () => {
     allCourses: 'جميع المواد',
     allInstructors: 'جميع المعلمين',
     allStatuses: 'جميع الحالات',
+    hostAddressLabel: 'عنوان المضيف',
+    allHostAddresses: 'جميع العناوين',
+    checkInTimeStartLabel: 'وقت التسجيل من',
+    checkInTimeEndLabel: 'وقت التسجيل إلى',
+    specializations: 'تخصصات',
     startDateLabel: 'تاريخ البداية',
     endDateLabel: 'تاريخ النهاية',
     clearAll: 'مسح الكل',
@@ -848,6 +895,7 @@ export const AttendanceRecords = () => {
     studentPerformance: '🎓 تحليلات أداء الطلاب',
     attendanceByDate: '📅 الحضور حسب التاريخ',
     hostAnalyticsTitle: '🏠 تحليلات المضيف',
+    specAnalyticsTitle: '🎓 تحليلات التخصصات',
     crosstabTitle: '🗓️ مصفوفة الحضور',
     crosstabDesc: 'الطلاب × التواريخ مع مؤشرات ملونة',
     includeTables: 'تضمين الجداول',
@@ -941,6 +989,11 @@ export const AttendanceRecords = () => {
     allCourses: 'All Courses',
     allInstructors: 'All Instructors',
     allStatuses: 'All Statuses',
+    hostAddressLabel: 'Host Address',
+    allHostAddresses: 'All Addresses',
+    checkInTimeStartLabel: 'Check-in From',
+    checkInTimeEndLabel: 'Check-in Until',
+    specializations: 'specializations',
     startDateLabel: 'Start Date',
     endDateLabel: 'End Date',
     clearAll: 'Clear all',
@@ -966,6 +1019,7 @@ export const AttendanceRecords = () => {
     studentPerformance: '🎓 Student Performance Analytics',
     attendanceByDate: '📅 Attendance by Date',
     hostAnalyticsTitle: '🏠 Host Analytics',
+    specAnalyticsTitle: '🎓 Specialization Analytics',
     crosstabTitle: '🗓️ Attendance Matrix',
     crosstabDesc: 'Students × Dates with color-coded status',
     includeTables: 'Include Tables',
@@ -3450,6 +3504,9 @@ export const AttendanceRecords = () => {
       course_ids: [],
       teacher_ids: [],
       statuses: [],
+      host_addresses: [],
+      checkInTimeStart: '',
+      checkInTimeEnd: '',
       startDate: earliestDate || format(subDays(new Date(), 365), 'yyyy-MM-dd'),
       endDate: latestDate,
     });
@@ -4028,6 +4085,7 @@ export const AttendanceRecords = () => {
           icon: '👤',
           fields: [
             { key: 'rank', label: 'Rank', labelAr: 'الرتبة', category: 'basic', defaultSelected: true },
+            { key: 'student_id', label: 'Student ID', labelAr: 'رقم الطالب', category: 'basic', defaultSelected: false },
             { key: 'student_name', label: 'Student Name', labelAr: 'اسم الطالب', category: 'basic', defaultSelected: true },
           ]
         },
@@ -4039,8 +4097,12 @@ export const AttendanceRecords = () => {
           fields: [
             { key: 'presentCount', label: 'On Time', labelAr: 'في الوقت', category: 'attendance', defaultSelected: true },
             { key: 'lateCount', label: 'Late', labelAr: 'متأخر', category: 'attendance', defaultSelected: true },
-            { key: 'absentCount', label: 'Total Absent', labelAr: 'إجمالي الغياب', category: 'attendance', defaultSelected: true },
+            { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحضور', category: 'attendance', defaultSelected: true },
+            { key: 'absentCount', label: 'Total Absent', labelAr: 'إجمالي الغياب', category: 'attendance', defaultSelected: false },
+            { key: 'unexcusedAbsent', label: 'Unexcused Absent', labelAr: 'غياب بدون عذر', category: 'attendance', defaultSelected: true },
             { key: 'excusedCount', label: 'Excused', labelAr: 'معذور', category: 'attendance', defaultSelected: true },
+            { key: 'sessionNotHeldCount', label: 'Not Held', labelAr: 'جلسات لم تعقد', category: 'attendance', defaultSelected: true },
+            { key: 'totalRecords', label: 'Total Records', labelAr: 'إجمالي السجلات', category: 'attendance', defaultSelected: false },
           ]
         },
         {
@@ -4049,11 +4111,33 @@ export const AttendanceRecords = () => {
           labelAr: 'مقاييس الأداء',
           icon: '📈',
           fields: [
+            { key: 'effectiveDays', label: 'Effective Days', labelAr: 'الأيام الفعلية', category: 'metrics', defaultSelected: true },
+            { key: 'daysCovered', label: 'Days Covered', labelAr: 'الأيام المغطاة', category: 'metrics', defaultSelected: true },
             { key: 'attendanceRate', label: 'Attendance Rate %', labelAr: 'نسبة الحضور', category: 'metrics', defaultSelected: true },
             { key: 'punctualityRate', label: 'Punctuality Rate %', labelAr: 'نسبة الالتزام', category: 'metrics', defaultSelected: true },
             { key: 'weightedScore', label: 'Weighted Score', labelAr: 'الدرجة الموزونة', category: 'metrics', defaultSelected: true },
             { key: 'consistencyIndex', label: 'Consistency Index', labelAr: 'مؤشر الانتظام', category: 'metrics', defaultSelected: false },
-            { key: 'qualityAdjustedRate', label: 'Quality-Adjusted Rate %', labelAr: 'معدل الجودة المعدل', category: 'metrics', defaultSelected: false },
+          ]
+        },
+
+        {
+          id: 'rates',
+          label: 'Rate Statistics',
+          labelAr: 'إحصائيات المعدلات',
+          icon: '📏',
+          fields: [
+            { key: 'avgRate', label: 'Average Rate', labelAr: 'المعدل المتوسط', category: 'rates', defaultSelected: false },
+            { key: 'minRate', label: 'Minimum Rate', labelAr: 'أدنى معدل', category: 'rates', defaultSelected: false },
+            { key: 'maxRate', label: 'Maximum Rate', labelAr: 'أعلى معدل', category: 'rates', defaultSelected: false },
+          ]
+        },
+        {
+          id: 'scoreBreakdown',
+          label: '🔍 Score Breakdown',
+          labelAr: '🔍 تفصيل الدرجة',
+          icon: '🧮',
+          fields: [
+            { key: 'qualityAdjustedRate', label: 'Quality-Adjusted Rate %', labelAr: 'معدل الجودة المعدل', category: 'scoreBreakdown', defaultSelected: false },
           ]
         },
         {
@@ -4064,8 +4148,11 @@ export const AttendanceRecords = () => {
           fields: [
             { key: 'totalLateMinutes', label: 'Total Late (min)', labelAr: 'مجموع التأخير (دقيقة)', category: 'lateDuration', defaultSelected: false },
             { key: 'avgLateMinutes', label: 'Avg Late (min)', labelAr: 'متوسط التأخير', category: 'lateDuration', defaultSelected: false },
+            { key: 'maxLateMinutes', label: 'Max Late (min)', labelAr: 'أقصى تأخير', category: 'lateDuration', defaultSelected: false },
+            { key: 'lateScoreAvg', label: 'Avg Late Credit (0-1)', labelAr: '\u0645\u062A\u0648\u0633\u0637 \u0631\u0635\u064A\u062F \u0627\u0644\u062A\u0623\u062E\u064A\u0631', category: 'lateDuration', defaultSelected: false },
           ]
-        }
+        },
+
       ];
     } else if (exportDataType === 'dateAnalytics') {
       return [
@@ -4088,6 +4175,9 @@ export const AttendanceRecords = () => {
           fields: [
             { key: 'bookTopic', label: 'Book Topic', labelAr: 'موضوع الكتاب', category: 'book', defaultSelected: true },
             { key: 'bookPages', label: 'Pages', labelAr: 'الصفحات', category: 'book', defaultSelected: true },
+            { key: 'bookStartPage', label: 'Start Page', labelAr: 'صفحة البداية', category: 'book', defaultSelected: false },
+            { key: 'bookEndPage', label: 'End Page', labelAr: 'صفحة النهاية', category: 'book', defaultSelected: false },
+            { key: 'pagesCount', label: 'Pages Count', labelAr: 'عدد الصفحات', category: 'book', defaultSelected: false },
           ]
         },
         {
@@ -4098,8 +4188,11 @@ export const AttendanceRecords = () => {
           fields: [
             { key: 'presentCount', label: 'On Time', labelAr: 'في الوقت', category: 'counts', defaultSelected: true },
             { key: 'lateCount', label: 'Late', labelAr: 'متأخر', category: 'counts', defaultSelected: true },
+            { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحضور', category: 'counts', defaultSelected: false },
             { key: 'excusedAbsentCount', label: 'Excused', labelAr: 'معذور', category: 'counts', defaultSelected: true },
             { key: 'unexcusedAbsentCount', label: 'Absent', labelAr: 'غائب', category: 'counts', defaultSelected: true },
+            { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب', category: 'counts', defaultSelected: false },
+            { key: 'totalStudents', label: 'Total Students', labelAr: 'إجمالي الطلاب', category: 'counts', defaultSelected: false },
           ]
         },
         {
@@ -4109,6 +4202,8 @@ export const AttendanceRecords = () => {
           icon: '📊',
           fields: [
             { key: 'attendanceRate', label: 'Attendance Rate %', labelAr: 'نسبة الحضور', category: 'rates', defaultSelected: true },
+            { key: 'punctualityRate', label: 'Punctuality Rate %', labelAr: 'نسبة الالتزام', category: 'rates', defaultSelected: false },
+            { key: 'absentRate', label: 'Absence Rate %', labelAr: 'نسبة الغياب', category: 'rates', defaultSelected: false },
           ]
         },
         {
@@ -4122,12 +4217,23 @@ export const AttendanceRecords = () => {
           ]
         },
         {
+          id: 'specialization',
+          label: 'Specialization',
+          labelAr: 'التخصص',
+          icon: '🎓',
+          fields: [
+            { key: 'topSpecialization', label: 'Most Present Specialization', labelAr: 'التخصص الأكثر حضوراً', category: 'specialization', defaultSelected: true },
+          ]
+        },
+        {
           id: 'names',
           label: 'Student Names',
           labelAr: 'أسماء الطلاب',
           icon: '👥',
           fields: [
             { key: 'presentNames', label: 'On Time Names', labelAr: 'أسماء الحاضرين', category: 'names', defaultSelected: false },
+            { key: 'lateNames', label: 'Late Names', labelAr: 'أسماء المتأخرين', category: 'names', defaultSelected: false },
+            { key: 'excusedNames', label: 'Excused Names', labelAr: 'أسماء المعذورين', category: 'names', defaultSelected: false },
             { key: 'absentNames', label: 'Absent Names', labelAr: 'أسماء الغائبين', category: 'names', defaultSelected: false },
           ]
         }
@@ -4165,8 +4271,10 @@ export const AttendanceRecords = () => {
             { key: 'attendanceRate', label: 'Avg Attendance Rate %', labelAr: 'معدل الحضور', category: 'attendance', defaultSelected: true },
             { key: 'totalOnTime', label: 'Total On Time', labelAr: 'إجمالي في الوقت', category: 'attendance', defaultSelected: true },
             { key: 'totalLate', label: 'Total Late', labelAr: 'إجمالي المتأخرين', category: 'attendance', defaultSelected: true },
+            { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحضور', category: 'attendance', defaultSelected: true },
             { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب', category: 'attendance', defaultSelected: true },
             { key: 'totalExcused', label: 'Total Excused', labelAr: 'إجمالي المعذورين', category: 'attendance', defaultSelected: true },
+            { key: 'totalStudents', label: 'Total Students', labelAr: 'إجمالي الطلاب', category: 'attendance', defaultSelected: false },
           ]
         },
         {
@@ -4176,6 +4284,8 @@ export const AttendanceRecords = () => {
           icon: '🎓',
           fields: [
             { key: 'topSpec', label: 'Dominant Specialization', labelAr: '\u0627\u0644\u062A\u062E\u0635\u0635 \u0627\u0644\u0633\u0627\u0626\u062F', category: 'specAffinity', defaultSelected: true },
+            { key: 'topSpecCount', label: 'Spec Sessions', labelAr: '\u062C\u0644\u0633\u0627\u062A \u0627\u0644\u062A\u062E\u0635\u0635', category: 'specAffinity', defaultSelected: true },
+            { key: 'specBreakdown', label: 'Spec Breakdown', labelAr: '\u062A\u0641\u0627\u0635\u064A\u0644 \u0627\u0644\u062A\u062E\u0635\u0635\u0627\u062A', category: 'specAffinity', defaultSelected: true },
           ]
         },
         {
@@ -4200,26 +4310,10 @@ export const AttendanceRecords = () => {
             { key: 'rank', label: 'Rank', labelAr: 'الترتيب', category: 'specInfo', defaultSelected: true },
             { key: 'specialization', label: 'Specialization', labelAr: 'التخصص', category: 'specInfo', defaultSelected: true },
             { key: 'studentCount', label: 'Student Count', labelAr: 'عدد الطلاب', category: 'specInfo', defaultSelected: true },
-          ]
-        },
-        {
-          id: 'specPerformance',
-          label: 'Performance',
-          labelAr: 'الأداء',
-          icon: '📊',
-          fields: [
-            { key: 'avgAttendanceRate', label: 'Avg Attendance Rate %', labelAr: 'معدل الحضور %', category: 'specPerformance', defaultSelected: true },
-            { key: 'avgScore', label: 'Avg Weighted Score', labelAr: 'متوسط الدرجة', category: 'specPerformance', defaultSelected: true },
-          ]
-        },
-        {
-          id: 'specCounts',
-          label: 'Attendance Totals',
-          labelAr: 'إجماليات الحضور',
-          icon: '✅',
-          fields: [
-            { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحاضرين', category: 'specCounts', defaultSelected: true },
-            { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب', category: 'specCounts', defaultSelected: true },
+            { key: 'avgAttendanceRate', label: 'Avg Attendance Rate %', labelAr: 'معدل الحضور %', category: 'specInfo', defaultSelected: true },
+            { key: 'avgScore', label: 'Avg Weighted Score', labelAr: 'متوسط الدرجة', category: 'specInfo', defaultSelected: true },
+            { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحاضرين', category: 'specInfo', defaultSelected: true },
+            { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب', category: 'specInfo', defaultSelected: true },
           ]
         }
       ];
@@ -4336,18 +4430,32 @@ export const AttendanceRecords = () => {
       // Student fields
       allFields.push(
         { key: 'rank', label: 'Rank', labelAr: 'الترتيب' },
+        { key: 'student_id', label: 'Student ID', labelAr: 'رقم الطالب' },
         { key: 'student_name', label: 'Student Name', labelAr: 'اسم الطالب' },
         { key: 'presentCount', label: 'On Time', labelAr: 'في الوقت' },
         { key: 'lateCount', label: 'Late', labelAr: 'متأخر' },
+        { key: 'totalPresent', label: 'Total Present', labelAr: 'حاضر' },
         { key: 'absentCount', label: 'Total Absent', labelAr: 'إجمالي الغياب' },
+        { key: 'unexcusedAbsent', label: 'Unexcused Absent', labelAr: 'غائب بدون عذر' },
         { key: 'excusedCount', label: 'Excused', labelAr: 'غائب بعذر' },
+        { key: 'sessionNotHeldCount', label: 'Not Held', labelAr: 'جلسات لم تعقد' },
+        { key: 'totalRecords', label: 'Total Records', labelAr: 'إجمالي السجلات' },
+        { key: 'effectiveDays', label: 'Effective Days', labelAr: 'الأيام الفعلية' },
+        { key: 'daysCovered', label: 'Days Covered', labelAr: 'الأيام المغطاة' },
         { key: 'attendanceRate', label: 'Attendance Rate %', labelAr: 'معدل الحضور (%)' },
         { key: 'punctualityRate', label: 'Punctuality Rate %', labelAr: 'معدل الالتزام بالوقت (%)' },
         { key: 'weightedScore', label: 'Weighted Score', labelAr: 'النقاط المرجحة' },
         { key: 'consistencyIndex', label: 'Consistency Index', labelAr: 'مؤشر الانتظام' },
+        { key: 'avgRate', label: 'Average Rate', labelAr: 'المعدل المتوسط' },
+        { key: 'minRate', label: 'Minimum Rate', labelAr: 'أدنى معدل' },
+        { key: 'maxRate', label: 'Maximum Rate', labelAr: 'أعلى معدل' },
+        // Score Breakdown
         { key: 'qualityAdjustedRate', label: 'Quality-Adjusted Rate %', labelAr: 'معدل الجودة المعدل' },
+        // Late Duration
         { key: 'totalLateMinutes', label: 'Total Late (min)', labelAr: 'مجموع التأخير (دقيقة)' },
         { key: 'avgLateMinutes', label: 'Avg Late (min)', labelAr: 'متوسط التأخير' },
+        { key: 'maxLateMinutes', label: 'Max Late (min)', labelAr: 'أقصى تأخير' },
+        { key: 'lateScoreAvg', label: 'Avg Late Credit (0-1)', labelAr: '\u0645\u062A\u0648\u0633\u0637 \u0631\u0635\u064A\u062F \u0627\u0644\u062A\u0623\u062E\u064A\u0631' },
       );
     } else if (dataType === 'dateAnalytics') {
       // Date fields
@@ -4357,15 +4465,27 @@ export const AttendanceRecords = () => {
         { key: 'hostAddress', label: 'Host Address', labelAr: 'عنوان المضيف' },
         { key: 'bookTopic', label: 'Book Topic', labelAr: 'الموضوع' },
         { key: 'bookPages', label: 'Pages', labelAr: 'الصفحات' },
+        { key: 'bookStartPage', label: 'Start Page', labelAr: 'صفحة البداية' },
+        { key: 'bookEndPage', label: 'End Page', labelAr: 'صفحة النهاية' },
+        { key: 'pagesCount', label: 'Pages Count', labelAr: 'عدد الصفحات' },
         { key: 'presentCount', label: 'On Time', labelAr: 'في الوقت' },
         { key: 'lateCount', label: 'Late', labelAr: 'متأخر' },
+        { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحضور' },
         { key: 'excusedAbsentCount', label: 'Excused', labelAr: 'معذور' },
         { key: 'unexcusedAbsentCount', label: 'Absent', labelAr: 'غائب' },
+        { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب' },
+        { key: 'totalStudents', label: 'Total Students', labelAr: 'إجمالي الطلاب' },
         { key: 'attendanceRate', label: 'Attendance Rate %', labelAr: 'نسبة الحضور' },
+        { key: 'punctualityRate', label: 'Punctuality Rate %', labelAr: 'نسبة الالتزام' },
+        { key: 'absentRate', label: 'Absence Rate %', labelAr: 'نسبة الغياب' },
+        { key: 'presentNames', label: 'On Time Names', labelAr: 'أسماء في الوقت' },
+        { key: 'lateNames', label: 'Late Names', labelAr: 'أسماء المتأخرين' },
+        { key: 'excusedNames', label: 'Excused Names', labelAr: 'أسماء المعذورين' },
+        { key: 'absentNames', label: 'Absent Names', labelAr: 'أسماء الغائبين' },
+        // Late Duration
         { key: 'totalLateMinutes', label: 'Total Late (min)', labelAr: 'مجموع التأخير (دقيقة)' },
         { key: 'avgLateMinutes', label: 'Avg Late (min)', labelAr: 'متوسط التأخير' },
-        { key: 'presentNames', label: 'On Time Names', labelAr: 'أسماء في الوقت' },
-        { key: 'absentNames', label: 'Absent Names', labelAr: 'أسماء الغائبين' },
+        { key: 'topSpecialization', label: 'Most Present Specialization', labelAr: 'التخصص الأكثر حضوراً' },
       );
     } else if (dataType === 'hostAnalytics') {
       // Host fields
@@ -4379,11 +4499,14 @@ export const AttendanceRecords = () => {
         { key: 'lastHostDate', label: 'Last Host Date', labelAr: 'آخر تاريخ استضافة' },
         { key: 'totalOnTime', label: 'Total On Time', labelAr: 'إجمالي الحضور' },
         { key: 'totalLate', label: 'Total Late', labelAr: 'إجمالي المتأخرين' },
+        { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحاضرين' },
         { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب' },
         { key: 'totalExcused', label: 'Total Excused', labelAr: 'إجمالي المعذورين' },
+        { key: 'totalStudents', label: 'Total Students', labelAr: 'إجمالي الطلاب' },
         { key: 'topSpec', label: 'Dominant Specialization', labelAr: '\u0627\u0644\u062A\u062E\u0635\u0635 \u0627\u0644\u0633\u0627\u0626\u062F' },
+        { key: 'topSpecCount', label: 'Spec Sessions', labelAr: '\u062C\u0644\u0633\u0627\u062A \u0627\u0644\u062A\u062E\u0635\u0635' },
+        { key: 'specBreakdown', label: 'Spec Breakdown', labelAr: '\u062A\u0641\u0627\u0635\u064A\u0644 \u0627\u0644\u062A\u062E\u0635\u0635\u0627\u062A' },
         { key: 'dates', label: 'All Dates', labelAr: 'جميع التواريخ' },
-        { key: 'datesList', label: 'Dates List', labelAr: 'قائمة التواريخ' },
       );
     } else if (dataType === 'specializationAnalytics') {
       allFields.push(
@@ -4585,19 +4708,37 @@ export const AttendanceRecords = () => {
           ? Math.round(student.presentCount / totalPresent * 100)
           : 0;
         return {
+          // Basic Info
           rank: index + 1,
+          student_id: student.student_id,
           student_name: student.student_name,
+          // Attendance Stats
           presentCount: student.presentCount,
           lateCount: student.lateCount,
+          totalPresent,
           absentCount: student.absentCount,
+          unexcusedAbsent: student.unexcusedAbsent,
           excusedCount: student.excusedCount,
+          totalRecords: student.totalRecords,
+          // Performance Metrics
+          effectiveDays: student.effectiveDays,
+          daysCovered: student.daysCovered,
           attendanceRate: student.attendanceRate,
           punctualityRate,
           weightedScore: student.weightedScore,
           consistencyIndex: Math.round(student.consistencyIndex * 100) / 100,
+          // Rate Statistics
+          avgRate: student.avgRate || student.attendanceRate,
+          minRate: student.minRate || student.attendanceRate,
+          maxRate: student.maxRate || student.attendanceRate,
+          // Score Breakdown (transparency)
           qualityAdjustedRate: Math.round((student.qualityAdjustedRate || 0) * 100) / 100,
+          // Late Duration
           totalLateMinutes: Math.round((student.totalLateMinutes || 0) * 10) / 10,
           avgLateMinutes: Math.round((student.avgLateMinutes || 0) * 10) / 10,
+          maxLateMinutes: Math.round((student.maxLateMinutes || 0) * 10) / 10,
+          lateScoreAvg: Math.round((student.lateScoreAvg || 0) * 1000) / 1000,
+          sessionNotHeldCount: student.sessionNotHeldCount || 0,
         };
       });
     } else if (exportDataType === 'dateAnalytics') {
@@ -4605,25 +4746,53 @@ export const AttendanceRecords = () => {
         const bookPages = dateData.bookStartPage && dateData.bookEndPage 
           ? `${dateData.bookStartPage}-${dateData.bookEndPage}` 
           : '-';
+        const pagesCount = dateData.bookStartPage && dateData.bookEndPage
+          ? dateData.bookEndPage - dateData.bookStartPage + 1
+          : 0;
         const totalPresent = dateData.presentCount + dateData.lateCount;
+        const totalStudents = totalPresent + dateData.excusedAbsentCount + dateData.unexcusedAbsentCount;
+        // Effective (accountable) students = total minus excused
         const totalAccountable = totalPresent + dateData.unexcusedAbsentCount;
+        // Attendance Rate: (Total Present / Accountable) × 100 — excused excluded from denominator
         const attendanceRate = totalAccountable > 0 ? Math.round((totalPresent / totalAccountable) * 100) : 0;
+        // Absence Rate: (Unexcused Absent / Accountable) × 100
+        const absentRate = totalAccountable > 0 ? Math.round((dateData.unexcusedAbsentCount / totalAccountable) * 100) : 0;
+        const punctualityRate = totalPresent > 0 
+          ? Math.round(dateData.presentCount / totalPresent * 100)
+          : 0;
         const dateObj = new Date(dateData.date);
         return {
+          // Session Info
           date: format(dateObj, 'MMM dd, yyyy'),
           dayOfWeek: format(dateObj, 'EEEE'),
           hostAddress: dateData.hostAddress || '-',
+          // Book Coverage
           bookTopic: dateData.bookTopic || '-',
           bookPages,
+          bookStartPage: dateData.bookStartPage || '-',
+          bookEndPage: dateData.bookEndPage || '-',
+          pagesCount: pagesCount > 0 ? pagesCount : '-',
+          // Attendance Counts
           presentCount: dateData.presentCount,
           lateCount: dateData.lateCount,
+          totalPresent,
           excusedAbsentCount: dateData.excusedAbsentCount,
           unexcusedAbsentCount: dateData.unexcusedAbsentCount,
+          totalAbsent: dateData.excusedAbsentCount + dateData.unexcusedAbsentCount,
+          totalStudents,
+          // Rates & Percentages (excused excluded from denominator for fairness)
           attendanceRate,
+          punctualityRate,
+          absentRate,
+          // Late Duration
           totalLateMinutes: Math.round((dateData.totalLateMinutes || 0) * 10) / 10,
           avgLateMinutes: Math.round((dateData.avgLateMinutes || 0) * 10) / 10,
+          // Student Names
           presentNames: dateData.presentNames.join(', ') || '-',
+          lateNames: dateData.lateNames.join(', ') || '-',
+          excusedNames: dateData.excusedNames.join(', ') || '-',
           absentNames: dateData.absentNames.join(', ') || '-',
+          topSpecialization: dateData.topSpecialization || '-',
         };
       });
     } else if (exportDataType === 'hostAnalytics') {
@@ -4694,10 +4863,14 @@ export const AttendanceRecords = () => {
             attendanceRate,
             totalOnTime: host.present,
             totalLate: host.late,
+            totalPresent,
             totalAbsent: host.absent,
             totalExcused: host.excused,
+            totalStudents: host.totalStudents,
             // Specialization Affinity
             topSpec: (() => { const sc = hostSpecMap.get(host.address); if (!sc || sc.size === 0) return '-'; let top = ''; let max = 0; sc.forEach((c, s) => { if (c > max) { max = c; top = s; } }); return top; })(),
+            topSpecCount: (() => { const sc = hostSpecMap.get(host.address); if (!sc || sc.size === 0) return 0; let max = 0; sc.forEach((c) => { if (c > max) max = c; }); return max; })(),
+            specBreakdown: (() => { const sc = hostSpecMap.get(host.address); if (!sc || sc.size === 0) return '-'; return Array.from(sc.entries()).sort((a, b) => b[1] - a[1]).map(([s, c]) => `${s}(${c})`).join(', '); })(),
             // Hosting Dates
             dates: host.rawDates.map(d => smartDateFormat(d, allHostRawDates5)).join(', '),
             datesList: host.rawDates.map(d => smartDateFormat(d, allHostRawDates5)).join('\n'),
@@ -5904,6 +6077,121 @@ export const AttendanceRecords = () => {
           )}
 
           {/* ═══════════════════════════════════════════════════════════════
+              SPECIALIZATION ANALYTICS TABLE
+              ═══════════════════════════════════════════════════════════════ */}
+          {includedTables.specialization && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-900/20 dark:to-purple-900/20 border-b border-violet-100 dark:border-violet-800/30 cursor-pointer" onClick={() => setCollapseSpecTable(prev => !prev)}>
+              <button onClick={() => setCollapseSpecTable(prev => !prev)} className="flex-1 text-left">
+                <h2 className="text-base sm:text-lg font-semibold dark:text-white">{t.specAnalyticsTitle}</h2>
+              </button>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  {(() => {
+                    const isArabic = reportLanguage === 'ar';
+                    const specData = computeSpecializationAnalytics(studentAnalytics, isArabic ? '\u063A\u064A\u0631 \u0645\u062D\u062F\u062F' : 'Unspecified');
+                    return `${specData.length} ${t.specializations}`;
+                  })()}
+                </span>
+                {/* Quick Column Picker */}
+                <div className="relative">
+                  <button
+                    onClick={e => { e.stopPropagation(); setOpenColumnPicker(prev => prev === 'specializationAnalytics' ? null : 'specializationAnalytics'); }}
+                    className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/60 transition"
+                    title="Show/hide columns"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7" /></svg>
+                    {arabicMode ? 'الأعمدة' : 'Columns'}
+                  </button>
+                  {openColumnPicker === 'specializationAnalytics' && (
+                    <div className="absolute right-0 top-8 z-50 w-64 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-600 p-3 max-h-80 overflow-y-auto" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">Show / Hide Columns</span>
+                        <div className="flex gap-1">
+                          <button onClick={() => setSavedFieldSelections(prev => ({ ...prev, specializationAnalytics: getAllFieldsForType('specializationAnalytics').map(f => f.key) }))} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">All</button>
+                          <span className="text-gray-300 dark:text-gray-600">|</span>
+                          <button onClick={() => setSavedFieldSelections(prev => ({ ...prev, specializationAnalytics: getAllFieldsForType('specializationAnalytics').slice(0, 5).map(f => f.key) }))} className="text-xs text-gray-500 dark:text-gray-400 hover:underline">Min</button>
+                        </div>
+                      </div>
+                      {getAllFieldsForType('specializationAnalytics').map(f => {
+                        const selected = getSelectedFieldsForType('specializationAnalytics');
+                        const isChecked = selected.includes(f.key);
+                        return (
+                          <label key={f.key} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                            <input type="checkbox" checked={isChecked}
+                              onChange={() => setSavedFieldSelections(prev => {
+                                const cur = prev.specializationAnalytics.length > 0 ? prev.specializationAnalytics : getAllFieldsForType('specializationAnalytics').map(ff => ff.key);
+                                return { ...prev, specializationAnalytics: isChecked ? cur.filter(k => k !== f.key) : [...cur, f.key] };
+                              })}
+                              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-xs text-gray-700 dark:text-gray-300">{arabicMode ? (f.labelAr || f.label) : f.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                <button onClick={() => setCollapseSpecTable(prev => !prev)} className="p-1">
+                  <svg className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${collapseSpecTable ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            {!collapseSpecTable && (
+              <div className="overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto" onClick={() => { if (openColumnPicker) setOpenColumnPicker(null); }}>
+                {(() => {
+                  const isArabic = reportLanguage === 'ar';
+                  const config = filterDataByFields('specializationAnalytics', isArabic);
+                  const specData = computeSpecializationAnalytics(studentAnalytics, isArabic ? '\u063A\u064A\u0631 \u0645\u062D\u062F\u062F' : 'Unspecified');
+                  const dataObjects = specData.map((spec, index) => ({
+                    rank: index + 1,
+                    ...spec,
+                  } as Record<string, unknown>));
+
+                  const sorted = sortDataBySettings(dataObjects, 'specializationAnalytics');
+                  sorted.forEach((obj, idx) => { obj.rank = idx + 1; });
+
+                  if (sorted.length === 0) {
+                    return (
+                      <div className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                        <span className="text-2xl block mb-2">🎓</span>
+                        <p className="text-sm">No specialization data available.</p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                      <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0">
+                        <tr>
+                          {config.headers.map((header, i) => (
+                            <th key={i} className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase whitespace-nowrap">{header}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        {sorted.map((data, index) => {
+                          const row = config.getData(data, index);
+                          return (
+                            <tr key={String(data.specialization || data.rank || index)} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                              {row.map((cell, ci) => (
+                                <td key={ci} className="px-4 py-3 text-sm text-gray-900 dark:text-gray-200 whitespace-nowrap">{String(cell ?? '-')}</td>
+                              ))}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════════════════════
               LOCATION MAP — Host Locations with Map Embed & Distance Matrix
               ═══════════════════════════════════════════════════════════════ */}
           {includedTables.host && (
@@ -6329,9 +6617,9 @@ export const AttendanceRecords = () => {
               </svg>
             </div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t.advancedFilters}</h2>
-            {(filters.student_ids.length + filters.course_ids.length + filters.teacher_ids.length + filters.statuses.length) > 0 && (
+            {(filters.student_ids.length + filters.course_ids.length + filters.teacher_ids.length + filters.statuses.length + filters.host_addresses.length) > 0 && (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-xs font-bold rounded-full animate-pulse">
-                {filters.student_ids.length + filters.course_ids.length + filters.teacher_ids.length + filters.statuses.length} {t.activeFilters}
+                {filters.student_ids.length + filters.course_ids.length + filters.teacher_ids.length + filters.statuses.length + filters.host_addresses.length} {t.activeFilters}
               </span>
             )}
             <svg className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${collapseFilters ? (arabicMode ? 'rotate-90' : '-rotate-90') : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
@@ -6371,7 +6659,7 @@ export const AttendanceRecords = () => {
               <button
                 onClick={resetFilters}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-                  (filters.student_ids.length + filters.course_ids.length + filters.teacher_ids.length + filters.statuses.length) > 0
+                  (filters.student_ids.length + filters.course_ids.length + filters.teacher_ids.length + filters.statuses.length + filters.host_addresses.length) > 0
                     ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-700 hover:bg-red-200 dark:hover:bg-red-900/60'
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
@@ -6515,6 +6803,39 @@ export const AttendanceRecords = () => {
             </div>
           </div>
 
+          {/* Host Address Filter */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+              <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              {t.hostAddressLabel}
+              {filters.host_addresses.length > 0 && <span className="ml-auto bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{filters.host_addresses.length}</span>}
+            </label>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setOpenFilterDropdown(openFilterDropdown === 'host' ? null : 'host')}
+                className="w-full px-3 py-2 border-2 rounded-xl bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400 text-left text-sm flex items-center justify-between"
+              >
+                <span className="truncate">{filters.host_addresses.length === 0 ? t.allHostAddresses : `${filters.host_addresses.length} ${t.selected}`}</span>
+                <svg className={`w-4 h-4 text-gray-400 transition-transform ${openFilterDropdown === 'host' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+              </button>
+              {openFilterDropdown === 'host' && (
+                <div className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                  <button type="button" onClick={() => setFilters(f => ({ ...f, host_addresses: [] }))} className="w-full px-3 py-2 text-left text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 font-medium border-b border-gray-100 dark:border-gray-700">{t.clearAll}</button>
+                  {hostAddresses.map(opt => (
+                    <label key={opt.value} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-800 dark:text-gray-200">
+                      <input type="checkbox" checked={filters.host_addresses.includes(opt.value)} onChange={() => setFilters(f => ({ ...f, host_addresses: f.host_addresses.includes(opt.value) ? f.host_addresses.filter(v => v !== opt.value) : [...f.host_addresses, opt.value] }))} className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500" />
+                      <span className="truncate">{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
               <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -6541,6 +6862,38 @@ export const AttendanceRecords = () => {
               type="date"
               value={filters.endDate}
               onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+            />
+          </div>
+
+          {/* Check-in Time Start */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+              <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {t.checkInTimeStartLabel}
+            </label>
+            <input
+              type="time"
+              value={filters.checkInTimeStart}
+              onChange={(e) => setFilters({ ...filters, checkInTimeStart: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+            />
+          </div>
+
+          {/* Check-in Time End */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+              <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {t.checkInTimeEndLabel}
+            </label>
+            <input
+              type="time"
+              value={filters.checkInTimeEnd}
+              onChange={(e) => setFilters({ ...filters, checkInTimeEnd: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             />
           </div>
