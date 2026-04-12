@@ -97,6 +97,18 @@ export interface ExportSettings {
   coloringTheme?: 'default' | 'traffic' | 'heatmap' | 'status';
   excludedRows?: string[];  // Row values to exclude (e.g., specific dates)
   fieldRenames?: Record<string, string>;  // Custom column header labels
+  // Data validation flags
+  removeDuplicates?: boolean;
+  removeEmptyRows?: boolean;
+  trimWhitespace?: boolean;
+  validateRequired?: boolean;
+  validateNumericRanges?: boolean;
+  validateDates?: boolean;
+  formatNumbers?: boolean;
+  formatPercentages?: boolean;
+  formatDates?: boolean;
+  dateFormat?: string;
+  showDataQualityReport?: boolean;
 }
 
 interface AdvancedExportBuilderProps {
@@ -263,19 +275,19 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
         sortDirection: savedSettings?.sortDirection || 'asc',
         sortLayers: savedSettings?.sortLayers || [],
         dataValidation: {
-          removeEmptyRows: false,
-          removeDuplicates: false,
-          trimWhitespace: true,
-          validateRequired: false,
-          validateNumericRanges: false,
-          validateDates: false,
-          formatNumbers: true,
-          formatPercentages: true,
-          formatDates: true,
-          dateFormat: 'medium',
+          removeEmptyRows: savedSettings?.removeEmptyRows ?? false,
+          removeDuplicates: savedSettings?.removeDuplicates ?? false,
+          trimWhitespace: savedSettings?.trimWhitespace ?? true,
+          validateRequired: savedSettings?.validateRequired ?? false,
+          validateNumericRanges: savedSettings?.validateNumericRanges ?? false,
+          validateDates: savedSettings?.validateDates ?? false,
+          formatNumbers: savedSettings?.formatNumbers ?? true,
+          formatPercentages: savedSettings?.formatPercentages ?? true,
+          formatDates: savedSettings?.formatDates ?? true,
+          dateFormat: (savedSettings?.dateFormat as 'short' | 'medium' | 'long') || 'medium',
           addExcelValidation: false,
           protectSheet: false,
-          showDataQualityReport: false,
+          showDataQualityReport: savedSettings?.showDataQualityReport ?? false,
           highlightIssues: false,
           enableConditionalColoring: savedSettings?.enableConditionalColoring ?? true,
           coloringFields: savedSettings?.coloringFields || [],
@@ -1029,7 +1041,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     if (onFieldSelectionChange && config.selectedFields.length > 0) {
       onFieldSelectionChange(config.selectedFields);
     }
-    // Save all export settings (sort, coloring, etc.)
+    // Save all export settings (sort, coloring, validation, etc.)
     if (onSettingsChange) {
       onSettingsChange({
         fields: config.selectedFields,
@@ -1041,6 +1053,18 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
         coloringTheme: config.dataValidation.coloringTheme,
         excludedRows: [...excludedRows],
         fieldRenames: Object.keys(fieldRenames).length > 0 ? fieldRenames : undefined,
+        // Data validation flags
+        removeDuplicates: config.dataValidation.removeDuplicates,
+        removeEmptyRows: config.dataValidation.removeEmptyRows,
+        trimWhitespace: config.dataValidation.trimWhitespace,
+        validateRequired: config.dataValidation.validateRequired,
+        validateNumericRanges: config.dataValidation.validateNumericRanges,
+        validateDates: config.dataValidation.validateDates,
+        formatNumbers: config.dataValidation.formatNumbers,
+        formatPercentages: config.dataValidation.formatPercentages,
+        formatDates: config.dataValidation.formatDates,
+        dateFormat: config.dataValidation.dateFormat,
+        showDataQualityReport: config.dataValidation.showDataQualityReport,
       });
     }
     onClose();
@@ -2472,14 +2496,14 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                       </span>
                     )}
                   </div>
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto max-h-[320px] overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg">
                     <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                      <thead className="bg-gray-50 dark:bg-gray-800">
+                      <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10">
                         <tr>
-                          {getSelectedFieldsOrdered().slice(0, 6).map(field => (
+                          {getSelectedFieldsOrdered().map(field => (
                             <th
                               key={field.key}
-                              className={`px-4 py-2 text-left text-xs font-medium uppercase tracking-wider ${
+                              className={`px-4 py-2 text-left text-xs font-medium uppercase tracking-wider whitespace-nowrap ${
                                 field.key === config.sortByField ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30' : 'text-gray-500 dark:text-gray-400'
                               }`}
                             >
@@ -2489,29 +2513,26 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                               )}
                             </th>
                           ))}
-                          {config.selectedFields.length > 6 && (
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 dark:text-gray-500">
-                              +{config.selectedFields.length - 6} more
-                            </th>
-                          )}
                         </tr>
                       </thead>
                       <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                        {getSortedPreviewData().slice(0, 5).map((record, idx) => (
-                          <tr key={idx}>
-                            {getSelectedFieldsOrdered().slice(0, 6).map(field => (
-                              <td key={field.key} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap">
-                                {formatValue(field, record).substring(0, 30)}
-                                {formatValue(field, record).length > 30 && '...'}
+                        {getSortedPreviewData().slice(0, 20).map((record, idx) => (
+                          <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                            {getSelectedFieldsOrdered().map(field => (
+                              <td key={field.key} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap max-w-[200px] truncate" title={formatValue(field, record)}>
+                                {formatValue(field, record).substring(0, 50)}
+                                {formatValue(field, record).length > 50 && '...'}
                               </td>
                             ))}
-                            {config.selectedFields.length > 6 && (
-                              <td className="px-4 py-2 text-sm text-gray-400">...</td>
-                            )}
                           </tr>
                         ))}
                       </tbody>
                     </table>
+                    {getSortedPreviewData().length > 20 && (
+                      <div className="text-center py-2 text-xs text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+                        Showing 20 of {getSortedPreviewData().length} rows
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

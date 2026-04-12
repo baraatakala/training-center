@@ -74,6 +74,32 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
   const { isTeacher } = useIsTeacher();
 
+  // ─── Clone/Session group map (root_id → [root, ...clones]) ────────
+  const sessionGroupMap = useMemo(() => {
+    const allSessions: { session_id: string; parent_session_id?: string | null }[] = [];
+    enrollments.forEach(e => {
+      const s = unwrap(e.session);
+      if (s?.session_id) allSessions.push(s as { session_id: string; parent_session_id?: string | null });
+    });
+    attendance.forEach(a => {
+      const s = unwrap(a.session);
+      if (s?.session_id && !allSessions.some(x => x.session_id === s.session_id))
+        allSessions.push(s as { session_id: string; parent_session_id?: string | null });
+    });
+    const map: Record<string, string[]> = {};
+    const cloneToRoot: Record<string, string> = {};
+    for (const s of allSessions) {
+      if (s.parent_session_id) {
+        cloneToRoot[s.session_id] = s.parent_session_id;
+        if (!map[s.parent_session_id]) map[s.parent_session_id] = [s.parent_session_id];
+        if (!map[s.parent_session_id].includes(s.session_id)) map[s.parent_session_id].push(s.session_id);
+      } else {
+        if (!map[s.session_id]) map[s.session_id] = [s.session_id];
+      }
+    }
+    return map;
+  }, [enrollments, attendance]);
+
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -111,13 +137,15 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
   }, [onClose]);
 
   // ─── Full Analytics Engine (mirrors AttendanceRecords calculateAnalytics) ──
-  // Filter attendance by selected session (empty string = all sessions)
-  const filteredAttendance = useMemo(() =>
-    selectedSessionId
-      ? attendance.filter(a => unwrap(a.session)?.session_id === selectedSessionId)
-      : attendance,
-    [attendance, selectedSessionId]
-  );
+  // Filter attendance by selected session (includes clones of selected root)
+  const filteredAttendance = useMemo(() => {
+    if (!selectedSessionId) return attendance;
+    const groupIds = sessionGroupMap[selectedSessionId] ?? [selectedSessionId];
+    return attendance.filter(a => {
+      const sid = unwrap(a.session)?.session_id;
+      return sid ? groupIds.includes(sid) : false;
+    });
+  }, [attendance, selectedSessionId, sessionGroupMap]);
 
   const analytics = useMemo(() => {
     if (filteredAttendance.length === 0) return null;
@@ -805,25 +833,26 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
         </div>
 
         {/* ─── Tabs ─────────────────────────────────────── */}
-        <div className="overflow-x-auto px-6 -mb-px">
-          <div className="flex border-b border-gray-100 dark:border-gray-800 min-w-max">
+        <div className="overflow-x-auto px-4 sm:px-6 -mb-px scrollbar-thin">
+          <div className="flex gap-1 border-b border-gray-200 dark:border-gray-700">
           {([
-            { key: 'overview' as const, label: t('Overview') },
-            { key: 'attendance' as const, label: t('Attendance'), count: attendance.length },
-            { key: 'enrollments' as const, label: t('Enrollments'), count: activeEnrollments.length },
-            { key: 'certificates' as const, label: t('Certificates'), count: certificates.filter(c => c.status === 'issued').length },
+            { key: 'overview' as const, label: t('Overview'), icon: '📊' },
+            { key: 'attendance' as const, label: t('Attendance'), count: attendance.length, icon: '📋' },
+            { key: 'enrollments' as const, label: t('Enrollments'), count: activeEnrollments.length, icon: '📚' },
+            { key: 'certificates' as const, label: t('Certificates'), count: certificates.filter(c => c.status === 'issued').length, icon: '🏆' },
           ]).map(tab => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`px-3 py-2.5 text-xs font-semibold border-b-2 transition-all ${
+              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-semibold border-b-2 transition-all whitespace-nowrap min-w-[80px] justify-center ${
                 activeTab === tab.key
-                  ? 'border-purple-500 text-purple-600 dark:text-purple-400'
-                  : 'border-transparent text-gray-400 hover:text-gray-600'
+                  ? 'border-purple-500 text-purple-600 dark:text-purple-400 bg-purple-50/50 dark:bg-purple-900/10'
+                  : 'border-transparent text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/50'
               }`}
             >
-              {tab.label}
-              {tab.count != null && <span className="ml-1 text-[10px] text-gray-400">({tab.count})</span>}
+              <span className="text-sm">{tab.icon}</span>
+              <span className="hidden sm:inline">{tab.label}</span>
+              {tab.count != null && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 font-medium">{tab.count}</span>}
             </button>
           ))}
           </div>
@@ -1122,7 +1151,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
 
           ) : activeTab === 'attendance' ? (
             <div className="space-y-2">
-              {/* Session filter */}
+              {/* Session filter — root sessions only, clones grouped */}
               {enrollments.length > 0 && (
                 <div className="flex items-center gap-2 mb-1">
                   <label className="text-[11px] text-gray-400 shrink-0">Session:</label>
@@ -1132,13 +1161,22 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                     className="text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1 text-gray-900 dark:text-white flex-1"
                   >
                     <option value="">All Sessions</option>
-                    {enrollments.map(enr => {
+                    {enrollments.filter(enr => {
+                      const s = unwrap(enr.session) as { session_id: string; parent_session_id?: string | null } | undefined;
+                      if (!s?.session_id) return false;
+                      // Hide clones whose parent is also in the list
+                      if (s.parent_session_id) {
+                        return !enrollments.some(e2 => unwrap(e2.session)?.session_id === s.parent_session_id);
+                      }
+                      return true;
+                    }).map(enr => {
                       const s = unwrap(enr.session);
                       if (!s?.session_id) return null;
                       const course = unwrap(s.course);
+                      const cloneCount = (sessionGroupMap[s.session_id]?.length ?? 1) - 1;
                       return (
                         <option key={s.session_id} value={s.session_id}>
-                          {course?.course_name || '—'} ({s.start_date} → {s.end_date})
+                          {course?.course_name || '—'} ({s.start_date} → {s.end_date}){cloneCount > 0 ? ` +${cloneCount} clone${cloneCount > 1 ? 's' : ''}` : ''}
                         </option>
                       );
                     })}

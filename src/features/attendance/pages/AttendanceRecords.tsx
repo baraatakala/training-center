@@ -206,8 +206,20 @@ export const AttendanceRecords = () => {
 
   // Advanced Export Builder state
   const [showAdvancedExport, setShowAdvancedExport] = useState(false);
-  const [activeSection, setActiveSection] = useState<'records' | 'analytics' | 'matrix' | 'scoring'>('records');
-  const [exportDataType, setExportDataType] = useState<'records' | 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics' | 'specializationAnalytics'>('records');
+  const [activeSection, setActiveSection] = useState<'records' | 'analytics' | 'matrix' | 'scoring'>(() => {
+    try {
+      const saved = localStorage.getItem('attendance_activeSection');
+      if (saved && ['records', 'analytics', 'matrix', 'scoring'].includes(saved)) return saved as 'records' | 'analytics' | 'matrix' | 'scoring';
+    } catch { /* ignore */ }
+    return 'records';
+  });
+  const [exportDataType, setExportDataType] = useState<'records' | 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics' | 'specializationAnalytics'>(() => {
+    try {
+      const saved = localStorage.getItem('attendance_exportDataType');
+      if (saved && ['records', 'studentAnalytics', 'dateAnalytics', 'hostAnalytics', 'specializationAnalytics'].includes(saved)) return saved as 'records' | 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics' | 'specializationAnalytics';
+    } catch { /* ignore */ }
+    return 'records';
+  });
 
   // Load saved field selections from localStorage
   const [savedFieldSelections, setSavedFieldSelections] = useState<{
@@ -255,6 +267,9 @@ export const AttendanceRecords = () => {
   const hostGpsLookupRef = useRef(new Map<string, { lat: number; lon: number }>());
   const [loading, setLoading] = useState(false);
   const [exportingWord, setExportingWord] = useState(false);
+  const [showAdvancedLayout, setShowAdvancedLayout] = useState(() => {
+    try { return localStorage.getItem('attendance_showAdvancedLayout') === 'true'; } catch { return false; }
+  });
   const [, setIsTeacher] = useState(false);
   const showAnalytics = activeSection !== 'records';
   const [studentAnalytics, setStudentAnalytics] = useState<StudentAnalytics[]>([]);
@@ -328,7 +343,27 @@ export const AttendanceRecords = () => {
     collapseChartsSection,
   ]);
 
+  // Persist active section & export data type
+  useEffect(() => {
+    try {
+      localStorage.setItem('attendance_activeSection', activeSection);
+      localStorage.setItem('attendance_exportDataType', exportDataType);
+      localStorage.setItem('attendance_showAdvancedLayout', String(showAdvancedLayout));
+    } catch { /* ignore */ }
+  }, [activeSection, exportDataType, showAdvancedLayout]);
+
   // Table include/exclude toggles for exports — persisted in localStorage
+  const [activeAnalyticsTab, setActiveAnalyticsTab] = useState<'student' | 'date' | 'host' | 'specialization'>(() => {
+    try {
+      const saved = localStorage.getItem('attendance_activeAnalyticsTab');
+      if (saved && ['student', 'date', 'host', 'specialization'].includes(saved)) return saved as 'student' | 'date' | 'host' | 'specialization';
+    } catch { /* ignore */ }
+    return 'student';
+  });
+  useEffect(() => {
+    try { localStorage.setItem('attendance_activeAnalyticsTab', activeAnalyticsTab); } catch { /* ignore */ }
+  }, [activeAnalyticsTab]);
+
   const [includedTables, setIncludedTables] = useState<{
     summary: boolean;
     student: boolean;
@@ -5346,10 +5381,15 @@ export const AttendanceRecords = () => {
               </div>
 
               {/* Export Layout Controls */}
-              <details className="mt-2">
-                <summary className="text-xs text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300 select-none">
+              <div className="mt-2">
+                <button
+                  onClick={() => setShowAdvancedLayout(prev => !prev)}
+                  className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300 select-none"
+                >
+                  <svg className={`w-3 h-3 transition-transform ${showAdvancedLayout ? 'rotate-90' : ''}`} fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>
                   ⚙️ {arabicMode ? 'إعدادات التخطيط المتقدمة' : 'Advanced Layout Settings'}
-                </summary>
+                </button>
+                {showAdvancedLayout && (
                 <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
                   <label className="flex flex-col gap-1">
                     <span className="text-[10px] text-gray-500 dark:text-gray-400">{arabicMode ? 'حجم خط الجدول' : 'Table Font Size'}</span>
@@ -5397,7 +5437,8 @@ export const AttendanceRecords = () => {
                     <span className="text-[10px] text-gray-500 dark:text-gray-400">{arabicMode ? 'فصل صفحات بين الجداول' : 'Page break between tables'}</span>
                   </label>
                 </div>
-              </details>
+                )}
+              </div>
 
               {/* Matrix Date Picker — Select which dates to include in cross-tab */}
               {includedTables.crosstab && dateAnalytics.length > 0 && (
@@ -5576,8 +5617,36 @@ export const AttendanceRecords = () => {
             </div>
           )}
 
+          {/* ═══════════════════════════════════════════════════════════════
+              ANALYTICS TABLES — Tabbed Layout
+              ═══════════════════════════════════════════════════════════════ */}
+          {(includedTables.student || includedTables.date || includedTables.host || includedTables.specialization) && (
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl dark:shadow-gray-900/30 overflow-hidden border border-gray-100 dark:border-gray-700">
+            {/* Tab Bar */}
+            <div className="flex overflow-x-auto gap-1 px-4 pt-3 pb-0 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800 border-b border-gray-200 dark:border-gray-700 scrollbar-thin">
+              {([
+                { key: 'student' as const, label: arabicMode ? '🎓 الطلاب' : '🎓 Students', included: includedTables.student, count: studentAnalytics.length },
+                { key: 'date' as const, label: arabicMode ? '📅 التاريخ' : '📅 Dates', included: includedTables.date, count: dateAnalytics.length },
+                { key: 'host' as const, label: arabicMode ? '🏠 المضيف' : '🏠 Host', included: includedTables.host, count: (() => { const hosts = new Set<string>(); filteredRecords.forEach(r => { const h = r.host_address || r.session_location; if (h && h !== 'SESSION_NOT_HELD') hosts.add(h); }); return hosts.size; })() },
+                { key: 'specialization' as const, label: arabicMode ? '📊 التخصصات' : '📊 Specializations', included: includedTables.specialization },
+              ]).filter(tab => tab.included).map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveAnalyticsTab(tab.key)}
+                  className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-all whitespace-nowrap border-b-2 ${
+                    activeAnalyticsTab === tab.key
+                      ? 'border-violet-500 text-violet-700 dark:text-violet-300 bg-white dark:bg-gray-700'
+                      : 'border-transparent text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50'
+                  }`}
+                >
+                  {tab.label}
+                  {tab.count != null && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">{tab.count}</span>}
+                </button>
+              ))}
+            </div>
+
           {/* Student Performance Table — Dynamic columns from field selections */}
-          {includedTables.student && (
+          {activeAnalyticsTab === 'student' && includedTables.student && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
             <div className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600 flex items-center justify-between">
               <button onClick={() => setCollapseStudentTable(prev => !prev)} className="flex-1 flex items-center gap-2 text-left min-w-0">
@@ -5744,7 +5813,7 @@ export const AttendanceRecords = () => {
           )}
 
           {/* Date Analytics Table — Dynamic columns from field selections */}
-          {includedTables.date && (
+          {activeAnalyticsTab === 'date' && includedTables.date && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
             <div className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600 flex items-center justify-between">
               <button onClick={() => setCollapseDateTable(prev => !prev)} className="flex-1 text-left">
@@ -5904,7 +5973,7 @@ export const AttendanceRecords = () => {
           )}
 
           {/* Host Analytics Table — Dynamic columns from field selections */}
-          {includedTables.host && (
+          {activeAnalyticsTab === 'host' && includedTables.host && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
             <div className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600 flex items-center justify-between">
               <button onClick={() => setCollapseHostTable(prev => !prev)} className="flex-1 text-left">
@@ -6078,7 +6147,7 @@ export const AttendanceRecords = () => {
           {/* ═══════════════════════════════════════════════════════════════
               SPECIALIZATION ANALYTICS TABLE
               ═══════════════════════════════════════════════════════════════ */}
-          {includedTables.specialization && (
+          {activeAnalyticsTab === 'specialization' && includedTables.specialization && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
             <div className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-900/20 dark:to-purple-900/20 border-b border-violet-100 dark:border-violet-800/30 cursor-pointer" onClick={() => setCollapseSpecTable(prev => !prev)}>
               <button onClick={() => setCollapseSpecTable(prev => !prev)} className="flex-1 text-left">
@@ -6187,6 +6256,9 @@ export const AttendanceRecords = () => {
                 })()}
               </div>
             )}
+          </div>
+          )}
+
           </div>
           )}
 
@@ -6906,20 +6978,25 @@ export const AttendanceRecords = () => {
               {t.checkInTimeStartLabel}
               {(filters.checkInTimeStart || filters.checkInTimeEnd) && <span className="ml-auto bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full">!</span>}
             </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="time"
-                value={filters.checkInTimeStart}
-                onChange={(e) => setFilters({ ...filters, checkInTimeStart: e.target.value })}
-                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm"
-              />
-              <span className="text-gray-400 dark:text-gray-500 text-xs">→</span>
-              <input
-                type="time"
-                value={filters.checkInTimeEnd}
-                onChange={(e) => setFilters({ ...filters, checkInTimeEnd: e.target.value })}
-                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm"
-              />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <span className="text-[10px] text-gray-400 dark:text-gray-500 mb-0.5 block">{arabicMode ? 'من' : 'From'}</span>
+                <input
+                  type="time"
+                  value={filters.checkInTimeStart}
+                  onChange={(e) => setFilters({ ...filters, checkInTimeStart: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm"
+                />
+              </div>
+              <div>
+                <span className="text-[10px] text-gray-400 dark:text-gray-500 mb-0.5 block">{arabicMode ? 'إلى' : 'To'}</span>
+                <input
+                  type="time"
+                  value={filters.checkInTimeEnd}
+                  onChange={(e) => setFilters({ ...filters, checkInTimeEnd: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm"
+                />
+              </div>
             </div>
           </div>
         </div>
