@@ -71,6 +71,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
   const [arabicMode, setArabicMode] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [exportSections, setExportSections] = useState<ExportSection[]>(['overview', 'attendance', 'certificates']);
+  const [selectedSessionId, setSelectedSessionId] = useState<string>('');
   const { isTeacher } = useIsTeacher();
 
   useEffect(() => {
@@ -110,8 +111,16 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
   }, [onClose]);
 
   // ─── Full Analytics Engine (mirrors AttendanceRecords calculateAnalytics) ──
+  // Filter attendance by selected session (empty string = all sessions)
+  const filteredAttendance = useMemo(() =>
+    selectedSessionId
+      ? attendance.filter(a => unwrap(a.session)?.session_id === selectedSessionId)
+      : attendance,
+    [attendance, selectedSessionId]
+  );
+
   const analytics = useMemo(() => {
-    if (attendance.length === 0) return null;
+    if (filteredAttendance.length === 0) return null;
 
     const config = loadConfigSync();
     const today = new Date();
@@ -120,7 +129,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
     // 1. Filter: exclude future dates and "session not held"
     // Capture session-not-held dates BEFORE filtering (needed for insight Q: session-not-held impact)
     const sessionNotHeldTimestamps = new Set<number>();
-    for (const a of attendance) {
+    for (const a of filteredAttendance) {
       if (!a.attendance_date) continue;
       if ((a as { excuse_reason?: string }).excuse_reason === 'session not held' ||
           (a as { host_address?: string }).host_address === 'SESSION_NOT_HELD') {
@@ -128,7 +137,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
       }
     }
 
-    const filtered = attendance.filter(a => {
+    const filtered = filteredAttendance.filter(a => {
       if (!a.attendance_date) return false;
       if (new Date(a.attendance_date) > today) return false;
       if ((a as { excuse_reason?: string }).excuse_reason === 'session not held') return false;
@@ -261,31 +270,36 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
       else break;
     }
 
-    // 9. Max consecutive attendance streak + current active streak
-    // Only present sessions (on_time / late) increment the streak.
-    // Absent resets to 0. Excused records are skipped (neither count nor break streak).
-    const allSortedForStreak = [...unique].sort((a, b) => a.attendance_date.localeCompare(b.attendance_date));
-    let maxStreak = 0, currentStreak = 0;
-    // Also track perfect streak (on_time only, late breaks it)
-    let maxPerfectStreak = 0, currentPerfectStreak = 0;
-    for (const r of allSortedForStreak) {
-      if (r.status === 'absent') {
-        currentStreak = 0;
-        currentPerfectStreak = 0;
-      } else if (r.status === 'on time') {
-        currentStreak++;
-        maxStreak = Math.max(maxStreak, currentStreak);
-        currentPerfectStreak++;
-        maxPerfectStreak = Math.max(maxPerfectStreak, currentPerfectStreak);
-      } else if (r.status === 'late') {
-        currentStreak++;
-        maxStreak = Math.max(maxStreak, currentStreak);
-        currentPerfectStreak = 0; // late breaks perfect streak
-      }
-      // excused / not_enrolled: skip — don't count, don't break
+    // 9. Max consecutive attendance streak + current active streak (PER SESSION)
+    // Group by session_id so cross-session absences don't break unrelated streaks.
+    const bySession = new Map<string, AttendanceRecord[]>();
+    for (const r of filtered) {
+      const sid = unwrap(r.session)?.session_id || '_none_';
+      const arr = bySession.get(sid);
+      if (arr) arr.push(r);
+      else bySession.set(sid, [r]);
     }
-    // currentStreak now holds the live active streak at end of data
-    const activeStreak = currentStreak;
+    let maxStreak = 0, activeStreak = 0;
+    let maxPerfectStreak = 0;
+    for (const [, recs] of bySession) {
+      const sortedRecs = [...recs].sort((a, b) => a.attendance_date.localeCompare(b.attendance_date));
+      let cs = 0, ms = 0, cps = 0, mps = 0;
+      for (const r of sortedRecs) {
+        if (r.status === 'absent') {
+          cs = 0;
+          cps = 0;
+        } else if (r.status === 'on time') {
+          cs++; ms = Math.max(ms, cs);
+          cps++; mps = Math.max(mps, cps);
+        } else if (r.status === 'late') {
+          cs++; ms = Math.max(ms, cs);
+          cps = 0;
+        }
+      }
+      maxStreak = Math.max(maxStreak, ms);
+      activeStreak = Math.max(activeStreak, cs);
+      maxPerfectStreak = Math.max(maxPerfectStreak, mps);
+    }
 
     // 10. First half vs second half comparison
     const midpoint = Math.floor(sorted.length / 2);
@@ -633,7 +647,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
       insights: topInsights,
       configWeights: { q: config.weight_quality, a: config.weight_attendance, p: config.weight_punctuality },
     };
-  }, [attendance]);
+  }, [filteredAttendance]);
 
   const riskLevel = useMemo(() => {
     if (!analytics) return 'unknown';
@@ -1108,7 +1122,36 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
 
           ) : activeTab === 'attendance' ? (
             <div className="space-y-2">
-              {attendance.length === 0 ? (
+              {/* Session filter */}
+              {enrollments.length > 0 && (
+                <div className="flex items-center gap-2 mb-1">
+                  <label className="text-[11px] text-gray-400 shrink-0">Session:</label>
+                  <select
+                    value={selectedSessionId}
+                    onChange={e => setSelectedSessionId(e.target.value)}
+                    className="text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1 text-gray-900 dark:text-white flex-1"
+                  >
+                    <option value="">All Sessions</option>
+                    {enrollments.map(enr => {
+                      const s = unwrap(enr.session);
+                      if (!s?.session_id) return null;
+                      const course = unwrap(s.course);
+                      return (
+                        <option key={s.session_id} value={s.session_id}>
+                          {course?.course_name || '—'} ({s.start_date} → {s.end_date})
+                        </option>
+                      );
+                    })}
+                  </select>
+                  {selectedSessionId && (
+                    <button
+                      onClick={() => setSelectedSessionId('')}
+                      className="text-[11px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    >✕</button>
+                  )}
+                </div>
+              )}
+              {filteredAttendance.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-8">{t('No attendance records')}</p>
               ) : (
                 <div className="overflow-x-auto">
@@ -1144,7 +1187,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                     <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
                       {(() => {
                         const statusOrder: Record<string, number> = { 'on time': 1, 'late': 2, 'absent': 3, 'excused': 4, 'not enrolled': 5 };
-                        const sorted = [...attendance].sort((a, b) => {
+                        const sorted = [...filteredAttendance].sort((a, b) => {
                           let cmp = 0;
                           if (attSortCol === 'date') cmp = a.attendance_date.localeCompare(b.attendance_date);
                           else if (attSortCol === 'course') {
@@ -1182,8 +1225,8 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                       })()}
                     </tbody>
                   </table>
-                  {attendance.length > 50 && (
-                    <p className="text-[11px] text-gray-400 text-center py-2">Showing 50 of {attendance.length} records</p>
+                  {filteredAttendance.length > 50 && (
+                    <p className="text-[11px] text-gray-400 text-center py-2">Showing 50 of {filteredAttendance.length} records</p>
                   )}
                 </div>
               )}

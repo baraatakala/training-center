@@ -13,9 +13,8 @@ const RATING_EMOJIS = ['😢', '😕', '😐', '😊', '🤩'];
 
 type QuestionTypeFilter = 'all' | 'rating' | 'text' | 'multiple_choice';
 type CorrectnessFilter = 'all' | 'correct' | 'incorrect' | 'not-graded';
-type RatingRangeFilter = 'all' | 'bad' | 'neutral' | 'good';
-type SentimentFilter = 'all' | 'positive' | 'neutral' | 'negative';
-type ParticipationFilter = 'all' | 'responded' | 'not-responded';
+type RatingRangeFilter = 'bad' | 'neutral' | 'good';
+
 type SortField = 'studentName' | 'attendanceDate' | 'questionType' | 'questionText' | 'answer' | 'comment' | 'overallRating';
 type SortDirection = 'asc' | 'desc';
 
@@ -46,26 +45,12 @@ interface FlattenedRecord {
 }
 
 // ─── Simple sentiment detection ─────────────────────────────
-const POSITIVE_WORDS = new Set(['good','great','excellent','amazing','awesome','love','best','helpful','thank','wonderful','fantastic','outstanding','perfect','nice','happy','enjoyed','useful','clear','interesting','beautiful','brilliant','superb','pleased']);
-const NEGATIVE_WORDS = new Set(['bad','poor','terrible','awful','hate','worst','boring','confusing','waste','horrible','disappointing','useless','difficult','hard','slow','unclear','annoying','frustrated','ugly','weak','wrong','problem','issue']);
-
-function detectSentiment(text: string): 'positive' | 'neutral' | 'negative' {
-  const words = text.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').split(/\s+/);
-  let pos = 0, neg = 0;
-  for (const w of words) {
-    if (POSITIVE_WORDS.has(w)) pos++;
-    if (NEGATIVE_WORDS.has(w)) neg++;
-  }
-  if (pos > neg && pos > 0) return 'positive';
-  if (neg > pos && neg > 0) return 'negative';
-  return 'neutral';
-}
 
 // ─── CSV export (one row per question-answer) ───────────────
 function exportFeedbackCSV(records: FlattenedRecord[], courseName: string, selectedDate?: string) {
-  const headers = ['Student', 'Date', 'Rating', 'Question Type', 'Question', 'Answer', 'Correct?', 'Comment'];
+  const headers = ['Student', 'Date', 'Question Type', 'Question', 'Answer', 'Correct?', 'Comment'];
   const rows = records.map(r => [
-    r.studentName, r.attendanceDate, r.overallRating ?? '',
+    r.studentName, r.attendanceDate,
     r.questionType, r.questionText, r.answer,
     r.isCorrect === null ? '' : r.isCorrect ? 'Yes' : 'No',
     r.comment || '',
@@ -101,9 +86,8 @@ export function FeedbackAnalytics() {
   const [feedbackSearch, setFeedbackSearch] = useState('');
   const [studentFilter, setStudentFilter] = useState<string>('');
   const [correctnessFilter, setCorrectnessFilter] = useState<CorrectnessFilter>('all');
-  const [ratingRangeFilter, setRatingRangeFilter] = useState<RatingRangeFilter>('all');
-  const [sentimentFilter, setSentimentFilter] = useState<SentimentFilter>('all');
-  const [participationFilter, setParticipationFilter] = useState<ParticipationFilter>('all');
+  const [ratingRangeFilters, setRatingRangeFilters] = useState<RatingRangeFilter[]>([]);
+
   const [recordsPage, setRecordsPage] = useState(0);
   const RECORDS_PER_PAGE = 15;
   // ─── Sorting (Records tab) ─────────────────────────────────
@@ -192,22 +176,15 @@ export function FeedbackAnalytics() {
         if (!haystack.includes(feedbackSearch.trim().toLowerCase())) return false;
       }
       // Rating Range filter
-      if (ratingRangeFilter !== 'all' && fb.overall_rating != null) {
-        const r = Number(fb.overall_rating);
-        if (ratingRangeFilter === 'bad' && r > 2) return false;
-        if (ratingRangeFilter === 'neutral' && r !== 3) return false;
-        if (ratingRangeFilter === 'good' && r < 4) return false;
-      }
-      if (ratingRangeFilter !== 'all' && fb.overall_rating == null) return false;
-      // Sentiment filter on comments
-      if (sentimentFilter !== 'all') {
-        if (!fb.comment) return false;
-        const s = detectSentiment(fb.comment);
-        if (s !== sentimentFilter) return false;
+      if (ratingRangeFilters.length > 0) {
+        if (fb.overall_rating == null) return false;
+        const r = fb.overall_rating;
+        const bucket: RatingRangeFilter = r <= 2 ? 'bad' : r === 3 ? 'neutral' : 'good';
+        if (!ratingRangeFilters.includes(bucket)) return false;
       }
       return true;
     });
-  }, [feedbacks, selectedAnalyticsDate, feedbackSearch, studentFilter, ratingRangeFilter, sentimentFilter]);
+  }, [feedbacks, selectedAnalyticsDate, feedbackSearch, studentFilter, ratingRangeFilters]);
 
   const uniqueStudents = useMemo(() => {
     const names = new Set<string>();
@@ -573,45 +550,30 @@ export function FeedbackAnalytics() {
             )}
             <div className="min-w-[130px]">
               <label className="text-[11px] text-gray-400 block mb-1">Rating Range</label>
-              <select
-                value={ratingRangeFilter}
-                onChange={e => { setRatingRangeFilter(e.target.value as RatingRangeFilter); setRecordsPage(0); }}
-                className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white"
-              >
-                <option value="all">All Ratings</option>
-                <option value="bad">😢 Bad (1-2)</option>
-                <option value="neutral">😐 Neutral (3)</option>
-                <option value="good">😊 Good (4-5)</option>
-              </select>
+              <div className="flex flex-col gap-1">
+                {([
+                  { value: 'bad' as const, label: '😢 Bad (1-2)' },
+                  { value: 'neutral' as const, label: '😐 Neutral (3)' },
+                  { value: 'good' as const, label: '😊 Good (4-5)' },
+                ] as { value: RatingRangeFilter; label: string }[]).map(opt => (
+                  <label key={opt.value} className="flex items-center gap-1.5 cursor-pointer text-xs text-gray-700 dark:text-gray-300">
+                    <input
+                      type="checkbox"
+                      checked={ratingRangeFilters.includes(opt.value)}
+                      onChange={() => setRatingRangeFilters(prev =>
+                        prev.includes(opt.value) ? prev.filter(v => v !== opt.value) : [...prev, opt.value]
+                      )}
+                      className="rounded border-gray-300 dark:border-gray-600 text-purple-600 focus:ring-purple-500"
+                    />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
             </div>
-            <div className="min-w-[130px]">
-              <label className="text-[11px] text-gray-400 block mb-1">Sentiment</label>
-              <select
-                value={sentimentFilter}
-                onChange={e => { setSentimentFilter(e.target.value as SentimentFilter); setRecordsPage(0); }}
-                className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white"
-              >
-                <option value="all">All Sentiments</option>
-                <option value="positive">😊 Positive</option>
-                <option value="neutral">😐 Neutral</option>
-                <option value="negative">😞 Negative</option>
-              </select>
-            </div>
-            <div className="min-w-[140px]">
-              <label className="text-[11px] text-gray-400 block mb-1">Participation</label>
-              <select
-                value={participationFilter}
-                onChange={e => { setParticipationFilter(e.target.value as ParticipationFilter); setRecordsPage(0); }}
-                className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white"
-              >
-                <option value="all">All Students</option>
-                <option value="responded">✓ Responded</option>
-                <option value="not-responded">✗ Not Responded</option>
-              </select>
-            </div>
-            {(feedbackSearch || selectedAnalyticsDate || studentFilter || questionTypeFilter !== 'all' || correctnessFilter !== 'all' || ratingRangeFilter !== 'all' || sentimentFilter !== 'all' || participationFilter !== 'all') && (
+
+            {(feedbackSearch || selectedAnalyticsDate || studentFilter || questionTypeFilter !== 'all' || correctnessFilter !== 'all' || ratingRangeFilters.length > 0) && (
               <button
-                onClick={() => { setFeedbackSearch(''); setSelectedAnalyticsDate(''); setStudentFilter(''); setQuestionTypeFilter('all'); setCorrectnessFilter('all'); setRatingRangeFilter('all'); setSentimentFilter('all'); setParticipationFilter('all'); setRecordsPage(0); }}
+                onClick={() => { setFeedbackSearch(''); setSelectedAnalyticsDate(''); setStudentFilter(''); setQuestionTypeFilter('all'); setCorrectnessFilter('all'); setRatingRangeFilters([]); setRecordsPage(0); }}
                 className="text-xs text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 px-3 py-1.5 rounded-lg border border-purple-200 dark:border-purple-700 mt-auto"
               >
                 ✕ Clear Filters
@@ -622,33 +584,6 @@ export function FeedbackAnalytics() {
           {/* ═══════════════════════════════════════════════════ */}
           {/* FEEDBACK RECORDS (one row per Q&A)                 */}
           {/* ═══════════════════════════════════════════════════ */}
-          {participationFilter === 'not-responded' ? (
-            <div className="space-y-3 sm:space-y-4">
-              {/* Show students who never submitted feedback */}
-              {(() => {
-                const respondedIds = new Set(feedbacks.map(fb => fb.student_id).filter(Boolean));
-                const enrolledCount = stats?.enrolledCount ?? 0;
-                const notRespondedCount = Math.max(0, enrolledCount - respondedIds.size);
-                return (
-                  <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-4 sm:p-5">
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-lg">👤</span>
-                      <p className="text-sm font-bold text-gray-900 dark:text-white">Students Who Haven't Responded</p>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-bold">
-                        ~{notRespondedCount} of {enrolledCount}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {notRespondedCount === 0
-                        ? 'All enrolled students have submitted feedback.'
-                        : `Approximately ${notRespondedCount} enrolled student${notRespondedCount !== 1 ? 's' : ''} haven't submitted any feedback. Student names are not available for non-respondents — check the enrollment list for details.`
-                      }
-                    </p>
-                  </div>
-                );
-              })()}
-            </div>
-          ) : (
             <div className="space-y-3 sm:space-y-4">
               {/* Records Table — one row per question-answer */}
               {displayRecords.length === 0 ? (
@@ -665,7 +600,6 @@ export function FeedbackAnalytics() {
                           {([
                             { key: 'studentName' as SortField, label: 'Student' },
                             { key: 'attendanceDate' as SortField, label: 'Date' },
-                            { key: 'overallRating' as SortField, label: 'Rating' },
                             { key: 'questionType' as SortField, label: 'Type' },
                             { key: 'questionText' as SortField, label: 'Question' },
                             { key: 'answer' as SortField, label: 'Answer' },
@@ -700,17 +634,6 @@ export function FeedbackAnalytics() {
                               )}
                             </td>
                             <td className="px-3 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">{row.attendanceDate}</td>
-                            <td className="px-3 py-3 text-center whitespace-nowrap">
-                              {row.overallRating != null ? (
-                                <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
-                                  row.overallRating >= 4 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                                  : row.overallRating >= 3 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
-                                  : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-                                }`}>
-                                  {RATING_EMOJIS[row.overallRating - 1] || ''} {row.overallRating}
-                                </span>
-                              ) : <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>}
-                            </td>
                             <td className="px-3 py-3">
                               <span className="px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-[10px] capitalize whitespace-nowrap">
                                 {row.questionType}
@@ -789,7 +712,6 @@ export function FeedbackAnalytics() {
                 </div>
               )}
             </div>
-          )}
 
         </>
       )}

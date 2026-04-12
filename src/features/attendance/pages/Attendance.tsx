@@ -146,6 +146,8 @@ export function Attendance() {
   const [excuseDropdownOpen, setExcuseDropdownOpen] = useState<string | null>(null);
   const [hostAddresses, setHostAddresses] = useState<HostInfo[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<string>('');
+  const [customAddress, setCustomAddress] = useState<string>('');
+  const [showCustomAddress, setShowCustomAddress] = useState(false);
   const [hostCoordinates, setHostCoordinates] = useState<{ lat: number; lon: number } | null>(null);
   const [hostDataLoaded, setHostDataLoaded] = useState(false);
   const [sessionNotHeld, setSessionNotHeld] = useState<boolean>(false);
@@ -2134,12 +2136,14 @@ export function Attendance() {
         </Card>
       )}
 
-      {selectedDate && hostAddresses.length > 0 && !sessionNotHeld && (
+      {selectedDate && !sessionNotHeld && (
         <Card>
           <CardHeader>
             <CardTitle>Host Address</CardTitle>
           </CardHeader>
           <CardContent>
+            {hostAddresses.length > 0 ? (
+              <>
             <Select
               value={selectedAddress}
               onChange={handleHostAddressChange}
@@ -2158,6 +2162,106 @@ export function Attendance() {
             <p className="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500">
               ✓ = marked "can host" in schedule &nbsp;|&nbsp; — = not flagged for hosting &nbsp;|&nbsp; 📅 = scheduled for today
             </p>
+            {/* Custom / Stranger host address */}
+            <div className="mt-2">
+              <button
+                type="button"
+                onClick={() => setShowCustomAddress(!showCustomAddress)}
+                className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+              >
+                {showCustomAddress ? '← Back to list' : '+ Use custom address (non-student/teacher)'}
+              </button>
+              {showCustomAddress && (
+                <div className="mt-2 flex gap-2">
+                  <input
+                    type="text"
+                    value={customAddress}
+                    onChange={e => setCustomAddress(e.target.value)}
+                    placeholder="Enter address for external host"
+                    className="flex-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm"
+                  />
+                  <button
+                    type="button"
+                    disabled={!customAddress.trim()}
+                    onClick={async () => {
+                      if (!sessionId || !selectedDate || !customAddress.trim()) return;
+                      const addr = customAddress.trim();
+                      const { error: err } = await supabase
+                        .from(Tables.SESSION_DATE_HOST)
+                        .upsert({
+                          session_id: sessionId,
+                          attendance_date: selectedDate,
+                          host_id: null,
+                          host_type: 'other',
+                          host_address: addr,
+                          host_latitude: null,
+                          host_longitude: null,
+                        }, { onConflict: 'session_id,attendance_date' });
+                      if (err) {
+                        console.error('Error saving custom host:', err);
+                        toast.error('Failed to save custom address');
+                      } else {
+                        setSelectedAddress(`|||${addr}`);
+                        setHostCoordinates(null);
+                        setShowCustomAddress(false);
+                        toast.success('Custom host address saved');
+                      }
+                    }}
+                    className="px-3 py-1.5 text-sm font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Save
+                  </button>
+                </div>
+              )}
+            </div>
+              </>
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">No enrolled student/teacher addresses available. Use custom address below.</p>
+            )}
+            {/* Custom / Stranger host address (shown for both cases) */}
+            {!showCustomAddress && hostAddresses.length === 0 && (
+              <div className="mt-2">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={customAddress}
+                    onChange={e => setCustomAddress(e.target.value)}
+                    placeholder="Enter address for external host"
+                    className="flex-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm"
+                  />
+                  <button
+                    type="button"
+                    disabled={!customAddress.trim()}
+                    onClick={async () => {
+                      if (!sessionId || !selectedDate || !customAddress.trim()) return;
+                      const addr = customAddress.trim();
+                      const { error: err } = await supabase
+                        .from(Tables.SESSION_DATE_HOST)
+                        .upsert({
+                          session_id: sessionId,
+                          attendance_date: selectedDate,
+                          host_id: null,
+                          host_type: 'other',
+                          host_address: addr,
+                          host_latitude: null,
+                          host_longitude: null,
+                        }, { onConflict: 'session_id,attendance_date' });
+                      if (err) {
+                        console.error('Error saving custom host:', err);
+                        toast.error('Failed to save custom address');
+                      } else {
+                        setSelectedAddress(`|||${addr}`);
+                        setHostCoordinates(null);
+                        toast.success('Custom host address saved');
+                      }
+                    }}
+                    className="px-3 py-1.5 text-sm font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            )}
             {selectedAddress && selectedAddress !== 'SESSION_NOT_HELD' && (
               <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-blue-800">

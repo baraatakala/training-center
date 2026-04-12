@@ -99,7 +99,9 @@ CREATE TABLE IF NOT EXISTS public.session (
   feedback_enabled BOOLEAN DEFAULT false,
   feedback_anonymous_allowed BOOLEAN DEFAULT true,
   teacher_can_host BOOLEAN DEFAULT true,
+  parent_session_id UUID,
   CONSTRAINT session_pkey PRIMARY KEY (session_id),
+  CONSTRAINT session_parent_fkey FOREIGN KEY (parent_session_id) REFERENCES public.session(session_id) ON DELETE SET NULL,
   CONSTRAINT session_dates_ordered CHECK (end_date >= start_date),
   CONSTRAINT session_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.course(course_id),
   CONSTRAINT session_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES public.teacher(teacher_id)
@@ -207,7 +209,7 @@ CREATE TABLE IF NOT EXISTS public.session_date_host (
   host_longitude NUMERIC CHECK (host_longitude IS NULL OR (host_longitude >= -180 AND host_longitude <= 180)),
   CONSTRAINT session_date_host_pkey PRIMARY KEY (id),
   CONSTRAINT session_date_host_session_date_unique UNIQUE (session_id, attendance_date),
-  CONSTRAINT session_date_host_type_check CHECK (host_type IS NULL OR host_type IN ('student', 'teacher')),
+  CONSTRAINT session_date_host_type_check CHECK (host_type IS NULL OR host_type IN ('student', 'teacher', 'other')),
   CONSTRAINT session_date_host_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id)
 );
 

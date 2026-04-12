@@ -423,23 +423,6 @@ const AttendanceCharts = forwardRef<ChartCaptureHandle, Props>(function Attendan
     [studentAnalytics, unspecLabel]
   );
 
-  // Host x Specialization affinity from dateAnalytics
-  const hostSpecData = useMemo(() => {
-    const hostMap = new Map<string, Map<string, number>>();
-    dateAnalytics.forEach(d => {
-      if (!d.hostAddress || d.isSessionNotHeld || d.hostAddress === 'SESSION_NOT_HELD') return;
-      if (!d.topSpecialization) return;
-      const host = d.hostAddress.length > 28 ? d.hostAddress.substring(0, 28) + '\u2026' : d.hostAddress;
-      if (!hostMap.has(host)) hostMap.set(host, new Map());
-      const sm = hostMap.get(host)!;
-      sm.set(d.topSpecialization, (sm.get(d.topSpecialization) || 0) + 1);
-    });
-    return Array.from(hostMap.entries()).map(([host, sm]) => {
-      const sorted = [...sm.entries()].sort((a, b) => b[1] - a[1]);
-      const top = sorted[0];
-      return { host, topSpec: top?.[0] ?? '-', topSpecCount: top?.[1] ?? 0, breakdown: sorted.map(([s, c]) => `${s}(${c})`).join(', ') };
-    }).sort((a, b) => b.topSpecCount - a.topSpecCount);
-  }, [dateAnalytics]);
 
   // Chart container refs for image capture
   const chartRefs = useRef<Record<ChartTab, HTMLDivElement | null>>({
@@ -625,40 +608,6 @@ const AttendanceCharts = forwardRef<ChartCaptureHandle, Props>(function Attendan
                   </BarChart>
                 </ResponsiveContainer>
 
-                {/* Host x Specialization */}
-                {hostSpecData.length > 0 && (
-                  <div>
-                    <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                      {'\uD83C\uDFE0'} {t.hostSpecTitle}
-                    </h4>
-                    <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-                      <table className="min-w-full text-xs">
-                        <thead>
-                          <tr className="bg-gray-50 dark:bg-gray-700">
-                            <th className="px-3 py-2 text-left font-semibold text-gray-600 dark:text-gray-300">{t.hostLabel}</th>
-                            <th className="px-3 py-2 text-left font-semibold text-gray-600 dark:text-gray-300">{t.topSpec}</th>
-                            <th className="px-3 py-2 text-left font-semibold text-gray-600 dark:text-gray-300">{t.sessions}</th>
-                            <th className="px-3 py-2 text-left font-semibold text-gray-600 dark:text-gray-300">{t.breakdown}</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                          {hostSpecData.map((row, idx) => (
-                            <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                              <td className="px-3 py-2 text-gray-800 dark:text-gray-200 font-medium max-w-[180px] truncate" title={row.host}>{row.host}</td>
-                              <td className="px-3 py-2">
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold text-white" style={{ backgroundColor: PIE_COLORS[idx % PIE_COLORS.length] }}>
-                                  {row.topSpec}
-                                </span>
-                              </td>
-                              <td className="px-3 py-2 text-gray-600 dark:text-gray-400 font-mono">{row.topSpecCount}</td>
-                              <td className="px-3 py-2 text-gray-500 dark:text-gray-500 max-w-[260px] truncate" title={row.breakdown}>{row.breakdown}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
               </>
             )}
           </div>

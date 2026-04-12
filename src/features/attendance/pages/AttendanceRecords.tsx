@@ -119,6 +119,7 @@ interface FilterOptions {
   student_ids: string[];
   course_ids: string[];
   teacher_ids: string[];
+  session_ids: string[];
   statuses: string[];
   host_addresses: string[];
   checkInTimeStart: string;
@@ -484,6 +485,7 @@ export const AttendanceRecords = () => {
     student_ids: [],
     course_ids: [],
     teacher_ids: [],
+    session_ids: [],
     statuses: [],
     host_addresses: [],
     checkInTimeStart: '',
@@ -513,6 +515,10 @@ export const AttendanceRecords = () => {
   const [courses, setCourses] = useState<{ value: string; label: string }[]>([]);
   const [instructors, setInstructors] = useState<{ value: string; label: string }[]>([]);
   const [hostAddresses, setHostAddresses] = useState<{ value: string; label: string }[]>([]);
+  const [sessions, setSessions] = useState<{ value: string; label: string }[]>([]);
+  // Maps root session_id → [root_id, ...clone_ids]. Used to expand the session filter
+  // so selecting a root session also matches attendance records from its clones.
+  const [sessionGroupMap, setSessionGroupMap] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
     // Initialize: fetch earliest and latest attendance dates and then load filters + records
@@ -656,6 +662,13 @@ export const AttendanceRecords = () => {
       filtered = filtered.filter(r => filters.teacher_ids.includes(r.teacher_id));
     }
 
+    // Filter by sessions (multi-select) — expands each selected root to include its clones
+    if (filters.session_ids.length > 0) {
+      filtered = filtered.filter(r =>
+        filters.session_ids.some(sid => (sessionGroupMap[sid] ?? [sid]).includes(r.session_id))
+      );
+    }
+
     // Filter by statuses (multi-select)
     if (filters.statuses.length > 0) {
       filtered = filtered.filter(r => filters.statuses.includes(r.status));
@@ -693,7 +706,7 @@ export const AttendanceRecords = () => {
     }
 
     setFilteredRecords(filtered);
-  }, [records, filters]);
+  }, [records, filters, sessionGroupMap]);
 
   useEffect(() => {
     applyFilters();
@@ -713,7 +726,7 @@ export const AttendanceRecords = () => {
   const loadFilterOptions = async () => {
     try {
       // Load all filter options in parallel for better performance
-      const [studentsRes, coursesRes, teachersRes, hostRes] = await Promise.all([
+      const [studentsRes, coursesRes, teachersRes, hostRes, sessionsRes] = await Promise.all([
         supabase
           .from('student')
           .select('student_id, name')
@@ -727,9 +740,13 @@ export const AttendanceRecords = () => {
           .select('teacher_id, name')
           .order('name'),
         supabase
-          .from('session')
+          .from('attendance')
           .select('host_address')
-          .not('host_address', 'is', null)
+          .not('host_address', 'is', null),
+        supabase
+          .from('session')
+          .select('session_id, start_date, end_date, parent_session_id, course:course_id(course_name)')
+          .order('start_date', { ascending: false })
       ]);
 
       if (studentsRes.data) {
@@ -756,6 +773,30 @@ export const AttendanceRecords = () => {
       if (hostRes.data) {
         const unique = [...new Set(hostRes.data.map((h: { host_address: string }) => h.host_address).filter(Boolean))].sort();
         setHostAddresses(unique.map(a => ({ value: a, label: a })));
+      }
+
+      if (sessionsRes.data) {
+        // Build sessionGroupMap: root_id → [root_id, ...clone_ids]
+        const allSessions = sessionsRes.data as Array<{
+          session_id: string;
+          start_date: string;
+          end_date: string;
+          parent_session_id: string | null;
+          course: { course_name: string } | { course_name: string }[] | null;
+        }>;
+        const groupMap: Record<string, string[]> = {};
+        for (const s of allSessions) {
+          const rootId = s.parent_session_id ?? s.session_id;
+          if (!groupMap[rootId]) groupMap[rootId] = [];
+          if (!groupMap[rootId].includes(s.session_id)) groupMap[rootId].push(s.session_id);
+        }
+        setSessionGroupMap(groupMap);
+        // Show only root sessions (parent_session_id IS NULL) in the dropdown
+        const rootSessions = allSessions.filter(s => s.parent_session_id == null);
+        setSessions(rootSessions.map(s => {
+          const courseName = Array.isArray(s.course) ? s.course[0]?.course_name : s.course?.course_name;
+          return { value: s.session_id, label: `${courseName || '?'} (${s.start_date} → ${s.end_date})` };
+        }));
       }
 
       // Show warning if any filter options failed to load
@@ -1716,7 +1757,6 @@ export const AttendanceRecords = () => {
         lateNames: dateData.lateNames.join(', ') || '-',
         excusedNames: excusedLabel,
         absentNames: dateData.absentNames.join(', ') || '-',
-        topSpecialization: dateData.topSpecialization || '-',
       };
     });
     
@@ -1784,7 +1824,6 @@ export const AttendanceRecords = () => {
         totalExcused: host.excused,
         totalStudents,
         topSpec: topSpecEntry?.[0] || '-',
-        topSpecCount: topSpecEntry?.[1] ?? 0,
         specBreakdown: specCountEntries.map(([s, c]) => `${s}: ${c}`).join('; ') || '-',
         dates: host.rawDates.map(d => smartDateFormat(d, allHostRawDates)).join(', '),
       };
@@ -2031,7 +2070,6 @@ export const AttendanceRecords = () => {
         lateNames: d.lateNames.join(', ') || '-',
         excusedNames: d.excusedNames.join(', ') || '-',
         absentNames: d.absentNames.join(', ') || '-',
-        topSpecialization: d.topSpecialization || '-',
       };
     });
     const dateDataObjects = filterExcludedDateRows(sortDataBySettings(dateDataObjectsUnsorted, 'dateAnalytics'));
@@ -2086,7 +2124,6 @@ export const AttendanceRecords = () => {
           totalExcused: host.excused,
           totalStudents,
           topSpec: topSpecEntry?.[0] || '-',
-          topSpecCount: topSpecEntry?.[1] ?? 0,
           specBreakdown: specCountEntries.map(([s, c]) => `${s}: ${c}`).join('; ') || '-',
           dates: host.rawDates.map(d => smartDateFormat(d, allHostRawDates2)).join(', '),
         };
@@ -2593,7 +2630,6 @@ export const AttendanceRecords = () => {
         lateNames: dateData.lateNames.join(', ') || '-',
         excusedNames: excusedLabel,
         absentNames: dateData.absentNames.join(', ') || '-',
-        topSpecialization: dateData.topSpecialization || '-',
       };
     });
     
@@ -2706,7 +2742,6 @@ export const AttendanceRecords = () => {
           totalExcused: host.excused,
           totalStudents,
           topSpec: topSpecEntry?.[0] || '-',
-          topSpecCount: topSpecEntry?.[1] ?? 0,
           specBreakdown: specCountEntries.map(([s, c]) => `${s}: ${c}`).join('; ') || '-',
           dates: host.rawDates.map(d => smartDateFormat(d, allHostRawDates3)).join(', '),
         };
@@ -3266,7 +3301,6 @@ export const AttendanceRecords = () => {
         lateNames: d.lateNames.join(', ') || '-',
         excusedNames,
         absentNames: d.absentNames.join(', ') || '-',
-        topSpecialization: d.topSpecialization || '-',
       };
     });
     
@@ -3335,7 +3369,6 @@ export const AttendanceRecords = () => {
           totalExcused: host.excused,
           totalStudents,
           topSpec: topSpecEntry?.[0] || '-',
-          topSpecCount: topSpecEntry?.[1] ?? 0,
           specBreakdown: specCountEntries.map(([s, c]) => `${s}: ${c}`).join('; ') || '-',
           dates: host.rawDates.map(d => smartDateFormat(d, allHostRawDates4)).join(', '),
         };
@@ -3503,6 +3536,7 @@ export const AttendanceRecords = () => {
       student_ids: [],
       course_ids: [],
       teacher_ids: [],
+      session_ids: [],
       statuses: [],
       host_addresses: [],
       checkInTimeStart: '',
@@ -4217,15 +4251,6 @@ export const AttendanceRecords = () => {
           ]
         },
         {
-          id: 'specialization',
-          label: 'Specialization',
-          labelAr: 'التخصص',
-          icon: '🎓',
-          fields: [
-            { key: 'topSpecialization', label: 'Most Present Specialization', labelAr: 'التخصص الأكثر حضوراً', category: 'specialization', defaultSelected: true },
-          ]
-        },
-        {
           id: 'names',
           label: 'Student Names',
           labelAr: 'أسماء الطلاب',
@@ -4284,7 +4309,6 @@ export const AttendanceRecords = () => {
           icon: '🎓',
           fields: [
             { key: 'topSpec', label: 'Dominant Specialization', labelAr: '\u0627\u0644\u062A\u062E\u0635\u0635 \u0627\u0644\u0633\u0627\u0626\u062F', category: 'specAffinity', defaultSelected: true },
-            { key: 'topSpecCount', label: 'Spec Sessions', labelAr: '\u062C\u0644\u0633\u0627\u062A \u0627\u0644\u062A\u062E\u0635\u0635', category: 'specAffinity', defaultSelected: true },
             { key: 'specBreakdown', label: 'Spec Breakdown', labelAr: '\u062A\u0641\u0627\u0635\u064A\u0644 \u0627\u0644\u062A\u062E\u0635\u0635\u0627\u062A', category: 'specAffinity', defaultSelected: true },
           ]
         },
@@ -4314,6 +4338,10 @@ export const AttendanceRecords = () => {
             { key: 'avgScore', label: 'Avg Weighted Score', labelAr: 'متوسط الدرجة', category: 'specInfo', defaultSelected: true },
             { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحاضرين', category: 'specInfo', defaultSelected: true },
             { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب', category: 'specInfo', defaultSelected: true },
+            { key: 'bestStudent', label: 'Best Student', labelAr: 'أفضل طالب', category: 'specInfo', defaultSelected: true },
+            { key: 'bestStudentScore', label: 'Best Student Score', labelAr: 'درجة أفضل طالب', category: 'specInfo', defaultSelected: true },
+            { key: 'worstStudent', label: 'Weakest Student', labelAr: 'أضعف طالب', category: 'specInfo', defaultSelected: true },
+            { key: 'worstStudentScore', label: 'Weakest Student Score', labelAr: 'درجة أضعف طالب', category: 'specInfo', defaultSelected: true },
           ]
         }
       ];
@@ -4402,7 +4430,6 @@ export const AttendanceRecords = () => {
         icon: '📍',
         fields: [
           { key: 'host_address', label: 'Host Address', labelAr: 'عنوان المضيف', category: 'location', defaultSelected: true },
-          { key: 'distance_from_host', label: 'Distance from Host (m)', labelAr: 'المسافة من المضيف', category: 'location', defaultSelected: false },
         ]
       },
       {
@@ -4485,7 +4512,6 @@ export const AttendanceRecords = () => {
         // Late Duration
         { key: 'totalLateMinutes', label: 'Total Late (min)', labelAr: 'مجموع التأخير (دقيقة)' },
         { key: 'avgLateMinutes', label: 'Avg Late (min)', labelAr: 'متوسط التأخير' },
-        { key: 'topSpecialization', label: 'Most Present Specialization', labelAr: 'التخصص الأكثر حضوراً' },
       );
     } else if (dataType === 'hostAnalytics') {
       // Host fields
@@ -4504,7 +4530,6 @@ export const AttendanceRecords = () => {
         { key: 'totalExcused', label: 'Total Excused', labelAr: 'إجمالي المعذورين' },
         { key: 'totalStudents', label: 'Total Students', labelAr: 'إجمالي الطلاب' },
         { key: 'topSpec', label: 'Dominant Specialization', labelAr: '\u0627\u0644\u062A\u062E\u0635\u0635 \u0627\u0644\u0633\u0627\u0626\u062F' },
-        { key: 'topSpecCount', label: 'Spec Sessions', labelAr: '\u062C\u0644\u0633\u0627\u062A \u0627\u0644\u062A\u062E\u0635\u0635' },
         { key: 'specBreakdown', label: 'Spec Breakdown', labelAr: '\u062A\u0641\u0627\u0635\u064A\u0644 \u0627\u0644\u062A\u062E\u0635\u0635\u0627\u062A' },
         { key: 'dates', label: 'All Dates', labelAr: 'جميع التواريخ' },
       );
@@ -4517,6 +4542,10 @@ export const AttendanceRecords = () => {
         { key: 'avgScore', label: 'Avg Weighted Score', labelAr: 'متوسط الدرجة' },
         { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحضور' },
         { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب' },
+        { key: 'bestStudent', label: 'Best Student', labelAr: 'أفضل طالب' },
+        { key: 'bestStudentScore', label: 'Best Student Score', labelAr: 'درجة أفضل طالب' },
+        { key: 'worstStudent', label: 'Weakest Student', labelAr: 'أضعف طالب' },
+        { key: 'worstStudentScore', label: 'Weakest Student Score', labelAr: 'درجة أضعف طالب' },
       );
     }
     
@@ -4792,7 +4821,6 @@ export const AttendanceRecords = () => {
           lateNames: dateData.lateNames.join(', ') || '-',
           excusedNames: dateData.excusedNames.join(', ') || '-',
           absentNames: dateData.absentNames.join(', ') || '-',
-          topSpecialization: dateData.topSpecialization || '-',
         };
       });
     } else if (exportDataType === 'hostAnalytics') {
@@ -4869,7 +4897,6 @@ export const AttendanceRecords = () => {
             totalStudents: host.totalStudents,
             // Specialization Affinity
             topSpec: (() => { const sc = hostSpecMap.get(host.address); if (!sc || sc.size === 0) return '-'; let top = ''; let max = 0; sc.forEach((c, s) => { if (c > max) { max = c; top = s; } }); return top; })(),
-            topSpecCount: (() => { const sc = hostSpecMap.get(host.address); if (!sc || sc.size === 0) return 0; let max = 0; sc.forEach((c) => { if (c > max) max = c; }); return max; })(),
             specBreakdown: (() => { const sc = hostSpecMap.get(host.address); if (!sc || sc.size === 0) return '-'; return Array.from(sc.entries()).sort((a, b) => b[1] - a[1]).map(([s, c]) => `${s}(${c})`).join(', '); })(),
             // Hosting Dates
             dates: host.rawDates.map(d => smartDateFormat(d, allHostRawDates5)).join(', '),
@@ -5201,61 +5228,35 @@ export const AttendanceRecords = () => {
                 </button>
               </div>
             </div>
-            {/* Field Selection Status */}
+            {/* Field Selection Status — Tab Bar */}
             <div className="mt-3 pt-3 border-t border-indigo-200 dark:border-indigo-700">
-              <div className="flex flex-wrap gap-3 text-sm">
-                <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg px-3 py-1.5 shadow-sm">
-                  <span className="text-blue-600 dark:text-blue-400 font-semibold">📊 {t.student}:</span>
-                  <span className="text-green-600 dark:text-green-400">
-                    {savedFieldSelections.studentAnalytics.length > 0 ? `${savedFieldSelections.studentAnalytics.length} ${t.fields}` : t.all}
-                  </span>
-                  {(savedExportSettings.studentAnalytics?.sortLayers || []).length > 0 ? (
-                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.studentAnalytics.sortLayers!.map(l => `${l.field} ${l.direction === 'desc' ? '↓' : '↑'}`).join(', ')})</span>
-                  ) : savedExportSettings.studentAnalytics?.sortByField && (
-                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.studentAnalytics.sortByField} {savedExportSettings.studentAnalytics.sortDirection === 'desc' ? '↓' : '↑'})</span>
-                  )}
-                  {savedExportSettings.studentAnalytics?.enableConditionalColoring !== false && <span className="text-rose-500 text-xs">🌈</span>}
-                  <button onClick={() => { setExportDataType('studentAnalytics'); setShowAdvancedExport(true); }} className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline text-xs ml-1">{t.edit}</button>
-                </div>
-                <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg px-3 py-1.5 shadow-sm">
-                  <span className="text-green-600 dark:text-green-400 font-semibold">📅 {t.date}:</span>
-                  <span className="text-green-600 dark:text-green-400">
-                    {savedFieldSelections.dateAnalytics.length > 0 ? `${savedFieldSelections.dateAnalytics.length} ${t.fields}` : t.all}
-                  </span>
-                  {(savedExportSettings.dateAnalytics?.sortLayers || []).length > 0 ? (
-                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.dateAnalytics.sortLayers!.map(l => `${l.field} ${l.direction === 'desc' ? '↓' : '↑'}`).join(', ')})</span>
-                  ) : savedExportSettings.dateAnalytics?.sortByField && (
-                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.dateAnalytics.sortByField} {savedExportSettings.dateAnalytics.sortDirection === 'desc' ? '↓' : '↑'})</span>
-                  )}
-                  {savedExportSettings.dateAnalytics?.enableConditionalColoring !== false && <span className="text-rose-500 text-xs">🌈</span>}
-                  <button onClick={() => { setExportDataType('dateAnalytics'); setShowAdvancedExport(true); }} className="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 underline text-xs ml-1">{t.edit}</button>
-                </div>
-                <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg px-3 py-1.5 shadow-sm">
-                  <span className="text-orange-600 dark:text-orange-400 font-semibold">🏠 {t.location}:</span>
-                  <span className="text-green-600 dark:text-green-400">
-                    {savedFieldSelections.hostAnalytics.length > 0 ? `${savedFieldSelections.hostAnalytics.length} ${t.fields}` : t.all}
-                  </span>
-                  {(savedExportSettings.hostAnalytics?.sortLayers || []).length > 0 ? (
-                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.hostAnalytics.sortLayers!.map(l => `${l.field} ${l.direction === 'desc' ? '↓' : '↑'}`).join(', ')})</span>
-                  ) : savedExportSettings.hostAnalytics?.sortByField && (
-                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.hostAnalytics.sortByField} {savedExportSettings.hostAnalytics.sortDirection === 'desc' ? '↓' : '↑'})</span>
-                  )}
-                  {savedExportSettings.hostAnalytics?.enableConditionalColoring !== false && <span className="text-rose-500 text-xs">🌈</span>}
-                  <button onClick={() => { setExportDataType('hostAnalytics'); setShowAdvancedExport(true); }} className="text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-300 underline text-xs ml-1">{t.edit}</button>
-                </div>
-                <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg px-3 py-1.5 shadow-sm">
-                  <span className="text-violet-600 dark:text-violet-400 font-semibold">🎓 {t.specTable}:</span>
-                  <span className="text-green-600 dark:text-green-400">
-                    {savedFieldSelections.specializationAnalytics.length > 0 ? `${savedFieldSelections.specializationAnalytics.length} ${t.fields}` : t.all}
-                  </span>
-                  {(savedExportSettings.specializationAnalytics?.sortLayers || []).length > 0 ? (
-                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.specializationAnalytics.sortLayers!.map(l => `${l.field} ${l.direction === 'desc' ? '\u2193' : '\u2191'}`).join(', ')})</span>
-                  ) : savedExportSettings.specializationAnalytics?.sortByField && (
-                    <span className="text-purple-600 dark:text-purple-400 text-xs">(Sort: {savedExportSettings.specializationAnalytics.sortByField} {savedExportSettings.specializationAnalytics.sortDirection === 'desc' ? '\u2193' : '\u2191'})</span>
-                  )}
-                  {savedExportSettings.specializationAnalytics?.enableConditionalColoring !== false && <span className="text-rose-500 text-xs">🌈</span>}
-                  <button onClick={() => { setExportDataType('specializationAnalytics'); setShowAdvancedExport(true); }} className="text-violet-600 dark:text-violet-400 hover:text-violet-800 dark:hover:text-violet-300 underline text-xs ml-1">{t.edit}</button>
-                </div>
+              <div className="flex border-b border-gray-200 dark:border-gray-600 overflow-x-auto">
+                {([
+                  { type: 'studentAnalytics' as const, icon: '📊', label: t.student, color: 'blue' },
+                  { type: 'dateAnalytics' as const, icon: '📅', label: t.date, color: 'green' },
+                  { type: 'hostAnalytics' as const, icon: '🏠', label: t.location, color: 'orange' },
+                  { type: 'specializationAnalytics' as const, icon: '🎓', label: t.specTable, color: 'violet' },
+                ] as const).map(({ type, icon, label, color }) => {
+                  const fieldCount = savedFieldSelections[type].length;
+                  const hasSortLayers = (savedExportSettings[type]?.sortLayers || []).length > 0;
+                  const hasSortField = savedExportSettings[type]?.sortByField;
+                  const hasColor = savedExportSettings[type]?.enableConditionalColoring !== false;
+                  return (
+                    <button
+                      key={type}
+                      onClick={() => { setExportDataType(type); setShowAdvancedExport(true); }}
+                      className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-all whitespace-nowrap hover:bg-gray-50 dark:hover:bg-gray-700/50 text-${color}-600 dark:text-${color}-400 border-transparent hover:border-${color}-300`}
+                    >
+                      <span>{icon}</span>
+                      <span>{label}</span>
+                      <span className="text-green-600 dark:text-green-400 text-[10px]">
+                        {fieldCount > 0 ? `${fieldCount}` : t.all}
+                      </span>
+                      {(hasSortLayers || hasSortField) && <span className="text-purple-500 text-[10px]">⇅</span>}
+                      {hasColor && <span className="text-rose-500 text-[10px]">🌈</span>}
+                    </button>
+                  );
+                })}
               </div>
               {/* Table Include/Exclude Toggles */}
               <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
@@ -5870,7 +5871,6 @@ export const AttendanceRecords = () => {
                       lateNames: d.lateNames.join(', ') || '-',
                       excusedNames: excusedLabel,
                       absentNames: d.absentNames.join(', ') || '-',
-                      topSpecialization: d.topSpecialization || '-',
                     } as Record<string, unknown>;
                   });
                   const sorted = sortDataBySettings(dataObjects, 'dateAnalytics');
@@ -6029,7 +6029,6 @@ export const AttendanceRecords = () => {
                       totalExcused: host.excused,
                       totalStudents,
                       topSpec: (() => { const sc = hostSpecMap.get(host.address); if (!sc || sc.size === 0) return '-'; let top = ''; let max = 0; sc.forEach((c, s) => { if (c > max) { max = c; top = s; } }); return top; })(),
-                      topSpecCount: (() => { const sc = hostSpecMap.get(host.address); if (!sc || sc.size === 0) return 0; let max = 0; sc.forEach((c) => { if (c > max) max = c; }); return max; })(),
                       specBreakdown: (() => { const sc = hostSpecMap.get(host.address); if (!sc || sc.size === 0) return '-'; return Array.from(sc.entries()).sort((a, b) => b[1] - a[1]).map(([s, c]) => `${s}(${c})`).join(', '); })(),
                       dates: host.rawDates.map(d => smartDateFormat(d, allHostRawDates6)).join(', '),
                     } as Record<string, unknown>;
@@ -6836,6 +6835,38 @@ export const AttendanceRecords = () => {
             </div>
           </div>
 
+          {/* Multi-select: Session */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+              <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+              {arabicMode ? 'الجلسة' : 'Session'}
+              {filters.session_ids.length > 0 && <span className="ml-auto bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{filters.session_ids.length}</span>}
+            </label>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setOpenFilterDropdown(openFilterDropdown === 'session' ? null : 'session')}
+                className="w-full px-3 py-2 border-2 rounded-xl bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400 text-left text-sm flex items-center justify-between"
+              >
+                <span className="truncate">{filters.session_ids.length === 0 ? (arabicMode ? 'كل الجلسات' : 'All Sessions') : `${filters.session_ids.length} ${t.selected}`}</span>
+                <svg className={`w-4 h-4 text-gray-400 transition-transform ${openFilterDropdown === 'session' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+              </button>
+              {openFilterDropdown === 'session' && (
+                <div className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                  <button type="button" onClick={() => setFilters(f => ({ ...f, session_ids: [] }))} className="w-full px-3 py-2 text-left text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 font-medium border-b border-gray-100 dark:border-gray-700">{t.clearAll}</button>
+                  {sessions.map(opt => (
+                    <label key={opt.value} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-800 dark:text-gray-200">
+                      <input type="checkbox" checked={filters.session_ids.includes(opt.value)} onChange={() => setFilters(f => ({ ...f, session_ids: f.session_ids.includes(opt.value) ? f.session_ids.filter(v => v !== opt.value) : [...f.session_ids, opt.value] }))} className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500" />
+                      <span className="truncate text-xs">{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
               <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -6866,36 +6897,30 @@ export const AttendanceRecords = () => {
             />
           </div>
 
-          {/* Check-in Time Start */}
+          {/* Check-in Time Range */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
               <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               {t.checkInTimeStartLabel}
+              {(filters.checkInTimeStart || filters.checkInTimeEnd) && <span className="ml-auto bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full">!</span>}
             </label>
-            <input
-              type="time"
-              value={filters.checkInTimeStart}
-              onChange={(e) => setFilters({ ...filters, checkInTimeStart: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-            />
-          </div>
-
-          {/* Check-in Time End */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
-              <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              {t.checkInTimeEndLabel}
-            </label>
-            <input
-              type="time"
-              value={filters.checkInTimeEnd}
-              onChange={(e) => setFilters({ ...filters, checkInTimeEnd: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                type="time"
+                value={filters.checkInTimeStart}
+                onChange={(e) => setFilters({ ...filters, checkInTimeStart: e.target.value })}
+                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm"
+              />
+              <span className="text-gray-400 dark:text-gray-500 text-xs">→</span>
+              <input
+                type="time"
+                value={filters.checkInTimeEnd}
+                onChange={(e) => setFilters({ ...filters, checkInTimeEnd: e.target.value })}
+                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm"
+              />
+            </div>
           </div>
         </div>
       </div>

@@ -725,6 +725,10 @@ export const sessionService = {
       return { data: null, error: fetchErr || new Error('Source session not found'), copied: 0 };
     }
 
+    // Determine the root session: if source is already a clone, point to its parent (root).
+    // This ensures all clones in a chain share the same root parent_session_id.
+    const rootSessionId = (source as { parent_session_id?: string | null }).parent_session_id ?? source.session_id;
+
     // Create new session with same course/teacher but new schedule
     const { data: newSession, error: createErr } = await supabase
       .from(Tables.SESSION)
@@ -746,6 +750,7 @@ export const sessionService = {
         feedback_enabled: source.feedback_enabled,
         feedback_anonymous_allowed: source.feedback_anonymous_allowed,
         teacher_can_host: source.teacher_can_host,
+        parent_session_id: rootSessionId,
       })
       .select()
       .single();

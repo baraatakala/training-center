@@ -62,6 +62,7 @@ export interface Session {
   feedback_enabled?: boolean;
   feedback_anonymous_allowed?: boolean;
   teacher_can_host?: boolean;
+  parent_session_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -239,7 +240,7 @@ export interface SessionDateHost {
   session_id: string;
   attendance_date: string;
   host_id: string | null;
-  host_type: 'student' | 'teacher';
+  host_type: 'student' | 'teacher' | 'other';
   host_address: string | null;          // nullable: NULL when row exists only for a time override (migration 009)
   host_latitude?: number | null;
   host_longitude?: number | null;
