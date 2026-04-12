@@ -4028,7 +4028,6 @@ export const AttendanceRecords = () => {
           icon: '👤',
           fields: [
             { key: 'rank', label: 'Rank', labelAr: 'الرتبة', category: 'basic', defaultSelected: true },
-            { key: 'student_id', label: 'Student ID', labelAr: 'رقم الطالب', category: 'basic', defaultSelected: false },
             { key: 'student_name', label: 'Student Name', labelAr: 'اسم الطالب', category: 'basic', defaultSelected: true },
           ]
         },
@@ -4040,12 +4039,8 @@ export const AttendanceRecords = () => {
           fields: [
             { key: 'presentCount', label: 'On Time', labelAr: 'في الوقت', category: 'attendance', defaultSelected: true },
             { key: 'lateCount', label: 'Late', labelAr: 'متأخر', category: 'attendance', defaultSelected: true },
-            { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحضور', category: 'attendance', defaultSelected: true },
-            { key: 'absentCount', label: 'Total Absent', labelAr: 'إجمالي الغياب', category: 'attendance', defaultSelected: false },
-            { key: 'unexcusedAbsent', label: 'Unexcused Absent', labelAr: 'غياب بدون عذر', category: 'attendance', defaultSelected: true },
+            { key: 'absentCount', label: 'Total Absent', labelAr: 'إجمالي الغياب', category: 'attendance', defaultSelected: true },
             { key: 'excusedCount', label: 'Excused', labelAr: 'معذور', category: 'attendance', defaultSelected: true },
-            { key: 'sessionNotHeldCount', label: 'Not Held', labelAr: 'جلسات لم تعقد', category: 'attendance', defaultSelected: true },
-            { key: 'totalRecords', label: 'Total Records', labelAr: 'إجمالي السجلات', category: 'attendance', defaultSelected: false },
           ]
         },
         {
@@ -4054,47 +4049,11 @@ export const AttendanceRecords = () => {
           labelAr: 'مقاييس الأداء',
           icon: '📈',
           fields: [
-            { key: 'effectiveDays', label: 'Effective Days', labelAr: 'الأيام الفعلية', category: 'metrics', defaultSelected: true },
-            { key: 'daysCovered', label: 'Days Covered', labelAr: 'الأيام المغطاة', category: 'metrics', defaultSelected: true },
             { key: 'attendanceRate', label: 'Attendance Rate %', labelAr: 'نسبة الحضور', category: 'metrics', defaultSelected: true },
             { key: 'punctualityRate', label: 'Punctuality Rate %', labelAr: 'نسبة الالتزام', category: 'metrics', defaultSelected: true },
             { key: 'weightedScore', label: 'Weighted Score', labelAr: 'الدرجة الموزونة', category: 'metrics', defaultSelected: true },
             { key: 'consistencyIndex', label: 'Consistency Index', labelAr: 'مؤشر الانتظام', category: 'metrics', defaultSelected: false },
-          ]
-        },
-        {
-          id: 'trend',
-          label: 'Trend Analysis',
-          labelAr: 'تحليل الاتجاه',
-          icon: '📉',
-          fields: [
-            { key: 'trendSlope', label: 'Trend Slope', labelAr: 'ميل الاتجاه', category: 'trend', defaultSelected: false },
-            { key: 'trendClassification', label: 'Trend Classification', labelAr: 'تصنيف الاتجاه', category: 'trend', defaultSelected: false },
-            { key: 'trendRSquared', label: 'Trend R² Value', labelAr: 'قيمة R²', category: 'trend', defaultSelected: false },
-            { key: 'weeklyChange', label: 'Weekly Change %', labelAr: 'التغير الأسبوعي', category: 'trend', defaultSelected: false },
-          ]
-        },
-        {
-          id: 'rates',
-          label: 'Rate Statistics',
-          labelAr: 'إحصائيات المعدلات',
-          icon: '📏',
-          fields: [
-            { key: 'avgRate', label: 'Average Rate', labelAr: 'المعدل المتوسط', category: 'rates', defaultSelected: false },
-            { key: 'minRate', label: 'Minimum Rate', labelAr: 'أدنى معدل', category: 'rates', defaultSelected: false },
-            { key: 'maxRate', label: 'Maximum Rate', labelAr: 'أعلى معدل', category: 'rates', defaultSelected: false },
-          ]
-        },
-        {
-          id: 'scoreBreakdown',
-          label: '🔍 Score Breakdown',
-          labelAr: '🔍 تفصيل الدرجة',
-          icon: '🧮',
-          fields: [
-            { key: 'qualityAdjustedRate', label: 'Quality-Adjusted Rate %', labelAr: 'معدل الجودة المعدل', category: 'scoreBreakdown', defaultSelected: false },
-            { key: 'rawWeightedScore', label: 'Raw Score (before coverage)', labelAr: 'الدرجة الخام', category: 'scoreBreakdown', defaultSelected: false },
-            { key: 'coverageFactor', label: 'Coverage Factor', labelAr: 'عامل التغطية', category: 'scoreBreakdown', defaultSelected: false },
-            { key: 'scoreFormula', label: 'Score Formula', labelAr: 'معادلة الدرجة', category: 'scoreBreakdown', defaultSelected: false },
+            { key: 'qualityAdjustedRate', label: 'Quality-Adjusted Rate %', labelAr: 'معدل الجودة المعدل', category: 'metrics', defaultSelected: false },
           ]
         },
         {
@@ -4105,35 +4064,6 @@ export const AttendanceRecords = () => {
           fields: [
             { key: 'totalLateMinutes', label: 'Total Late (min)', labelAr: 'مجموع التأخير (دقيقة)', category: 'lateDuration', defaultSelected: false },
             { key: 'avgLateMinutes', label: 'Avg Late (min)', labelAr: 'متوسط التأخير', category: 'lateDuration', defaultSelected: false },
-            { key: 'maxLateMinutes', label: 'Max Late (min)', labelAr: 'أقصى تأخير', category: 'lateDuration', defaultSelected: false },
-            { key: 'lateScoreAvg', label: 'Avg Late Credit (0-1)', labelAr: '\u0645\u062A\u0648\u0633\u0637 \u0631\u0635\u064A\u062F \u0627\u0644\u062A\u0623\u062E\u064A\u0631', category: 'lateDuration', defaultSelected: false },
-          ]
-        },
-        {
-          id: 'specCorrelation',
-          label: '\uD83C\uDF93 Specialization Correlation',
-          labelAr: '\uD83C\uDF93 \u0627\u0631\u062A\u0628\u0627\u0637 \u0627\u0644\u062A\u062E\u0635\u0635',
-          icon: '\uD83C\uDF93',
-          fields: [
-            { key: 'specName', label: 'Specialization', labelAr: '\u0627\u0644\u062A\u062E\u0635\u0635', category: 'specCorrelation', defaultSelected: false },
-            { key: 'specAvgAttendance', label: 'Spec Avg Attendance %', labelAr: '\u0645\u0639\u062F\u0644 \u062D\u0636\u0648\u0631 \u0627\u0644\u062A\u062E\u0635\u0635', category: 'specCorrelation', defaultSelected: false },
-            { key: 'specDeviation', label: 'Deviation from Spec Avg', labelAr: '\u0627\u0644\u0627\u0646\u062D\u0631\u0627\u0641 \u0639\u0646 \u0645\u0639\u062F\u0644 \u0627\u0644\u062A\u062E\u0635\u0635', category: 'specCorrelation', defaultSelected: false },
-            { key: 'specAvgScore', label: 'Spec Avg Score', labelAr: '\u0645\u062A\u0648\u0633\u0637 \u062F\u0631\u062C\u0629 \u0627\u0644\u062A\u062E\u0635\u0635', category: 'specCorrelation', defaultSelected: false },
-            { key: 'specScoreDeviation', label: 'Score Deviation from Spec', labelAr: '\u0627\u0646\u062D\u0631\u0627\u0641 \u0627\u0644\u062F\u0631\u062C\u0629 \u0639\u0646 \u0627\u0644\u062A\u062E\u0635\u0635', category: 'specCorrelation', defaultSelected: false },
-            { key: 'specRank', label: 'Rank within Spec', labelAr: '\u0627\u0644\u062A\u0631\u062A\u064A\u0628 \u0636\u0645\u0646 \u0627\u0644\u062A\u062E\u0635\u0635', category: 'specCorrelation', defaultSelected: false },
-            { key: 'specStudentCount', label: 'Spec Student Count', labelAr: '\u0639\u062F\u062F \u0637\u0644\u0627\u0628 \u0627\u0644\u062A\u062E\u0635\u0635', category: 'specCorrelation', defaultSelected: false },
-          ]
-        },
-        {
-          id: 'advancedMetrics',
-          label: '🧩 Advanced Metrics',
-          labelAr: '🧩 مقاييس متقدمة',
-          icon: '🧩',
-          fields: [
-            { key: 'percentileRank', label: 'Percentile Rank', labelAr: '\u0627\u0644\u062A\u0631\u062A\u064A\u0628 \u0627\u0644\u0645\u0626\u0648\u064A', category: 'advancedMetrics', defaultSelected: false },
-            { key: 'maxConsecutiveStreak', label: 'Max Streak (wks)', labelAr: '\u0623\u0637\u0648\u0644 \u062A\u0633\u0644\u0633\u0644 \u062D\u0636\u0648\u0631', category: 'advancedMetrics', defaultSelected: false },
-            { key: 'firstHalfRate', label: 'First Half Rate %', labelAr: '\u0645\u0639\u062F\u0644 \u0627\u0644\u0646\u0635\u0641 \u0627\u0644\u0623\u0648\u0644', category: 'advancedMetrics', defaultSelected: false },
-            { key: 'secondHalfRate', label: 'Second Half Rate %', labelAr: '\u0645\u0639\u062F\u0644 \u0627\u0644\u0646\u0635\u0641 \u0627\u0644\u062B\u0627\u0646\u064A', category: 'advancedMetrics', defaultSelected: false },
           ]
         }
       ];
@@ -4158,9 +4088,6 @@ export const AttendanceRecords = () => {
           fields: [
             { key: 'bookTopic', label: 'Book Topic', labelAr: 'موضوع الكتاب', category: 'book', defaultSelected: true },
             { key: 'bookPages', label: 'Pages', labelAr: 'الصفحات', category: 'book', defaultSelected: true },
-            { key: 'bookStartPage', label: 'Start Page', labelAr: 'صفحة البداية', category: 'book', defaultSelected: false },
-            { key: 'bookEndPage', label: 'End Page', labelAr: 'صفحة النهاية', category: 'book', defaultSelected: false },
-            { key: 'pagesCount', label: 'Pages Count', labelAr: 'عدد الصفحات', category: 'book', defaultSelected: false },
           ]
         },
         {
@@ -4171,11 +4098,8 @@ export const AttendanceRecords = () => {
           fields: [
             { key: 'presentCount', label: 'On Time', labelAr: 'في الوقت', category: 'counts', defaultSelected: true },
             { key: 'lateCount', label: 'Late', labelAr: 'متأخر', category: 'counts', defaultSelected: true },
-            { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحضور', category: 'counts', defaultSelected: false },
             { key: 'excusedAbsentCount', label: 'Excused', labelAr: 'معذور', category: 'counts', defaultSelected: true },
             { key: 'unexcusedAbsentCount', label: 'Absent', labelAr: 'غائب', category: 'counts', defaultSelected: true },
-            { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب', category: 'counts', defaultSelected: false },
-            { key: 'totalStudents', label: 'Total Students', labelAr: 'إجمالي الطلاب', category: 'counts', defaultSelected: false },
           ]
         },
         {
@@ -4185,8 +4109,6 @@ export const AttendanceRecords = () => {
           icon: '📊',
           fields: [
             { key: 'attendanceRate', label: 'Attendance Rate %', labelAr: 'نسبة الحضور', category: 'rates', defaultSelected: true },
-            { key: 'punctualityRate', label: 'Punctuality Rate %', labelAr: 'نسبة الالتزام', category: 'rates', defaultSelected: false },
-            { key: 'absentRate', label: 'Absence Rate %', labelAr: 'نسبة الغياب', category: 'rates', defaultSelected: false },
           ]
         },
         {
@@ -4200,23 +4122,12 @@ export const AttendanceRecords = () => {
           ]
         },
         {
-          id: 'specialization',
-          label: 'Specialization',
-          labelAr: 'التخصص',
-          icon: '🎓',
-          fields: [
-            { key: 'topSpecialization', label: 'Most Present Specialization', labelAr: 'التخصص الأكثر حضوراً', category: 'specialization', defaultSelected: true },
-          ]
-        },
-        {
           id: 'names',
           label: 'Student Names',
           labelAr: 'أسماء الطلاب',
           icon: '👥',
           fields: [
             { key: 'presentNames', label: 'On Time Names', labelAr: 'أسماء الحاضرين', category: 'names', defaultSelected: false },
-            { key: 'lateNames', label: 'Late Names', labelAr: 'أسماء المتأخرين', category: 'names', defaultSelected: false },
-            { key: 'excusedNames', label: 'Excused Names', labelAr: 'أسماء المعذورين', category: 'names', defaultSelected: false },
             { key: 'absentNames', label: 'Absent Names', labelAr: 'أسماء الغائبين', category: 'names', defaultSelected: false },
           ]
         }
@@ -4254,10 +4165,8 @@ export const AttendanceRecords = () => {
             { key: 'attendanceRate', label: 'Avg Attendance Rate %', labelAr: 'معدل الحضور', category: 'attendance', defaultSelected: true },
             { key: 'totalOnTime', label: 'Total On Time', labelAr: 'إجمالي في الوقت', category: 'attendance', defaultSelected: true },
             { key: 'totalLate', label: 'Total Late', labelAr: 'إجمالي المتأخرين', category: 'attendance', defaultSelected: true },
-            { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحضور', category: 'attendance', defaultSelected: true },
             { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب', category: 'attendance', defaultSelected: true },
             { key: 'totalExcused', label: 'Total Excused', labelAr: 'إجمالي المعذورين', category: 'attendance', defaultSelected: true },
-            { key: 'totalStudents', label: 'Total Students', labelAr: 'إجمالي الطلاب', category: 'attendance', defaultSelected: false },
           ]
         },
         {
@@ -4267,8 +4176,6 @@ export const AttendanceRecords = () => {
           icon: '🎓',
           fields: [
             { key: 'topSpec', label: 'Dominant Specialization', labelAr: '\u0627\u0644\u062A\u062E\u0635\u0635 \u0627\u0644\u0633\u0627\u0626\u062F', category: 'specAffinity', defaultSelected: true },
-            { key: 'topSpecCount', label: 'Spec Sessions', labelAr: '\u062C\u0644\u0633\u0627\u062A \u0627\u0644\u062A\u062E\u0635\u0635', category: 'specAffinity', defaultSelected: true },
-            { key: 'specBreakdown', label: 'Spec Breakdown', labelAr: '\u062A\u0641\u0627\u0635\u064A\u0644 \u0627\u0644\u062A\u062E\u0635\u0635\u0627\u062A', category: 'specAffinity', defaultSelected: true },
           ]
         },
         {
@@ -4297,15 +4204,12 @@ export const AttendanceRecords = () => {
         },
         {
           id: 'specPerformance',
-          label: 'Performance Metrics',
-          labelAr: 'مؤشرات الأداء',
+          label: 'Performance',
+          labelAr: 'الأداء',
           icon: '📊',
           fields: [
             { key: 'avgAttendanceRate', label: 'Avg Attendance Rate %', labelAr: 'معدل الحضور %', category: 'specPerformance', defaultSelected: true },
-            { key: 'stdDevRate', label: 'Rate Std Dev %', labelAr: 'الانحراف المعياري للمعدل %', category: 'specPerformance', defaultSelected: true },
             { key: 'avgScore', label: 'Avg Weighted Score', labelAr: 'متوسط الدرجة', category: 'specPerformance', defaultSelected: true },
-            { key: 'avgPunctuality', label: 'Avg Punctuality %', labelAr: 'متوسط الانضباط %', category: 'specPerformance', defaultSelected: true },
-            { key: 'avgConsistency', label: 'Avg Consistency', labelAr: 'متوسط الانتظام', category: 'specPerformance', defaultSelected: true },
           ]
         },
         {
@@ -4314,58 +4218,8 @@ export const AttendanceRecords = () => {
           labelAr: 'إجماليات الحضور',
           icon: '✅',
           fields: [
-            { key: 'totalOnTime', label: 'Total On Time', labelAr: 'إجمالي الحضور في الوقت', category: 'specCounts', defaultSelected: true },
-            { key: 'totalPresent', label: 'Total Present (On Time + Late)', labelAr: 'إجمالي الحاضرين (في الوقت + متأخر)', category: 'specCounts', defaultSelected: true },
-            { key: 'totalLate', label: 'Total Late', labelAr: 'إجمالي المتأخرين', category: 'specCounts', defaultSelected: true },
+            { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحاضرين', category: 'specCounts', defaultSelected: true },
             { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب', category: 'specCounts', defaultSelected: true },
-            { key: 'totalExcused', label: 'Total Excused', labelAr: 'إجمالي المعذورين', category: 'specCounts', defaultSelected: true },
-          ]
-        },
-        {
-          id: 'specStudents',
-          label: 'Top/Bottom Students',
-          labelAr: 'أفضل/أضعف الطلاب',
-          icon: '🏆',
-          fields: [
-            { key: 'bestStudent', label: 'Best Student', labelAr: 'أفضل طالب', category: 'specStudents', defaultSelected: true },
-            { key: 'bestStudentScore', label: 'Best Score', labelAr: 'أعلى درجة', category: 'specStudents', defaultSelected: true },
-            { key: 'worstStudent', label: 'Weakest Student', labelAr: 'أضعف طالب', category: 'specStudents', defaultSelected: false },
-            { key: 'worstStudentScore', label: 'Weakest Score', labelAr: 'أدنى درجة', category: 'specStudents', defaultSelected: false },
-          ]
-        },
-        {
-          id: 'specLateDuration',
-          label: '\u23F1\uFE0F Late Duration',
-          labelAr: '\u23F1\uFE0F \u0645\u062F\u0629 \u0627\u0644\u062A\u0623\u062E\u064A\u0631',
-          icon: '\u23F0',
-          fields: [
-            { key: 'totalLateMinutes', label: 'Total Late (min)', labelAr: '\u0645\u062C\u0645\u0648\u0639 \u0627\u0644\u062A\u0623\u062E\u064A\u0631 (\u062F\u0642\u064A\u0642\u0629)', category: 'specLateDuration', defaultSelected: false },
-            { key: 'avgLateMinutes', label: 'Avg Late (min)', labelAr: '\u0645\u062A\u0648\u0633\u0637 \u0627\u0644\u062A\u0623\u062E\u064A\u0631', category: 'specLateDuration', defaultSelected: false },
-            { key: 'lateRatio', label: 'Late Ratio %', labelAr: '\u0646\u0633\u0628\u0629 \u0627\u0644\u062A\u0623\u062E\u064A\u0631 %', category: 'specLateDuration', defaultSelected: false },
-          ]
-        },
-        {
-          id: 'specRates',
-          label: '\uD83D\uDCCF Rate Statistics',
-          labelAr: '\uD83D\uDCCF \u0625\u062D\u0635\u0627\u0626\u064A\u0627\u062A \u0627\u0644\u0645\u0639\u062F\u0644\u0627\u062A',
-          icon: '\uD83D\uDCCF',
-          fields: [
-            { key: 'minAttendanceRate', label: 'Min Attendance Rate %', labelAr: '\u0623\u062F\u0646\u0649 \u0645\u0639\u062F\u0644 \u062D\u0636\u0648\u0631', category: 'specRates', defaultSelected: false },
-            { key: 'maxAttendanceRate', label: 'Max Attendance Rate %', labelAr: '\u0623\u0639\u0644\u0649 \u0645\u0639\u062F\u0644 \u062D\u0636\u0648\u0631', category: 'specRates', defaultSelected: false },
-            { key: 'minScore', label: 'Min Score', labelAr: '\u0623\u062F\u0646\u0649 \u062F\u0631\u062C\u0629', category: 'specRates', defaultSelected: false },
-            { key: 'maxScore', label: 'Max Score', labelAr: '\u0623\u0639\u0644\u0649 \u062F\u0631\u062C\u0629', category: 'specRates', defaultSelected: false },
-            { key: 'absentRatio', label: 'Absent Ratio %', labelAr: '\u0646\u0633\u0628\u0629 \u0627\u0644\u063A\u064A\u0627\u0628 %', category: 'specRates', defaultSelected: false },
-          ]
-        },
-        {
-          id: 'specTrend',
-          label: '\uD83D\uDCC9 Trend & Pattern',
-          labelAr: '\uD83D\uDCC9 \u0627\u0644\u0627\u062A\u062C\u0627\u0647 \u0648\u0627\u0644\u0646\u0645\u0637',
-          icon: '\uD83D\uDCC9',
-          fields: [
-            { key: 'dominantTrend', label: 'Dominant Trend', labelAr: '\u0627\u0644\u0627\u062A\u062C\u0627\u0647 \u0627\u0644\u0633\u0627\u0626\u062F', category: 'specTrend', defaultSelected: false },
-            { key: 'avgWeeklyChange', label: 'Avg Weekly Change %', labelAr: '\u0645\u062A\u0648\u0633\u0637 \u0627\u0644\u062A\u063A\u064A\u0631 \u0627\u0644\u0623\u0633\u0628\u0648\u0639\u064A', category: 'specTrend', defaultSelected: false },
-            { key: 'studentNames', label: 'Student Roster', labelAr: '\u0642\u0627\u0626\u0645\u0629 \u0627\u0644\u0637\u0644\u0627\u0628', category: 'specTrend', defaultSelected: false },
           ]
         }
       ];
@@ -4434,7 +4288,6 @@ export const AttendanceRecords = () => {
         fields: [
           { key: 'late_minutes', label: 'Late Duration (min)', labelAr: 'مدة التأخر', category: 'timing', defaultSelected: true },
           { key: 'late_bracket', label: 'Late Bracket', labelAr: 'فئة التأخر', category: 'timing', defaultSelected: false },
-          { key: 'early_minutes', label: 'Early (min)', labelAr: 'مبكر', category: 'timing', defaultSelected: false },
           { key: 'check_in_time', label: 'Check-in Time', labelAr: 'وقت الدخول', category: 'timing', defaultSelected: false },
           { key: 'check_in_method', label: 'Check-in Method', labelAr: 'طريقة التسجيل', category: 'timing', defaultSelected: false },
         ]
@@ -4455,9 +4308,6 @@ export const AttendanceRecords = () => {
         icon: '📍',
         fields: [
           { key: 'host_address', label: 'Host Address', labelAr: 'عنوان المضيف', category: 'location', defaultSelected: true },
-          { key: 'gps_latitude', label: 'GPS Latitude', labelAr: 'خط العرض', category: 'location', defaultSelected: false },
-          { key: 'gps_longitude', label: 'GPS Longitude', labelAr: 'خط الطول', category: 'location', defaultSelected: false },
-          { key: 'gps_accuracy', label: 'GPS Accuracy (m)', labelAr: 'دقة GPS', category: 'location', defaultSelected: false },
           { key: 'distance_from_host', label: 'Distance from Host (m)', labelAr: 'المسافة من المضيف', category: 'location', defaultSelected: false },
         ]
       },
@@ -4486,52 +4336,18 @@ export const AttendanceRecords = () => {
       // Student fields
       allFields.push(
         { key: 'rank', label: 'Rank', labelAr: 'الترتيب' },
-        { key: 'student_id', label: 'Student ID', labelAr: 'رقم الطالب' },
         { key: 'student_name', label: 'Student Name', labelAr: 'اسم الطالب' },
         { key: 'presentCount', label: 'On Time', labelAr: 'في الوقت' },
         { key: 'lateCount', label: 'Late', labelAr: 'متأخر' },
-        { key: 'totalPresent', label: 'Total Present', labelAr: 'حاضر' },
         { key: 'absentCount', label: 'Total Absent', labelAr: 'إجمالي الغياب' },
-        { key: 'unexcusedAbsent', label: 'Unexcused Absent', labelAr: 'غائب بدون عذر' },
         { key: 'excusedCount', label: 'Excused', labelAr: 'غائب بعذر' },
-        { key: 'sessionNotHeldCount', label: 'Not Held', labelAr: 'جلسات لم تعقد' },
-        { key: 'totalRecords', label: 'Total Records', labelAr: 'إجمالي السجلات' },
-        { key: 'effectiveDays', label: 'Effective Days', labelAr: 'الأيام الفعلية' },
-        { key: 'daysCovered', label: 'Days Covered', labelAr: 'الأيام المغطاة' },
         { key: 'attendanceRate', label: 'Attendance Rate %', labelAr: 'معدل الحضور (%)' },
         { key: 'punctualityRate', label: 'Punctuality Rate %', labelAr: 'معدل الالتزام بالوقت (%)' },
         { key: 'weightedScore', label: 'Weighted Score', labelAr: 'النقاط المرجحة' },
         { key: 'consistencyIndex', label: 'Consistency Index', labelAr: 'مؤشر الانتظام' },
-        { key: 'trendSlope', label: 'Trend Slope', labelAr: 'ميل الاتجاه' },
-        { key: 'trendClassification', label: 'Trend Classification', labelAr: 'تصنيف الاتجاه' },
-        { key: 'trendRSquared', label: 'Trend R² Value', labelAr: 'قيمة R²' },
-        { key: 'weeklyChange', label: 'Weekly Change %', labelAr: 'التغير الأسبوعي (%)' },
-        { key: 'avgRate', label: 'Average Rate', labelAr: 'المعدل المتوسط' },
-        { key: 'minRate', label: 'Minimum Rate', labelAr: 'أدنى معدل' },
-        { key: 'maxRate', label: 'Maximum Rate', labelAr: 'أعلى معدل' },
-        // Score Breakdown
         { key: 'qualityAdjustedRate', label: 'Quality-Adjusted Rate %', labelAr: 'معدل الجودة المعدل' },
-        { key: 'rawWeightedScore', label: 'Raw Score (before coverage)', labelAr: 'الدرجة الخام' },
-        { key: 'coverageFactor', label: 'Coverage Factor', labelAr: 'عامل التغطية' },
-        { key: 'scoreFormula', label: 'Score Formula', labelAr: 'معادلة الدرجة' },
-        // Late Duration
         { key: 'totalLateMinutes', label: 'Total Late (min)', labelAr: 'مجموع التأخير (دقيقة)' },
         { key: 'avgLateMinutes', label: 'Avg Late (min)', labelAr: 'متوسط التأخير' },
-        { key: 'maxLateMinutes', label: 'Max Late (min)', labelAr: 'أقصى تأخير' },
-        { key: 'lateScoreAvg', label: 'Avg Late Credit (0-1)', labelAr: '\u0645\u062A\u0648\u0633\u0637 \u0631\u0635\u064A\u062F \u0627\u0644\u062A\u0623\u062E\u064A\u0631' },
-        // Specialization Correlation
-        { key: 'specName', label: 'Specialization', labelAr: '\u0627\u0644\u062A\u062E\u0635\u0635' },
-        { key: 'specAvgAttendance', label: 'Spec Avg Attendance %', labelAr: '\u0645\u0639\u062F\u0644 \u062D\u0636\u0648\u0631 \u0627\u0644\u062A\u062E\u0635\u0635' },
-        { key: 'specDeviation', label: 'Deviation from Spec Avg', labelAr: '\u0627\u0644\u0627\u0646\u062D\u0631\u0627\u0641 \u0639\u0646 \u0645\u0639\u062F\u0644 \u0627\u0644\u062A\u062E\u0635\u0635' },
-        { key: 'specAvgScore', label: 'Spec Avg Score', labelAr: '\u0645\u062A\u0648\u0633\u0637 \u062F\u0631\u062C\u0629 \u0627\u0644\u062A\u062E\u0635\u0635' },
-        { key: 'specScoreDeviation', label: 'Score Deviation from Spec', labelAr: '\u0627\u0646\u062D\u0631\u0627\u0641 \u0627\u0644\u062F\u0631\u062C\u0629 \u0639\u0646 \u0627\u0644\u062A\u062E\u0635\u0635' },
-        { key: 'specRank', label: 'Rank within Spec', labelAr: '\u0627\u0644\u062A\u0631\u062A\u064A\u0628 \u0636\u0645\u0646 \u0627\u0644\u062A\u062E\u0635\u0635' },
-        { key: 'specStudentCount', label: 'Spec Student Count', labelAr: '\u0639\u062F\u062F \u0637\u0644\u0627\u0628 \u0627\u0644\u062A\u062E\u0635\u0635' },
-        // Advanced metrics
-        { key: 'percentileRank', label: 'Percentile Rank', labelAr: '\u0627\u0644\u062A\u0631\u062A\u064A\u0628 \u0627\u0644\u0645\u0626\u0648\u064A' },
-        { key: 'maxConsecutiveStreak', label: 'Max Streak (wks)', labelAr: '\u0623\u0637\u0648\u0644 \u062A\u0633\u0644\u0633\u0644 \u062D\u0636\u0648\u0631' },
-        { key: 'firstHalfRate', label: 'First Half Rate %', labelAr: '\u0645\u0639\u062F\u0644 \u0627\u0644\u0646\u0635\u0641 \u0627\u0644\u0623\u0648\u0644' },
-        { key: 'secondHalfRate', label: 'Second Half Rate %', labelAr: '\u0645\u0639\u062F\u0644 \u0627\u0644\u0646\u0635\u0641 \u0627\u0644\u062B\u0627\u0646\u064A' },
       );
     } else if (dataType === 'dateAnalytics') {
       // Date fields
@@ -4541,27 +4357,15 @@ export const AttendanceRecords = () => {
         { key: 'hostAddress', label: 'Host Address', labelAr: 'عنوان المضيف' },
         { key: 'bookTopic', label: 'Book Topic', labelAr: 'الموضوع' },
         { key: 'bookPages', label: 'Pages', labelAr: 'الصفحات' },
-        { key: 'bookStartPage', label: 'Start Page', labelAr: 'صفحة البداية' },
-        { key: 'bookEndPage', label: 'End Page', labelAr: 'صفحة النهاية' },
-        { key: 'pagesCount', label: 'Pages Count', labelAr: 'عدد الصفحات' },
         { key: 'presentCount', label: 'On Time', labelAr: 'في الوقت' },
         { key: 'lateCount', label: 'Late', labelAr: 'متأخر' },
-        { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحضور' },
         { key: 'excusedAbsentCount', label: 'Excused', labelAr: 'معذور' },
         { key: 'unexcusedAbsentCount', label: 'Absent', labelAr: 'غائب' },
-        { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب' },
-        { key: 'totalStudents', label: 'Total Students', labelAr: 'إجمالي الطلاب' },
         { key: 'attendanceRate', label: 'Attendance Rate %', labelAr: 'نسبة الحضور' },
-        { key: 'punctualityRate', label: 'Punctuality Rate %', labelAr: 'نسبة الالتزام' },
-        { key: 'absentRate', label: 'Absence Rate %', labelAr: 'نسبة الغياب' },
-        { key: 'presentNames', label: 'On Time Names', labelAr: 'أسماء في الوقت' },
-        { key: 'lateNames', label: 'Late Names', labelAr: 'أسماء المتأخرين' },
-        { key: 'excusedNames', label: 'Excused Names', labelAr: 'أسماء المعذورين' },
-        { key: 'absentNames', label: 'Absent Names', labelAr: 'أسماء الغائبين' },
-        // Late Duration
         { key: 'totalLateMinutes', label: 'Total Late (min)', labelAr: 'مجموع التأخير (دقيقة)' },
         { key: 'avgLateMinutes', label: 'Avg Late (min)', labelAr: 'متوسط التأخير' },
-        { key: 'topSpecialization', label: 'Most Present Specialization', labelAr: 'التخصص الأكثر حضوراً' },
+        { key: 'presentNames', label: 'On Time Names', labelAr: 'أسماء في الوقت' },
+        { key: 'absentNames', label: 'Absent Names', labelAr: 'أسماء الغائبين' },
       );
     } else if (dataType === 'hostAnalytics') {
       // Host fields
@@ -4575,14 +4379,11 @@ export const AttendanceRecords = () => {
         { key: 'lastHostDate', label: 'Last Host Date', labelAr: 'آخر تاريخ استضافة' },
         { key: 'totalOnTime', label: 'Total On Time', labelAr: 'إجمالي الحضور' },
         { key: 'totalLate', label: 'Total Late', labelAr: 'إجمالي المتأخرين' },
-        { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحاضرين' },
         { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب' },
         { key: 'totalExcused', label: 'Total Excused', labelAr: 'إجمالي المعذورين' },
-        { key: 'totalStudents', label: 'Total Students', labelAr: 'إجمالي الطلاب' },
         { key: 'topSpec', label: 'Dominant Specialization', labelAr: '\u0627\u0644\u062A\u062E\u0635\u0635 \u0627\u0644\u0633\u0627\u0626\u062F' },
-        { key: 'topSpecCount', label: 'Spec Sessions', labelAr: '\u062C\u0644\u0633\u0627\u062A \u0627\u0644\u062A\u062E\u0635\u0635' },
-        { key: 'specBreakdown', label: 'Spec Breakdown', labelAr: '\u062A\u0641\u0627\u0635\u064A\u0644 \u0627\u0644\u062A\u062E\u0635\u0635\u0627\u062A' },
         { key: 'dates', label: 'All Dates', labelAr: 'جميع التواريخ' },
+        { key: 'datesList', label: 'Dates List', labelAr: 'قائمة التواريخ' },
       );
     } else if (dataType === 'specializationAnalytics') {
       allFields.push(
@@ -4590,33 +4391,9 @@ export const AttendanceRecords = () => {
         { key: 'specialization', label: 'Specialization', labelAr: 'التخصص' },
         { key: 'studentCount', label: 'Student Count', labelAr: 'عدد الطلاب' },
         { key: 'avgAttendanceRate', label: 'Avg Attendance Rate %', labelAr: 'معدل الحضور %' },
-        { key: 'stdDevRate', label: 'Rate Std Dev %', labelAr: 'الانحراف المعياري %' },
         { key: 'avgScore', label: 'Avg Weighted Score', labelAr: 'متوسط الدرجة' },
-        { key: 'avgPunctuality', label: 'Avg Punctuality %', labelAr: 'متوسط الانضباط %' },
-        { key: 'avgConsistency', label: 'Avg Consistency', labelAr: 'متوسط الانتظام' },
-        { key: 'totalOnTime', label: 'Total On Time', labelAr: 'إجمالي الحضور في الوقت' },
         { key: 'totalPresent', label: 'Total Present', labelAr: 'إجمالي الحضور' },
-        { key: 'totalLate', label: 'Total Late', labelAr: 'إجمالي المتأخرين' },
         { key: 'totalAbsent', label: 'Total Absent', labelAr: 'إجمالي الغياب' },
-        { key: 'totalExcused', label: 'Total Excused', labelAr: 'إجمالي المعذورين' },
-        { key: 'bestStudent', label: 'Best Student', labelAr: '\u0623\u0641\u0636\u0644 \u0637\u0627\u0644\u0628' },
-        { key: 'bestStudentScore', label: 'Best Score', labelAr: '\u0623\u0639\u0644\u0649 \u062F\u0631\u062C\u0629' },
-        { key: 'worstStudent', label: 'Weakest Student', labelAr: '\u0623\u0636\u0639\u0641 \u0637\u0627\u0644\u0628' },
-        { key: 'worstStudentScore', label: 'Weakest Score', labelAr: '\u0623\u062F\u0646\u0649 \u062F\u0631\u062C\u0629' },
-        // Late Duration
-        { key: 'totalLateMinutes', label: 'Total Late (min)', labelAr: '\u0645\u062C\u0645\u0648\u0639 \u0627\u0644\u062A\u0623\u062E\u064A\u0631 (\u062F\u0642\u064A\u0642\u0629)' },
-        { key: 'avgLateMinutes', label: 'Avg Late (min)', labelAr: '\u0645\u062A\u0648\u0633\u0637 \u0627\u0644\u062A\u0623\u062E\u064A\u0631' },
-        { key: 'lateRatio', label: 'Late Ratio %', labelAr: '\u0646\u0633\u0628\u0629 \u0627\u0644\u062A\u0623\u062E\u064A\u0631 %' },
-        // Rate Statistics
-        { key: 'minAttendanceRate', label: 'Min Attendance Rate %', labelAr: '\u0623\u062F\u0646\u0649 \u0645\u0639\u062F\u0644 \u062D\u0636\u0648\u0631' },
-        { key: 'maxAttendanceRate', label: 'Max Attendance Rate %', labelAr: '\u0623\u0639\u0644\u0649 \u0645\u0639\u062F\u0644 \u062D\u0636\u0648\u0631' },
-        { key: 'minScore', label: 'Min Score', labelAr: '\u0623\u062F\u0646\u0649 \u062F\u0631\u062C\u0629' },
-        { key: 'maxScore', label: 'Max Score', labelAr: '\u0623\u0639\u0644\u0649 \u062F\u0631\u062C\u0629' },
-        { key: 'absentRatio', label: 'Absent Ratio %', labelAr: '\u0646\u0633\u0628\u0629 \u0627\u0644\u063A\u064A\u0627\u0628 %' },
-        // Trend & Pattern
-        { key: 'dominantTrend', label: 'Dominant Trend', labelAr: '\u0627\u0644\u0627\u062A\u062C\u0627\u0647 \u0627\u0644\u0633\u0627\u0626\u062F' },
-        { key: 'avgWeeklyChange', label: 'Avg Weekly Change %', labelAr: '\u0645\u062A\u0648\u0633\u0637 \u0627\u0644\u062A\u063A\u064A\u0631 \u0627\u0644\u0623\u0633\u0628\u0648\u0639\u064A' },
-        { key: 'studentNames', label: 'Student Roster', labelAr: '\u0642\u0627\u0626\u0645\u0629 \u0627\u0644\u0637\u0644\u0627\u0628' },
       );
     }
     
@@ -4802,84 +4579,25 @@ export const AttendanceRecords = () => {
   // Get export data based on current data type
   const getExportData = (): Record<string, unknown>[] => {
     if (exportDataType === 'studentAnalytics') {
-      // Pre-compute specialization correlation data
-      const specGroups = new Map<string, typeof studentAnalytics>();
-      studentAnalytics.forEach(s => {
-        const spec = s.specialization?.trim() || 'Unspecified';
-        if (!specGroups.has(spec)) specGroups.set(spec, []);
-        specGroups.get(spec)!.push(s);
-      });
-      const specCorrelation = new Map<string, { avgRate: number; avgScore: number; count: number; ranks: Map<string, number> }>();
-      specGroups.forEach((group, specName) => {
-        const n = group.length;
-        const avgRate = group.reduce((a, s) => a + s.attendanceRate, 0) / n;
-        const avgScore = group.reduce((a, s) => a + s.weightedScore, 0) / n;
-        const sorted = [...group].sort((a, b) => b.weightedScore - a.weightedScore);
-        const ranks = new Map<string, number>();
-        sorted.forEach((s, idx) => ranks.set(s.student_id, idx + 1));
-        specCorrelation.set(specName, { avgRate, avgScore, count: n, ranks });
-      });
-
       return studentAnalytics.map((student, index) => {
         const totalPresent = student.presentCount + student.lateCount;
         const punctualityRate = totalPresent > 0 
           ? Math.round(student.presentCount / totalPresent * 100)
           : 0;
-        const spec = student.specialization?.trim() || 'Unspecified';
-        const corr = specCorrelation.get(spec);
         return {
-          // Basic Info
           rank: index + 1,
-          student_id: student.student_id,
           student_name: student.student_name,
-          // Attendance Stats
           presentCount: student.presentCount,
           lateCount: student.lateCount,
-          totalPresent,
           absentCount: student.absentCount,
-          unexcusedAbsent: student.unexcusedAbsent,
           excusedCount: student.excusedCount,
-          totalRecords: student.totalRecords,
-          // Performance Metrics
-          effectiveDays: student.effectiveDays,
-          daysCovered: student.daysCovered,
           attendanceRate: student.attendanceRate,
           punctualityRate,
           weightedScore: student.weightedScore,
           consistencyIndex: Math.round(student.consistencyIndex * 100) / 100,
-          // Trend Analysis
-          trendSlope: student.trend?.slope || 0,
-          trendClassification: student.trend?.classification || '-',
-          trendRSquared: student.trend?.rSquared || 0,
-          weeklyChange: student.weeklyChange || 0,
-          // Rate Statistics
-          avgRate: student.avgRate || student.attendanceRate,
-          minRate: student.minRate || student.attendanceRate,
-          maxRate: student.maxRate || student.attendanceRate,
-          // Score Breakdown (transparency)
           qualityAdjustedRate: Math.round((student.qualityAdjustedRate || 0) * 100) / 100,
-          rawWeightedScore: Math.round((student.rawWeightedScore || 0) * 100) / 100,
-          coverageFactor: Math.round((student.coverageFactor || 0) * 1000) / 1000,
-          scoreFormula: `(${Math.round((student.rawWeightedScore || 0) * 100) / 100} × ${Math.round((student.coverageFactor || 0) * 1000) / 1000}) = ${student.weightedScore}`,
-          // Late Duration
           totalLateMinutes: Math.round((student.totalLateMinutes || 0) * 10) / 10,
           avgLateMinutes: Math.round((student.avgLateMinutes || 0) * 10) / 10,
-          maxLateMinutes: Math.round((student.maxLateMinutes || 0) * 10) / 10,
-          lateScoreAvg: Math.round((student.lateScoreAvg || 0) * 1000) / 1000,
-          sessionNotHeldCount: student.sessionNotHeldCount || 0,
-          // Specialization Correlation
-          specName: spec,
-          specAvgAttendance: corr ? Math.round(corr.avgRate * 10) / 10 : '-',
-          specAvgScore: corr ? Math.round(corr.avgScore * 10) / 10 : '-',
-          specDeviation: corr ? Math.round((student.attendanceRate - corr.avgRate) * 10) / 10 : '-',
-          specScoreDeviation: corr ? Math.round((student.weightedScore - corr.avgScore) * 10) / 10 : '-',
-          specRank: corr ? `${corr.ranks.get(student.student_id) || '-'}/${corr.count}` : '-',
-          specStudentCount: corr?.count ?? '-',
-          // Advanced metrics
-          percentileRank: student.percentileRank,
-          maxConsecutiveStreak: student.maxConsecutiveStreak,
-          firstHalfRate: student.firstHalfRate,
-          secondHalfRate: student.secondHalfRate,
         };
       });
     } else if (exportDataType === 'dateAnalytics') {
@@ -4887,53 +4605,25 @@ export const AttendanceRecords = () => {
         const bookPages = dateData.bookStartPage && dateData.bookEndPage 
           ? `${dateData.bookStartPage}-${dateData.bookEndPage}` 
           : '-';
-        const pagesCount = dateData.bookStartPage && dateData.bookEndPage
-          ? dateData.bookEndPage - dateData.bookStartPage + 1
-          : 0;
         const totalPresent = dateData.presentCount + dateData.lateCount;
-        const totalStudents = totalPresent + dateData.excusedAbsentCount + dateData.unexcusedAbsentCount;
-        // Effective (accountable) students = total minus excused
         const totalAccountable = totalPresent + dateData.unexcusedAbsentCount;
-        // Attendance Rate: (Total Present / Accountable) × 100 — excused excluded from denominator
         const attendanceRate = totalAccountable > 0 ? Math.round((totalPresent / totalAccountable) * 100) : 0;
-        // Absence Rate: (Unexcused Absent / Accountable) × 100
-        const absentRate = totalAccountable > 0 ? Math.round((dateData.unexcusedAbsentCount / totalAccountable) * 100) : 0;
-        const punctualityRate = totalPresent > 0 
-          ? Math.round(dateData.presentCount / totalPresent * 100)
-          : 0;
         const dateObj = new Date(dateData.date);
         return {
-          // Session Info
           date: format(dateObj, 'MMM dd, yyyy'),
           dayOfWeek: format(dateObj, 'EEEE'),
           hostAddress: dateData.hostAddress || '-',
-          // Book Coverage
           bookTopic: dateData.bookTopic || '-',
           bookPages,
-          bookStartPage: dateData.bookStartPage || '-',
-          bookEndPage: dateData.bookEndPage || '-',
-          pagesCount: pagesCount > 0 ? pagesCount : '-',
-          // Attendance Counts
           presentCount: dateData.presentCount,
           lateCount: dateData.lateCount,
-          totalPresent,
           excusedAbsentCount: dateData.excusedAbsentCount,
           unexcusedAbsentCount: dateData.unexcusedAbsentCount,
-          totalAbsent: dateData.excusedAbsentCount + dateData.unexcusedAbsentCount,
-          totalStudents,
-          // Rates & Percentages (excused excluded from denominator for fairness)
           attendanceRate,
-          punctualityRate,
-          absentRate,
-          // Late Duration
           totalLateMinutes: Math.round((dateData.totalLateMinutes || 0) * 10) / 10,
           avgLateMinutes: Math.round((dateData.avgLateMinutes || 0) * 10) / 10,
-          // Student Names
           presentNames: dateData.presentNames.join(', ') || '-',
-          lateNames: dateData.lateNames.join(', ') || '-',
-          excusedNames: dateData.excusedNames.join(', ') || '-',
           absentNames: dateData.absentNames.join(', ') || '-',
-          topSpecialization: dateData.topSpecialization || '-',
         };
       });
     } else if (exportDataType === 'hostAnalytics') {
@@ -5004,14 +4694,10 @@ export const AttendanceRecords = () => {
             attendanceRate,
             totalOnTime: host.present,
             totalLate: host.late,
-            totalPresent,
             totalAbsent: host.absent,
             totalExcused: host.excused,
-            totalStudents: host.totalStudents,
             // Specialization Affinity
             topSpec: (() => { const sc = hostSpecMap.get(host.address); if (!sc || sc.size === 0) return '-'; let top = ''; let max = 0; sc.forEach((c, s) => { if (c > max) { max = c; top = s; } }); return top; })(),
-            topSpecCount: (() => { const sc = hostSpecMap.get(host.address); if (!sc || sc.size === 0) return 0; let max = 0; sc.forEach((c) => { if (c > max) max = c; }); return max; })(),
-            specBreakdown: (() => { const sc = hostSpecMap.get(host.address); if (!sc || sc.size === 0) return '-'; return Array.from(sc.entries()).sort((a, b) => b[1] - a[1]).map(([s, c]) => `${s}(${c})`).join(', '); })(),
             // Hosting Dates
             dates: host.rawDates.map(d => smartDateFormat(d, allHostRawDates5)).join(', '),
             datesList: host.rawDates.map(d => smartDateFormat(d, allHostRawDates5)).join('\n'),
@@ -5065,7 +4751,6 @@ export const AttendanceRecords = () => {
         // Timing Details
         late_minutes: r.status === 'late' && r.late_minutes ? r.late_minutes : '-',
         late_bracket: r.status === 'late' && r.late_minutes ? lateBracketInfo.name : '-',
-        early_minutes: r.early_minutes || '-',
         check_in_time: r.gps_timestamp ? format(new Date(r.gps_timestamp), 'HH:mm:ss') : '-',
         gps_timestamp: r.gps_timestamp ? format(new Date(r.gps_timestamp), 'MMM dd, yyyy HH:mm:ss') : '-',
         // Excuse Info
@@ -5073,12 +4758,6 @@ export const AttendanceRecords = () => {
         check_in_method: r.check_in_method || '-',
         // Location Info
         host_address: r.host_address || '-',
-        gps_latitude: r.gps_latitude ? r.gps_latitude.toFixed(6) : '-',
-        gps_longitude: r.gps_longitude ? r.gps_longitude.toFixed(6) : '-',
-        gps_coordinates: r.gps_latitude && r.gps_longitude 
-          ? `${r.gps_latitude.toFixed(4)}°, ${r.gps_longitude.toFixed(4)}°` 
-          : '-',
-        gps_accuracy: r.gps_accuracy ? `±${Math.round(r.gps_accuracy)}m` : '-',
         distance_from_host: r.distance_from_host ? `${Math.round(r.distance_from_host)}m` : '-',
         // Metadata
         marked_by: r.marked_by || '-',

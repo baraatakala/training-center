@@ -1563,49 +1563,6 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
           {/* Layout Tab */}
           {activeTab === 'layout' && (
             <div className="space-y-6">
-              {/* Row Density */}
-              <div className="border dark:border-gray-700 rounded-xl overflow-hidden">
-                <div className="bg-gradient-to-r from-teal-50 to-cyan-50 dark:from-teal-900/30 dark:to-cyan-900/30 p-4 border-b dark:border-teal-800">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">↕️</span>
-                    <div>
-                      <h3 className="font-semibold text-gray-900 dark:text-white">Row Density / حجم الصفوف</h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Control cell padding and row height in exported tables</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="p-4 dark:bg-gray-800">
-                  <div className="grid grid-cols-3 gap-3">
-                    {([
-                      { value: 'compact', label: 'Compact', labelAr: 'مضغوط', preview: 'py-0.5 px-2 text-xs', desc: 'Minimal padding, fits more rows' },
-                      { value: 'normal', label: 'Normal', labelAr: 'عادي', preview: 'py-1.5 px-3 text-sm', desc: 'Standard spacing (default)' },
-                      { value: 'comfortable', label: 'Comfortable', labelAr: 'مريح', preview: 'py-3 px-4 text-base', desc: 'Generous padding, easier to read' },
-                    ] as const).map(opt => (
-                      <button
-                        key={opt.value}
-                        onClick={() => setConfig(prev => ({ ...prev, rowDensity: opt.value }))}
-                        className={`p-3 rounded-xl border-2 transition flex flex-col items-center gap-2 ${
-                          config.rowDensity === opt.value
-                            ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/40'
-                            : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
-                        }`}
-                      >
-                        <div className="w-full border border-gray-300 dark:border-gray-600 rounded overflow-hidden text-xs">
-                          <div className={`bg-teal-100 dark:bg-teal-900/50 ${opt.preview} text-center text-gray-700 dark:text-gray-300 font-semibold border-b border-gray-300 dark:border-gray-600`}>Header</div>
-                          <div className={`${opt.preview} text-center text-gray-600 dark:text-gray-400`}>Cell Value</div>
-                          <div className={`${opt.preview} text-center text-gray-500 dark:text-gray-500 bg-gray-50 dark:bg-gray-700`}>Cell Value</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="font-medium text-gray-900 dark:text-white text-sm">{opt.label}</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">{opt.labelAr}</div>
-                          <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">{opt.desc}</div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
               {/* Font Sizes */}
               <div className="border dark:border-gray-700 rounded-xl overflow-hidden">
                 <div className="bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-900/30 dark:to-purple-900/30 p-4 border-b dark:border-violet-800">
@@ -1774,63 +1731,6 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                 </div>
               </div>
 
-              {/* Column Widths */}
-              {config.selectedFields.length > 0 && (
-                <div className="border dark:border-gray-700 rounded-xl overflow-hidden">
-                  <div className="bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/30 dark:to-yellow-900/30 p-4 border-b dark:border-amber-800">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl">📏</span>
-                        <div>
-                          <h3 className="font-semibold text-gray-900 dark:text-white">Column Widths / عرض الأعمدة</h3>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">Set custom width for each column (Excel: characters, PDF: relative proportion)</p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => setConfig(prev => ({ ...prev, columnWidths: {} }))}
-                        className="text-xs text-amber-600 dark:text-amber-400 hover:underline px-2"
-                      >
-                        Reset All
-                      </button>
-                    </div>
-                  </div>
-                  <div className="p-4 dark:bg-gray-800 max-h-72 overflow-y-auto">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {getSelectedFieldsOrdered().map(field => (
-                        <div key={field.key} className="flex items-center gap-3 p-2.5 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{displayLabel(field)}</div>
-                            {field.labelAr && !fieldRenames[field.key] && <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{field.labelAr}</div>}
-                          </div>
-                          <div className="flex items-center gap-1.5 flex-shrink-0">
-                            <input
-                              type="number"
-                              min={5}
-                              max={80}
-                              placeholder="auto"
-                              value={config.columnWidths?.[field.key] ?? ''}
-                              onChange={e => {
-                                const val = e.target.value === '' ? undefined : parseInt(e.target.value);
-                                setConfig(prev => ({
-                                  ...prev,
-                                  columnWidths: {
-                                    ...(prev.columnWidths || {}),
-                                    ...(val !== undefined ? { [field.key]: val } : {}),
-                                    ...(val === undefined ? Object.fromEntries(Object.entries(prev.columnWidths || {}).filter(([k]) => k !== field.key)) : {}),
-                                  }
-                                }));
-                              }}
-                              className="w-16 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-center"
-                            />
-                            <span className="text-xs text-gray-400 dark:text-gray-500">ch</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">Leave blank to use automatic width based on content. Range: 5–80 characters.</p>
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
