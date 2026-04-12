@@ -34,3 +34,11 @@ Sequential SQL files in `migrations/`. Each migration is wrapped in `BEGIN; ... 
 | 019 | QR session conflict fix |
 | 020 | Schema hardening — UUID standardization, NOT NULL enforcement, FK corrections |
 | 021 | Enterprise hardening — SECURITY DEFINER search_path, data integrity, self-documenting schema |
+| 022 | Attendance-enrollment student_id consistency trigger |
+| 023 | Feedback: remove emoji type, fix CRUD |
+| 024 | Admin session_feedback RLS policy |
+| 025 | scoring_config.teacher_id nullable for admin global config |
+| 026 | Feedback correct_answer (test questions) |
+| 027 | Allow 'other' host_type in session_date_host |
+| 028 | parent_session_id for cloned sessions |
+| 029 | Integrity & performance: CHECK constraints, FK cascades, composite indexes, unique constraints, attendance stats function |

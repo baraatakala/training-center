@@ -109,6 +109,17 @@ export interface ExportSettings {
   formatDates?: boolean;
   dateFormat?: string;
   showDataQualityReport?: boolean;
+  // Layout persistence
+  rowDensity?: 'compact' | 'normal' | 'comfortable';
+  pageSize?: 'a4' | 'a3' | 'letter' | 'legal';
+  showGridlines?: boolean;
+  headerBgColor?: string;
+  headerFontSizePt?: number;
+  bodyFontSizePt?: number;
+  repeatHeaders?: boolean;
+  alternateRowColors?: boolean;
+  orientation?: 'portrait' | 'landscape';
+  fontSize?: 'small' | 'medium' | 'large';
 }
 
 interface AdvancedExportBuilderProps {
@@ -293,6 +304,17 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
           coloringFields: savedSettings?.coloringFields || [],
           coloringTheme: savedSettings?.coloringTheme || 'default',
         },
+        // Restore saved layout settings
+        rowDensity: savedSettings?.rowDensity || 'normal',
+        pageSize: savedSettings?.pageSize || 'a4',
+        showGridlines: savedSettings?.showGridlines ?? true,
+        headerBgColor: savedSettings?.headerBgColor || '3b82f6',
+        headerFontSizePt: savedSettings?.headerFontSizePt,
+        bodyFontSizePt: savedSettings?.bodyFontSizePt,
+        repeatHeaders: savedSettings?.repeatHeaders ?? true,
+        alternateRowColors: savedSettings?.alternateRowColors ?? true,
+        orientation: savedSettings?.orientation || 'landscape',
+        fontSize: savedSettings?.fontSize || 'medium',
       }));
       setActiveTab('fields');
       // Restore excluded rows from saved settings
@@ -991,7 +1013,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
         onFieldSelectionChange(config.selectedFields);
       }
       
-      // Save all export settings (sort, coloring, etc.)
+      // Save all export settings (sort, coloring, layout, etc.)
       if (onSettingsChange) {
         onSettingsChange({
           fields: config.selectedFields,
@@ -1003,6 +1025,17 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
           coloringTheme: config.dataValidation.coloringTheme,
           excludedRows: [...excludedRows],
           fieldRenames: Object.keys(fieldRenames).length > 0 ? fieldRenames : undefined,
+          // Layout persistence
+          rowDensity: config.rowDensity,
+          pageSize: config.pageSize,
+          showGridlines: config.showGridlines,
+          headerBgColor: config.headerBgColor,
+          headerFontSizePt: config.headerFontSizePt,
+          bodyFontSizePt: config.bodyFontSizePt,
+          repeatHeaders: config.repeatHeaders,
+          alternateRowColors: config.alternateRowColors,
+          orientation: config.orientation,
+          fontSize: config.fontSize,
         });
       }
       
@@ -1065,6 +1098,17 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
         formatDates: config.dataValidation.formatDates,
         dateFormat: config.dataValidation.dateFormat,
         showDataQualityReport: config.dataValidation.showDataQualityReport,
+        // Layout persistence
+        rowDensity: config.rowDensity,
+        pageSize: config.pageSize,
+        showGridlines: config.showGridlines,
+        headerBgColor: config.headerBgColor,
+        headerFontSizePt: config.headerFontSizePt,
+        bodyFontSizePt: config.bodyFontSizePt,
+        repeatHeaders: config.repeatHeaders,
+        alternateRowColors: config.alternateRowColors,
+        orientation: config.orientation,
+        fontSize: config.fontSize,
       });
     }
     onClose();

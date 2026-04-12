@@ -206,10 +206,12 @@ export const AttendanceRecords = () => {
 
   // Advanced Export Builder state
   const [showAdvancedExport, setShowAdvancedExport] = useState(false);
-  const [activeSection, setActiveSection] = useState<'records' | 'analytics' | 'matrix' | 'scoring'>(() => {
+  const [activeSection, setActiveSection] = useState<'records' | 'analytics'>(() => {
     try {
       const saved = localStorage.getItem('attendance_activeSection');
-      if (saved && ['records', 'analytics', 'matrix', 'scoring'].includes(saved)) return saved as 'records' | 'analytics' | 'matrix' | 'scoring';
+      if (saved && ['records', 'analytics'].includes(saved)) return saved as 'records' | 'analytics';
+      // Migrate legacy 'matrix' selection → analytics
+      if (saved === 'matrix') return 'analytics';
     } catch { /* ignore */ }
     return 'records';
   });
@@ -280,37 +282,9 @@ export const AttendanceRecords = () => {
   // Quick column picker — tracks which table's column dropdown is open
   const [openColumnPicker, setOpenColumnPicker] = useState<'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics' | 'specializationAnalytics' | null>(null);
 
-  const [collapseStudentTable, setCollapseStudentTable] = useState(() => {
+  const [collapseAnalyticsTables, setCollapseAnalyticsTables] = useState(() => {
     try {
-      return localStorage.getItem('attendance_collapseStudentTable') === 'true';
-    } catch {
-      return false;
-    }
-  });
-  const [collapseDateTable, setCollapseDateTable] = useState(() => {
-    try {
-      return localStorage.getItem('attendance_collapseDateTable') === 'true';
-    } catch {
-      return false;
-    }
-  });
-  const [collapseHostTable, setCollapseHostTable] = useState(() => {
-    try {
-      return localStorage.getItem('attendance_collapseHostTable') === 'true';
-    } catch {
-      return false;
-    }
-  });
-  const [collapseSpecTable, setCollapseSpecTable] = useState(() => {
-    try {
-      return localStorage.getItem('attendance_collapseSpecTable') === 'true';
-    } catch {
-      return false;
-    }
-  });
-  const [collapseCrosstabTable, setCollapseCrosstabTable] = useState(() => {
-    try {
-      return localStorage.getItem('attendance_collapseCrosstabTable') === 'true';
+      return localStorage.getItem('attendance_collapseAnalyticsTables') === 'true';
     } catch {
       return false;
     }
@@ -325,21 +299,13 @@ export const AttendanceRecords = () => {
 
   useEffect(() => {
     try {
-      localStorage.setItem('attendance_collapseStudentTable', String(collapseStudentTable));
-      localStorage.setItem('attendance_collapseDateTable', String(collapseDateTable));
-      localStorage.setItem('attendance_collapseHostTable', String(collapseHostTable));
-      localStorage.setItem('attendance_collapseSpecTable', String(collapseSpecTable));
-      localStorage.setItem('attendance_collapseCrosstabTable', String(collapseCrosstabTable));
+      localStorage.setItem('attendance_collapseAnalyticsTables', String(collapseAnalyticsTables));
       localStorage.setItem('attendance_collapseChartsSection', String(collapseChartsSection));
     } catch {
       /* ignore localStorage errors */
     }
   }, [
-    collapseStudentTable,
-    collapseDateTable,
-    collapseHostTable,
-    collapseSpecTable,
-    collapseCrosstabTable,
+    collapseAnalyticsTables,
     collapseChartsSection,
   ]);
 
@@ -353,10 +319,13 @@ export const AttendanceRecords = () => {
   }, [activeSection, exportDataType, showAdvancedLayout]);
 
   // Table include/exclude toggles for exports — persisted in localStorage
-  const [activeAnalyticsTab, setActiveAnalyticsTab] = useState<'student' | 'date' | 'host' | 'specialization'>(() => {
+  const [activeAnalyticsTab, setActiveAnalyticsTab] = useState<'student' | 'date' | 'host' | 'specialization' | 'matrix'>(() => {
     try {
       const saved = localStorage.getItem('attendance_activeAnalyticsTab');
-      if (saved && ['student', 'date', 'host', 'specialization'].includes(saved)) return saved as 'student' | 'date' | 'host' | 'specialization';
+      if (saved && ['student', 'date', 'host', 'specialization', 'matrix'].includes(saved)) return saved as 'student' | 'date' | 'host' | 'specialization' | 'matrix';
+      // Migrate legacy matrix section selection
+      const section = localStorage.getItem('attendance_activeSection');
+      if (section === 'matrix') return 'matrix';
     } catch { /* ignore */ }
     return 'student';
   });
@@ -5121,7 +5090,6 @@ export const AttendanceRecords = () => {
           {([
             { key: 'records' as const, icon: '📋', label: t.attendanceRecords, desc: t.totalRecords },
             { key: 'analytics' as const, icon: '📊', label: t.studentPerformance, desc: t.summaryStatistics },
-            { key: 'matrix' as const, icon: '🗓️', label: t.crosstabTitle || 'Cross-Tab Matrix', desc: t.crosstabDesc || 'Student × Date Heatmap' },
           ]).map(tab => (
             <button
               key={tab.key}
@@ -5620,19 +5588,30 @@ export const AttendanceRecords = () => {
           {/* ═══════════════════════════════════════════════════════════════
               ANALYTICS TABLES — Tabbed Layout
               ═══════════════════════════════════════════════════════════════ */}
-          {(includedTables.student || includedTables.date || includedTables.host || includedTables.specialization) && (
+          {(includedTables.student || includedTables.date || includedTables.host || includedTables.specialization || includedTables.crosstab) && (
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl dark:shadow-gray-900/30 overflow-hidden border border-gray-100 dark:border-gray-700">
-            {/* Tab Bar */}
-            <div className="flex overflow-x-auto gap-1 px-4 pt-3 pb-0 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800 border-b border-gray-200 dark:border-gray-700 scrollbar-thin">
+            {/* Collapse Header + Tab Bar */}
+            <div className="flex items-center gap-2 px-4 pt-3 pb-0 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800 border-b border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setCollapseAnalyticsTables(prev => !prev)}
+                className="flex items-center gap-1.5 px-2 py-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                title={collapseAnalyticsTables ? 'Expand tables' : 'Collapse tables'}
+              >
+                <svg className={`w-5 h-5 transition-transform duration-200 ${collapseAnalyticsTables ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              <div className="flex overflow-x-auto gap-1 flex-1 scrollbar-thin">
               {([
                 { key: 'student' as const, label: arabicMode ? '🎓 الطلاب' : '🎓 Students', included: includedTables.student, count: studentAnalytics.length },
                 { key: 'date' as const, label: arabicMode ? '📅 التاريخ' : '📅 Dates', included: includedTables.date, count: dateAnalytics.length },
                 { key: 'host' as const, label: arabicMode ? '🏠 المضيف' : '🏠 Host', included: includedTables.host, count: (() => { const hosts = new Set<string>(); filteredRecords.forEach(r => { const h = r.host_address || r.session_location; if (h && h !== 'SESSION_NOT_HELD') hosts.add(h); }); return hosts.size; })() },
                 { key: 'specialization' as const, label: arabicMode ? '📊 التخصصات' : '📊 Specializations', included: includedTables.specialization },
+                { key: 'matrix' as const, label: arabicMode ? '🗓️ المصفوفة' : '🗓️ Matrix', included: includedTables.crosstab, count: studentAnalytics.length },
               ]).filter(tab => tab.included).map(tab => (
                 <button
                   key={tab.key}
-                  onClick={() => setActiveAnalyticsTab(tab.key)}
+                  onClick={() => { setActiveAnalyticsTab(tab.key); if (collapseAnalyticsTables) setCollapseAnalyticsTables(false); }}
                   className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-all whitespace-nowrap border-b-2 ${
                     activeAnalyticsTab === tab.key
                       ? 'border-violet-500 text-violet-700 dark:text-violet-300 bg-white dark:bg-gray-700'
@@ -5643,13 +5622,15 @@ export const AttendanceRecords = () => {
                   {tab.count != null && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">{tab.count}</span>}
                 </button>
               ))}
+              </div>
             </div>
 
+          {!collapseAnalyticsTables && (<>
           {/* Student Performance Table — Dynamic columns from field selections */}
           {activeAnalyticsTab === 'student' && includedTables.student && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
             <div className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600 flex items-center justify-between">
-              <button onClick={() => setCollapseStudentTable(prev => !prev)} className="flex-1 flex items-center gap-2 text-left min-w-0">
+              <div className="flex-1 flex items-center gap-2 text-left min-w-0">
                 <div className="min-w-0">
                   <h2 className="text-base sm:text-lg font-semibold dark:text-white">{t.studentPerformance}</h2>
                   {(() => {
@@ -5661,7 +5642,7 @@ export const AttendanceRecords = () => {
                     );
                   })()}
                 </div>
-              </button>
+              </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 <span className="text-xs text-gray-500 dark:text-gray-400">{studentAnalytics.length} {t.students}</span>
                 {/* Quick Column Picker */}
@@ -5703,14 +5684,8 @@ export const AttendanceRecords = () => {
                     </div>
                   )}
                 </div>
-                <button onClick={() => setCollapseStudentTable(prev => !prev)} className="p-1">
-                  <svg className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${collapseStudentTable ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
               </div>
             </div>
-            {!collapseStudentTable && (
               <div className="overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto" onClick={() => { if (openColumnPicker) setOpenColumnPicker(null); }}>
                 {(() => {
                   const isArabic = reportLanguage === 'ar';
@@ -5808,7 +5783,6 @@ export const AttendanceRecords = () => {
                   );
                 })()}
               </div>
-            )}
           </div>
           )}
 
@@ -5816,9 +5790,9 @@ export const AttendanceRecords = () => {
           {activeAnalyticsTab === 'date' && includedTables.date && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
             <div className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600 flex items-center justify-between">
-              <button onClick={() => setCollapseDateTable(prev => !prev)} className="flex-1 text-left">
+              <div className="flex-1 text-left">
                 <h2 className="text-base sm:text-lg font-semibold dark:text-white">{t.attendanceByDate}</h2>
-              </button>
+              </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 <span className="text-xs text-gray-500 dark:text-gray-400">
                   {(() => {
@@ -5875,14 +5849,8 @@ export const AttendanceRecords = () => {
                     </div>
                   )}
                 </div>
-                <button onClick={() => setCollapseDateTable(prev => !prev)} className="p-1">
-                  <svg className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${collapseDateTable ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
               </div>
             </div>
-            {!collapseDateTable && (
               <div className="overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto" onClick={() => { if (openColumnPicker) setOpenColumnPicker(null); }}>
                 {(() => {
                   const isArabic = reportLanguage === 'ar';
@@ -5968,7 +5936,6 @@ export const AttendanceRecords = () => {
                   );
                 })()}
               </div>
-            )}
           </div>
           )}
 
@@ -5976,9 +5943,9 @@ export const AttendanceRecords = () => {
           {activeAnalyticsTab === 'host' && includedTables.host && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
             <div className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600 flex items-center justify-between">
-              <button onClick={() => setCollapseHostTable(prev => !prev)} className="flex-1 text-left">
+              <div className="flex-1 text-left">
                 <h2 className="text-base sm:text-lg font-semibold dark:text-white">{t.hostAnalyticsTitle}</h2>
-              </button>
+              </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 <span className="text-xs text-gray-500 dark:text-gray-400">
                   {(() => {
@@ -6030,14 +5997,8 @@ export const AttendanceRecords = () => {
                     </div>
                   )}
                 </div>
-                <button onClick={() => setCollapseHostTable(prev => !prev)} className="p-1">
-                  <svg className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${collapseHostTable ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
               </div>
             </div>
-            {!collapseHostTable && (
               <div className="overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto" onClick={() => { if (openColumnPicker) setOpenColumnPicker(null); }}>
                 {(() => {
                   const isArabic = reportLanguage === 'ar';
@@ -6140,7 +6101,6 @@ export const AttendanceRecords = () => {
                   );
                 })()}
               </div>
-            )}
           </div>
           )}
 
@@ -6149,10 +6109,10 @@ export const AttendanceRecords = () => {
               ═══════════════════════════════════════════════════════════════ */}
           {activeAnalyticsTab === 'specialization' && includedTables.specialization && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-900/20 dark:to-purple-900/20 border-b border-violet-100 dark:border-violet-800/30 cursor-pointer" onClick={() => setCollapseSpecTable(prev => !prev)}>
-              <button onClick={() => setCollapseSpecTable(prev => !prev)} className="flex-1 text-left">
+            <div className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-900/20 dark:to-purple-900/20 border-b border-violet-100 dark:border-violet-800/30">
+              <div className="flex-1 text-left">
                 <h2 className="text-base sm:text-lg font-semibold dark:text-white">{t.specAnalyticsTitle}</h2>
-              </button>
+              </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 <span className="text-xs text-gray-500 dark:text-gray-400">
                   {(() => {
@@ -6200,14 +6160,8 @@ export const AttendanceRecords = () => {
                     </div>
                   )}
                 </div>
-                <button onClick={() => setCollapseSpecTable(prev => !prev)} className="p-1">
-                  <svg className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${collapseSpecTable ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
               </div>
             </div>
-            {!collapseSpecTable && (
               <div className="overflow-x-auto max-h-[400px] sm:max-h-[600px] overflow-y-auto" onClick={() => { if (openColumnPicker) setOpenColumnPicker(null); }}>
                 {(() => {
                   const isArabic = reportLanguage === 'ar';
@@ -6255,136 +6209,16 @@ export const AttendanceRecords = () => {
                   );
                 })()}
               </div>
-            )}
-          </div>
-          )}
-
           </div>
           )}
 
           {/* ═══════════════════════════════════════════════════════════════
-              LOCATION MAP — Host Locations with Map Embed & Distance Matrix
+              CROSS-TAB HEATMAP TABLE — Student × Date Matrix (in analytics sub-tabs)
               ═══════════════════════════════════════════════════════════════ */}
-          {includedTables.host && (
+          {activeAnalyticsTab === 'matrix' && includedTables.crosstab && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
-            {(() => {
-              // Build location points from attendance records and host addresses
-              const hostGpsMap = new Map<string, { lats: number[]; lons: number[]; count: number; dates: string[] }>();
-
-              // First, try to parse GPS from attendance records grouped by host_address
-              filteredRecords.forEach(r => {
-                const addr = r.host_address || r.session_location;
-                if (!addr || addr === 'SESSION_NOT_HELD') return;
-                const existing = hostGpsMap.get(addr) || { lats: [], lons: [], count: 0, dates: [] };
-                if (r.gps_latitude && r.gps_longitude) {
-                  existing.lats.push(r.gps_latitude);
-                  existing.lons.push(r.gps_longitude);
-                }
-                if (r.attendance_date && !existing.dates.includes(r.attendance_date)) {
-                  existing.dates.push(r.attendance_date);
-                }
-                existing.count++;
-                hostGpsMap.set(addr, existing);
-              });
-
-              // Also try to parse coordinates from host address strings
-              const locationPoints: Array<{ label: string; lat: number; lon: number; count: number; dates: string[] }> = [];
-
-              // Collect all dates across all locations for smart year formatting
-              const allLocRawDates = Array.from(hostGpsMap.values()).flatMap(d => d.dates.map(ds => new Date(ds)));
-
-              hostGpsMap.forEach((data, addr) => {
-                let lat: number | null = null;
-                let lon: number | null = null;
-
-                // 1) Use host GPS from session_date_host (configured by teacher)
-                const hostGps = hostGpsLookupRef.current.get(addr);
-                if (hostGps) {
-                  lat = hostGps.lat;
-                  lon = hostGps.lon;
-                } else if (data.lats.length > 0) {
-                  // 2) Fallback: average student check-in GPS
-                  lat = data.lats.reduce((s, v) => s + v, 0) / data.lats.length;
-                  lon = data.lons.reduce((s, v) => s + v, 0) / data.lons.length;
-                } else {
-                  // 3) Try to parse from address string (if it contains coordinates)
-                  const parsed = parseCoordinates(addr);
-                  if (parsed) {
-                    lat = parsed.lat;
-                    lon = parsed.lon;
-                  }
-                }
-
-                if (lat !== null && lon !== null) {
-                  locationPoints.push({
-                    label: addr.length > 40 ? addr.substring(0, 37) + '...' : addr,
-                    lat,
-                    lon,
-                    count: data.dates.length,
-                    dates: data.dates.sort().map(d => smartDateFormat(new Date(d), allLocRawDates)),
-                  });
-                }
-              });
-
-              if (locationPoints.length === 0) return null;
-
-              const totalSessions = locationPoints.reduce((s, p) => s + p.count, 0);
-
-              return (
-                <>
-                  <button
-                    onClick={() => {
-                      const el = document.getElementById('location-map-body');
-                      if (el) el.classList.toggle('hidden');
-                    }}
-                    className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/30 dark:to-cyan-900/30 border-b dark:border-gray-600 flex items-center justify-between hover:from-blue-100 hover:to-cyan-100 dark:hover:from-blue-900/40 dark:hover:to-cyan-900/40 transition-colors cursor-pointer"
-                  >
-                    <div>
-                      <h2 className="text-base sm:text-lg font-semibold dark:text-white">{t.locationMap}</h2>
-                      <p className="text-[10px] text-gray-500 dark:text-gray-400">{t.locationMapDesc}</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {/* Summary badges */}
-                      <div className="hidden sm:flex items-center gap-2">
-                        <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded text-[10px] font-medium">
-                          {locationPoints.length} {t.uniqueLocations}
-                        </span>
-                        <span className="px-2 py-0.5 bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300 rounded text-[10px] font-medium">
-                          {totalSessions} {t.totalSessions}
-                        </span>
-                      </div>
-                      <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                  </button>
-
-                  <div id="location-map-body">
-                    <Suspense fallback={<div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 px-4 py-8 text-sm text-gray-500 dark:text-gray-400 text-center">Loading map...</div>}>
-                      <LocationMap
-                        locations={locationPoints}
-                        showEmbed={true}
-                        zoom={13}
-                      />
-                    </Suspense>
-                    </div>
-                </>
-              );
-            })()}
-          </div>
-          )}
-        </div>
-      )}
-
-      {/* ═══════════════════════════════════════════════════════════════
-          CROSS-TAB HEATMAP TABLE — Student × Date Matrix
-          Color-coded cells showing attendance status
-          ═══════════════════════════════════════════════════════════════ */}
-      {activeSection === 'matrix' && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
-            <button
-              onClick={() => setCollapseCrosstabTable(prev => !prev)}
-              className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-violet-50 to-fuchsia-50 dark:from-violet-900/30 dark:to-fuchsia-900/30 border-b dark:border-gray-600 flex items-center justify-between hover:from-violet-100 hover:to-fuchsia-100 dark:hover:from-violet-900/40 dark:hover:to-fuchsia-900/40 transition-colors cursor-pointer"
+            <div
+              className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-violet-50 to-fuchsia-50 dark:from-violet-900/30 dark:to-fuchsia-900/30 border-b dark:border-gray-600 flex items-center justify-between"
             >
               <div>
                 <h2 className="text-base sm:text-lg font-semibold dark:text-white">{t.crosstabTitle}</h2>
@@ -6395,12 +6229,8 @@ export const AttendanceRecords = () => {
                   {studentAnalytics.length} × {matrixSelectedDates ? matrixSelectedDates.size : dateAnalytics.length}
                   {matrixSelectedDates && <span className="text-violet-500"> (of {dateAnalytics.length})</span>}
                 </span>
-                <svg className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${collapseCrosstabTable ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
               </div>
-            </button>
-            {!collapseCrosstabTable && (
+            </div>
               <div className="overflow-x-auto overflow-y-auto max-h-[500px] sm:max-h-[700px]">
                 {(() => {
                   // Build a lookup: studentId → date → record
@@ -6572,8 +6402,126 @@ export const AttendanceRecords = () => {
                   );
                 })()}
               </div>
-            )}
           </div>
+          )}
+
+          </>
+          )}
+          </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════════════════════
+              LOCATION MAP — Host Locations with Map Embed & Distance Matrix
+              ═══════════════════════════════════════════════════════════════ */}
+          {includedTables.host && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
+            {(() => {
+              // Build location points from attendance records and host addresses
+              const hostGpsMap = new Map<string, { lats: number[]; lons: number[]; count: number; dates: string[] }>();
+
+              // First, try to parse GPS from attendance records grouped by host_address
+              filteredRecords.forEach(r => {
+                const addr = r.host_address || r.session_location;
+                if (!addr || addr === 'SESSION_NOT_HELD') return;
+                const existing = hostGpsMap.get(addr) || { lats: [], lons: [], count: 0, dates: [] };
+                if (r.gps_latitude && r.gps_longitude) {
+                  existing.lats.push(r.gps_latitude);
+                  existing.lons.push(r.gps_longitude);
+                }
+                if (r.attendance_date && !existing.dates.includes(r.attendance_date)) {
+                  existing.dates.push(r.attendance_date);
+                }
+                existing.count++;
+                hostGpsMap.set(addr, existing);
+              });
+
+              // Also try to parse coordinates from host address strings
+              const locationPoints: Array<{ label: string; lat: number; lon: number; count: number; dates: string[] }> = [];
+
+              // Collect all dates across all locations for smart year formatting
+              const allLocRawDates = Array.from(hostGpsMap.values()).flatMap(d => d.dates.map(ds => new Date(ds)));
+
+              hostGpsMap.forEach((data, addr) => {
+                let lat: number | null = null;
+                let lon: number | null = null;
+
+                // 1) Use host GPS from session_date_host (configured by teacher)
+                const hostGps = hostGpsLookupRef.current.get(addr);
+                if (hostGps) {
+                  lat = hostGps.lat;
+                  lon = hostGps.lon;
+                } else if (data.lats.length > 0) {
+                  // 2) Fallback: average student check-in GPS
+                  lat = data.lats.reduce((s, v) => s + v, 0) / data.lats.length;
+                  lon = data.lons.reduce((s, v) => s + v, 0) / data.lons.length;
+                } else {
+                  // 3) Try to parse from address string (if it contains coordinates)
+                  const parsed = parseCoordinates(addr);
+                  if (parsed) {
+                    lat = parsed.lat;
+                    lon = parsed.lon;
+                  }
+                }
+
+                if (lat !== null && lon !== null) {
+                  locationPoints.push({
+                    label: addr.length > 40 ? addr.substring(0, 37) + '...' : addr,
+                    lat,
+                    lon,
+                    count: data.dates.length,
+                    dates: data.dates.sort().map(d => smartDateFormat(new Date(d), allLocRawDates)),
+                  });
+                }
+              });
+
+              if (locationPoints.length === 0) return null;
+
+              const totalSessions = locationPoints.reduce((s, p) => s + p.count, 0);
+
+              return (
+                <>
+                  <button
+                    onClick={() => {
+                      const el = document.getElementById('location-map-body');
+                      if (el) el.classList.toggle('hidden');
+                    }}
+                    className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/30 dark:to-cyan-900/30 border-b dark:border-gray-600 flex items-center justify-between hover:from-blue-100 hover:to-cyan-100 dark:hover:from-blue-900/40 dark:hover:to-cyan-900/40 transition-colors cursor-pointer"
+                  >
+                    <div>
+                      <h2 className="text-base sm:text-lg font-semibold dark:text-white">{t.locationMap}</h2>
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400">{t.locationMapDesc}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {/* Summary badges */}
+                      <div className="hidden sm:flex items-center gap-2">
+                        <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded text-[10px] font-medium">
+                          {locationPoints.length} {t.uniqueLocations}
+                        </span>
+                        <span className="px-2 py-0.5 bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300 rounded text-[10px] font-medium">
+                          {totalSessions} {t.totalSessions}
+                        </span>
+                      </div>
+                      <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </button>
+
+                  <div id="location-map-body">
+                    <Suspense fallback={<div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 px-4 py-8 text-sm text-gray-500 dark:text-gray-400 text-center">Loading map...</div>}>
+                      <LocationMap
+                        locations={locationPoints}
+                        showEmbed={true}
+                        zoom={13}
+                      />
+                    </Suspense>
+                    </div>
+                </>
+              );
+            })()}
+          </div>
+          )}
+        </div>
       )}
 
 
