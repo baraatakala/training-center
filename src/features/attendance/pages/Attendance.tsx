@@ -2305,68 +2305,101 @@ export function Attendance() {
                         '• Leave blank to disable proximity validation',
                         currentCoords
                       );
-                      
                       if (coords === null) return; // Cancelled
-                      
+
                       // Get selected host info
                       const addressParts = selectedAddress.split('|||');
                       const hostId = addressParts[0];
+                      const addressOnly = addressParts[1] || selectedAddress;
                       const hostInfo = hostAddresses.find(h => h.student_id === hostId);
                       const isTeacher = hostInfo?.is_teacher || hostInfo?.student_name?.includes('Teacher');
-                      
-                      if (!hostId || !hostInfo) {
+
+                      // If custom address (no hostId, but addressOnly present)
+                      const isCustomAddress = !hostId && addressOnly;
+
+                      if (!hostId && !isCustomAddress) {
                         toast.warning('No host selected. Please select a host address first.');
                         return;
                       }
-                      
+
                       if (coords.trim() === '') {
                         // Clear coordinates
-                        setConfirmClearGPS({ hostId, isTeacher: !!isTeacher });
+                        if (isCustomAddress) {
+                          // Clear from session_date_host
+                          const { error } = await supabase
+                            .from(Tables.SESSION_DATE_HOST)
+                            .update({ host_latitude: null, host_longitude: null })
+                            .eq('session_id', sessionId)
+                            .eq('attendance_date', selectedDate)
+                            .eq('host_address', addressOnly);
+                          if (error) {
+                            toast.error('Failed to clear coordinates. Please try again.');
+                          } else {
+                            setHostCoordinates(null);
+                            toast.success('Coordinates cleared for custom address.');
+                          }
+                        } else {
+                          setConfirmClearGPS({ hostId, isTeacher: !!isTeacher });
+                        }
                         return;
                       }
-                      
+
                       // Parse coordinates
                       const parts = coords.split(',');
                       if (parts.length !== 2) {
                         toast.error('Invalid format. Please use: latitude,longitude');
                         return;
                       }
-                      
+
                       const lat = parseFloat(parts[0].trim());
                       const lon = parseFloat(parts[1].trim());
-                      
+
                       const isValidLat = !isNaN(lat) && lat >= -90 && lat <= 90;
                       const isValidLon = !isNaN(lon) && lon >= -180 && lon <= 180;
-                      
+
                       if (!isValidLat || !isValidLon) {
                         toast.error('Invalid coordinates. Latitude must be -90 to 90, longitude must be -180 to 180.');
                         return;
                       }
-                      
-                      // Save coordinates to student/teacher table (persistent)
-                      const table = isTeacher ? Tables.TEACHER : Tables.STUDENT;
-                      const idField = isTeacher ? 'teacher_id' : 'student_id';
-                      
-                      const { error } = await supabase
-                        .from(table)
-                        .update({ 
-                          address_latitude: lat,
-                          address_longitude: lon 
-                        })
-                        .eq(idField, hostId);
-                      
-                      if (error) {
-                        console.error('Failed to save coordinates:', error);
-                        toast.error('Failed to save coordinates. Please try again.');
+
+                      if (isCustomAddress) {
+                        // Save to session_date_host for custom address
+                        const { error } = await supabase
+                          .from(Tables.SESSION_DATE_HOST)
+                          .update({ host_latitude: lat, host_longitude: lon })
+                          .eq('session_id', sessionId)
+                          .eq('attendance_date', selectedDate)
+                          .eq('host_address', addressOnly);
+                        if (error) {
+                          toast.error('Failed to save coordinates. Please try again.');
+                        } else {
+                          setHostCoordinates({ lat, lon });
+                          toast.success('Coordinates saved for custom address! Lat: ' + lat + ', Lon: ' + lon + '. Proximity validation is now enabled.');
+                        }
                       } else {
-                        setHostCoordinates({ lat, lon });
-                        // Update local hostAddresses state
-                        setHostAddresses(prev => prev.map(h => 
-                          h.student_id === hostId 
-                            ? { ...h, address_latitude: lat, address_longitude: lon }
-                            : h
-                        ));
-                        toast.success('Coordinates saved! Lat: ' + lat + ', Lon: ' + lon + '. Proximity validation is now enabled.');
+                        // Save coordinates to student/teacher table (persistent)
+                        const table = isTeacher ? Tables.TEACHER : Tables.STUDENT;
+                        const idField = isTeacher ? 'teacher_id' : 'student_id';
+                        const { error } = await supabase
+                          .from(table)
+                          .update({ 
+                            address_latitude: lat,
+                            address_longitude: lon 
+                          })
+                          .eq(idField, hostId);
+                        if (error) {
+                          console.error('Failed to save coordinates:', error);
+                          toast.error('Failed to save coordinates. Please try again.');
+                        } else {
+                          setHostCoordinates({ lat, lon });
+                          // Update local hostAddresses state
+                          setHostAddresses(prev => prev.map(h => 
+                            h.student_id === hostId 
+                              ? { ...h, address_latitude: lat, address_longitude: lon }
+                              : h
+                          ));
+                          toast.success('Coordinates saved! Lat: ' + lat + ', Lon: ' + lon + '. Proximity validation is now enabled.');
+                        }
                       }
                     }}
                     className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"

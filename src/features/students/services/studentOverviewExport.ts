@@ -98,10 +98,11 @@ function getScoreColor(score: number): [number, number, number] {
 function sanitizeForPdf(text: string): string {
   if (!text) return '';
   // Test if text contains non-Latin characters (Arabic, Chinese, etc.)
-  const hasNonLatin = /[^\u0000-\u024F\u1E00-\u1EFF]/.test(text);
+  // Avoid \u0000 (NUL) in regex for ESLint compatibility
+  const hasNonLatin = /[^\u0020-\u024F\u1E00-\u1EFF]/.test(text);
   if (!hasNonLatin) return text;
-  // Replace non-Latin chars with '?' but keep Latin parts
-  const latinParts = text.replace(/[^\u0000-\u024F\u1E00-\u1EFF]+/g, '').trim();
+  // Replace non-Latin chars with '' but keep Latin/extended Latin/Greek
+  const latinParts = text.replace(/[^\u0020-\u024F\u1E00-\u1EFF]+/g, '').trim();
   return latinParts || '(non-Latin text)';
 }
 
