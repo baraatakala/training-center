@@ -474,11 +474,12 @@ export function Attendance() {
     if (!sessionId || !selectedDate) return;
 
     try {
+
       // Load host data, attendance records, and effective time in parallel
       const [hostResult, attendanceResult, effectiveTime] = await Promise.all([
         supabase
           .from(Tables.SESSION_DATE_HOST)
-          .select('host_id, host_type, host_address')
+          .select('host_id, host_type, host_address, host_latitude, host_longitude')
           .eq('session_id', sessionId)
           .eq('attendance_date', selectedDate)
           .maybeSingle(),
@@ -520,6 +521,7 @@ export function Attendance() {
     let savedHostAddress: string | null = null;
     let savedHostId: string | null = null;
     
+
     if (hostData?.host_address) {
       // New system: load from session_date_host table
       savedHostAddress = hostData.host_address;
@@ -533,6 +535,7 @@ export function Attendance() {
     const isSessionNotHeld = savedHostAddress === 'SESSION_NOT_HELD';
 
     // Only update selectedAddress if there's a saved value, don't reset if empty
+
     if (savedHostAddress) {
       if (savedHostAddress === 'SESSION_NOT_HELD') {
         setSessionNotHeld(true);
@@ -577,7 +580,20 @@ export function Attendance() {
       } else if (hostData?.host_type === 'other' && !savedHostId) {
         // Custom/stranger host address: use '|||' prefix to match Select value
         setSelectedAddress(`|||${savedHostAddress}`);
-        setHostCoordinates(null);
+        // If coordinates are present in session_date_host, use them
+        if (
+          typeof hostData.host_latitude === 'number' &&
+          typeof hostData.host_longitude === 'number' &&
+          !isNaN(hostData.host_latitude) &&
+          !isNaN(hostData.host_longitude)
+        ) {
+          setHostCoordinates({
+            lat: hostData.host_latitude,
+            lon: hostData.host_longitude
+          });
+        } else {
+          setHostCoordinates(null);
+        }
         setSessionNotHeld(false);
       } else {
         // Address is saved but no host_id - need to find matching student or teacher
