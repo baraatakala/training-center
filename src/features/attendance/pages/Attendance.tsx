@@ -528,10 +528,10 @@ export function Attendance() {
       // Fallback: check attendance records (backwards compatibility)
       savedHostAddress = existingAttendance?.find(r => r.host_address)?.host_address || null;
     }
-    
+
     // Check if this date was marked as "Session Not Held"
     const isSessionNotHeld = savedHostAddress === 'SESSION_NOT_HELD';
-    
+
     // Only update selectedAddress if there's a saved value, don't reset if empty
     if (savedHostAddress) {
       if (savedHostAddress === 'SESSION_NOT_HELD') {
@@ -542,7 +542,7 @@ export function Attendance() {
         // We have host_id from new table - use it directly
         setSelectedAddress(`${savedHostId}|||${savedHostAddress}`);
         setSessionNotHeld(false);
-        
+
         // Load coordinates from the host's profile (student or teacher table)
         const isTeacher = hostData?.host_type === 'teacher';
         if (isTeacher) {
@@ -574,6 +574,11 @@ export function Attendance() {
             setHostCoordinates(null);
           }
         }
+      } else if (hostData?.host_type === 'other' && !savedHostId) {
+        // Custom/stranger host address: use '|||' prefix to match Select value
+        setSelectedAddress(`|||${savedHostAddress}`);
+        setHostCoordinates(null);
+        setSessionNotHeld(false);
       } else {
         // Address is saved but no host_id - need to find matching student or teacher
         const { data: students, error: studentError } = await supabase

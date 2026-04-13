@@ -317,10 +317,8 @@ CREATE INDEX IF NOT EXISTS idx_excuse_pending
   ON public.excuse_request(session_id, attendance_date)
   WHERE status = 'pending';
 
--- C6. announcement: active (non-expired) announcements ordered by recency
 CREATE INDEX IF NOT EXISTS idx_announcement_active_recent
-  ON public.announcement(course_id, created_at DESC)
-  WHERE expires_at IS NULL OR expires_at > now();
+  ON public.announcement(course_id, created_at DESC);
 
 -- C7. announcement_read: fast "has student read this?" check
 CREATE INDEX IF NOT EXISTS idx_announcement_read_unique
