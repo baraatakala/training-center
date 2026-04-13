@@ -50,7 +50,7 @@ src/
     utils/                    #   Utility functions
     constants/                #   App-wide constants
 database/
-  schema.sql                  # 34 table definitions
+  schema.sql                  # 32 table definitions
   functions.sql               # Functions & triggers
   indexes.sql                 # Performance indexes
   rls-policies.sql            # Row Level Security (~107 policies)
