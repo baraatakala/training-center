@@ -114,20 +114,30 @@ export const attendanceService = {
   },
 
   // Get class-wide attendance stats for dates hosted at a given address
-  async getHostAttendanceStats(hostAddress: string) {
-    // Step 1: Find dates+sessions where this address was the host
-    const { data: hostRecords, error: e1 } = await supabase
-      .from(Tables.ATTENDANCE)
-      .select('attendance_date, session_id')
-      .eq('host_address', hostAddress);
+  async getHostAttendanceStats(studentId: string, studentAddress: string) {
+    // Step 1: Find hosted dates from session_date_host
+    // Query by host_id (student) and by host_address separately, then merge
+    const [byId, byAddr] = await Promise.all([
+      supabase
+        .from('session_date_host')
+        .select('attendance_date, session_id')
+        .eq('host_id', studentId),
+      supabase
+        .from('session_date_host')
+        .select('attendance_date, session_id')
+        .eq('host_address', studentAddress),
+    ]);
 
-    if (e1 || !hostRecords || hostRecords.length === 0)
+    const hostEntries = [...(byId.data || []), ...(byAddr.data || [])];
+    if (hostEntries.length === 0)
       return { data: { hostCount: 0, avgAttendance: 0 }, error: null };
 
+    // Deduplicate date+session pairs
     const pairSet = new Set<string>();
     const dates: string[] = [];
     const sessionIds: string[] = [];
-    for (const r of hostRecords) {
+    for (const r of hostEntries) {
+      if (!r.attendance_date || !r.session_id) continue;
       const key = `${r.attendance_date}|${r.session_id}`;
       if (!pairSet.has(key)) {
         pairSet.add(key);
@@ -136,8 +146,9 @@ export const attendanceService = {
       }
     }
 
+    if (dates.length === 0) return { data: { hostCount: 0, avgAttendance: 0 }, error: null };
+
     // Step 2: Get ALL attendance records for those dates+sessions
-    // (includes absent students whose host_address is null)
     const { data: allRecords, error: e2 } = await supabase
       .from(Tables.ATTENDANCE)
       .select('attendance_date, session_id, status')

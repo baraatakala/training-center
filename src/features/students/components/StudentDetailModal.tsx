@@ -117,14 +117,9 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
       setEnrollments((enrRes.data as EnrollmentRecord[]) || []);
       setCertificates((certRes.data || []) as IssuedCertificate[]);
 
-      // Load host stats if student has an address
+      // Load host stats from session_date_host table
       if (student.address) {
-        const loadedAtt = (attRes.data as AttendanceRecord[]) || [];
-        // Use the exact host_address string from a DB record to avoid encoding mismatches
-        const dbHostAddress = loadedAtt.find(r =>
-          r.host_address && r.host_address.trim() === student.address?.trim()
-        )?.host_address || student.address;
-        const hostRes = await attendanceService.getHostAttendanceStats(dbHostAddress);
+        const hostRes = await attendanceService.getHostAttendanceStats(student.student_id, student.address);
         if (!cancelled && hostRes.data) setHostStats(hostRes.data);
       }
 
@@ -776,9 +771,9 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
   }, [arabicMode]);
 
   // Handle backdrop click
-  const handleBackdropClick = useCallback((e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) onClose();
-  }, [onClose]);
+  const handleBackdropClick = useCallback((_e: React.MouseEvent) => {
+    // Only close via the X button — not by clicking outside
+  }, []);
 
   // Handle certificate revoke
   const handleRevoke = useCallback(async () => {
