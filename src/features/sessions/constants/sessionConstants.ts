@@ -18,7 +18,6 @@ export type SessionWithDetails = {
   feedback_enabled?: boolean;
   feedback_anonymous_allowed?: boolean;
   teacher_can_host?: boolean;
-  parent_session_id?: string | null;
   course: {
     course_name: string;
     category: string;

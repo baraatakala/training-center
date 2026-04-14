@@ -752,7 +752,7 @@ export const AttendanceRecords = () => {
           .not('host_address', 'is', null),
         supabase
           .from('session')
-          .select('session_id, start_date, end_date, parent_session_id, course:course_id(course_name)')
+          .select('session_id, start_date, end_date, course:course_id(course_name)')
           .order('start_date', { ascending: false })
       ]);
 
@@ -783,24 +783,19 @@ export const AttendanceRecords = () => {
       }
 
       if (sessionsRes.data) {
-        // Build sessionGroupMap: root_id → [root_id, ...clone_ids]
         const allSessions = sessionsRes.data as Array<{
           session_id: string;
           start_date: string;
           end_date: string;
-          parent_session_id: string | null;
           course: { course_name: string } | { course_name: string }[] | null;
         }>;
+        // Build 1:1 session group map (parent_session_id removed in migration 033)
         const groupMap: Record<string, string[]> = {};
         for (const s of allSessions) {
-          const rootId = s.parent_session_id ?? s.session_id;
-          if (!groupMap[rootId]) groupMap[rootId] = [];
-          if (!groupMap[rootId].includes(s.session_id)) groupMap[rootId].push(s.session_id);
+          groupMap[s.session_id] = [s.session_id];
         }
         setSessionGroupMap(groupMap);
-        // Show only root sessions (parent_session_id IS NULL) in the dropdown
-        const rootSessions = allSessions.filter(s => s.parent_session_id == null);
-        setSessions(rootSessions.map(s => {
+        setSessions(allSessions.map(s => {
           const courseName = Array.isArray(s.course) ? s.course[0]?.course_name : s.course?.course_name;
           return { value: s.session_id, label: `${courseName || '?'} (${s.start_date} → ${s.end_date})` };
         }));

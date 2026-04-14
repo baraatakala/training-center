@@ -178,9 +178,10 @@ export function Sessions() {
     }
 
     if (cloneFilter === 'roots') {
-      filtered = filtered.filter(s => !s.parent_session_id);
+      // parent_session_id removed in migration 033 — no clones exist
+      filtered = filtered;
     } else if (cloneFilter === 'clones') {
-      filtered = filtered.filter(s => !!s.parent_session_id);
+      filtered = [];
     }
 
     filtered.sort((a, b) => {
@@ -485,14 +486,9 @@ export function Sessions() {
     toast.success(`Exported ${filteredSessions.length} sessions to CSV`);
   }, [filteredSessions, enrollmentCounts]);
 
-  // Clone counts: how many clones each root session has
+  // Clone counts: parent_session_id removed in migration 033 — always empty
   const cloneCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const s of sessions) {
-      if (s.parent_session_id) {
-        counts[s.parent_session_id] = (counts[s.parent_session_id] || 0) + 1;
-      }
-    }
     return counts;
   }, [sessions]);
 

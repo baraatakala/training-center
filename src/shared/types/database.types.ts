@@ -62,7 +62,6 @@ export interface Session {
   feedback_enabled?: boolean;
   feedback_anonymous_allowed?: boolean;
   teacher_can_host?: boolean;
-  parent_session_id?: string | null;
   created_at: string;
   updated_at: string;
 }

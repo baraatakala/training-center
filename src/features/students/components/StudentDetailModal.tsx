@@ -80,29 +80,17 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
   const [hostStats, setHostStats] = useState<{ hostCount: number; avgAttendance: number } | null>(null);
   const { isTeacher } = useIsTeacher();
 
-  // ─── Clone/Session group map (root_id → [root, ...clones]) ────────
+  // ─── Session group map (1:1 — parent_session_id removed in migration 033) ────────
   const sessionGroupMap = useMemo(() => {
-    const allSessions: { session_id: string; parent_session_id?: string | null }[] = [];
+    const map: Record<string, string[]> = {};
     enrollments.forEach(e => {
       const s = unwrap(e.session);
-      if (s?.session_id) allSessions.push(s as { session_id: string; parent_session_id?: string | null });
+      if (s?.session_id) map[s.session_id] = [s.session_id];
     });
     attendance.forEach(a => {
       const s = unwrap(a.session);
-      if (s?.session_id && !allSessions.some(x => x.session_id === s.session_id))
-        allSessions.push(s as { session_id: string; parent_session_id?: string | null });
+      if (s?.session_id && !map[s.session_id]) map[s.session_id] = [s.session_id];
     });
-    const map: Record<string, string[]> = {};
-    const cloneToRoot: Record<string, string> = {};
-    for (const s of allSessions) {
-      if (s.parent_session_id) {
-        cloneToRoot[s.session_id] = s.parent_session_id;
-        if (!map[s.parent_session_id]) map[s.parent_session_id] = [s.parent_session_id];
-        if (!map[s.parent_session_id].includes(s.session_id)) map[s.parent_session_id].push(s.session_id);
-      } else {
-        if (!map[s.session_id]) map[s.session_id] = [s.session_id];
-      }
-    }
     return map;
   }, [enrollments, attendance]);
 
@@ -470,9 +458,9 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
 
     // ── G. Attendance Streak Achievement ──
     if (maxStreak >= 15) {
-      insights.push({ text: `Outstanding commitment: ${maxStreak} consecutive sessions without absence — exceptional dedication${activeStreak === maxStreak ? ' (still active 🔥)' : ''}`, textAr: `التزام مبهر: ${maxStreak} جلسة متتالية بدون غياب — إخلاص استثنائي${activeStreak === maxStreak ? ' (لا تزال نشطة 🔥)' : ''}`, type: 'positive', priority: 86 });
+      insights.push({ text: `Outstanding commitment: ${maxStreak} consecutive sessions without absence — exceptional dedication${activeStreak === maxStreak ? ' (still active!)' : ''}`, textAr: `التزام مبهر: ${maxStreak} جلسة متتالية بدون غياب — إخلاص استثنائي${activeStreak === maxStreak ? ' (لا تزال نشطة!)' : ''}`, type: 'positive', priority: 86 });
     } else if (maxStreak >= 10) {
-      insights.push({ text: `Impressive commitment: ${maxStreak} consecutive sessions attended — demonstrates strong dedication${activeStreak === maxStreak ? ' (still active 🔥)' : ''}`, textAr: `التزام رائع: ${maxStreak} جلسة متتالية — يظهر إخلاصاً قوياً${activeStreak === maxStreak ? ' (لا تزال نشطة 🔥)' : ''}`, type: 'positive', priority: 84 });
+      insights.push({ text: `Impressive commitment: ${maxStreak} consecutive sessions attended — demonstrates strong dedication${activeStreak === maxStreak ? ' (still active!)' : ''}`, textAr: `التزام رائع: ${maxStreak} جلسة متتالية — يظهر إخلاصاً قوياً${activeStreak === maxStreak ? ' (لا تزال نشطة!)' : ''}`, type: 'positive', priority: 84 });
     } else if (maxStreak >= 7) {
       insights.push({ text: `Best streak: ${maxStreak} consecutive sessions — shows capacity for consistent engagement${activeStreak === maxStreak ? ' (active)' : ''}`, textAr: `أفضل سلسلة: ${maxStreak} جلسات متتالية — يُظهر قدرة على الالتزام المستمر${activeStreak === maxStreak ? ' (نشطة)' : ''}`, type: 'positive', priority: 72 });
     } else if (maxStreak <= 2 && accountable >= 6) {
@@ -1336,12 +1324,8 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                   >
                     <option value="">{arabicMode ? 'كل الجلسات' : 'All Sessions'}</option>
                     {enrollments.filter(enr => {
-                      const s = unwrap(enr.session) as { session_id: string; parent_session_id?: string | null } | undefined;
-                      if (!s?.session_id) return false;
-                      if (s.parent_session_id) {
-                        return !enrollments.some(e2 => unwrap(e2.session)?.session_id === s.parent_session_id);
-                      }
-                      return true;
+                      const s = unwrap(enr.session);
+                      return !!s?.session_id;
                     }).map(enr => {
                       const s = unwrap(enr.session);
                       if (!s?.session_id) return null;

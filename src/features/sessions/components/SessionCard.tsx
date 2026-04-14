@@ -10,7 +10,7 @@ export function SessionCard({
   enrollmentCount,
   isTeacher,
   isAdmin,
-  cloneCount,
+  cloneCount: _cloneCount,
   onOpenSchedule,
   onOpenRecordings,
   onClone,
@@ -128,12 +128,6 @@ export function SessionCard({
         )}
         {session.teacher_can_host === false && (
           <Badge variant="warning">🏫 Student-hosted</Badge>
-        )}
-        {session.parent_session_id && (
-          <Badge variant="default">🔗 Clone</Badge>
-        )}
-        {!session.parent_session_id && (cloneCount ?? 0) > 0 && (
-          <Badge variant="info">📋 {cloneCount} clone{cloneCount! > 1 ? 's' : ''}</Badge>
         )}
       </div>
 

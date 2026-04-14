@@ -99,9 +99,7 @@ CREATE TABLE IF NOT EXISTS public.session (
   feedback_enabled BOOLEAN DEFAULT false,
   feedback_anonymous_allowed BOOLEAN DEFAULT true,
   teacher_can_host BOOLEAN DEFAULT true,
-  parent_session_id UUID,
   CONSTRAINT session_pkey PRIMARY KEY (session_id),
-  CONSTRAINT session_parent_fkey FOREIGN KEY (parent_session_id) REFERENCES public.session(session_id) ON DELETE SET NULL,
   CONSTRAINT session_dates_ordered CHECK (end_date >= start_date),
   CONSTRAINT session_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.course(course_id),
   CONSTRAINT session_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES public.teacher(teacher_id)
