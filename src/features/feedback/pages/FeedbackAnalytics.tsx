@@ -26,6 +26,7 @@ interface SessionOption {
   end_date: string;
   feedback_enabled: boolean;
   feedback_anonymous_allowed: boolean;
+  // parent_session_id removed — column dropped in migration 033
 }
 
 // ─── Flattened record (one row per question-answer) ────────
@@ -74,8 +75,6 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
   const dateParam = searchParams.get('date');
   const [sessions, setSessions] = useState<SessionOption[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
-  // Maps root session_id → [root_id, ...clone_ids] for clone-aware data loading
-  const [sessionGroupMap, setSessionGroupMap] = useState<Record<string, string[]>>({});
   const [feedbacks, setFeedbacks] = useState<SessionFeedback[]>([]);
   const [stats, setStats] = useState<FeedbackStats | null>(null);
   const [questions, setQuestions] = useState<FeedbackQuestion[]>([]);
@@ -109,7 +108,6 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
           const teacher = s.teacher as Record<string, string> | Record<string, string>[] | null;
           return {
             session_id: s.session_id as string,
-            parent_session_id: (s.parent_session_id as string | null) ?? null,
             course_name: (Array.isArray(course) ? course[0]?.course_name : course?.course_name) ?? 'Unknown Course',
             teacher_name: (Array.isArray(teacher) ? teacher[0]?.name : teacher?.name) ?? 'Unknown Teacher',
             start_date: String(s.start_date || ''),
@@ -118,21 +116,11 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
             feedback_anonymous_allowed: Boolean(s.feedback_anonymous_allowed ?? true),
           };
         });
-        // Build clone group map: root_id → [root_id, ...clone_ids]
-        const groupMap: Record<string, string[]> = {};
-        for (const s of mapped) {
-          const rootId = s.parent_session_id ?? s.session_id;
-          if (!groupMap[rootId]) groupMap[rootId] = [];
-          if (!groupMap[rootId].includes(s.session_id)) groupMap[rootId].push(s.session_id);
-        }
-        setSessionGroupMap(groupMap);
-        // Only show root sessions (no parent) in the dropdown
-        const rootSessions = mapped.filter(s => s.parent_session_id == null);
-        setSessions(rootSessions);
+        setSessions(mapped);
         setPageError(null);
-        if (sessionParam && rootSessions.some(s => s.session_id === sessionParam)) setSelectedSessionId(sessionParam);
-        else if (selectedSessionId && rootSessions.some(s => s.session_id === selectedSessionId)) { /* keep */ }
-        else if (rootSessions.length > 0) setSelectedSessionId(rootSessions[0].session_id);
+        if (sessionParam && mapped.some(s => s.session_id === sessionParam)) setSelectedSessionId(sessionParam);
+        else if (selectedSessionId && mapped.some(s => s.session_id === selectedSessionId)) { /* keep */ }
+        else if (mapped.length > 0) setSelectedSessionId(mapped[0].session_id);
       }
     }
     loadSessions();
@@ -145,54 +133,32 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
     let cancelled = false;
     async function load() {
       setLoading(true);
-      // Get all session IDs in the group (root + clones)
-      const groupIds = sessionGroupMap[selectedSessionId] ?? [selectedSessionId];
-
-      // Load feedback from all sessions in the group, merge results
-      const allFbPromises = groupIds.map(sid => feedbackService.getBySession(sid));
-      const allQPromises = groupIds.map(sid => feedbackService.getQuestions(sid));
-      const [fbResults, statsResult, qResults] = await Promise.all([
-        Promise.all(allFbPromises),
+      const [fbResult, statsResult, qResult] = await Promise.all([
+        feedbackService.getBySession(selectedSessionId),
         feedbackService.getStats(selectedSessionId),
-        Promise.all(allQPromises),
+        feedbackService.getQuestions(selectedSessionId),
       ]);
       if (cancelled) return;
-      // Merge feedbacks from all sessions
-      const mergedFb = fbResults.flatMap(r => r.data || []);
-      // Merge questions — dedupe by question text
-      const seenQTexts = new Set<string>();
-      const mergedQ = qResults.flatMap(r => r.data || []).filter(q => {
-        const key = q.question_text || '';
-        if (seenQTexts.has(key)) return false;
-        seenQTexts.add(key);
-        return true;
-      });
-      setFeedbacks(mergedFb);
+      setFeedbacks(fbResult.data || []);
       setStats(statsResult.data);
-      setQuestions(mergedQ);
-      const combinedError = fbResults.find(r => r.error)?.error
-        || (statsResult.error as { message?: string } | null)?.message
-        || qResults.find(r => r.error)?.error || null;
-      setPageError(combinedError ? String(combinedError) : null);
-      if (combinedError) toast.error(String(combinedError), 7000);
+      setQuestions(qResult.data || []);
+      const err = fbResult.error || (statsResult.error as { message?: string } | null)?.message || qResult.error || null;
+      setPageError(err ? String(err) : null);
+      if (err) toast.error(String(err), 7000);
       setLoading(false);
     }
     load();
     return () => { cancelled = true; };
-  }, [selectedSessionId, sessionGroupMap]);
+  }, [selectedSessionId]);
 
   useEffect(() => { if (dateParam) setSelectedAnalyticsDate(dateParam); }, [dateParam]);
 
   const refreshFeedbackData = useCallback(() => {
     if (selectedSessionId) {
-      const groupIds = sessionGroupMap[selectedSessionId] ?? [selectedSessionId];
-      Promise.all(groupIds.map(sid => feedbackService.getBySession(sid))).then(results => {
-        const merged = results.flatMap(r => r.data || []);
-        setFeedbacks(merged);
-      });
+      feedbackService.getBySession(selectedSessionId).then(r => { if (r.data) setFeedbacks(r.data); });
       feedbackService.getStats(selectedSessionId).then(r => { if (r.data) setStats(r.data); });
     }
-  }, [selectedSessionId, sessionGroupMap]);
+  }, [selectedSessionId]);
   useRefreshOnFocus(refreshFeedbackData);
 
   // ─── Derived data ──────────────────────────────────────────

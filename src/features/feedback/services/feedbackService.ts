@@ -710,7 +710,7 @@ export const feedbackService = {
   async getSessionsForAnalytics() {
     return await supabase
       .from('session')
-      .select('session_id, start_date, end_date, parent_session_id, feedback_enabled, feedback_anonymous_allowed, course:course_id(course_name), teacher:teacher_id(name)')
+      .select('session_id, start_date, end_date, feedback_enabled, feedback_anonymous_allowed, course:course_id(course_name), teacher:teacher_id(name)')
       .order('start_date', { ascending: false });
   },
 
