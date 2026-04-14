@@ -22,6 +22,7 @@ interface StudentDetailModalProps {
 interface AttendanceRecord {
   attendance_date: string;
   status: string;
+  session_id?: string;
   check_in_method?: string | null;
   check_in_time?: string | null;
   late_minutes?: number | null;
@@ -118,8 +119,17 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
 
       // Load host stats if student has an address
       if (student.address) {
-        const hostRes = await attendanceService.getHostAttendanceStats(student.address);
-        if (!cancelled && hostRes.data) setHostStats(hostRes.data);
+        const loadedAtt = (attRes.data as AttendanceRecord[]) || [];
+        const hostedPairs = loadedAtt
+          .filter(r => r.host_address && r.host_address === student.address && r.session_id)
+          .map(r => ({ date: r.attendance_date, sessionId: r.session_id! }));
+        const uniquePairs = Array.from(
+          new Map(hostedPairs.map(p => [`${p.date}|${p.sessionId}`, p])).values()
+        );
+        if (uniquePairs.length > 0) {
+          const hostRes = await attendanceService.getHostAttendanceStats(uniquePairs);
+          if (!cancelled && hostRes.data) setHostStats(hostRes.data);
+        }
       }
 
       setLoading(false);
@@ -762,6 +772,9 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
       'absent': 'غائب',
       'excused': 'معذور',
       'not enrolled': 'غير مسجل',
+      'Host Activity': 'نشاط الاستضافة',
+      'Times Hosted': 'مرات الاستضافة',
+      'Avg Attendance': 'متوسط الحضور',
     };
     return (key: string) => arabicMode ? (ar[key] || key) : key;
   }, [arabicMode]);

@@ -113,17 +113,27 @@ export const attendanceService = {
       .order('created_at', { ascending: false });
   },
 
-  // Get class-wide attendance stats for dates hosted at a given address
-  async getHostAttendanceStats(hostAddress: string) {
+  // Get class-wide attendance stats for specific hosted date+session pairs
+  async getHostAttendanceStats(hostedDateSessions: Array<{ date: string; sessionId: string }>) {
+    if (hostedDateSessions.length === 0) return { data: { hostCount: 0, avgAttendance: 0 }, error: null };
+
+    const dates = [...new Set(hostedDateSessions.map(p => p.date))];
+    const sessionIds = [...new Set(hostedDateSessions.map(p => p.sessionId))];
+    const validPairs = new Set(hostedDateSessions.map(p => `${p.date}|${p.sessionId}`));
+
     const { data, error } = await supabase
       .from(Tables.ATTENDANCE)
-      .select('attendance_date, status')
-      .eq('host_address', hostAddress);
+      .select('attendance_date, session_id, status')
+      .in('attendance_date', dates)
+      .in('session_id', sessionIds);
 
     if (error || !data) return { data: null, error };
 
+    // Filter to exact date+session pairs to avoid cross-session contamination
+    const filtered = data.filter(r => validPairs.has(`${r.attendance_date}|${r.session_id}`));
+
     const dateMap = new Map<string, { present: number; accountable: number }>();
-    for (const r of data) {
+    for (const r of filtered) {
       if (r.status === 'not enrolled') continue;
       if (!dateMap.has(r.attendance_date)) dateMap.set(r.attendance_date, { present: 0, accountable: 0 });
       const entry = dateMap.get(r.attendance_date)!;
@@ -133,10 +143,10 @@ export const attendanceService = {
       }
     }
 
-    const dates = [...dateMap.values()];
-    const hostCount = dates.length;
-    const totalPresent = dates.reduce((s, d) => s + d.present, 0);
-    const totalAccountable = dates.reduce((s, d) => s + d.accountable, 0);
+    const dateEntries = [...dateMap.values()];
+    const hostCount = dateEntries.length;
+    const totalPresent = dateEntries.reduce((s, d) => s + d.present, 0);
+    const totalAccountable = dateEntries.reduce((s, d) => s + d.accountable, 0);
     const avgAttendance = totalAccountable > 0 ? Math.round((totalPresent / totalAccountable) * 100) : 0;
 
     return { data: { hostCount, avgAttendance }, error: null };

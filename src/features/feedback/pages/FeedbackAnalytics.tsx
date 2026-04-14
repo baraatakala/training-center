@@ -82,7 +82,8 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
   const [pageError, setPageError] = useState<string | null>(null);
 
   // ─── Global Filters ───
-  const [selectedAnalyticsDate, setSelectedAnalyticsDate] = useState<string>('');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
   const [questionTypeFilter, setQuestionTypeFilter] = useState<QuestionTypeFilter>('all');
   const [feedbackSearch, setFeedbackSearch] = useState('');
   const [studentFilter, setStudentFilter] = useState<string>('');
@@ -151,7 +152,7 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
     return () => { cancelled = true; };
   }, [selectedSessionId]);
 
-  useEffect(() => { if (dateParam) setSelectedAnalyticsDate(dateParam); }, [dateParam]);
+  useEffect(() => { if (dateParam) { setDateFrom(dateParam); setDateTo(dateParam); } }, [dateParam]);
 
   const refreshFeedbackData = useCallback(() => {
     if (selectedSessionId) {
@@ -164,7 +165,8 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
   // ─── Derived data ──────────────────────────────────────────
   const filteredFeedbacks = useMemo(() => {
     return feedbacks.filter(fb => {
-      if (selectedAnalyticsDate && fb.attendance_date !== selectedAnalyticsDate) return false;
+      if (dateFrom && fb.attendance_date < dateFrom) return false;
+      if (dateTo && fb.attendance_date > dateTo) return false;
       if (studentFilter) {
         const name = fb.is_anonymous ? 'Anonymous' : (fb.student_name || 'Unknown');
         if (name !== studentFilter) return false;
@@ -183,7 +185,7 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
       }
       return true;
     });
-  }, [feedbacks, selectedAnalyticsDate, feedbackSearch, studentFilter, ratingRangeFilters]);
+  }, [feedbacks, dateFrom, dateTo, feedbackSearch, studentFilter, ratingRangeFilters]);
 
   const uniqueStudents = useMemo(() => {
     const names = new Set<string>();
@@ -400,7 +402,7 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
           </p>
         </div>
         {displayRecords.length > 0 && (
-          <Button variant="outline" size="sm" className="rounded-full self-start sm:self-auto" onClick={() => exportFeedbackCSV(displayRecords, selectedSession?.course_name || 'feedback', selectedAnalyticsDate)}>
+          <Button variant="outline" size="sm" className="rounded-full self-start sm:self-auto" onClick={() => exportFeedbackCSV(displayRecords, selectedSession?.course_name || 'feedback', dateFrom && dateTo ? `${dateFrom}_to_${dateTo}` : dateFrom || dateTo || '')}>
             📥 Export CSV
           </Button>
         )}
@@ -422,7 +424,7 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
           />
         </div>
         {embedded && displayRecords.length > 0 && (
-          <Button variant="outline" size="sm" className="rounded-full shrink-0" onClick={() => exportFeedbackCSV(displayRecords, selectedSession?.course_name || 'feedback', selectedAnalyticsDate)}>
+          <Button variant="outline" size="sm" className="rounded-full shrink-0" onClick={() => exportFeedbackCSV(displayRecords, selectedSession?.course_name || 'feedback', dateFrom && dateTo ? `${dateFrom}_to_${dateTo}` : dateFrom || dateTo || '')}>
             📥 Export CSV
           </Button>
         )}
@@ -528,15 +530,25 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
           {/* ─── Global Filters (shared by Records & Analytics) ─── */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 items-end">
             <div className="min-w-0">
-              <label className="text-[11px] text-gray-400 block mb-1">Date</label>
-              <select
-                value={selectedAnalyticsDate}
-                onChange={e => { setSelectedAnalyticsDate(e.target.value); setRecordsPage(0); }}
-                className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white"
-              >
-                <option value="">All Dates</option>
-                {uniqueDates.map(d => <option key={d} value={d}>{d}</option>)}
-              </select>
+              <label className="text-[11px] text-gray-400 block mb-1">Date Range</label>
+              <div className="flex gap-1">
+                <select
+                  value={dateFrom}
+                  onChange={e => { setDateFrom(e.target.value); setRecordsPage(0); }}
+                  className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-2 text-gray-900 dark:text-white"
+                >
+                  <option value="">From</option>
+                  {uniqueDates.slice().sort().map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+                <select
+                  value={dateTo}
+                  onChange={e => { setDateTo(e.target.value); setRecordsPage(0); }}
+                  className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-2 text-gray-900 dark:text-white"
+                >
+                  <option value="">To</option>
+                  {uniqueDates.slice().sort().map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
             </div>
             <div className="min-w-0">
               <label className="text-[11px] text-gray-400 block mb-1">Student</label>
@@ -613,9 +625,9 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
               </div>
             </div>
 
-            {(feedbackSearch || selectedAnalyticsDate || studentFilter || questionTypeFilter !== 'all' || correctnessFilter !== 'all' || ratingRangeFilters.length > 0) && (
+            {(feedbackSearch || dateFrom || dateTo || studentFilter || questionTypeFilter !== 'all' || correctnessFilter !== 'all' || ratingRangeFilters.length > 0) && (
               <button
-                onClick={() => { setFeedbackSearch(''); setSelectedAnalyticsDate(''); setStudentFilter(''); setQuestionTypeFilter('all'); setCorrectnessFilter('all'); setRatingRangeFilters([]); setRecordsPage(0); }}
+                onClick={() => { setFeedbackSearch(''); setDateFrom(''); setDateTo(''); setStudentFilter(''); setQuestionTypeFilter('all'); setCorrectnessFilter('all'); setRatingRangeFilters([]); setRecordsPage(0); }}
                 className="text-xs text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 px-3 py-1.5 rounded-lg border border-purple-200 dark:border-purple-700 mt-auto"
               >
                 ✕ Clear Filters
