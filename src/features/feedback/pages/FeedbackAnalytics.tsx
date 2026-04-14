@@ -68,7 +68,7 @@ function exportFeedbackCSV(records: FlattenedRecord[], courseName: string, selec
 // ═══════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════
-export function FeedbackAnalytics() {
+export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } = {}) {
   const [searchParams] = useSearchParams();
   const sessionParam = searchParams.get('session');
   const dateParam = searchParams.get('date');
@@ -420,9 +420,10 @@ export function FeedbackAnalytics() {
   // ═══════════════════════════════════════════════════════════
   return (
     <div className="space-y-4 sm:space-y-6">
-      <Breadcrumb items={[{ label: 'Dashboard', path: '/' }, { label: 'Feedback Analytics' }]} />
+      {!embedded && <Breadcrumb items={[{ label: 'Dashboard', path: '/' }, { label: 'Feedback Analytics' }]} />}
 
       {/* ─── Header ───────────────────────────────────────── */}
+      {!embedded && (
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div className="space-y-1 min-w-0">
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-white tracking-tight">
@@ -438,29 +439,59 @@ export function FeedbackAnalytics() {
           </Button>
         )}
       </div>
+      )}
 
       {/* ─── Session Selector ────────────────────────────────── */}
-      <div className="flex-1 min-w-0">
-        <Select
-          label=""
-          value={selectedSessionId}
-          onChange={setSelectedSessionId}
-          options={sessions.map(s => ({
-            value: s.session_id,
-            label: `${s.course_name} · ${s.teacher_name}${s.feedback_enabled ? '' : ' · OFF'}`,
-          }))}
-          placeholder="Select session..."
-        />
+      <div className="flex items-end gap-3">
+        <div className="flex-1 min-w-0">
+          <Select
+            label=""
+            value={selectedSessionId}
+            onChange={setSelectedSessionId}
+            options={sessions.map(s => ({
+              value: s.session_id,
+              label: `${s.course_name} · ${s.teacher_name}${s.feedback_enabled ? '' : ' · OFF'}`,
+            }))}
+            placeholder="Select session..."
+          />
+        </div>
+        {embedded && displayRecords.length > 0 && (
+          <Button variant="outline" size="sm" className="rounded-full shrink-0" onClick={() => exportFeedbackCSV(displayRecords, selectedSession?.course_name || 'feedback', selectedAnalyticsDate)}>
+            📥 Export CSV
+          </Button>
+        )}
       </div>
 
       {/* ─── Loading / Empty States ──────────────────────────── */}
       {sessions.length === 0 && !loading && (
-        <div className="text-center py-20">
-          <span className="text-5xl block mb-4">📭</span>
-          <h3 className="text-base font-semibold text-gray-900 dark:text-white">No Feedback Sessions</h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 max-w-sm mx-auto">
-            Enable feedback in Session settings to start collecting student responses.
-          </p>
+        <div className="rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800/60 p-8 sm:p-12">
+          <div className="max-w-md mx-auto text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-purple-100 to-violet-100 dark:from-purple-900/30 dark:to-violet-900/30 flex items-center justify-center">
+              <svg className="w-8 h-8 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">No Feedback Sessions</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">
+              Feedback collection is not enabled for any session yet. Enable it in the Attendance page session settings to start gathering student responses.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 text-xs text-gray-400">
+              <div className="flex items-center gap-1.5">
+                <span className="w-5 h-5 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-500 text-[10px] font-bold">1</span>
+                Open a session
+              </div>
+              <span className="hidden sm:inline text-gray-300 dark:text-gray-600">→</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-5 h-5 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-500 text-[10px] font-bold">2</span>
+                Enable feedback
+              </div>
+              <span className="hidden sm:inline text-gray-300 dark:text-gray-600">→</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-5 h-5 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-500 text-[10px] font-bold">3</span>
+                Add questions
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -477,12 +508,24 @@ export function FeedbackAnalytics() {
       )}
 
       {!loading && selectedSessionId && feedbacks.length === 0 && !pageError && (
-        <div className="text-center py-16">
-          <span className="text-5xl block mb-3">📊</span>
-          <h3 className="text-base font-semibold text-gray-900 dark:text-white">No Responses Yet</h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 max-w-sm mx-auto">
-            Set up questions in the Attendance page, then students can respond after checking in.
-          </p>
+        <div className="rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800/60 p-8 sm:p-12">
+          <div className="max-w-md mx-auto text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 flex items-center justify-center">
+              <svg className="w-8 h-8 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Awaiting Responses</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 leading-relaxed">
+              This session has feedback enabled but no students have submitted responses yet. Responses appear here after students check in and complete the feedback form.
+            </p>
+            {selectedSession && (
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-50 dark:bg-gray-700/50 text-xs text-gray-500 dark:text-gray-400">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                {selectedSession.course_name}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

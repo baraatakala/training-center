@@ -113,6 +113,35 @@ export const attendanceService = {
       .order('created_at', { ascending: false });
   },
 
+  // Get class-wide attendance stats for dates hosted at a given address
+  async getHostAttendanceStats(hostAddress: string) {
+    const { data, error } = await supabase
+      .from(Tables.ATTENDANCE)
+      .select('attendance_date, status')
+      .eq('host_address', hostAddress);
+
+    if (error || !data) return { data: null, error };
+
+    const dateMap = new Map<string, { present: number; accountable: number }>();
+    for (const r of data) {
+      if (r.status === 'not enrolled') continue;
+      if (!dateMap.has(r.attendance_date)) dateMap.set(r.attendance_date, { present: 0, accountable: 0 });
+      const entry = dateMap.get(r.attendance_date)!;
+      if (r.status !== 'excused') {
+        entry.accountable++;
+        if (r.status === 'on time' || r.status === 'late') entry.present++;
+      }
+    }
+
+    const dates = [...dateMap.values()];
+    const hostCount = dates.length;
+    const totalPresent = dates.reduce((s, d) => s + d.present, 0);
+    const totalAccountable = dates.reduce((s, d) => s + d.accountable, 0);
+    const avgAttendance = totalAccountable > 0 ? Math.round((totalPresent / totalAccountable) * 100) : 0;
+
+    return { data: { hostCount, avgAttendance }, error: null };
+  },
+
   // Get attendance for a specific session
   async getBySession(sessionId: string) {
     return await supabase

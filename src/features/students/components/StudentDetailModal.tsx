@@ -25,6 +25,7 @@ interface AttendanceRecord {
   check_in_method?: string | null;
   check_in_time?: string | null;
   late_minutes?: number | null;
+  host_address?: string | null;
   session?: {
     session_id?: string;
     course?: { course_name?: string } | Array<{ course_name?: string }>;
@@ -72,6 +73,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [exportSections, setExportSections] = useState<ExportSection[]>(['overview', 'attendance', 'certificates']);
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
+  const [hostStats, setHostStats] = useState<{ hostCount: number; avgAttendance: number } | null>(null);
   const { isTeacher } = useIsTeacher();
 
   // ─── Clone/Session group map (root_id → [root, ...clones]) ────────
@@ -113,6 +115,13 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
       setAttendance((attRes.data as AttendanceRecord[]) || []);
       setEnrollments((enrRes.data as EnrollmentRecord[]) || []);
       setCertificates((certRes.data || []) as IssuedCertificate[]);
+
+      // Load host stats if student has an address
+      if (student.address) {
+        const hostRes = await attendanceService.getHostAttendanceStats(student.address);
+        if (!cancelled && hostRes.data) setHostStats(hostRes.data);
+      }
+
       setLoading(false);
     }
     load();
@@ -998,6 +1007,23 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                       )}
                     </div>
                   </div>
+
+                  {/* ── Host Activity ──────────────────────── */}
+                  {hostStats && hostStats.hostCount > 0 && (
+                    <div className="rounded-xl border border-cyan-200 dark:border-cyan-800/50 bg-gradient-to-br from-cyan-50/50 to-sky-50/30 dark:from-cyan-900/10 dark:to-sky-900/5 p-3 space-y-2">
+                      <p className="text-[10px] font-bold text-cyan-700 dark:text-cyan-300 uppercase tracking-wide">🏠 {t('Host Activity')}</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="rounded-lg border border-cyan-100 dark:border-cyan-800/30 bg-white/60 dark:bg-gray-800/30 p-2 text-center">
+                          <p className="text-[9px] text-gray-400 uppercase tracking-wider">{t('Times Hosted')}</p>
+                          <p className="text-lg font-black text-cyan-700 dark:text-cyan-300">{hostStats.hostCount}</p>
+                        </div>
+                        <div className="rounded-lg border border-cyan-100 dark:border-cyan-800/30 bg-white/60 dark:bg-gray-800/30 p-2 text-center">
+                          <p className="text-[9px] text-gray-400 uppercase tracking-wider">{t('Avg Attendance')}</p>
+                          <p className={`text-lg font-black ${hostStats.avgAttendance >= 80 ? 'text-emerald-600 dark:text-emerald-400' : hostStats.avgAttendance >= 60 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>{hostStats.avgAttendance}%</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* ── AI Insights ─────────────────────────── */}
                   {analytics.insights.length > 0 && (

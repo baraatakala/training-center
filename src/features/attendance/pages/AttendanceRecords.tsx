@@ -20,6 +20,7 @@ import type { ChartTab, ChartCaptureHandle } from '@/features/attendance/compone
 const AttendanceCharts = lazy(() => import('@/features/attendance/components/AttendanceCharts'));
 const AdvancedExportBuilder = lazy(() => import('@/features/exports/components/AdvancedExportBuilder').then((module) => ({ default: module.AdvancedExportBuilder })));
 const LocationMap = lazy(() => import('@/features/attendance/components/LocationMap').then((module) => ({ default: module.LocationMap })));
+const FeedbackAnalytics = lazy(() => import('@/features/feedback/pages/FeedbackAnalytics').then((module) => ({ default: module.FeedbackAnalytics })));
 
 interface AttendanceRecord {
   attendance_id: string;
@@ -206,10 +207,12 @@ export const AttendanceRecords = () => {
 
   // Advanced Export Builder state
   const [showAdvancedExport, setShowAdvancedExport] = useState(false);
-  const [activeSection, setActiveSection] = useState<'records' | 'analytics'>(() => {
+  const [activeSection, setActiveSection] = useState<'records' | 'analytics' | 'feedback'>(() => {
     try {
+      const urlTab = new URLSearchParams(window.location.search).get('tab');
+      if (urlTab && ['records', 'analytics', 'feedback'].includes(urlTab)) return urlTab as 'records' | 'analytics' | 'feedback';
       const saved = localStorage.getItem('attendance_activeSection');
-      if (saved && ['records', 'analytics'].includes(saved)) return saved as 'records' | 'analytics';
+      if (saved && ['records', 'analytics', 'feedback'].includes(saved)) return saved as 'records' | 'analytics' | 'feedback';
       // Migrate legacy 'matrix' selection → analytics
       if (saved === 'matrix') return 'analytics';
     } catch { /* ignore */ }
@@ -938,6 +941,8 @@ export const AttendanceRecords = () => {
     exportAnalyticsDesc: 'تنزيل التقارير أو تهيئة الحقول المعروضة في الجداول أدناه',
     exporting: 'جاري التصدير...',
     studentPerformance: '🎓 تحليلات أداء الطلاب',
+    feedbackAnalytics: '💬 تحليلات التغذية الراجعة',
+    studentResponses: 'ردود الطلاب',
     attendanceByDate: '📅 الحضور حسب التاريخ',
     hostAnalyticsTitle: '🏠 تحليلات المضيف',
     specAnalyticsTitle: '🎓 تحليلات التخصصات',
@@ -1062,6 +1067,8 @@ export const AttendanceRecords = () => {
     exportAnalyticsDesc: 'Download reports or configure fields shown in tables below',
     exporting: 'Exporting...',
     studentPerformance: '🎓 Student Performance Analytics',
+    feedbackAnalytics: '💬 Feedback Analytics',
+    studentResponses: 'Student Responses',
     attendanceByDate: '📅 Attendance by Date',
     hostAnalyticsTitle: '🏠 Host Analytics',
     specAnalyticsTitle: '🎓 Specialization Analytics',
@@ -5090,6 +5097,7 @@ export const AttendanceRecords = () => {
           {([
             { key: 'records' as const, icon: '📋', label: t.attendanceRecords, desc: t.totalRecords },
             { key: 'analytics' as const, icon: '📊', label: t.studentPerformance, desc: t.summaryStatistics },
+            { key: 'feedback' as const, icon: '💬', label: t.feedbackAnalytics, desc: t.studentResponses },
           ]).map(tab => (
             <button
               key={tab.key}
@@ -6522,6 +6530,13 @@ export const AttendanceRecords = () => {
           </div>
           )}
         </div>
+      )}
+
+      {/* Feedback Analytics Tab */}
+      {activeSection === 'feedback' && (
+        <Suspense fallback={<div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-2 border-purple-500 border-t-transparent" /></div>}>
+          <FeedbackAnalytics embedded />
+        </Suspense>
       )}
 
 
