@@ -3905,10 +3905,11 @@ export const AttendanceRecords = () => {
       const excusedCount = excusedRecords.length;
       const lateCount = lateRecords.length;
       
-      // Only consider students who were enrolled on or before this date
-      // Get students who have any record (enrolled) on or before this date
+      // Only consider students enrolled in the SAME session(s) as this date
+      const dateSessionIds = new Set(dateRecords.map(r => r.session_id));
+      const sessionScopedRecords = analyticsRecords.filter(r => dateSessionIds.has(r.session_id));
       const enrolledStudentsByDate = new Set(
-        analyticsRecords
+        sessionScopedRecords
           .filter(r => r.attendance_date <= date)
           .map(r => r.student_id)
       );

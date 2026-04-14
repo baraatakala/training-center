@@ -113,24 +113,41 @@ export const attendanceService = {
       .order('created_at', { ascending: false });
   },
 
-  // Get class-wide attendance stats for specific hosted date+session pairs
-  async getHostAttendanceStats(hostedDateSessions: Array<{ date: string; sessionId: string }>) {
-    if (hostedDateSessions.length === 0) return { data: { hostCount: 0, avgAttendance: 0 }, error: null };
+  // Get class-wide attendance stats for dates hosted at a given address
+  async getHostAttendanceStats(hostAddress: string) {
+    // Step 1: Find dates+sessions where this address was the host
+    const { data: hostRecords, error: e1 } = await supabase
+      .from(Tables.ATTENDANCE)
+      .select('attendance_date, session_id')
+      .eq('host_address', hostAddress);
 
-    const dates = [...new Set(hostedDateSessions.map(p => p.date))];
-    const sessionIds = [...new Set(hostedDateSessions.map(p => p.sessionId))];
-    const validPairs = new Set(hostedDateSessions.map(p => `${p.date}|${p.sessionId}`));
+    if (e1 || !hostRecords || hostRecords.length === 0)
+      return { data: { hostCount: 0, avgAttendance: 0 }, error: null };
 
-    const { data, error } = await supabase
+    const pairSet = new Set<string>();
+    const dates: string[] = [];
+    const sessionIds: string[] = [];
+    for (const r of hostRecords) {
+      const key = `${r.attendance_date}|${r.session_id}`;
+      if (!pairSet.has(key)) {
+        pairSet.add(key);
+        if (!dates.includes(r.attendance_date)) dates.push(r.attendance_date);
+        if (!sessionIds.includes(r.session_id)) sessionIds.push(r.session_id);
+      }
+    }
+
+    // Step 2: Get ALL attendance records for those dates+sessions
+    // (includes absent students whose host_address is null)
+    const { data: allRecords, error: e2 } = await supabase
       .from(Tables.ATTENDANCE)
       .select('attendance_date, session_id, status')
       .in('attendance_date', dates)
       .in('session_id', sessionIds);
 
-    if (error || !data) return { data: null, error };
+    if (e2 || !allRecords) return { data: null, error: e2 };
 
-    // Filter to exact date+session pairs to avoid cross-session contamination
-    const filtered = data.filter(r => validPairs.has(`${r.attendance_date}|${r.session_id}`));
+    // Filter to exact date+session pairs
+    const filtered = allRecords.filter(r => pairSet.has(`${r.attendance_date}|${r.session_id}`));
 
     const dateMap = new Map<string, { present: number; accountable: number }>();
     for (const r of filtered) {

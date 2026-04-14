@@ -120,16 +120,12 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
       // Load host stats if student has an address
       if (student.address) {
         const loadedAtt = (attRes.data as AttendanceRecord[]) || [];
-        const hostedPairs = loadedAtt
-          .filter(r => r.host_address && r.host_address === student.address && r.session_id)
-          .map(r => ({ date: r.attendance_date, sessionId: r.session_id! }));
-        const uniquePairs = Array.from(
-          new Map(hostedPairs.map(p => [`${p.date}|${p.sessionId}`, p])).values()
-        );
-        if (uniquePairs.length > 0) {
-          const hostRes = await attendanceService.getHostAttendanceStats(uniquePairs);
-          if (!cancelled && hostRes.data) setHostStats(hostRes.data);
-        }
+        // Use the exact host_address string from a DB record to avoid encoding mismatches
+        const dbHostAddress = loadedAtt.find(r =>
+          r.host_address && r.host_address.trim() === student.address?.trim()
+        )?.host_address || student.address;
+        const hostRes = await attendanceService.getHostAttendanceStats(dbHostAddress);
+        if (!cancelled && hostRes.data) setHostStats(hostRes.data);
       }
 
       setLoading(false);
