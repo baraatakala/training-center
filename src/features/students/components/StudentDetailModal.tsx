@@ -74,6 +74,9 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [exportSections, setExportSections] = useState<ExportSection[]>(['overview', 'attendance', 'certificates']);
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
+  const [filterStatus, setFilterStatus] = useState<string>('');
+  const [filterDateFrom, setFilterDateFrom] = useState<string>('');
+  const [filterDateTo, setFilterDateTo] = useState<string>('');
   const [hostStats, setHostStats] = useState<{ hostCount: number; avgAttendance: number } | null>(null);
   const { isTeacher } = useIsTeacher();
 
@@ -149,13 +152,25 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
   // ─── Full Analytics Engine (mirrors AttendanceRecords calculateAnalytics) ──
   // Filter attendance by selected session (includes clones of selected root)
   const filteredAttendance = useMemo(() => {
-    if (!selectedSessionId) return attendance;
-    const groupIds = sessionGroupMap[selectedSessionId] ?? [selectedSessionId];
-    return attendance.filter(a => {
-      const sid = unwrap(a.session)?.session_id;
-      return sid ? groupIds.includes(sid) : false;
-    });
-  }, [attendance, selectedSessionId, sessionGroupMap]);
+    let result = attendance;
+    if (selectedSessionId) {
+      const groupIds = sessionGroupMap[selectedSessionId] ?? [selectedSessionId];
+      result = result.filter(a => {
+        const sid = unwrap(a.session)?.session_id;
+        return sid ? groupIds.includes(sid) : false;
+      });
+    }
+    if (filterStatus) {
+      result = result.filter(a => a.status === filterStatus);
+    }
+    if (filterDateFrom) {
+      result = result.filter(a => a.attendance_date >= filterDateFrom);
+    }
+    if (filterDateTo) {
+      result = result.filter(a => a.attendance_date <= filterDateTo);
+    }
+    return result;
+  }, [attendance, selectedSessionId, sessionGroupMap, filterStatus, filterDateFrom, filterDateTo]);
 
   const analytics = useMemo(() => {
     if (filteredAttendance.length === 0) return null;
@@ -546,16 +561,40 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
       insights.push({ text: `Limited data: only ${accountable} accountable sessions — metrics may not reflect true patterns`, textAr: `بيانات محدودة: ${accountable} جلسات محاسبة فقط — المؤشرات قد لا تعكس الأنماط الحقيقية`, type: 'info', priority: 45 });
     }
 
-    // ── O. Check-in Method Analysis ──
-    const methods: Record<string, number> = {};
-    for (const r of unique) {
+    // ── O. Check-in Method × Lateness Correlation ──
+    const methodStats: Record<string, { count: number; lateCount: number; totalLateMin: number }> = {};
+    for (const r of unique.filter(a => a.status === 'on time' || a.status === 'late')) {
       const m = r.check_in_method || 'unknown';
-      methods[m] = (methods[m] || 0) + 1;
+      if (!methodStats[m]) methodStats[m] = { count: 0, lateCount: 0, totalLateMin: 0 };
+      methodStats[m].count++;
+      if (r.status === 'late') {
+        methodStats[m].lateCount++;
+        methodStats[m].totalLateMin += (r.late_minutes || 0);
+      }
     }
-    const methodEntries = Object.entries(methods).sort((a, b) => b[1] - a[1]);
-    if (methodEntries.length > 1 && methodEntries[0][1] < total * 0.9) {
-      const primary = methodEntries[0];
-      insights.push({ text: `Mixed check-in methods: ${primary[0].replace('_', ' ')} (${primary[1]}/${total}), ${methodEntries[1][0].replace('_', ' ')} (${methodEntries[1][1]}/${total})`, textAr: `طرق تسجيل متنوعة: ${primary[0].replace('_', ' ')} (${primary[1]}/${total})، ${methodEntries[1][0].replace('_', ' ')} (${methodEntries[1][1]}/${total})`, type: 'info', priority: 42 });
+    const methodKeys = Object.keys(methodStats).filter(k => methodStats[k].count >= 3);
+    if (methodKeys.length >= 2) {
+      // Find method with highest avg lateness
+      let worstMethod = methodKeys[0], bestMethod = methodKeys[0];
+      for (const k of methodKeys) {
+        const avgLate = methodStats[k].lateCount > 0 ? methodStats[k].totalLateMin / methodStats[k].lateCount : 0;
+        const bestAvg = methodStats[bestMethod].lateCount > 0 ? methodStats[bestMethod].totalLateMin / methodStats[bestMethod].lateCount : 0;
+        const worstAvg = methodStats[worstMethod].lateCount > 0 ? methodStats[worstMethod].totalLateMin / methodStats[worstMethod].lateCount : 0;
+        if (avgLate > worstAvg) worstMethod = k;
+        if (avgLate < bestAvg) bestMethod = k;
+      }
+      const worstAvgLate = methodStats[worstMethod].lateCount > 0 ? Math.round(methodStats[worstMethod].totalLateMin / methodStats[worstMethod].lateCount) : 0;
+      const bestAvgLate = methodStats[bestMethod].lateCount > 0 ? Math.round(methodStats[bestMethod].totalLateMin / methodStats[bestMethod].lateCount) : 0;
+      if (worstAvgLate > bestAvgLate + 10 && worstMethod !== bestMethod) {
+        insights.push({ text: `Check-in method disparity: "${worstMethod.replace('_', ' ')}" sessions avg ${worstAvgLate}min late vs "${bestMethod.replace('_', ' ')}" at ${bestAvgLate}min — possible process delay`, textAr: `تفاوت طريقة التسجيل: جلسات "${worstMethod.replace('_', ' ')}" بمتوسط ${worstAvgLate} دقيقة تأخر مقابل "${bestMethod.replace('_', ' ')}" بـ ${bestAvgLate} دقيقة — قد يكون تأخر إجرائي`, type: 'warning', priority: 72 });
+      }
+    } else if (methodKeys.length === 1 && methodStats[methodKeys[0]].lateCount >= 3) {
+      const m = methodKeys[0];
+      const avgLate = Math.round(methodStats[m].totalLateMin / methodStats[m].lateCount);
+      const lateRate = Math.round((methodStats[m].lateCount / methodStats[m].count) * 100);
+      if (avgLate >= 15) {
+        insights.push({ text: `All check-ins via "${m.replace('_', ' ')}" — ${lateRate}% late rate with avg ${avgLate}min tardiness`, textAr: `كل التسجيلات عبر "${m.replace('_', ' ')}" — ${lateRate}% نسبة تأخر بمتوسط ${avgLate} دقيقة`, type: 'info', priority: 48 });
+      }
     }
 
     // ── P. Late Duration Trend (worsening vs improving tardiness) ──
@@ -595,13 +634,22 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
       }
     }
 
-    // ── S. Post-Absence Recovery Analysis ──
+    // ── S. Post-Absence Recovery + Cascade Rate ──
     if (absent >= 1 && present >= 3) {
-      // Find each absence and check what happened in the next 3 accountable sessions
       const sortedAccountable = [...accountableRecords].sort((a, b) => a.attendance_date.localeCompare(b.attendance_date));
       let recoveries = 0, totalRecoveryOps = 0;
+      let cascades = 0, cascadeOps = 0;
+      let lateAfterAbsence = 0, presentAfterAbsence = 0;
       for (let i = 0; i < sortedAccountable.length; i++) {
         if (sortedAccountable[i].status === 'absent') {
+          // Cascade detection: does the next session also result in absence?
+          if (i + 1 < sortedAccountable.length) {
+            cascadeOps++;
+            if (sortedAccountable[i + 1].status === 'absent') cascades++;
+            else if (sortedAccountable[i + 1].status === 'late') lateAfterAbsence++;
+            else if (sortedAccountable[i + 1].status === 'on time') presentAfterAbsence++;
+          }
+          // Full recovery: next 3 sessions all present?
           const next3 = sortedAccountable.slice(i + 1, i + 4);
           if (next3.length >= 2) {
             totalRecoveryOps++;
@@ -610,11 +658,30 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
           }
         }
       }
+      // Cascade rate insight
+      if (cascadeOps >= 2) {
+        const cascadeRate = Math.round((cascades / cascadeOps) * 100);
+        if (cascadeRate >= 60) {
+          insights.push({ text: `Absence cascade pattern: ${cascadeRate}% of absences lead to another absence (${cascades}/${cascadeOps}) — single absences rarely stay isolated`, textAr: `نمط تسلسل الغياب: ${cascadeRate}% من الغيابات تؤدي لغياب آخر (${cascades}/${cascadeOps}) — الغيابات المفردة نادراً ما تبقى معزولة`, type: 'danger', priority: 88 });
+        } else if (cascadeRate >= 40) {
+          insights.push({ text: `Moderate cascade risk: ${cascadeRate}% of absences lead to another (${cascades}/${cascadeOps}) — partial recovery ability`, textAr: `خطر تسلسل متوسط: ${cascadeRate}% من الغيابات تؤدي لغياب آخر (${cascades}/${cascadeOps}) — قدرة تعافٍ جزئية`, type: 'warning', priority: 76 });
+        } else if (cascadeRate <= 15 && cascadeOps >= 3) {
+          insights.push({ text: `Strong resilience: only ${cascadeRate}% cascade rate — bounces back after absences consistently`, textAr: `مرونة قوية: ${cascadeRate}% فقط نسبة التسلسل — يعود بعد الغياب باستمرار`, type: 'positive', priority: 74 });
+        }
+      }
+      // Post-absence lateness signal
+      if (lateAfterAbsence + presentAfterAbsence >= 3) {
+        const lateReentryRate = Math.round((lateAfterAbsence / (lateAfterAbsence + presentAfterAbsence)) * 100);
+        if (lateReentryRate >= 60) {
+          insights.push({ text: `Late re-entry pattern: ${lateReentryRate}% of returns after absence are late (${lateAfterAbsence}/${lateAfterAbsence + presentAfterAbsence}) — gradual re-engagement signal`, textAr: `نمط عودة متأخرة: ${lateReentryRate}% من العودات بعد الغياب متأخرة (${lateAfterAbsence}/${lateAfterAbsence + presentAfterAbsence}) — إشارة إعادة انخراط تدريجية`, type: 'warning', priority: 71 });
+        }
+      }
+      // Full recovery pattern
       if (totalRecoveryOps > 0) {
         if (recoveries === totalRecoveryOps) {
-          insights.push({ text: `Strong recovery pattern: returned to full attendance after every absence (${recoveries}/${totalRecoveryOps} recoveries)`, textAr: `نمط تعافٍ قوي: عاد للحضور الكامل بعد كل غياب (${recoveries}/${totalRecoveryOps} تعافٍ)`, type: 'positive', priority: 74 });
+          insights.push({ text: `Full recovery pattern: maintained attendance after every absence (${recoveries}/${totalRecoveryOps})`, textAr: `نمط تعافٍ كامل: حافظ على الحضور بعد كل غياب (${recoveries}/${totalRecoveryOps})`, type: 'positive', priority: 73 });
         } else if (recoveries === 0 && totalRecoveryOps >= 2) {
-          insights.push({ text: `Poor recovery: failed to maintain attendance after any absence (0/${totalRecoveryOps}) — absences tend to cascade`, textAr: `تعافٍ ضعيف: لم يحافظ على الحضور بعد أي غياب (0/${totalRecoveryOps}) — الغياب يميل للتسلسل`, type: 'danger', priority: 80 });
+          insights.push({ text: `No recovery: failed to sustain 3+ sessions after any absence (0/${totalRecoveryOps}) — absences trigger prolonged disengagement`, textAr: `لا تعافٍ: لم يستطع الاستمرار 3+ جلسات بعد أي غياب (0/${totalRecoveryOps}) — الغياب يسبب انقطاع مطوّل`, type: 'danger', priority: 82 });
         }
       }
     }
@@ -656,6 +723,52 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
       const potentialScore = Math.round(potentialRate * 0.85 * 10) / 10; // rough estimate
       if (potentialScore > weightedScore + 5) {
         insights.push({ text: `Potential unlocked: eliminating ${absent} absences would raise attendance to ${potentialRate}% — estimated ~${Math.round(potentialScore - weightedScore)}pt score gain`, textAr: `إمكانية مفتوحة: إزالة ${absent} غيابات سترفع الحضور إلى ${potentialRate}% — تقدير ~${Math.round(potentialScore - weightedScore)} نقطة إضافية`, type: 'info', priority: 59 });
+      }
+    }
+
+    // ── W. Attendance Momentum (exponentially weighted recent sessions) ──
+    if (accountable >= 8) {
+      // Weight recent sessions more heavily: weight = 2^(i/n) for position i in sorted list
+      const sorted = [...accountableRecords].sort((a, b) => a.attendance_date.localeCompare(b.attendance_date));
+      let weightedSum = 0, totalWeight = 0;
+      for (let i = 0; i < sorted.length; i++) {
+        const w = Math.pow(2, i / sorted.length);
+        totalWeight += w;
+        if (sorted[i].status === 'on time') weightedSum += w;
+        else if (sorted[i].status === 'late') weightedSum += w * 0.7;
+      }
+      const momentum = Math.round((weightedSum / totalWeight) * 100);
+      const diff = momentum - attendanceRate;
+      if (diff >= 15) {
+        insights.push({ text: `Positive momentum: recent trajectory (${momentum}%) significantly outpaces overall ${attendanceRate}% — upswing confirmed`, textAr: `زخم إيجابي: المسار الأخير (${momentum}%) يتفوق بشكل ملحوظ على الإجمالي ${attendanceRate}% — صعود مؤكد`, type: 'positive', priority: 85 });
+      } else if (diff <= -15) {
+        insights.push({ text: `Negative momentum: recent trajectory (${momentum}%) falling behind overall ${attendanceRate}% — early warning of decline`, textAr: `زخم سلبي: المسار الأخير (${momentum}%) يتراجع عن الإجمالي ${attendanceRate}% — تحذير مبكر بالتراجع`, type: 'danger', priority: 87 });
+      }
+    }
+
+    // ── X. Seasonal/Holiday Dip Detection ──
+    if (accountable >= 10) {
+      const monthRates: { month: string; monthAr: string; rate: number; total: number }[] = [];
+      const mNameAr: Record<number, string> = { 0: 'يناير', 1: 'فبراير', 2: 'مارس', 3: 'أبريل', 4: 'مايو', 5: 'يونيو', 6: 'يوليو', 7: 'أغسطس', 8: 'سبتمبر', 9: 'أكتوبر', 10: 'نوفمبر', 11: 'ديسمبر' };
+      const mBuckets: Record<string, { present: number; total: number; monthIdx: number; year: number }> = {};
+      for (const r of accountableRecords) {
+        const d = new Date(`${r.attendance_date}T00:00:00`);
+        const key = `${d.getFullYear()}-${d.getMonth()}`;
+        if (!mBuckets[key]) mBuckets[key] = { present: 0, total: 0, monthIdx: d.getMonth(), year: d.getFullYear() };
+        mBuckets[key].total++;
+        if (r.status === 'on time' || r.status === 'late') mBuckets[key].present++;
+      }
+      for (const [, v] of Object.entries(mBuckets)) {
+        if (v.total >= 3) {
+          const rate = Math.round((v.present / v.total) * 100);
+          const mNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          monthRates.push({ month: `${mNames[v.monthIdx]} ${v.year}`, monthAr: `${mNameAr[v.monthIdx]} ${v.year}`, rate, total: v.total });
+        }
+      }
+      // Detect holiday dip: month with rate < 40% when overall is > 60%
+      const holidayDip = monthRates.find(m => m.rate < 40 && attendanceRate > 60);
+      if (holidayDip) {
+        insights.push({ text: `Holiday/seasonal dip detected: ${holidayDip.month} at ${holidayDip.rate}% (${holidayDip.total} sessions) — likely external factor, not behavioral`, textAr: `انخفاض موسمي/إجازة مكتشف بتاريخ ${holidayDip.monthAr}: ${holidayDip.rate}% (${holidayDip.total} جلسات) — عامل خارجي وليس سلوكي`, type: 'info', priority: 65 });
       }
     }
 
@@ -1158,6 +1271,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                               sections: exportSections,
                               attendanceRecords: attExport,
                               certificates: certExport,
+                              hostStats,
                             });
                           }}
                           className="mt-2 w-full text-[11px] px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-semibold"
@@ -1181,20 +1295,49 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
 
           ) : activeTab === 'attendance' ? (
             <div className="space-y-2">
-              {/* Session filter — root sessions only, clones grouped */}
-              {enrollments.length > 0 && (
-                <div className="flex items-center gap-2 mb-1">
-                  <label className="text-[11px] text-gray-400 shrink-0">Session:</label>
+              {/* ── Filters: Status, Date Range ────────────── */}
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                {/* Status filter */}
+                <select
+                  value={filterStatus}
+                  onChange={e => setFilterStatus(e.target.value)}
+                  className="text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1 text-gray-900 dark:text-white"
+                >
+                  <option value="">{arabicMode ? 'كل الحالات' : 'All Status'}</option>
+                  <option value="on time">{arabicMode ? 'في الوقت' : 'On Time'}</option>
+                  <option value="late">{arabicMode ? 'متأخر' : 'Late'}</option>
+                  <option value="absent">{arabicMode ? 'غائب' : 'Absent'}</option>
+                  <option value="excused">{arabicMode ? 'معذور' : 'Excused'}</option>
+                </select>
+
+                {/* Date from */}
+                <input
+                  type="date"
+                  value={filterDateFrom}
+                  onChange={e => setFilterDateFrom(e.target.value)}
+                  className="text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1 text-gray-900 dark:text-white"
+                  placeholder="From"
+                />
+                <span className="text-[10px] text-gray-400">→</span>
+                <input
+                  type="date"
+                  value={filterDateTo}
+                  onChange={e => setFilterDateTo(e.target.value)}
+                  className="text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1 text-gray-900 dark:text-white"
+                  placeholder="To"
+                />
+
+                {/* Session filter (show only if multiple sessions) */}
+                {Object.keys(sessionGroupMap).length > 1 && (
                   <select
                     value={selectedSessionId}
                     onChange={e => setSelectedSessionId(e.target.value)}
-                    className="text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1 text-gray-900 dark:text-white flex-1"
+                    className="text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1 text-gray-900 dark:text-white"
                   >
-                    <option value="">All Sessions</option>
+                    <option value="">{arabicMode ? 'كل الجلسات' : 'All Sessions'}</option>
                     {enrollments.filter(enr => {
                       const s = unwrap(enr.session) as { session_id: string; parent_session_id?: string | null } | undefined;
                       if (!s?.session_id) return false;
-                      // Hide clones whose parent is also in the list
                       if (s.parent_session_id) {
                         return !enrollments.some(e2 => unwrap(e2.session)?.session_id === s.parent_session_id);
                       }
@@ -1203,21 +1346,27 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                       const s = unwrap(enr.session);
                       if (!s?.session_id) return null;
                       const course = unwrap(s.course);
-                      const cloneCount = (sessionGroupMap[s.session_id]?.length ?? 1) - 1;
                       return (
                         <option key={s.session_id} value={s.session_id}>
-                          {course?.course_name || '—'} ({s.start_date} → {s.end_date}){cloneCount > 0 ? ` +${cloneCount} clone${cloneCount > 1 ? 's' : ''}` : ''}
+                          {course?.course_name || '—'}
                         </option>
                       );
                     })}
                   </select>
-                  {selectedSessionId && (
-                    <button
-                      onClick={() => setSelectedSessionId('')}
-                      className="text-[11px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                    >✕</button>
-                  )}
-                </div>
+                )}
+
+                {/* Clear all */}
+                {(filterStatus || filterDateFrom || filterDateTo || selectedSessionId) && (
+                  <button
+                    onClick={() => { setFilterStatus(''); setFilterDateFrom(''); setFilterDateTo(''); setSelectedSessionId(''); }}
+                    className="text-[10px] text-gray-400 hover:text-red-500 transition-colors"
+                  >✕ {arabicMode ? 'مسح' : 'Clear'}</button>
+                )}
+              </div>
+
+              {/* Filter result count */}
+              {(filterStatus || filterDateFrom || filterDateTo) && (
+                <p className="text-[10px] text-gray-400">{filteredAttendance.length} of {attendance.length} records</p>
               )}
               {filteredAttendance.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-8">{t('No attendance records')}</p>

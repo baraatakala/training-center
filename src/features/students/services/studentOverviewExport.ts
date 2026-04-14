@@ -72,6 +72,7 @@ interface ExportOptions {
   sections: ExportSection[];
   attendanceRecords?: AttendanceExportRecord[];
   certificates?: CertificateExportRecord[];
+  hostStats?: { hostCount: number; avgAttendance: number } | null;
 }
 
 // Color constants (RGB tuples)
@@ -107,7 +108,7 @@ function sanitizeForPdf(text: string): string {
 }
 
 export async function exportStudentOverviewPDF(options: ExportOptions): Promise<void> {
-  const { student, analytics, enrollments, riskLevel, photoDataUrl, sections, attendanceRecords, certificates } = options;
+  const { student, analytics, enrollments, riskLevel, photoDataUrl, sections, attendanceRecords, certificates, hostStats } = options;
   const { default: jsPDF } = await import('jspdf');
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -398,6 +399,49 @@ export async function exportStudentOverviewPDF(options: ExportOptions): Promise<
   y += dnaH + 4;
 
   // ══════════════════════════════════════════════════════════════
+  // HOST ACTIVITY (if student has hosted sessions)
+  // ══════════════════════════════════════════════════════════════
+  if (hostStats && hostStats.hostCount > 0) {
+    checkPageBreak(22);
+    const hostH = 18;
+    drawRoundedRect(margin, y, contentW, hostH, 3, [236, 254, 255], [165, 243, 252]);
+
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(14, 116, 144);
+    doc.text('HOST ACTIVITY', margin + 4, y + 5.5);
+
+    // Two stat boxes
+    const boxW = (contentW - 16) / 2;
+    const boxY = y + 8;
+
+    // Times Hosted
+    drawRoundedRect(margin + 4, boxY, boxW, 8, 2, COLORS.white);
+    doc.setFontSize(5.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...COLORS.gray);
+    doc.text('TIMES HOSTED', margin + 4 + boxW / 2, boxY + 3, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(14, 116, 144);
+    doc.text(String(hostStats.hostCount), margin + 4 + boxW / 2, boxY + 7, { align: 'center' });
+
+    // Avg Attendance
+    drawRoundedRect(margin + 4 + boxW + 8, boxY, boxW, 8, 2, COLORS.white);
+    doc.setFontSize(5.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...COLORS.gray);
+    doc.text('AVG ATTENDANCE', margin + 4 + boxW + 8 + boxW / 2, boxY + 3, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    const hostAttColor = getScoreColor(hostStats.avgAttendance);
+    doc.setTextColor(...hostAttColor);
+    doc.text(`${hostStats.avgAttendance}%`, margin + 4 + boxW + 8 + boxW / 2, boxY + 7, { align: 'center' });
+
+    y += hostH + 4;
+  }
+
+  // ══════════════════════════════════════════════════════════════
   // AI INSIGHTS (the crown jewel)
   // ══════════════════════════════════════════════════════════════
   const insightItems = analytics.insights;
@@ -564,106 +608,189 @@ export async function exportStudentOverviewPDF(options: ExportOptions): Promise<
   }
 
   // ══════════════════════════════════════════════════════════════
-  // CERTIFICATES
+  // CERTIFICATES — Beautiful certificate-style cards matching preview
   // ══════════════════════════════════════════════════════════════
   if (sections.includes('certificates') && certificates && certificates.length > 0) {
-    // Only issued/draft certificates, skip revoked
     const validCerts = certificates.filter(c => c.status !== 'revoked');
     if (validCerts.length > 0) {
-      // New page if previous sections were included
+      // Each certificate gets its own page in landscape-style mini-view
       if (sections.includes('overview') || sections.includes('attendance')) {
         doc.addPage();
         y = margin;
       }
 
-      // Re-render student name header for certificate page
-      if (!sections.includes('overview')) {
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(...COLORS.darkGray);
-        doc.text(sanitizeForPdf(student.name || 'Unknown'), margin, y + 4);
-        y += 8;
-      }
+      validCerts.forEach((cert, certIdx) => {
+        if (certIdx > 0) { doc.addPage(); y = margin; }
 
-      drawRoundedRect(margin, y, contentW, 8, 3, [255, 251, 235], [220, 200, 150]);
-      doc.setFontSize(7);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(180, 83, 9);
-      doc.text(`CERTIFICATES (${validCerts.length})`, margin + 4, y + 5.5);
-      y += 11;
+        const certH = 110;
+        const certW = contentW;
+        const accentColor: [number, number, number] = cert.status === 'issued' ? [30, 64, 175] : [180, 83, 9];
+        const accentLight: [number, number, number] = cert.status === 'issued' ? [239, 246, 255] : [255, 251, 235];
 
-      validCerts.forEach(cert => {
-        const cardH = 22;
-        checkPageBreak(cardH + 4);
-        drawRoundedRect(margin, y, contentW, cardH, 2, COLORS.white, [230, 230, 230]);
+        // ── Outer frame with double-border effect ──
+        drawRoundedRect(margin, y, certW, certH, 4, COLORS.white, accentColor);
+        // Inner border (thinner, inset)
+        doc.setDrawColor(...accentColor);
+        doc.setLineWidth(0.2);
+        doc.roundedRect(margin + 3, y + 3, certW - 6, certH - 6, 3, 3, 'S');
 
-        // Status badge
+        // ── Corner decorations ──
+        const corners = [
+          { x: margin + 6, y: y + 6, bTop: true, bLeft: true },
+          { x: margin + certW - 6, y: y + 6, bTop: true, bLeft: false },
+          { x: margin + 6, y: y + certH - 6, bTop: false, bLeft: true },
+          { x: margin + certW - 6, y: y + certH - 6, bTop: false, bLeft: false },
+        ];
+        doc.setLineWidth(0.5);
+        doc.setDrawColor(accentColor[0], accentColor[1], accentColor[2]);
+        for (const c of corners) {
+          const len = 12;
+          if (c.bTop) doc.line(c.x, c.y, c.x + (c.bLeft ? len : -len), c.y);
+          else doc.line(c.x, c.y, c.x + (c.bLeft ? len : -len), c.y);
+          if (c.bLeft) doc.line(c.x, c.y, c.x, c.y + (c.bTop ? len : -len));
+          else doc.line(c.x, c.y, c.x, c.y + (c.bTop ? len : -len));
+        }
+
+        const cx = margin + certW / 2;
+        let cy = y + 14;
+
+        // ── Status badge (top-right) ──
         const statusBg: [number, number, number] = cert.status === 'issued' ? [220, 252, 231] : [254, 249, 195];
         const statusFg: [number, number, number] = cert.status === 'issued' ? [5, 150, 105] : [180, 83, 9];
-        const statusText = cert.status.toUpperCase();
-        const sW = 18;
-        drawRoundedRect(margin + contentW - sW - 4, y + 2, sW, 5, 2, statusBg);
-        doc.setFontSize(5.5);
+        const statusLabel = cert.status.toUpperCase();
+        const badgeW = 20;
+        drawRoundedRect(margin + certW - badgeW - 8, y + 6, badgeW, 5, 2, statusBg);
+        doc.setFontSize(5);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(...statusFg);
-        doc.text(statusText, margin + contentW - 4 - sW / 2, y + 5.5, { align: 'center' });
+        doc.text(statusLabel, margin + certW - 8 - badgeW / 2, y + 9.5, { align: 'center' });
 
-        // Course name
-        doc.setFontSize(9);
+        // ── Icon ──
+        doc.setFontSize(16);
+        doc.text(cert.status === 'issued' ? '\u{1F4DC}' : '\u{1F4D1}', cx, cy, { align: 'center' });
+        cy += 8;
+
+        // ── CERTIFICATE title ──
+        doc.setFontSize(18);
         doc.setFont('helvetica', 'bold');
-        doc.setTextColor(...COLORS.darkGray);
-        doc.text(sanitizeForPdf(cert.courseName), margin + 4, y + 6);
+        doc.setTextColor(...accentColor);
+        doc.text('CERTIFICATE', cx, cy, { align: 'center' });
+        cy += 5;
 
-        // Certificate number
-        doc.setFontSize(6);
+        // ── "of completion" subtitle ──
+        doc.setFontSize(7);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(...COLORS.gray);
-        doc.text(cert.certificate_number, margin + 4, y + 10.5);
+        doc.text('of Completion', cx, cy, { align: 'center' });
+        cy += 4;
 
-        // Scores row
-        let sx = margin + 4;
-        const scoreY = y + 15;
+        // ── Decorative divider ──
+        const divW = 40;
+        doc.setDrawColor(...accentColor);
+        doc.setLineWidth(0.3);
+        doc.line(cx - divW, cy, cx - 3, cy);
+        doc.line(cx + 3, cy, cx + divW, cy);
+        // Diamond center
+        doc.setFillColor(...accentColor);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(5);
+        doc.setTextColor(...accentColor);
+        doc.text('\u2726', cx, cy + 1, { align: 'center' });
+        cy += 6;
+
+        // ── Photo circle (if available and this is the student's cert) ──
+        if (photoDataUrl) {
+          try {
+            doc.addImage(photoDataUrl, 'JPEG', cx - 8, cy - 2, 16, 16);
+          } catch {
+            // Skip photo on error
+          }
+          cy += 16;
+        } else {
+          // Initials circle
+          doc.setFillColor(...accentColor);
+          doc.circle(cx, cy + 4, 6, 'F');
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(255, 255, 255);
+          const initials = (student.name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+          doc.text(initials, cx, cy + 5, { align: 'center', baseline: 'middle' });
+          cy += 13;
+        }
+
+        // ── Student name ──
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...COLORS.darkGray);
+        doc.text(sanitizeForPdf(student.name || 'Unknown'), cx, cy, { align: 'center' });
+        cy += 6;
+
+        // ── Course name ──
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...COLORS.gray);
+        doc.text(sanitizeForPdf(cert.courseName), cx, cy, { align: 'center' });
+        cy += 6;
+
+        // ── Score & Attendance badges ──
+        let bx = cx - 30;
         if (cert.final_score != null) {
-          doc.setFontSize(6);
-          doc.setFont('helvetica', 'normal');
-          doc.setTextColor(...COLORS.gray);
-          doc.text('Score:', sx, scoreY);
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(...getScoreColor(cert.final_score));
-          doc.text(`${cert.final_score}%`, sx + 12, scoreY);
-          sx += 28;
-        }
-        if (cert.attendance_rate != null) {
-          doc.setFont('helvetica', 'normal');
-          doc.setTextColor(...COLORS.gray);
-          doc.text('Attendance:', sx, scoreY);
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(...getScoreColor(cert.attendance_rate));
-          doc.text(`${cert.attendance_rate}%`, sx + 20, scoreY);
-          sx += 38;
-        }
-        if (cert.issued_at) {
-          doc.setFont('helvetica', 'normal');
-          doc.setTextColor(...COLORS.gray);
-          doc.text('Issued:', sx, scoreY);
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(...COLORS.darkGray);
-          doc.text(new Date(cert.issued_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }), sx + 13, scoreY);
-        }
-
-        // Signer
-        if (cert.signature_name) {
+          drawRoundedRect(bx, cy - 2, 25, 7, 2, accentLight);
           doc.setFontSize(5.5);
           doc.setFont('helvetica', 'normal');
-          doc.setTextColor(140, 140, 140);
-          const sigText = `Signed by: ${sanitizeForPdf(cert.signature_name)}${cert.signature_title ? ` — ${sanitizeForPdf(cert.signature_title)}` : ''}`;
-          doc.text(sigText, margin + 4, y + 19.5);
+          doc.setTextColor(...COLORS.gray);
+          doc.text('Score', bx + 12.5, cy, { align: 'center' });
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(...getScoreColor(cert.final_score));
+          doc.text(`${cert.final_score}%`, bx + 12.5, cy + 4, { align: 'center' });
+          bx += 28;
+        }
+        if (cert.attendance_rate != null) {
+          drawRoundedRect(bx, cy - 2, 25, 7, 2, accentLight);
+          doc.setFontSize(5.5);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(...COLORS.gray);
+          doc.text('Attendance', bx + 12.5, cy, { align: 'center' });
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(...getScoreColor(cert.attendance_rate));
+          doc.text(`${cert.attendance_rate}%`, bx + 12.5, cy + 4, { align: 'center' });
+        }
+        cy += 10;
+
+        // ── Issued date ──
+        if (cert.issued_at) {
+          doc.setFontSize(7);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(...COLORS.gray);
+          doc.text(new Date(cert.issued_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }), cx, cy, { align: 'center' });
+          cy += 5;
         }
 
-        y += cardH + 3;
-      });
+        // ── Signature block ──
+        if (cert.signature_name) {
+          cy += 2;
+          doc.setDrawColor(160, 160, 160);
+          doc.setLineWidth(0.3);
+          doc.line(cx - 25, cy, cx + 25, cy);
+          doc.setFontSize(7);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(...COLORS.darkGray);
+          doc.text(sanitizeForPdf(cert.signature_name), cx, cy + 4, { align: 'center' });
+          if (cert.signature_title) {
+            doc.setFontSize(5.5);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(...COLORS.gray);
+            doc.text(sanitizeForPdf(cert.signature_title), cx, cy + 7.5, { align: 'center' });
+          }
+        }
 
-      y += 3;
+        // ── Certificate number & verification ──
+        doc.setFontSize(5);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(170, 170, 170);
+        doc.text(`#${cert.certificate_number}`, margin + 8, y + certH - 6);
+        doc.text(`Generated ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}`, margin + certW - 8, y + certH - 6, { align: 'right' });
+      });
     }
   }
 
