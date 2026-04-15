@@ -73,6 +73,7 @@ interface ExportOptions {
   attendanceRecords?: AttendanceExportRecord[];
   certificates?: CertificateExportRecord[];
   hostStats?: { hostCount: number; avgAttendance: number } | null;
+  arabicMode?: boolean;
 }
 
 // Color constants (RGB tuples)
@@ -95,11 +96,11 @@ function getScoreColor(score: number): [number, number, number] {
   return COLORS.red;
 }
 
-/** Sanitize text for jsPDF — strip non-Latin characters, keep punctuation safe */
-function sanitizeForPdf(text: string): string {
+/** Sanitize text for jsPDF — fix special characters, preserve Arabic if font loaded */
+function sanitizeForPdf(text: string, arabicFontLoaded = false): string {
   if (!text) return '';
   // Replace em-dash, en-dash, smart quotes with ASCII equivalents
-  let safe = text
+  const safe = text
     .replace(/\u2014/g, ' -- ')   // em-dash → --
     .replace(/\u2013/g, '-')      // en-dash → -
     .replace(/\u2192/g, '->')     // →
@@ -108,24 +109,79 @@ function sanitizeForPdf(text: string): string {
     .replace(/\u2026/g, '...')    // ellipsis
     .replace(/[\u00B2]/g, '2')    // superscript 2
     .replace(/\u00B0/g, 'deg');   // degree
-  // Strip any remaining non-Latin chars (Arabic, emoji, CJK, etc.)
+  // If Arabic font is loaded, preserve Arabic characters
+  if (arabicFontLoaded) {
+    // Strip only emoji and control chars, keep Arabic + Latin
+    return safe.replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/[\uD800-\uDFFF]{2}|[\uD800-\uDFFF]/g, '').trim() || text;
+  }
+  // Fallback: strip non-Latin chars
   const hasNonLatin = /[^\u0020-\u024F\u1E00-\u1EFF]/.test(safe);
   if (!hasNonLatin) return safe;
   const latinParts = safe.replace(/[^\u0020-\u024F\u1E00-\u1EFF]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
   return latinParts || '(non-Latin text)';
 }
 
+/** Try to load an Arabic-capable font (Amiri) for jsPDF — returns base64 TTF */
+let cachedArabicFont: string | null | 'failed' = null;
+async function loadArabicFont(): Promise<string | null> {
+  if (cachedArabicFont === 'failed') return null;
+  if (cachedArabicFont) return cachedArabicFont;
+  try {
+    // Amiri Regular TTF from GitHub (lightweight Arabic font)
+    const response = await fetch(
+      'https://raw.githubusercontent.com/aliftype/amiri/main/Amiri-Regular.ttf'
+    );
+    if (!response.ok) { cachedArabicFont = 'failed'; return null; }
+    const buffer = await response.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    cachedArabicFont = btoa(binary);
+    return cachedArabicFont;
+  } catch {
+    cachedArabicFont = 'failed';
+    return null;
+  }
+}
+
 export async function exportStudentOverviewPDF(options: ExportOptions): Promise<void> {
-  const { student, analytics, enrollments, riskLevel, photoDataUrl, sections, attendanceRecords, certificates, hostStats } = options;
+  const { student, analytics, enrollments, riskLevel, photoDataUrl, sections, attendanceRecords, certificates, hostStats, arabicMode } = options;
   const { default: jsPDF } = await import('jspdf');
 
+  // Load Arabic font if in Arabic mode
+  let arabicFontLoaded = false;
+  let arabicFontBase64: string | null = null;
+  if (arabicMode) {
+    arabicFontBase64 = await loadArabicFont();
+  }
+
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+  // Register Arabic font if available
+  if (arabicFontBase64) {
+    doc.addFileToVFS('Amiri-Regular.ttf', arabicFontBase64);
+    doc.addFont('Amiri-Regular.ttf', 'Amiri', 'normal');
+    arabicFontLoaded = true;
+  }
+
   const pageW = 210;
   const margin = 15;
   const contentW = pageW - margin * 2;
   let y = margin;
 
   // ── Helper Functions ──────────────────────────────────────────
+  /** Sanitize and optionally set Arabic font for the given text */
+  const s = (text: string) => sanitizeForPdf(text, arabicFontLoaded);
+
+  /** Set font — use Amiri for Arabic text if available, otherwise helvetica */
+  const setFont = (style: 'normal' | 'bold' = 'normal') => {
+    if (arabicFontLoaded) {
+      doc.setFont('Amiri', 'normal'); // Amiri only has normal weight loaded
+    } else {
+      doc.setFont('helvetica', style);
+    }
+  };
+
   const drawRoundedRect = (x: number, yPos: number, w: number, h: number, r: number, fillColor?: [number, number, number], strokeColor?: [number, number, number]) => {
     if (fillColor) doc.setFillColor(...fillColor);
     if (strokeColor) { doc.setDrawColor(...strokeColor); doc.setLineWidth(0.3); }
@@ -187,9 +243,9 @@ export async function exportStudentOverviewPDF(options: ExportOptions): Promise<
   // Name and details
   const textX = margin + 32;
   doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
+  setFont('bold');
   doc.setTextColor(...COLORS.darkGray);
-  doc.text(sanitizeForPdf(student.name || 'Unknown'), textX, y + 10);
+  doc.text(s(student.name || 'Unknown'), textX, y + 10);
 
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
@@ -201,7 +257,7 @@ export async function exportStudentOverviewPDF(options: ExportOptions): Promise<
   let badgeX = textX;
   const badgeY = y + 22;
   if (student.specialization) {
-    const specText = sanitizeForPdf(student.specialization);
+    const specText = s(student.specialization);
     const specW = doc.getTextWidth(specText) + 6;
     drawRoundedRect(badgeX, badgeY, specW, 5, 2, [237, 233, 254]);
     doc.setFontSize(7);
@@ -210,7 +266,7 @@ export async function exportStudentOverviewPDF(options: ExportOptions): Promise<
     badgeX += specW + 3;
   }
   if (student.nationality) {
-    const natText = sanitizeForPdf(student.nationality);
+    const natText = s(student.nationality);
     const natW = doc.getTextWidth(natText) + 6;
     drawRoundedRect(badgeX, badgeY, natW, 5, 2, [229, 231, 235]);
     doc.setTextColor(...COLORS.gray);
@@ -457,7 +513,7 @@ export async function exportStudentOverviewPDF(options: ExportOptions): Promise<
     // Pre-calculate per-insight heights (accounting for text wrapping)
     doc.setFontSize(6.5);
     const insightMeasurements = insightItems.map(ins => {
-      const sanitized = sanitizeForPdf(ins.text);
+      const sanitized = s(arabicMode && ins.textAr ? ins.textAr : ins.text);
       const lines: string[] = doc.splitTextToSize(sanitized, contentW - 16);
       const lineH = lines.length > 1 ? 4 + (lines.length - 1) * 3 : 4;
       return { ins, lines, rowH: lineH + 3 };
@@ -491,7 +547,7 @@ export async function exportStudentOverviewPDF(options: ExportOptions): Promise<
 
       // Multi-line text
       doc.setFontSize(6.5);
-      doc.setFont('helvetica', 'normal');
+      setFont('normal');
       const textColor: [number, number, number] = ins.type === 'danger' ? [185, 28, 28] : ins.type === 'warning' ? [180, 83, 9] : ins.type === 'positive' ? [5, 150, 105] : [29, 78, 216];
       doc.setTextColor(...textColor);
       lines.forEach((line: string, li: number) => {
@@ -522,9 +578,9 @@ export async function exportStudentOverviewPDF(options: ExportOptions): Promise<
       doc.setFontSize(7);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(...COLORS.darkGray);
-      doc.text(sanitizeForPdf(e.courseName), margin + 4, ey);
+      doc.text(s(e.courseName), margin + 4, ey);
       doc.setTextColor(...COLORS.gray);
-      doc.text(sanitizeForPdf(e.teacherName), margin + contentW - 4, ey, { align: 'right' });
+      doc.text(s(e.teacherName), margin + contentW - 4, ey, { align: 'right' });
       ey += 5.5;
     }
 
@@ -591,7 +647,7 @@ export async function exportStudentOverviewPDF(options: ExportOptions): Promise<
 
       // Course
       doc.setTextColor(...COLORS.gray);
-      const courseText = sanitizeForPdf(rec.courseName || '—');
+      const courseText = s(rec.courseName || '—');
       const truncCourse = courseText.length > 30 ? courseText.slice(0, 28) + '..' : courseText;
       doc.text(truncCourse, rx, y + 3.8); rx += colWidths.course;
 
@@ -719,14 +775,14 @@ export async function exportStudentOverviewPDF(options: ExportOptions): Promise<
         doc.setFontSize(20);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(...COLORS.darkGray);
-        doc.text(sanitizeForPdf(student.name || 'Unknown'), cx, cy, { align: 'center' });
+        doc.text(s(student.name || 'Unknown'), cx, cy, { align: 'center' });
         cy += 10;
 
         // ── Course name ──
         doc.setFontSize(12);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(...COLORS.gray);
-        doc.text(sanitizeForPdf(cert.courseName), cx, cy, { align: 'center' });
+        doc.text(s(cert.courseName), cx, cy, { align: 'center' });
         cy += 16;
 
         // ── Score & Attendance badges ──
@@ -775,13 +831,13 @@ export async function exportStudentOverviewPDF(options: ExportOptions): Promise<
           doc.setFontSize(10);
           doc.setFont('helvetica', 'bold');
           doc.setTextColor(...COLORS.darkGray);
-          doc.text(sanitizeForPdf(cert.signature_name), cx, cy, { align: 'center' });
+          doc.text(s(cert.signature_name), cx, cy, { align: 'center' });
           if (cert.signature_title) {
             cy += 5;
             doc.setFontSize(8);
             doc.setFont('helvetica', 'normal');
             doc.setTextColor(...COLORS.gray);
-            doc.text(sanitizeForPdf(cert.signature_title), cx, cy, { align: 'center' });
+            doc.text(s(cert.signature_title), cx, cy, { align: 'center' });
           }
         }
 

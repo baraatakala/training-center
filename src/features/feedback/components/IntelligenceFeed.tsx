@@ -16,7 +16,7 @@ interface FeedEntry {
   timeAgo: string;
 }
 
-export function IntelligenceFeed({ feedbacks, questions }: IntelligenceFeedProps) {
+export function IntelligenceFeed({ feedbacks }: IntelligenceFeedProps) {
   const feedEntries = useMemo((): FeedEntry[] => {
     // Get the latest feedbacks with comments
     const withComments = feedbacks
@@ -56,7 +56,7 @@ export function IntelligenceFeed({ feedbacks, questions }: IntelligenceFeedProps
         timeAgo,
       };
     });
-  }, [feedbacks, questions]);
+  }, [feedbacks]);
 
   if (feedEntries.length === 0) return null;
 

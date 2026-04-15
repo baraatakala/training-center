@@ -160,10 +160,14 @@ export const attendanceService = {
     // Filter to exact date+session pairs
     const filtered = allRecords.filter(r => pairSet.has(`${r.attendance_date}|${r.session_id}`));
 
-    const dateMap = new Map<string, { present: number; accountable: number }>();
+    const dateMap = new Map<string, { present: number; accountable: number; sessionId: string }>();
     for (const r of filtered) {
       if (r.status === 'not enrolled') continue;
-      if (!dateMap.has(r.attendance_date)) dateMap.set(r.attendance_date, { present: 0, accountable: 0 });
+      if (!dateMap.has(r.attendance_date)) {
+        const pair = [...pairSet].find(p => p.startsWith(r.attendance_date + '|'));
+        const sid = pair ? pair.split('|')[1] : r.session_id;
+        dateMap.set(r.attendance_date, { present: 0, accountable: 0, sessionId: sid });
+      }
       const entry = dateMap.get(r.attendance_date)!;
       if (r.status !== 'excused') {
         entry.accountable++;
@@ -171,13 +175,20 @@ export const attendanceService = {
       }
     }
 
-    const dateEntries = [...dateMap.values()];
+    const dateEntries = [...dateMap.entries()];
     const hostCount = dateEntries.length;
-    const totalPresent = dateEntries.reduce((s, d) => s + d.present, 0);
-    const totalAccountable = dateEntries.reduce((s, d) => s + d.accountable, 0);
+    const totalPresent = dateEntries.reduce((s, [, d]) => s + d.present, 0);
+    const totalAccountable = dateEntries.reduce((s, [, d]) => s + d.accountable, 0);
     const avgAttendance = totalAccountable > 0 ? Math.round((totalPresent / totalAccountable) * 100) : 0;
 
-    return { data: { hostCount, avgAttendance }, error: null };
+    const hostDates = dateEntries.map(([date, d]) => ({
+      date,
+      sessionId: d.sessionId,
+      present: d.present,
+      accountable: d.accountable,
+    }));
+
+    return { data: { hostCount, avgAttendance, hostDates }, error: null };
   },
 
   // Get attendance for a specific session

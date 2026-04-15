@@ -272,6 +272,10 @@ export interface FeedbackQuestion {
   /** Non-null marks this as a "test question". Grading compares student responses
    *  (trimmed, case-insensitive) to this value. Only valid for text/multiple_choice. */
   correct_answer: string | null;
+  /** When true, multiple_choice allows selecting multiple options (stored as array) */
+  allow_multiple: boolean;
+  /** Multi-select grading strategy: exact = all-or-nothing, partial = proportional credit, any = at least one correct */
+  grading_mode: 'exact' | 'partial' | 'any';
   sort_order: number;
   is_required: boolean;
   attendance_date: string | null;

@@ -78,7 +78,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (error) {
           console.error('Error getting session:', error);
-          if (showLoader && !userRef.current) {
+          // Detect stale/invalid refresh token — clean up gracefully
+          const msg = (error as { message?: string })?.message ?? '';
+          const status = (error as { status?: number })?.status;
+          if (msg.includes('Refresh Token') || status === 400 || status === 401) {
+            try { await supabase.auth.signOut(); } catch { /* ignore */ }
+            setUser(null);
+          } else if (showLoader && !userRef.current) {
             setUser(null);
           }
         } else {
@@ -89,7 +95,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (error) {
         console.error('Session check failed:', error);
-        if (showLoader && !userRef.current) {
+        const msg = (error as { message?: string })?.message ?? '';
+        if (msg.includes('Refresh Token') || msg.includes('Session check timeout')) {
+          try { await supabase.auth.signOut(); } catch { /* ignore */ }
+          setUser(null);
+        } else if (showLoader && !userRef.current) {
           setUser(null);
         }
       } finally {
@@ -112,7 +122,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (event === 'PASSWORD_RECOVERY') {
         setIsPasswordRecovery(true);
       }
-      setUser(session?.user ?? null);
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setIsPasswordRecovery(false);
+      } else {
+        setUser(session?.user ?? null);
+      }
       // Only update loading if initial check is done to prevent race condition
       if (initialCheckDone.current) {
         setLoading(false);

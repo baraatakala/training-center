@@ -8,7 +8,7 @@ export type { FeedbackQuestion, SessionFeedback, FeedbackTemplate, FeedbackStats
 export interface FeedbackTemplateInput {
   name: string;
   description?: string | null;
-  questions: Array<{ type: string; text: string; required: boolean; options?: string[]; correct_answer?: string | null }>;
+  questions: Array<{ type: string; text: string; required: boolean; options?: string[]; correct_answer?: string | null; allow_multiple?: boolean; grading_mode?: string }>;
   is_default?: boolean;
 }
 
@@ -388,6 +388,8 @@ export const feedbackService = {
           sort_order: index,
           is_required: Boolean(question.required),
           attendance_date: attendanceDate || null,
+          allow_multiple: question.type === 'multiple_choice' ? Boolean(question.allow_multiple) : false,
+          grading_mode: question.type === 'multiple_choice' && question.allow_multiple ? (question.grading_mode || 'exact') : 'exact',
         }))
       );
 

@@ -1,5 +1,6 @@
-﻿import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { feedbackService, type FeedbackQuestion } from '@/features/feedback/services/feedbackService';
+import { gradeAnswer, type GradingResult } from '@/features/feedback/utils/grading';
 import { Button } from '@/shared/components/ui';
 
 interface Props {
@@ -32,15 +33,15 @@ export default function SessionFeedbackForm({
   const [feedbackEnabled, setFeedbackEnabled] = useState(true);
   const [maxTabSwitches, setMaxTabSwitches] = useState(3);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [gradedResults, setGradedResults] = useState<Array<{ question: FeedbackQuestion; isCorrect: boolean; userAnswer: string }>>([]);
+  const [gradedResults, setGradedResults] = useState<Array<{ question: FeedbackQuestion; result: GradingResult; userAnswer: string }>>([]);
   const primaryRatingQuestion = customQuestions.find((question) => question.question_type === 'rating') || null;
   const hasConfiguredQuestions = customQuestions.length > 0;
 
-  // â”€â”€â”€ Anti-cheat state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Anti-cheat state ──────────────────────────────────────
   const isTestMode = customQuestions.some(q => q.correct_answer);
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
   const [showViolationWarning, setShowViolationWarning] = useState(false);
-  const autoSubmitTriggered = useRef(false);
+  const [wasAutoSubmitted, setWasAutoSubmitted] = useState(false);
 
   // Load feedback config and questions
   useEffect(() => {
@@ -77,16 +78,18 @@ export default function SessionFeedbackForm({
     return () => { cancelled = true; };
   }, [attendanceDate, sessionId, studentId]);
 
-  // â”€â”€â”€ Anti-cheat: tab switch detection (test mode only) â”€â”€â”€â”€â”€
+  // ─── Anti-cheat: tab switch detection (test mode only) ─────
   useEffect(() => {
     if (!isTestMode || submitted || loading) return;
+    let triggered = false;
 
     function handleVisibilityChange() {
       if (document.hidden) {
         setTabSwitchCount(prev => {
           const next = prev + 1;
-          if (next >= maxTabSwitches && !autoSubmitTriggered.current) {
-            autoSubmitTriggered.current = true;
+          if (next >= maxTabSwitches && !triggered) {
+            triggered = true;
+            setWasAutoSubmitted(true);
             // Trigger auto-submit on next tick so state is updated
             setTimeout(() => {
               const autoBtn = document.getElementById('feedback-auto-submit');
@@ -101,9 +104,9 @@ export default function SessionFeedbackForm({
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [isTestMode, submitted, loading]);
+  }, [isTestMode, submitted, loading, maxTabSwitches]);
 
-  // â”€â”€â”€ Anti-cheat: disable copy/paste/context menu in test mode â”€â”€
+  // ─── Anti-cheat: disable copy/paste/context menu in test mode ──
   useEffect(() => {
     if (!isTestMode || submitted || loading) return;
 
@@ -144,6 +147,7 @@ export default function SessionFeedbackForm({
         const answer = responses[question.id];
         if (answer === undefined || answer === null) return true;
         if (typeof answer === 'string') return answer.trim().length === 0;
+        if (Array.isArray(answer)) return answer.length === 0;
         return false;
       });
 
@@ -184,9 +188,10 @@ export default function SessionFeedbackForm({
     const graded = customQuestions
       .filter(q => q.correct_answer)
       .map(q => {
-        const userAnswer = String(responses[q.id] ?? '').trim();
-        const isCorrect = userAnswer.toLowerCase() === q.correct_answer!.trim().toLowerCase();
-        return { question: q, isCorrect, userAnswer };
+        const raw = responses[q.id];
+        const result = gradeAnswer(q, raw);
+        const userAnswer = Array.isArray(raw) ? (raw as string[]).join(', ') : String(raw ?? '').trim();
+        return { question: q, result, userAnswer };
       });
     setGradedResults(graded);
     setSubmitted(true);
@@ -209,7 +214,7 @@ export default function SessionFeedbackForm({
   }
 
   if (submitted) {
-    const correctCount = gradedResults.filter(r => r.isCorrect).length;
+    const correctCount = gradedResults.filter(r => r.result.isCorrect).length;
     const totalTest = gradedResults.length;
     const hasScoredQuestions = totalTest > 0;
     const allCorrect = hasScoredQuestions && correctCount === totalTest;
@@ -217,9 +222,9 @@ export default function SessionFeedbackForm({
     return (
       <div className="animate-scale-in mt-6 space-y-4">
         {/* Auto-submit warning */}
-        {autoSubmitTriggered.current && (
+        {wasAutoSubmitted && (
           <div className="text-center p-4 bg-red-50 dark:bg-red-900/30 rounded-2xl border border-red-200 dark:border-red-700">
-            <span className="text-3xl block mb-1">âš ï¸</span>
+            <span className="text-3xl block mb-1">⚠️</span>
             <p className="text-sm font-semibold text-red-700 dark:text-red-300">Auto-submitted due to tab switching</p>
             <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-1">
               You switched tabs {tabSwitchCount} time{tabSwitchCount !== 1 ? 's' : ''} during the test. Your answers were submitted automatically.
@@ -229,7 +234,7 @@ export default function SessionFeedbackForm({
 
         {/* Thank-you banner */}
         <div className="text-center p-5 bg-purple-50 dark:bg-purple-900/30 rounded-2xl border border-purple-200 dark:border-purple-700">
-          <span className="text-4xl block mb-2">ðŸ’œ</span>
+          <span className="text-4xl block mb-2">💜</span>
           <p className="text-base font-semibold text-purple-700 dark:text-purple-300">Thank you for your feedback!</p>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Your response helps improve future sessions.</p>
         </div>
@@ -240,7 +245,7 @@ export default function SessionFeedbackForm({
             {/* Score header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-amber-200 dark:border-amber-700">
               <div className="flex items-center gap-2">
-                <span className="text-lg">{allCorrect ? 'ðŸ†' : 'ðŸŽ¯'}</span>
+                <span className="text-lg">{allCorrect ? '🏆' : '🎯'}</span>
                 <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Knowledge Check Results</p>
               </div>
               <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-bold ${
@@ -256,32 +261,51 @@ export default function SessionFeedbackForm({
 
             {/* Per-question breakdown */}
             <div className="divide-y divide-amber-100 dark:divide-amber-800/40">
-              {gradedResults.map(({ question, isCorrect, userAnswer }) => (
+              {gradedResults.map(({ question, result, userAnswer }) => {
+                const isPartial = result.score !== null && result.score > 0 && result.score < 1;
+                return (
                 <div key={question.id} className="px-4 py-3 space-y-1">
                   <div className="flex items-start gap-2">
-                    <span className="mt-0.5 text-base shrink-0">{isCorrect ? 'âœ…' : 'âŒ'}</span>
+                    <span className="mt-0.5 text-base shrink-0">{result.isCorrect ? '?' : isPartial ? '??' : '?'}</span>
                     <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{question.question_text}</p>
+                    {result.detail && question.allow_multiple && (
+                      <span className={`ml-auto text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${
+                        result.isCorrect ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400'
+                        : isPartial ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400'
+                        : 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400'
+                      }`}>
+                        {result.detail}
+                      </span>
+                    )}
                   </div>
                   <div className="ml-7 space-y-0.5">
                     <p className="text-xs text-gray-500 dark:text-gray-400">
                       Your answer:{' '}
                       <span className={`font-semibold ${
-                        isCorrect
+                        result.isCorrect
                           ? 'text-green-600 dark:text-green-400'
+                          : isPartial
+                          ? 'text-amber-600 dark:text-amber-400'
                           : 'text-red-600 dark:text-red-400'
                       }`}>
-                        {userAnswer || 'â€”'}
+                        {userAnswer || '�'}
                       </span>
                     </p>
-                    {!isCorrect && (
+                    {!result.isCorrect && (
                       <p className="text-xs text-gray-500 dark:text-gray-400">
                         Correct answer:{' '}
                         <span className="font-semibold text-green-600 dark:text-green-400">{question.correct_answer}</span>
                       </p>
                     )}
+                    {isPartial && question.grading_mode === 'partial' && (
+                      <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                        Partial credit: {Math.round((result.score ?? 0) * 100)}%
+                      </p>
+                    )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -293,7 +317,7 @@ export default function SessionFeedbackForm({
             onClick={onComplete}
             className="w-full py-2.5 text-sm font-medium text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 transition-colors"
           >
-            Continue â†’
+            Continue →
           </button>
         )}
       </div>
@@ -358,7 +382,7 @@ export default function SessionFeedbackForm({
           onClick={onSkip}
           className="mt-3 text-sm text-blue-600 dark:text-blue-400 hover:underline"
         >
-          Continue â†’
+          Continue →
         </button>
       </div>
     );
@@ -370,7 +394,7 @@ export default function SessionFeedbackForm({
       {showViolationWarning && isTestMode && !submitted && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <div className="mx-4 max-w-sm w-full bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-2xl border-2 border-red-400 dark:border-red-600 text-center space-y-3 animate-scale-in">
-            <span className="text-5xl block">ðŸš¨</span>
+            <span className="text-5xl block">🚨</span>
             <h3 className="text-lg font-bold text-red-700 dark:text-red-300">Tab Switch Detected!</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Leaving this page during a test is not allowed. Violation {tabSwitchCount} of {maxTabSwitches}.
@@ -417,7 +441,7 @@ export default function SessionFeedbackForm({
       {isTestMode && (
         <div className="mb-4 rounded-xl border border-red-200 dark:border-red-700 bg-red-50/80 dark:bg-red-900/20 px-4 py-3 space-y-1">
           <div className="flex items-center gap-2">
-            <span className="text-base">ðŸ”’</span>
+            <span className="text-base">🔒</span>
             <p className="text-sm font-bold text-red-700 dark:text-red-300">Exam Mode Active</p>
           </div>
           <ul className="text-xs text-red-600/80 dark:text-red-400/80 space-y-0.5 ml-6 list-disc">
@@ -427,7 +451,7 @@ export default function SessionFeedbackForm({
           </ul>
           {tabSwitchCount > 0 && (
             <p className="text-xs font-semibold text-red-700 dark:text-red-300 mt-1 ml-6">
-              âš ï¸ Violations: {tabSwitchCount}/{maxTabSwitches}
+              ⚠️ Violations: {tabSwitchCount}/{maxTabSwitches}
             </p>
           )}
         </div>
@@ -466,7 +490,7 @@ export default function SessionFeedbackForm({
                         : 'bg-gray-100 dark:bg-gray-700 text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                   >
-                    â˜…
+                    ★
                   </button>
                 ))}
               </div>
@@ -481,24 +505,47 @@ export default function SessionFeedbackForm({
                 className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
               />
             )}
-            {q.question_type === 'multiple_choice' && q.options.length > 0 && (
-              <div className="flex flex-wrap gap-2 justify-center">
-                {q.options.map((opt) => (
-                  <button
-                    key={opt}
-                    type="button"
-                    onClick={() => handleSetResponse(q.id, opt)}
-                    className={`px-3 py-1.5 text-sm rounded-full border transition-all ${
-                      responses[q.id] === opt
-                        ? 'bg-purple-500 text-white border-purple-500'
-                        : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-purple-400'
-                    }`}
-                  >
-                    {opt}
-                  </button>
-                ))}
-              </div>
-            )}
+            {q.question_type === 'multiple_choice' && q.options.length > 0 && (() => {
+              const isMulti = q.allow_multiple;
+              const currentValue = responses[q.id];
+              const selectedArr = Array.isArray(currentValue) ? currentValue as string[] : [];
+              return (
+                <div className="flex flex-wrap gap-2 justify-center">
+                  {q.options.map((opt) => {
+                    const isSelected = isMulti ? selectedArr.includes(opt) : currentValue === opt;
+                    return (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => {
+                          if (isMulti) {
+                            const next = selectedArr.includes(opt)
+                              ? selectedArr.filter(v => v !== opt)
+                              : [...selectedArr, opt];
+                            handleSetResponse(q.id, next);
+                          } else {
+                            handleSetResponse(q.id, opt);
+                          }
+                        }}
+                        className={`px-3 py-1.5 text-sm rounded-full border transition-all ${
+                          isSelected
+                            ? 'bg-purple-500 text-white border-purple-500'
+                            : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-purple-400'
+                        }`}
+                      >
+                        {isMulti && (
+                          <span className="mr-1">{isSelected ? '?' : '?'}</span>
+                        )}
+                        {opt}
+                      </button>
+                    );
+                  })}
+                  {isMulti && selectedArr.length > 0 && (
+                    <span className="text-xs text-purple-500 self-center ml-1">{selectedArr.length} selected</span>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         ))}
 
@@ -514,7 +561,7 @@ export default function SessionFeedbackForm({
           />
         </div>
 
-        {/* Anonymous Toggle â€” disabled in test mode */}
+        {/* Anonymous Toggle — disabled in test mode */}
         {anonymousAllowed && !isTestMode && (
           <label className="flex items-center gap-2 mb-4 cursor-pointer select-none">
             <div
@@ -530,7 +577,7 @@ export default function SessionFeedbackForm({
               />
             </div>
             <span className="text-xs text-gray-600 dark:text-gray-400">
-              ðŸ•µï¸ Submit anonymously
+              🕵️ Submit anonymously
             </span>
           </label>
         )}
@@ -543,7 +590,7 @@ export default function SessionFeedbackForm({
               onClick={onSkip}
               className="flex-1 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
             >
-              Skip for now â†’
+              Skip for now →
             </button>
           )}
           <Button
@@ -558,7 +605,7 @@ export default function SessionFeedbackForm({
                 Sending...
               </span>
             ) : (
-              <span>{isTestMode ? 'ðŸ”’ Submit Test' : 'ðŸ’œ Submit Feedback'}</span>
+              <span>{isTestMode ? '🔒 Submit Test' : '💜 Submit Feedback'}</span>
             )}
           </Button>
         </div>

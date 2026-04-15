@@ -77,7 +77,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [filterDateFrom, setFilterDateFrom] = useState<string>('');
   const [filterDateTo, setFilterDateTo] = useState<string>('');
-  const [hostStats, setHostStats] = useState<{ hostCount: number; avgAttendance: number } | null>(null);
+  const [hostStats, setHostStats] = useState<{ hostCount: number; avgAttendance: number; hostDates?: { date: string; sessionId: string; present: number; accountable: number }[] } | null>(null);
   const { isTeacher } = useIsTeacher();
 
   // ─── Session group map (1:1 — parent_session_id removed in migration 033) ────────
@@ -159,6 +159,32 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
     }
     return result;
   }, [attendance, selectedSessionId, sessionGroupMap, filterStatus, filterDateFrom, filterDateTo]);
+
+  // Compute host stats filtered by active date/session filters
+  const filteredHostStats = useMemo(() => {
+    if (!hostStats || !hostStats.hostDates || hostStats.hostDates.length === 0) return hostStats;
+    const hasFilter = selectedSessionId || filterDateFrom || filterDateTo;
+    if (!hasFilter) return hostStats;
+
+    let dates = hostStats.hostDates;
+    if (selectedSessionId) {
+      const groupIds = sessionGroupMap[selectedSessionId] ?? [selectedSessionId];
+      dates = dates.filter(d => groupIds.includes(d.sessionId));
+    }
+    if (filterDateFrom) {
+      dates = dates.filter(d => d.date >= filterDateFrom);
+    }
+    if (filterDateTo) {
+      dates = dates.filter(d => d.date <= filterDateTo);
+    }
+    if (dates.length === 0) return { hostCount: 0, avgAttendance: 0 };
+    const totalPresent = dates.reduce((s, d) => s + d.present, 0);
+    const totalAccountable = dates.reduce((s, d) => s + d.accountable, 0);
+    return {
+      hostCount: dates.length,
+      avgAttendance: totalAccountable > 0 ? Math.round((totalPresent / totalAccountable) * 100) : 0,
+    };
+  }, [hostStats, selectedSessionId, sessionGroupMap, filterDateFrom, filterDateTo]);
 
   const analytics = useMemo(() => {
     if (filteredAttendance.length === 0) return null;
@@ -889,7 +915,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
   }, [revokeConfirm]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={handleBackdropClick}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={handleBackdropClick} role="dialog" aria-modal="true" aria-labelledby="student-detail-title">
       <div className="relative w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-2xl flex flex-col" dir={arabicMode ? 'rtl' : 'ltr'} onClick={e => e.stopPropagation()}>
 
         {/* ─── Header ───────────────────────────────────── */}
@@ -926,7 +952,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white truncate">{student.name}</h2>
+              <h2 id="student-detail-title" className="text-xl font-bold text-gray-900 dark:text-white truncate">{student.name}</h2>
               <div className="flex flex-wrap gap-2 mt-1">
                 {student.email && <span className="text-xs text-gray-500 dark:text-gray-400">{student.email}</span>}
                 {student.phone && <span className="text-xs text-gray-400">· {student.phone}</span>}
@@ -1114,17 +1140,17 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                   </div>
 
                   {/* ── Host Activity ──────────────────────── */}
-                  {hostStats && hostStats.hostCount > 0 && (
+                  {filteredHostStats && filteredHostStats.hostCount > 0 && (
                     <div className="rounded-xl border border-cyan-200 dark:border-cyan-800/50 bg-gradient-to-br from-cyan-50/50 to-sky-50/30 dark:from-cyan-900/10 dark:to-sky-900/5 p-3 space-y-2">
                       <p className="text-[10px] font-bold text-cyan-700 dark:text-cyan-300 uppercase tracking-wide">🏠 {t('Host Activity')}</p>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="rounded-lg border border-cyan-100 dark:border-cyan-800/30 bg-white/60 dark:bg-gray-800/30 p-2 text-center">
                           <p className="text-[9px] text-gray-400 uppercase tracking-wider">{t('Times Hosted')}</p>
-                          <p className="text-lg font-black text-cyan-700 dark:text-cyan-300">{hostStats.hostCount}</p>
+                          <p className="text-lg font-black text-cyan-700 dark:text-cyan-300">{filteredHostStats.hostCount}</p>
                         </div>
                         <div className="rounded-lg border border-cyan-100 dark:border-cyan-800/30 bg-white/60 dark:bg-gray-800/30 p-2 text-center">
                           <p className="text-[9px] text-gray-400 uppercase tracking-wider">{t('Avg Attendance')}</p>
-                          <p className={`text-lg font-black ${hostStats.avgAttendance >= 80 ? 'text-emerald-600 dark:text-emerald-400' : hostStats.avgAttendance >= 60 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>{hostStats.avgAttendance}%</p>
+                          <p className={`text-lg font-black ${filteredHostStats.avgAttendance >= 80 ? 'text-emerald-600 dark:text-emerald-400' : filteredHostStats.avgAttendance >= 60 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>{filteredHostStats.avgAttendance}%</p>
                         </div>
                       </div>
                     </div>
@@ -1226,7 +1252,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                             });
                             // Sort attendance same as current UI sort
                             const statusOrder: Record<string, number> = { 'on time': 1, 'late': 2, 'absent': 3, 'excused': 4, 'not enrolled': 5 };
-                            const sortedAtt = [...attendance].sort((a, b) => {
+                            const sortedAtt = [...filteredAttendance].sort((a, b) => {
                               let cmp = 0;
                               if (attSortCol === 'date') cmp = a.attendance_date.localeCompare(b.attendance_date);
                               else if (attSortCol === 'course') {
@@ -1259,7 +1285,8 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
                               sections: exportSections,
                               attendanceRecords: attExport,
                               certificates: certExport,
-                              hostStats,
+                              hostStats: filteredHostStats,
+                              arabicMode,
                             });
                           }}
                           className="mt-2 w-full text-[11px] px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-semibold"

@@ -7,12 +7,13 @@ import { useRefreshOnFocus } from '@/shared/hooks/useRefreshOnFocus';
 import { Breadcrumb } from '@/shared/components/ui/Breadcrumb';
 import { feedbackService } from '@/features/feedback/services/feedbackService';
 import type { SessionFeedback, FeedbackStats, FeedbackQuestion } from '@/shared/types/database.types';
+import { gradeAnswer } from '@/features/feedback/utils/grading';
 
 // ─── Constants ─────────────────────────────────────────────
 const RATING_EMOJIS = ['😢', '😕', '😐', '😊', '🤩'];
 
 type QuestionTypeFilter = 'all' | 'rating' | 'text' | 'multiple_choice';
-type CorrectnessFilter = 'all' | 'correct' | 'incorrect' | 'not-graded';
+type CorrectnessFilter = 'all' | 'correct' | 'partial' | 'incorrect' | 'not-graded';
 type RatingRangeFilter = 'bad' | 'neutral' | 'good';
 type ViolationsFilter = 'all' | 'has_violations';
 
@@ -44,6 +45,10 @@ interface FlattenedRecord {
   /** null = not a test question; true/false = graded result */
   isCorrect: boolean | null;
   correctAnswer: string | null;
+  /** e.g. "1/2", "2/3" — from gradeAnswer detail */
+  gradingDetail: string | null;
+  /** 0–1 score for partial credit */
+  gradingScore: number | null;
   tabSwitchCount: number;
   isAutoSubmitted: boolean;
 }
@@ -56,7 +61,7 @@ function exportFeedbackCSV(records: FlattenedRecord[], courseName: string, selec
   const rows = records.map(r => [
     r.studentName, r.attendanceDate,
     r.questionType, r.questionText, r.answer,
-    r.isCorrect === null ? '' : r.isCorrect ? 'Yes' : 'No',
+    r.isCorrect === null ? '' : r.isCorrect ? 'Yes' : (r.gradingScore !== null && r.gradingScore > 0) ? `Partial (${r.gradingDetail})` : 'No',
     String(r.tabSwitchCount),
     r.isAutoSubmitted ? 'Yes' : '',
     r.comment || '',
@@ -115,6 +120,7 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
     correctness: 'الصحة',
     allResults: 'جميع النتائج',
     correctOnly: '✓ صحيح فقط',
+    partialOnly: '◐ جزئي',
     incorrectOnly: '✗ خاطئ فقط',
     notGraded: '— غير مقيّم',
     ratingRange: 'نطاق التقييم',
@@ -166,6 +172,7 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
     correctness: 'Correctness',
     allResults: 'All Results',
     correctOnly: '✓ Correct Only',
+    partialOnly: '◐ Partial Credit',
     incorrectOnly: '✗ Incorrect Only',
     notGraded: '— Not Graded',
     ratingRange: 'Rating Range',
@@ -367,6 +374,8 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
             answer: fb.overall_rating != null ? String(fb.overall_rating) : '—',
             comment: fb.comment,
             isCorrect: null,
+            gradingDetail: null,
+            gradingScore: null,
             correctAnswer: null,
             tabSwitchCount: fb.tab_switch_count ?? 0,
             isAutoSubmitted: fb.is_auto_submitted ?? false,
@@ -381,22 +390,25 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
             const rawType = q?.question_type || '';
             if (rawType !== questionTypeFilter) continue;
           }
-          // Compute graded result for test questions
-          let isCorrect: boolean | null = null;
-          let correctAnswer: string | null = null;
-          if (q?.correct_answer) {
-            correctAnswer = q.correct_answer;
-            isCorrect = String(val ?? '').trim().toLowerCase() === q.correct_answer.trim().toLowerCase();
-          }
+          // Compute graded result using centralised grading utility
+          const gradeResult = q ? gradeAnswer(q, val) : { isCorrect: null, detail: null, score: null };
+          const isCorrect = gradeResult.isCorrect;
+          const correctAnswer = q?.correct_answer ?? null;
+          const gradingDetail = gradeResult.detail;
+          const gradingScore = gradeResult.score;
+          // Format answer for display
+          const displayAnswer = Array.isArray(val) ? val.join(', ') : (val != null ? String(val) : '—');
           rows.push({
             feedbackId: fb.id, studentName, isAnonymous: fb.is_anonymous,
             attendanceDate: fb.attendance_date, overallRating: fb.overall_rating != null ? Number(fb.overall_rating) : null,
             questionType: qType,
             questionText: q?.question_text || '—',
-            answer: val != null ? String(val) : '—',
+            answer: displayAnswer,
             comment: fb.comment,
             isCorrect,
             correctAnswer,
+            gradingDetail,
+            gradingScore,
             tabSwitchCount: fb.tab_switch_count ?? 0,
             isAutoSubmitted: fb.is_auto_submitted ?? false,
           });
@@ -412,7 +424,8 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
     if (correctnessFilter !== 'all') {
       result = result.filter(r => {
         if (correctnessFilter === 'correct') return r.isCorrect === true;
-        if (correctnessFilter === 'incorrect') return r.isCorrect === false;
+        if (correctnessFilter === 'partial') return r.isCorrect === false && r.gradingScore !== null && r.gradingScore > 0;
+        if (correctnessFilter === 'incorrect') return r.isCorrect === false && (r.gradingScore === null || r.gradingScore === 0);
         return r.isCorrect === null; // not-graded
       });
     }
@@ -678,6 +691,7 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                 >
                   <option value="all">{t.allResults}</option>
                   <option value="correct">{t.correctOnly}</option>
+                  <option value="partial">{t.partialOnly}</option>
                   <option value="incorrect">{t.incorrectOnly}</option>
                   <option value="not-graded">{t.notGraded}</option>
                 </select>
@@ -792,6 +806,8 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                             <td className="px-3 py-3 max-w-[160px]">
                               <span className={`font-medium truncate block px-1.5 py-0.5 rounded ${
                                 row.isCorrect === true ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+                                : row.isCorrect === false && row.gradingScore !== null && row.gradingScore > 0
+                                  ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400'
                                 : row.isCorrect === false ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
                                 : 'text-gray-900 dark:text-white'
                               }`} title={row.answer}>{row.answer}</span>
@@ -801,6 +817,11 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                                 <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>
                               ) : row.isCorrect ? (
                                 <span title={`Correct answer: ${row.correctAnswer}`}>✅</span>
+                              ) : row.gradingScore !== null && row.gradingScore > 0 ? (
+                                <span title={`Correct answer: ${row.correctAnswer} — ${row.gradingDetail}`} className="inline-flex flex-col items-center leading-tight">
+                                  <span>🟡</span>
+                                  <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400">{row.gradingDetail}</span>
+                                </span>
                               ) : (
                                 <span title={`Correct answer: ${row.correctAnswer}`}>❌</span>
                               )}

@@ -19,13 +19,15 @@ import { excuseRequestService, EXCUSE_REASONS as SERVICE_EXCUSE_REASONS, type Ex
 import { sessionRecordingService } from '@/features/sessions/services/sessionRecordingService';
 import { feedbackService, type FeedbackQuestion, type FeedbackTemplate } from '@/features/feedback/services/feedbackService';
 
-function toTemplateQuestions(questions: Array<Pick<FeedbackQuestion, 'question_type' | 'question_text' | 'is_required' | 'options' | 'correct_answer'>>) {
+function toTemplateQuestions(questions: Array<Pick<FeedbackQuestion, 'question_type' | 'question_text' | 'is_required' | 'options' | 'correct_answer' | 'allow_multiple' | 'grading_mode'>>) {
   return questions.map((question) => ({
     type: question.question_type,
     text: question.question_text,
     required: question.is_required,
     options: question.options?.length ? question.options : undefined,
     correct_answer: question.correct_answer ?? undefined,
+    allow_multiple: question.allow_multiple || undefined,
+    grading_mode: question.grading_mode !== 'exact' ? question.grading_mode : undefined,
   }));
 }
 
@@ -153,6 +155,7 @@ export function Attendance() {
   const [sessionNotHeld, setSessionNotHeld] = useState<boolean>(false);
   const [showQRModal, setShowQRModal] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [bookReferences, setBookReferences] = useState<Array<{ reference_id: string; topic: string; start_page: number; end_page: number; parent_id: string | null }>>([]);
   const [selectedBookReference, setSelectedBookReference] = useState<string>('');
   const [editingLateMinutes, setEditingLateMinutes] = useState<string | null>(null);
@@ -185,6 +188,8 @@ export function Attendance() {
   const [fbQuestionRequired, setFbQuestionRequired] = useState(false);
   const [fbOptionsText, setFbOptionsText] = useState('');
   const [fbCorrectAnswer, setFbCorrectAnswer] = useState('');
+  const [fbAllowMultiple, setFbAllowMultiple] = useState(false);
+  const [fbGradingMode, setFbGradingMode] = useState<'exact' | 'partial' | 'any'>('exact');
 
   // Memoized attendance stats to avoid re-filtering on every render
   const attendanceStats = useMemo(() => ({
@@ -196,6 +201,15 @@ export function Attendance() {
     pending: attendance.filter(a => a.status === 'pending').length,
     notEnrolled: attendance.filter(a => a.status === 'not enrolled').length,
   }), [attendance]);
+
+  const filteredAttendance = useMemo(() => {
+    return attendance.filter(record => {
+      if (statusFilter !== 'all' && record.status !== statusFilter) return false;
+      const term = searchTerm.trim().toLowerCase();
+      if (!term) return true;
+      return record.student.name.toLowerCase().includes(term) || record.student.email.toLowerCase().includes(term);
+    });
+  }, [attendance, statusFilter, searchTerm]);
 
   // GPS Geolocation capture function
   const captureGPSLocation = (): Promise<{
@@ -958,6 +972,8 @@ export function Attendance() {
         options,
         correct_answer: correctAnswer,
         attendance_date: selectedDate,
+        allow_multiple: fbQuestionType === 'multiple_choice' ? fbAllowMultiple : false,
+        grading_mode: (fbQuestionType === 'multiple_choice' && fbAllowMultiple) ? fbGradingMode : 'exact',
       });
       if (error) { toast.error('Failed to update question'); setFbSavingQuestion(false); return; }
       toast.success('Question updated');
@@ -971,6 +987,8 @@ export function Attendance() {
         correct_answer: correctAnswer,
         sort_order: fbQuestions.length + 1,
         attendance_date: selectedDate,
+        allow_multiple: fbQuestionType === 'multiple_choice' ? fbAllowMultiple : false,
+        grading_mode: (fbQuestionType === 'multiple_choice' && fbAllowMultiple) ? fbGradingMode : 'exact',
       });
       if (error) { toast.error('Failed to add question'); setFbSavingQuestion(false); return; }
       toast.success('Question added');
@@ -983,6 +1001,8 @@ export function Attendance() {
     setFbQuestionRequired(false);
     setFbOptionsText('');
     setFbCorrectAnswer('');
+    setFbAllowMultiple(false);
+    setFbGradingMode('exact');
     setFbSavingQuestion(false);
 
     // Reload questions
@@ -990,7 +1010,7 @@ export function Attendance() {
     if (data) {
       setFbQuestions(data);
     }
-  }, [sessionId, selectedDate, fbQuestionText, fbQuestionType, fbQuestionRequired, fbOptionsText, fbCorrectAnswer, fbEditingQuestionId, fbQuestions.length]);
+  }, [sessionId, selectedDate, fbQuestionText, fbQuestionType, fbQuestionRequired, fbOptionsText, fbCorrectAnswer, fbAllowMultiple, fbGradingMode, fbEditingQuestionId, fbQuestions.length]);
 
   const handleDeleteQuestion = useCallback(async (questionId: string) => {
     if (!sessionId) return;
@@ -1021,6 +1041,8 @@ export function Attendance() {
     setFbQuestionRequired(q.is_required);
     setFbOptionsText(q.options?.join(', ') || '');
     setFbCorrectAnswer(q.correct_answer || '');
+    setFbAllowMultiple(q.allow_multiple ?? false);
+    setFbGradingMode(q.grading_mode ?? 'exact');
   }, []);
 
   const cancelEditQuestion = useCallback(() => {
@@ -1030,6 +1052,8 @@ export function Attendance() {
     setFbQuestionRequired(false);
     setFbOptionsText('');
     setFbCorrectAnswer('');
+    setFbAllowMultiple(false);
+    setFbGradingMode('exact');
   }, []);
 
   const handleTemplateChange = useCallback(async (templateId: string) => {
@@ -1957,6 +1981,12 @@ export function Attendance() {
       default:
         return <Badge>{status}</Badge>;
     }
+  };
+
+  const getInitials = (name: string) => {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return name.slice(0, 2).toUpperCase();
   };
 
   if (loading || isTeacher === null) {
@@ -2932,17 +2962,28 @@ export function Attendance() {
                     ))}
                   </div>
                   {fbQuestionType === 'multiple_choice' && (
-                    <input
-                      type="text"
-                      placeholder="Options separated by commas, e.g. Good, Average, Poor"
-                      value={fbOptionsText}
-                      onChange={e => {
-                        setFbOptionsText(e.target.value);
-                        // Reset correct answer when options change
-                        setFbCorrectAnswer('');
-                      }}
-                      className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-700"
-                    />
+                    <>
+                      <input
+                        type="text"
+                        placeholder="Options separated by commas, e.g. Good, Average, Poor"
+                        value={fbOptionsText}
+                        onChange={e => {
+                          setFbOptionsText(e.target.value);
+                          // Reset correct answer when options change
+                          setFbCorrectAnswer('');
+                        }}
+                        className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-700"
+                      />
+                      <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={fbAllowMultiple}
+                          onChange={e => setFbAllowMultiple(e.target.checked)}
+                          className="rounded border-gray-300 dark:border-gray-600 accent-indigo-600"
+                        />
+                        Allow multiple selections
+                      </label>
+                    </>
                   )}
 
                   {/* ── Correct Answer (test question) — text and multiple_choice only ── */}
@@ -2954,17 +2995,75 @@ export function Attendance() {
                         <span className="text-[10px] text-amber-600 dark:text-amber-500 ml-auto">Leave blank → regular feedback</span>
                       </div>
                       {fbQuestionType === 'multiple_choice' ? (
-                        // For multiple_choice: pick from defined options
-                        <select
-                          value={fbCorrectAnswer}
-                          onChange={e => setFbCorrectAnswer(e.target.value)}
-                          className="w-full text-sm border border-amber-300 dark:border-amber-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                        >
-                          <option value="">— no correct answer —</option>
-                          {fbOptionsText.split(/[,،]/).map(o => o.trim()).filter(Boolean).map(opt => (
-                            <option key={opt} value={opt}>{opt}</option>
-                          ))}
-                        </select>
+                        // For multiple_choice: pick correct answer(s) from defined options
+                        fbAllowMultiple ? (
+                          <div className="space-y-1.5">
+                            <p className="text-[10px] text-amber-600 dark:text-amber-500">Select all correct answers:</p>
+                            {fbOptionsText.split(/[,،]/).map(o => o.trim()).filter(Boolean).map(opt => {
+                              const selected = fbCorrectAnswer.split(',').map(s => s.trim()).filter(Boolean);
+                              const isChecked = selected.includes(opt);
+                              return (
+                                <label key={opt} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => {
+                                      const updated = isChecked
+                                        ? selected.filter(s => s !== opt)
+                                        : [...selected, opt];
+                                      setFbCorrectAnswer(updated.join(','));
+                                    }}
+                                    className="rounded border-amber-300 dark:border-amber-700 accent-amber-600"
+                                  />
+                                  {opt}
+                                </label>
+                              );
+                            })}
+                            {/* Grading mode selector */}
+                            {fbCorrectAnswer.trim() && (
+                              <div className="pt-2 border-t border-amber-200 dark:border-amber-700 mt-2 space-y-1">
+                                <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-400">Grading mode:</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {([
+                                    { key: 'exact' as const, label: 'Exact match', desc: 'Must select ALL correct, nothing extra' },
+                                    { key: 'partial' as const, label: 'Partial credit', desc: 'Score = correct picks / total correct' },
+                                    { key: 'any' as const, label: 'Any correct', desc: 'At least one correct = pass' },
+                                  ]).map(m => (
+                                    <button
+                                      key={m.key}
+                                      type="button"
+                                      onClick={() => setFbGradingMode(m.key)}
+                                      className={`text-[10px] px-2.5 py-1 rounded-full border transition-colors ${
+                                        fbGradingMode === m.key
+                                          ? 'bg-amber-600 text-white border-amber-600'
+                                          : 'bg-white dark:bg-gray-800 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700 hover:border-amber-500'
+                                      }`}
+                                      title={m.desc}
+                                    >
+                                      {m.label}
+                                    </button>
+                                  ))}
+                                </div>
+                                <p className="text-[9px] text-amber-500 dark:text-amber-600">
+                                  {fbGradingMode === 'exact' ? 'Student must select all correct answers and nothing else.'
+                                    : fbGradingMode === 'partial' ? 'Student gets proportional credit; wrong picks reduce score.'
+                                    : 'Student passes if they select at least one correct answer.'}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <select
+                            value={fbCorrectAnswer}
+                            onChange={e => setFbCorrectAnswer(e.target.value)}
+                            className="w-full text-sm border border-amber-300 dark:border-amber-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-300"
+                          >
+                            <option value="">— no correct answer —</option>
+                            {fbOptionsText.split(/[,،]/).map(o => o.trim()).filter(Boolean).map(opt => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                          </select>
+                        )
                       ) : (
                         // For text: free input (matched case-insensitively)
                         <input
@@ -3036,9 +3135,19 @@ export function Attendance() {
                                 required
                               </span>
                             )}
+                            {q.allow_multiple && (
+                              <span className="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-medium">
+                                multi-select
+                              </span>
+                            )}
                             {q.correct_answer && (
                               <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium" title={`Correct answer: ${q.correct_answer}`}>
                                 🎯 test — <span className="font-semibold">{q.correct_answer}</span>
+                              </span>
+                            )}
+                            {q.allow_multiple && q.correct_answer && q.grading_mode && q.grading_mode !== 'exact' && (
+                              <span className="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 font-medium">
+                                {q.grading_mode === 'partial' ? '📊 partial' : '🎲 any'}
                               </span>
                             )}
                           </div>
@@ -3131,50 +3240,35 @@ export function Attendance() {
                 </p>
               ) : (
                 <div className="space-y-4">
-                  {/* Summary Stats */}
-                  <div className="grid grid-cols-3 sm:grid-cols-7 gap-2 sm:gap-3">
-                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-700 rounded-xl p-3 text-center shadow-sm border border-slate-200 dark:border-slate-600">
-                      <div className="text-2xl sm:text-3xl font-bold text-slate-800 dark:text-white">
-                        {attendanceStats.total}
-                      </div>
-                      <div className="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">👥 Total</div>
-                    </div>
-                    <div className="bg-gradient-to-br from-emerald-50 to-green-100 dark:from-emerald-900/30 dark:to-green-800/30 rounded-xl p-3 text-center shadow-sm border border-emerald-200 dark:border-emerald-700">
-                      <div className="text-2xl sm:text-3xl font-bold text-emerald-600 dark:text-emerald-400">
-                        {attendanceStats.onTime}
-                      </div>
-                      <div className="text-xs font-medium text-emerald-700 dark:text-emerald-400 mt-1">✅ On Time</div>
-                    </div>
-                    <div className="bg-gradient-to-br from-red-50 to-rose-100 dark:from-red-900/30 dark:to-rose-800/30 rounded-xl p-3 text-center shadow-sm border border-red-200 dark:border-red-700">
-                      <div className="text-2xl sm:text-3xl font-bold text-red-600 dark:text-red-400">
-                        {attendanceStats.absent}
-                      </div>
-                      <div className="text-xs font-medium text-red-700 dark:text-red-400 mt-1">❌ Absent</div>
-                    </div>
-                    <div className="bg-gradient-to-br from-amber-50 to-yellow-100 dark:from-amber-900/30 dark:to-yellow-800/30 rounded-xl p-3 text-center shadow-sm border border-amber-200 dark:border-amber-700">
-                      <div className="text-2xl sm:text-3xl font-bold text-amber-600 dark:text-amber-400">
-                        {attendanceStats.late}
-                      </div>
-                      <div className="text-xs font-medium text-amber-700 dark:text-amber-400 mt-1">⏰ Late</div>
-                    </div>
-                    <div className="bg-gradient-to-br from-blue-50 to-sky-100 dark:from-blue-900/30 dark:to-sky-800/30 rounded-xl p-3 text-center shadow-sm border border-blue-200 dark:border-blue-700">
-                      <div className="text-2xl sm:text-3xl font-bold text-blue-600 dark:text-blue-400">
-                        {attendanceStats.excused}
-                      </div>
-                      <div className="text-xs font-medium text-blue-700 dark:text-blue-400 mt-1">📝 Excused</div>
-                    </div>
-                    <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 rounded-xl p-3 text-center shadow-sm border border-gray-200 dark:border-gray-600">
-                      <div className="text-2xl sm:text-3xl font-bold text-gray-400 dark:text-gray-500">
-                        {attendanceStats.pending}
-                      </div>
-                      <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1">⬜ Not Marked</div>
-                    </div>
-                    <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 rounded-xl p-3 text-center shadow-sm border border-gray-200 dark:border-gray-600">
-                      <div className="text-2xl sm:text-3xl font-bold text-gray-500 dark:text-gray-400">
-                        {attendanceStats.notEnrolled}
-                      </div>
-                      <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1">🚫 Not Enrolled</div>
-                    </div>
+                  {/* Status Filter Tabs */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {[
+                      { key: 'all', label: 'All', count: attendanceStats.total, icon: '👥' },
+                      { key: 'pending', label: 'Not Marked', count: attendanceStats.pending, icon: '⬜' },
+                      { key: 'on time', label: 'On Time', count: attendanceStats.onTime, icon: '✅' },
+                      { key: 'absent', label: 'Absent', count: attendanceStats.absent, icon: '❌' },
+                      { key: 'late', label: 'Late', count: attendanceStats.late, icon: '⏰' },
+                      { key: 'excused', label: 'Excused', count: attendanceStats.excused, icon: '📝' },
+                      ...(attendanceStats.notEnrolled > 0 ? [{ key: 'not enrolled', label: 'Not Enrolled', count: attendanceStats.notEnrolled, icon: '🚫' }] : []),
+                    ].map(tab => (
+                      <button
+                        key={tab.key}
+                        onClick={() => setStatusFilter(tab.key)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                          statusFilter === tab.key
+                            ? 'bg-indigo-600 dark:bg-indigo-500 text-white shadow-md ring-2 ring-indigo-300 dark:ring-indigo-400/50 scale-105'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        <span>{tab.icon}</span>
+                        <span className="hidden sm:inline">{tab.label}</span>
+                        <span className={`min-w-[1.25rem] h-5 inline-flex items-center justify-center rounded-full text-[10px] font-bold ${
+                          statusFilter === tab.key ? 'bg-white/25' : 'bg-gray-200 dark:bg-gray-700'
+                        }`}>
+                          {tab.count}
+                        </span>
+                      </button>
+                    ))}
                   </div>
 
                   {/* Pending Excuse Requests Banner */}
@@ -3222,226 +3316,206 @@ export function Attendance() {
                     </div>
                   )}
 
-                  <div className="space-y-2">
-                  <div className="flex items-center gap-2 mb-4">
-                    <input
-                      type="checkbox"
-                      checked={
-                        attendanceStats.total > 0 &&
-                        selectedStudents.size === attendanceStats.total
-                      }
-                      onChange={handleSelectAll}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-500 rounded"
-                    />
-                    <span className="text-sm font-medium dark:text-gray-300">Select All</span>
+                  {/* Search & Select Toolbar */}
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 shrink-0 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={attendanceStats.total > 0 && selectedStudents.size === attendanceStats.total}
+                        onChange={handleSelectAll}
+                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 dark:border-gray-500 rounded"
+                      />
+                      <span className="text-xs font-medium text-gray-500 dark:text-gray-400">All</span>
+                    </label>
+                    <div className="relative flex-1">
+                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      <input
+                        type="text"
+                        placeholder="Search by name or email..."
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-700 bg-gray-50 dark:bg-gray-800/50 dark:text-white dark:placeholder-gray-500"
+                      />
+                    </div>
+                    <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0 hidden sm:inline">
+                      {filteredAttendance.length} of {attendance.length}
+                    </span>
                   </div>
-                  {/* Search input for students */}
-                  <div className="mb-2">
-                    <input
-                      type="text"
-                      placeholder="Search student by name or email..."
-                      value={searchTerm}
-                      onChange={e => setSearchTerm(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-800 bg-white dark:bg-gray-700 dark:text-white dark:placeholder-gray-400"
-                    />
-                  </div>
-                  {attendance
-                    .filter(record => {
-                      const term = searchTerm.trim().toLowerCase();
-                      if (!term) return true;
-                      return (
-                        record.student.name.toLowerCase().includes(term) ||
-                        record.student.email.toLowerCase().includes(term)
-                      );
-                    })
-                    .map((record) => {
+
+                  {/* Scrollable Student List */}
+                  <div className="max-h-[calc(100vh-28rem)] min-h-[200px] overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800">
+                    {filteredAttendance.length === 0 ? (
+                      <div className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">
+                        No students match the current filter
+                      </div>
+                    ) : filteredAttendance.map((record) => {
                       const isNotEnrolled = record.status === 'not enrolled';
                       const studentExcuseReq = pendingExcuseRequests.find(r => r.student_id === record.student_id);
                       return (
                     <div
                       key={record.attendance_id}
-                      className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border-l-4 shadow-sm transition-all gap-3 ${
+                      className={`flex items-center gap-3 px-3 py-2.5 transition-colors group ${
                         isNotEnrolled
-                          ? 'bg-gray-50 dark:bg-gray-800/50 border-l-gray-300 dark:border-l-gray-600 opacity-50'
-                          : record.status === 'on time'
-                            ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-l-emerald-500 hover:shadow-md'
-                            : record.status === 'absent'
-                              ? 'bg-red-50/50 dark:bg-red-900/10 border-l-red-500 hover:shadow-md'
-                              : record.status === 'late'
-                                ? 'bg-amber-50/50 dark:bg-amber-900/10 border-l-amber-500 hover:shadow-md'
-                                : record.status === 'excused'
-                                  ? 'bg-blue-50/50 dark:bg-blue-900/10 border-l-blue-500 hover:shadow-md'
-                                  : 'bg-white dark:bg-gray-800 border-l-gray-300 dark:border-l-gray-600 hover:shadow-md'
+                          ? 'opacity-40 bg-gray-50 dark:bg-gray-900/30'
+                          : selectedStudents.has(record.attendance_id)
+                            ? 'bg-indigo-50/50 dark:bg-indigo-900/10'
+                            : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
                       }`}
                     >
-                      <div className="flex items-center gap-4 flex-1">
-                        <input
-                          type="checkbox"
-                          checked={selectedStudents.has(record.attendance_id)}
-                          onChange={() => handleSelectStudent(record.attendance_id)}
-                          disabled={isNotEnrolled}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-500 rounded disabled:opacity-30 disabled:cursor-not-allowed"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-medium truncate dark:text-white">{record.student.name}</h3>
-                            {studentExcuseReq && (
-                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 animate-pulse" title={`Pending excuse: ${studentExcuseReq.reason}`}>
-                                📋 Excuse Pending
-                              </span>
+                      <input
+                        type="checkbox"
+                        checked={selectedStudents.has(record.attendance_id)}
+                        onChange={() => handleSelectStudent(record.attendance_id)}
+                        disabled={isNotEnrolled}
+                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 dark:border-gray-500 rounded shrink-0 disabled:opacity-30"
+                      />
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                        record.status === 'on time' ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
+                          : record.status === 'absent' ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'
+                          : record.status === 'late' ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
+                          : record.status === 'excused' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                          : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'
+                      }`}>
+                        {getInitials(record.student.name)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm truncate dark:text-white">{record.student.name}</span>
+                          {studentExcuseReq && (
+                            <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 animate-pulse" title={`Pending excuse: ${studentExcuseReq.reason}`}>
+                              📋
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{record.student.email}</p>
+                      </div>
+                      {record.check_in_time && (
+                        <span className="hidden sm:inline-flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 shrink-0">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                          {format(new Date(record.check_in_time), 'HH:mm')}
+                        </span>
+                      )}
+                      {record.status === 'late' && !record.attendance_id.startsWith('temp-') && (
+                        editingLateMinutes === record.attendance_id ? (
+                          <span className="flex items-center gap-1 shrink-0">
+                            <input
+                              type="number"
+                              min="0"
+                              max="999"
+                              autoFocus
+                              value={lateMinutesInput}
+                              onChange={e => setLateMinutesInput(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') saveLateMinutes(record.attendance_id);
+                                if (e.key === 'Escape') { setEditingLateMinutes(null); setLateMinutesInput(''); }
+                              }}
+                              className="w-12 px-1 py-0.5 text-xs border border-amber-300 dark:border-amber-600 rounded bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                            />
+                            <button onClick={() => saveLateMinutes(record.attendance_id)} className="text-emerald-500 hover:text-emerald-600" title="Save">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                            </button>
+                            <button onClick={() => { setEditingLateMinutes(null); setLateMinutesInput(''); }} className="text-red-400 hover:text-red-500" title="Cancel">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => { setEditingLateMinutes(record.attendance_id); setLateMinutesInput(String(record.late_minutes ?? '')); }}
+                            className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800/40 transition-colors"
+                            title="Edit late duration"
+                          >
+                            ⏰ {record.late_minutes != null ? `${record.late_minutes}m` : '—'}
+                          </button>
+                        )
+                      )}
+                      <div className="shrink-0">{getStatusBadge(record.status)}</div>
+                      {!isNotEnrolled && (
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => updateAttendance(record.attendance_id, 'on time')}
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs transition-all ${
+                              record.status === 'on time'
+                                ? 'bg-emerald-500 text-white shadow-sm ring-1 ring-emerald-400'
+                                : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40'
+                            }`}
+                            title="On Time"
+                          >✓</button>
+                          <button
+                            onClick={() => updateAttendance(record.attendance_id, 'absent')}
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs transition-all ${
+                              record.status === 'absent'
+                                ? 'bg-red-500 text-white shadow-sm ring-1 ring-red-400'
+                                : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40'
+                            }`}
+                            title="Absent"
+                          >✕</button>
+                          <button
+                            onClick={() => updateAttendance(record.attendance_id, 'late')}
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs transition-all ${
+                              record.status === 'late'
+                                ? 'bg-amber-500 text-white shadow-sm ring-1 ring-amber-400'
+                                : 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40'
+                            }`}
+                            title="Late"
+                          >⏰</button>
+                          <div className="relative">
+                            <button
+                              onClick={() => setExcuseDropdownOpen(excuseDropdownOpen === record.attendance_id ? null : record.attendance_id)}
+                              className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs transition-all ${
+                                record.status === 'excused'
+                                  ? 'bg-blue-500 text-white shadow-sm ring-1 ring-blue-400'
+                                  : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40'
+                              }`}
+                              title="Excused"
+                            >📝</button>
+                            {excuseDropdownOpen === record.attendance_id && (
+                              <div className="absolute right-0 top-full mt-1 z-30 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-2.5 min-w-[200px]">
+                                <select
+                                  autoFocus
+                                  value={excuseReason[record.attendance_id] || ''}
+                                  onChange={(e) => setExcuseReason(prev => ({ ...prev, [record.attendance_id]: e.target.value }))}
+                                  className="w-full px-2 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 dark:text-white mb-2"
+                                >
+                                  <option value="">Select reason...</option>
+                                  {SERVICE_EXCUSE_REASONS.map(reason => (
+                                    <option key={reason.value} value={reason.value}>{reason.icon} {reason.label}</option>
+                                  ))}
+                                </select>
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => {
+                                      if (!excuseReason[record.attendance_id]) {
+                                        toast.warning('Please select an excuse reason');
+                                      } else {
+                                        updateAttendance(record.attendance_id, 'excused');
+                                        setExcuseDropdownOpen(null);
+                                      }
+                                    }}
+                                    className="flex-1 px-2 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+                                  >Confirm</button>
+                                  <button
+                                    onClick={() => {
+                                      setExcuseDropdownOpen(null);
+                                      setExcuseReason(prev => { const u = { ...prev }; delete u[record.attendance_id]; return u; });
+                                    }}
+                                    className="flex-1 px-2 py-1.5 text-xs font-medium bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200 rounded transition-colors"
+                                  >Cancel</button>
+                                </div>
+                              </div>
                             )}
                           </div>
-                          <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{record.student.email}</p>
-                          {record.check_in_time && (
-                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                              Checked in: {format(new Date(record.check_in_time), 'HH:mm:ss')}
-                            </p>
-                          )}
-                          {/* Inline late_minutes editor */}
-                          {record.status === 'late' && !record.attendance_id.startsWith('temp-') && (
-                            <div className="mt-1.5 flex items-center gap-1.5">
-                              <span className="text-xs text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                Late:
-                              </span>
-                              {editingLateMinutes === record.attendance_id ? (
-                                <span className="flex items-center gap-1">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    max="999"
-                                    autoFocus
-                                    value={lateMinutesInput}
-                                    onChange={e => setLateMinutesInput(e.target.value)}
-                                    onKeyDown={e => {
-                                      if (e.key === 'Enter') saveLateMinutes(record.attendance_id);
-                                      if (e.key === 'Escape') { setEditingLateMinutes(null); setLateMinutesInput(''); }
-                                    }}
-                                    className="w-14 px-1.5 py-0.5 text-xs border border-yellow-400 dark:border-yellow-600 rounded bg-yellow-50 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 focus:outline-none focus:ring-1 focus:ring-yellow-500"
-                                  />
-                                  <span className="text-xs text-gray-500 dark:text-gray-400">min</span>
-                                  <button
-                                    onClick={() => saveLateMinutes(record.attendance_id)}
-                                    className="p-0.5 rounded hover:bg-green-100 dark:hover:bg-green-900/40 text-green-600 dark:text-green-400"
-                                    title="Save"
-                                  >
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
-                                  </button>
-                                  <button
-                                    onClick={() => { setEditingLateMinutes(null); setLateMinutesInput(''); }}
-                                    className="p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/40 text-red-500 dark:text-red-400"
-                                    title="Cancel"
-                                  >
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                                  </button>
-                                </span>
-                              ) : (
-                                <button
-                                  onClick={() => {
-                                    setEditingLateMinutes(record.attendance_id);
-                                    setLateMinutesInput(String(record.late_minutes ?? ''));
-                                  }}
-                                  className="group flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-800/50 transition-colors"
-                                  title="Click to edit late duration"
-                                >
-                                  {record.late_minutes != null ? `${record.late_minutes} min` : '—'}
-                                  <svg className="w-3 h-3 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                                </button>
-                              )}
-                            </div>
-                          )}
-                          {isNotEnrolled && record.enrollment_date && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">
-                              Enrolled on: {format(new Date(record.enrollment_date), 'MMM dd, yyyy')}
-                            </p>
-                          )}
+                          <button
+                            onClick={() => clearAttendance(record.attendance_id)}
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-xs bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all sm:opacity-0 sm:group-hover:opacity-100"
+                            title="Clear"
+                          >↺</button>
                         </div>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                        {getStatusBadge(record.status)}
-                        {!isNotEnrolled && (
-                          <>
-                        <Button
-                          onClick={() => updateAttendance(record.attendance_id, 'on time')}
-                          className="bg-emerald-500 hover:bg-emerald-600 text-xs sm:text-sm px-3 sm:px-4 rounded-full shadow-sm"
-                        >
-                          ✅ On Time
-                        </Button>
-                        <Button
-                          onClick={() => updateAttendance(record.attendance_id, 'absent')}
-                          className="bg-red-500 hover:bg-red-600 text-xs sm:text-sm px-3 sm:px-4 rounded-full shadow-sm"
-                        >
-                          ❌ Absent
-                        </Button>
-                        <Button
-                          onClick={() => updateAttendance(record.attendance_id, 'late')}
-                          className="bg-amber-500 hover:bg-amber-600 text-xs sm:text-sm px-3 sm:px-4 rounded-full shadow-sm"
-                        >
-                          ⏰ Late
-                        </Button>
-                        <div className="flex items-center gap-1">
-                          {excuseDropdownOpen === record.attendance_id ? (
-                            <>
-                              <select
-                                autoFocus
-                                value={excuseReason[record.attendance_id] || ''}
-                                onChange={(e) => setExcuseReason(prev => ({ ...prev, [record.attendance_id]: e.target.value }))}
-                                className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs sm:text-sm font-medium bg-white dark:bg-gray-700 dark:text-white"
-                              >
-                                <option value="">Select reason...</option>
-                                {SERVICE_EXCUSE_REASONS.map(reason => (
-                                  <option key={reason.value} value={reason.value}>{reason.icon} {reason.label}</option>
-                                ))}
-                              </select>
-                              <Button
-                                onClick={() => {
-                                  if (!excuseReason[record.attendance_id]) {
-                                    toast.warning('Please select an excuse reason');
-                                  } else {
-                                    updateAttendance(record.attendance_id, 'excused');
-                                    setExcuseDropdownOpen(null);
-                                  }
-                                }}
-                                className="bg-blue-600 hover:bg-blue-700 text-xs sm:text-sm px-2 sm:px-4"
-                                size="sm"
-                              >
-                                Confirm
-                              </Button>
-                              <Button
-                                onClick={() => {
-                                  setExcuseDropdownOpen(null);
-                                  setExcuseReason(prev => {
-                                    const updated = { ...prev };
-                                    delete updated[record.attendance_id];
-                                    return updated;
-                                  });
-                                }}
-                                className="bg-gray-400 hover:bg-gray-500 text-xs sm:text-sm px-2 sm:px-4 text-white"
-                                size="sm"
-                              >
-                                Cancel
-                              </Button>
-                            </>
-                          ) : (
-                            <Button
-                              onClick={() => setExcuseDropdownOpen(record.attendance_id)}
-                              className="bg-blue-600 hover:bg-blue-700 text-xs sm:text-sm px-2 sm:px-4"
-                              size="sm"
-                            >
-                              Excused
-                            </Button>
-                          )}
-                        </div>
-                        <Button
-                          onClick={() => clearAttendance(record.attendance_id)}
-                          className="bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-xs sm:text-sm px-2 sm:px-4 text-gray-700 dark:text-gray-200"
-                          size="sm"
-                        >
-                          Clear
-                        </Button>
-                          </>
-                        )}
-                      </div>
+                      )}
+                      {isNotEnrolled && (
+                        <Badge variant="default" size="sm" className="bg-gray-200 dark:bg-gray-700 text-gray-500 shrink-0">Not Enrolled</Badge>
+                      )}
                     </div>
                     );
                   })}
