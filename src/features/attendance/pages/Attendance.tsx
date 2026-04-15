@@ -268,8 +268,8 @@ export function Attendance() {
       const referenceTime = checkInTime ? new Date(checkInTime) : new Date();
       
       if (referenceTime > graceEnd) {
-        const lateMs = referenceTime.getTime() - graceEnd.getTime();
-        const lateMinutes = Math.ceil(lateMs / (1000 * 60)); // ceil to match StudentCheckIn
+        const lateMs = referenceTime.getTime() - sessionStart.getTime();
+        const lateMinutes = Math.ceil(lateMs / (1000 * 60)); // from session start; grace period only determines threshold
         return Math.max(1, lateMinutes);
       }
       return forceLate ? 1 : null;

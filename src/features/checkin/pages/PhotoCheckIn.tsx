@@ -54,6 +54,7 @@ export function PhotoCheckIn() {
   const [success, setSuccess] = useState(false);
   const [wasLate, setWasLate] = useState(false);
   const [checkedInAfterSession, setCheckedInAfterSession] = useState(false);
+  const [actualLateMinutes, setActualLateMinutes] = useState<number | null>(null);
   const [checkInData, setCheckInData] = useState<CheckInData | null>(null);
   const [studentInfo, setStudentInfo] = useState<{ student_id: string; name: string; email: string; photo_url: string | null } | null>(null);
   const [signedPhotoUrl, setSignedPhotoUrl] = useState<string | null>(null); // Signed URL for display/comparison
@@ -730,8 +731,8 @@ export function PhotoCheckIn() {
               checkInAfterSession = true;
             } else if (now > graceEnd) {
               attendanceStatus = 'late';
-              // Calculate how many minutes late (after grace period ended)
-              lateMinutes = Math.ceil((now.getTime() - graceEnd.getTime()) / (1000 * 60));
+              // Calculate how many minutes late from session start (grace period only determines threshold)
+              lateMinutes = Math.ceil((now.getTime() - sessionStart.getTime()) / (1000 * 60));
             } else if (now < sessionStart) {
               // Student arrived early - track early minutes
               attendanceStatus = 'on time';
@@ -789,6 +790,7 @@ export function PhotoCheckIn() {
 
       setWasLate(attendanceStatus !== 'on time');
       setCheckedInAfterSession(checkInAfterSession);
+      setActualLateMinutes(lateMinutes);
       setSuccess(true);
       
       // Check if session has feedback enabled
@@ -871,7 +873,7 @@ export function PhotoCheckIn() {
                   <p className={`text-sm font-semibold ${checkedInAfterSession ? 'text-red-800 dark:text-red-300' : 'text-yellow-800 dark:text-yellow-300'}`}>
                     {checkedInAfterSession 
                       ? '🚫 You checked in AFTER the session ended' 
-                      : `⚠️ You were marked as LATE`}
+                      : `⚠️ You were marked as LATE — ${actualLateMinutes ?? '?'} min after session started`}
                   </p>
                 </div>
               )}

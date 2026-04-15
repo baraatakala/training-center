@@ -99,11 +99,11 @@ export function BookReferencesManager({ courseId, courseName, onClose }: BookRef
     return sum;
   }, [chapters]);
 
-  // Auto-compute next chapter start page = last chapter's end page
+  // Auto-compute next chapter start page = last chapter's end page + 1
   const nextChapterStart = useMemo(() => {
     if (chapters.length === 0) return 1;
     const lastChapter = chapters[chapters.length - 1];
-    return lastChapter.end_page;
+    return lastChapter.end_page + 1;
   }, [chapters]);
 
   // Keep chapter form start/end synced when chapters load

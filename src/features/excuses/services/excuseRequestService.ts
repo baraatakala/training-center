@@ -503,6 +503,8 @@ class ExcuseRequestService {
           }
         } else if (matchingRecords && matchingRecords.length > 1) {
           console.error(`Excuse fallback: ${matchingRecords.length} attendance records match — skipped to avoid corrupting data`);
+        } else {
+          console.warn('Excuse fallback: no attendance record found for student/session/date — excuse approved but no attendance updated');
         }
       }
     }

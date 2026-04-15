@@ -44,6 +44,7 @@ export function StudentCheckIn() {
   const [success, setSuccess] = useState(false);
   const [wasLate, setWasLate] = useState(false);
   const [checkedInAfterSession, setCheckedInAfterSession] = useState(false);
+  const [actualLateMinutes, setActualLateMinutes] = useState<number | null>(null);
   const [checkInData, setCheckInData] = useState<CheckInData | null>(null);
   const [studentInfo, setStudentInfo] = useState<{ student_id: string; name: string; email: string; photo_url: string | null } | null>(null);
   const [signedPhotoUrl, setSignedPhotoUrl] = useState<string | null>(null);
@@ -457,8 +458,8 @@ export function StudentCheckIn() {
               checkInAfterSession = true;
             } else if (now > graceEnd) {
               attendanceStatus = 'late';
-              // Calculate how many minutes late (after grace period ended)
-              lateMinutes = Math.ceil((now.getTime() - graceEnd.getTime()) / (1000 * 60));
+              // Calculate how many minutes late from session start (grace period only determines threshold)
+              lateMinutes = Math.ceil((now.getTime() - sessionStart.getTime()) / (1000 * 60));
             } else if (now < sessionStart) {
               // Student arrived early - track early minutes
               attendanceStatus = 'on time';
@@ -524,6 +525,7 @@ export function StudentCheckIn() {
 
       setWasLate(attendanceStatus !== 'on time');
       setCheckedInAfterSession(checkInAfterSession);
+      setActualLateMinutes(lateMinutes);
       setSuccess(true);
 
       // Check if session has feedback enabled
@@ -607,7 +609,7 @@ export function StudentCheckIn() {
                     <span>
                       {checkedInAfterSession 
                         ? 'You checked in AFTER the session ended' 
-                        : `You were marked as LATE (arrived after ${checkInData?.session?.grace_period_minutes ?? 15}-minute grace period)`}
+                        : `You were marked as LATE — ${actualLateMinutes ?? '?'} min after session started`}
                     </span>
                   </p>
                 </div>
