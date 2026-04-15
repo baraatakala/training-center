@@ -98,6 +98,7 @@ CREATE TABLE IF NOT EXISTS public.session (
   default_recording_visibility TEXT CHECK (default_recording_visibility IS NULL OR (default_recording_visibility = ANY (ARRAY['private_staff', 'course_staff', 'enrolled_students', 'organization', 'public_link']))),
   feedback_enabled BOOLEAN DEFAULT false,
   feedback_anonymous_allowed BOOLEAN DEFAULT true,
+  max_tab_switches INTEGER NOT NULL DEFAULT 3 CHECK (max_tab_switches >= 1 AND max_tab_switches <= 20),
   teacher_can_host BOOLEAN DEFAULT true,
   CONSTRAINT session_pkey PRIMARY KEY (session_id),
   CONSTRAINT session_dates_ordered CHECK (end_date >= start_date),

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+﻿import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Select } from '@/shared/components/ui/Select';
 import { Button } from '@/shared/components/ui/Button';
@@ -14,8 +14,9 @@ const RATING_EMOJIS = ['😢', '😕', '😐', '😊', '🤩'];
 type QuestionTypeFilter = 'all' | 'rating' | 'text' | 'multiple_choice';
 type CorrectnessFilter = 'all' | 'correct' | 'incorrect' | 'not-graded';
 type RatingRangeFilter = 'bad' | 'neutral' | 'good';
+type ViolationsFilter = 'all' | 'has_violations';
 
-type SortField = 'studentName' | 'attendanceDate' | 'questionType' | 'questionText' | 'answer' | 'comment' | 'overallRating';
+type SortField = 'studentName' | 'attendanceDate' | 'questionType' | 'questionText' | 'answer' | 'comment' | 'overallRating' | 'tabSwitchCount';
 type SortDirection = 'asc' | 'desc';
 
 interface SessionOption {
@@ -51,7 +52,7 @@ interface FlattenedRecord {
 
 // ─── CSV export (one row per question-answer) ───────────────
 function exportFeedbackCSV(records: FlattenedRecord[], courseName: string, selectedDate?: string) {
-  const headers = ['Student', 'Date', 'Question Type', 'Question', 'Answer', 'Correct?', 'Tab Switches', 'Auto-Submitted', 'Comment'];
+  const headers = ['Student', 'Date', 'Question Type', 'Question', 'Answer', 'Correct?', 'Violations', 'Auto-Submitted', 'Comment'];
   const rows = records.map(r => [
     r.studentName, r.attendanceDate,
     r.questionType, r.questionText, r.answer,
@@ -131,18 +132,8 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
     anon: '🕵️ مجهول',
     overallRating: 'التقييم العام',
     of: 'من',
-    knowledgeAssessment: 'تقييم المعرفة',
-    overallAccuracy: 'الدقة الإجمالية',
-    questionAccuracy: 'دقة الأسئلة',
-    correctAnswer: 'الإجابة الصحيحة',
-    attempts: 'محاولات',
-    accuracy: 'الدقة',
-    studentScores: 'درجات الطلاب',
-    attempted: 'حاول',
-    score: 'الدرجة',
-    tabSwitches: 'تبديل التبويب',
-    autoSubmitted: 'تسليم تلقائي',
     violations: 'مخالفات',
+    hasViolations: 'بها مخالفات',
   } : {
     feedbackAnalytics: 'Feedback Analytics',
     subtitle: 'Analyze student feedback responses per question, session, and date.',
@@ -192,18 +183,8 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
     anon: '🕵️ Anon',
     overallRating: 'Overall Rating',
     of: 'of',
-    knowledgeAssessment: 'Knowledge Assessment',
-    overallAccuracy: 'Overall Accuracy',
-    questionAccuracy: 'Question Accuracy',
-    correctAnswer: 'Correct Answer',
-    attempts: 'Attempts',
-    accuracy: 'Accuracy',
-    studentScores: 'Student Scores',
-    attempted: 'Attempted',
-    score: 'Score',
-    tabSwitches: 'Tab Switches',
-    autoSubmitted: 'Auto-Submitted',
     violations: 'Violations',
+    hasViolations: 'Has Violations',
   }, [arabicMode]);
 
   const [sessions, setSessions] = useState<SessionOption[]>([]);
@@ -222,6 +203,7 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
   const [feedbackSearch, setFeedbackSearch] = useState('');
   const [studentFilter, setStudentFilter] = useState<string>('');
   const [correctnessFilter, setCorrectnessFilter] = useState<CorrectnessFilter>('all');
+  const [violationsFilter, setViolationsFilter] = useState<ViolationsFilter>('all');
   const [ratingRangeFilters, setRatingRangeFilters] = useState<RatingRangeFilter[]>([]);
 
   const [recordsPage, setRecordsPage] = useState(0);
@@ -424,15 +406,21 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
     return rows;
   }, [filteredFeedbacks, questions, questionTypeFilter, t]);
 
-  // ─── Correctness-filtered records (for display/export) ─────
+  // ─── Correctness + violations filtered records ─────────────
   const displayRecords = useMemo(() => {
-    if (correctnessFilter === 'all') return flattenedRecords;
-    return flattenedRecords.filter(r => {
-      if (correctnessFilter === 'correct') return r.isCorrect === true;
-      if (correctnessFilter === 'incorrect') return r.isCorrect === false;
-      return r.isCorrect === null; // not-graded
-    });
-  }, [flattenedRecords, correctnessFilter]);
+    let result = flattenedRecords;
+    if (correctnessFilter !== 'all') {
+      result = result.filter(r => {
+        if (correctnessFilter === 'correct') return r.isCorrect === true;
+        if (correctnessFilter === 'incorrect') return r.isCorrect === false;
+        return r.isCorrect === null; // not-graded
+      });
+    }
+    if (violationsFilter === 'has_violations') {
+      result = result.filter(r => r.tabSwitchCount > 0);
+    }
+    return result;
+  }, [flattenedRecords, correctnessFilter, violationsFilter]);
 
   const paginatedRecords = useMemo(() => {
     const sorted = [...displayRecords];
@@ -459,74 +447,6 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
     }
     setRecordsPage(0);
   };
-
-  // ─── Knowledge Assessment (test questions only) ────────────
-  const knowledgeAssessment = useMemo(() => {
-    const testQuestions = questions.filter(q => q.correct_answer);
-    if (testQuestions.length === 0) return null;
-
-    // Per-question accuracy
-    interface QuestionAccuracy {
-      questionId: string;
-      questionText: string;
-      correctAnswer: string;
-      totalAttempts: number;
-      correctCount: number;
-      accuracyPct: number;
-    }
-    const perQuestion: QuestionAccuracy[] = testQuestions.map(q => {
-      const attempts = filteredFeedbacks.filter(fb => fb.responses?.[q.id] !== undefined && fb.responses?.[q.id] !== '');
-      const correct = attempts.filter(fb =>
-        String(fb.responses?.[q.id] ?? '').trim().toLowerCase() === q.correct_answer!.trim().toLowerCase()
-      );
-      return {
-        questionId: q.id,
-        questionText: q.question_text,
-        correctAnswer: q.correct_answer!,
-        totalAttempts: attempts.length,
-        correctCount: correct.length,
-        accuracyPct: attempts.length > 0 ? Math.round((correct.length / attempts.length) * 100) : 0,
-      };
-    }).filter(q => q.totalAttempts > 0);
-
-    if (perQuestion.length === 0) return null;
-
-    // Per-student scores
-    interface StudentScore {
-      studentId: string;
-      studentName: string;
-      attempted: number;
-      correct: number;
-      scorePct: number;
-      tabSwitchCount: number;
-      isAutoSubmitted: boolean;
-    }
-    const studentMap = new Map<string, StudentScore>();
-    for (const fb of filteredFeedbacks) {
-      const sid = fb.student_id || fb.id;
-      const name = fb.is_anonymous ? 'Anonymous' : (fb.student_name || 'Unknown');
-      if (!studentMap.has(sid)) studentMap.set(sid, { studentId: sid, studentName: name, attempted: 0, correct: 0, scorePct: 0, tabSwitchCount: 0, isAutoSubmitted: false });
-      const entry = studentMap.get(sid)!;
-      // Aggregate tab switch count (max across submissions)
-      const fbSwitches = fb.tab_switch_count ?? 0;
-      if (fbSwitches > entry.tabSwitchCount) entry.tabSwitchCount = fbSwitches;
-      if (fb.is_auto_submitted) entry.isAutoSubmitted = true;
-      for (const q of testQuestions) {
-        const val = fb.responses?.[q.id];
-        if (val === undefined || val === '') continue;
-        entry.attempted++;
-        if (String(val).trim().toLowerCase() === q.correct_answer!.trim().toLowerCase()) entry.correct++;
-      }
-    }
-    for (const entry of studentMap.values()) {
-      entry.scorePct = entry.attempted > 0 ? Math.round((entry.correct / entry.attempted) * 100) : 0;
-    }
-    const studentScores = [...studentMap.values()].filter(s => s.attempted > 0).sort((a, b) => b.scorePct - a.scorePct);
-
-    const overallPct = perQuestion.reduce((s, q) => s + q.accuracyPct, 0) / perQuestion.length;
-
-    return { perQuestion, studentScores, overallPct: Math.round(overallPct) };
-  }, [filteredFeedbacks, questions]);
 
   // ═══════════════════════════════════════════════════════════
   // RENDER
@@ -748,7 +668,7 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
           </div>
           {/* Correctness filter row + advanced filters + clear button */}
           <div className="flex flex-wrap items-center gap-2 -mt-1">
-            {knowledgeAssessment && (
+            {questions.some(q => q.correct_answer) && (
               <div className="min-w-[140px]">
                 <label className="text-[11px] text-gray-400 block mb-1">{t.correctness}</label>
                 <select
@@ -763,6 +683,17 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                 </select>
               </div>
             )}
+            <div className="min-w-[140px]">
+              <label className="text-[11px] text-gray-400 block mb-1">{t.violations}</label>
+              <select
+                value={violationsFilter}
+                onChange={e => { setViolationsFilter(e.target.value as ViolationsFilter); setRecordsPage(0); }}
+                className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white"
+              >
+                <option value="all">{t.allResults}</option>
+                <option value="has_violations">⚠️ {t.hasViolations}</option>
+              </select>
+            </div>
             <div className="min-w-[130px]">
               <label className="text-[11px] text-gray-400 block mb-1">{t.ratingRange}</label>
               <div className="flex flex-col gap-1">
@@ -786,9 +717,9 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
               </div>
             </div>
 
-            {(feedbackSearch || dateFrom || dateTo || studentFilter || questionTypeFilter !== 'all' || correctnessFilter !== 'all' || ratingRangeFilters.length > 0) && (
+            {(feedbackSearch || dateFrom || dateTo || studentFilter || questionTypeFilter !== 'all' || correctnessFilter !== 'all' || violationsFilter !== 'all' || ratingRangeFilters.length > 0) && (
               <button
-                onClick={() => { setFeedbackSearch(''); setDateFrom(''); setDateTo(''); setStudentFilter(''); setQuestionTypeFilter('all'); setCorrectnessFilter('all'); setRatingRangeFilters([]); setRecordsPage(0); }}
+                onClick={() => { setFeedbackSearch(''); setDateFrom(''); setDateTo(''); setStudentFilter(''); setQuestionTypeFilter('all'); setCorrectnessFilter('all'); setViolationsFilter('all'); setRatingRangeFilters([]); setRecordsPage(0); }}
                 className="text-xs text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 px-3 py-1.5 rounded-lg border border-purple-200 dark:border-purple-700 mt-auto"
               >
                 {t.clearFilters}
@@ -820,6 +751,7 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                             { key: 'answer' as SortField, label: t.answer },
                             { key: null, label: t.correct },
                             { key: 'comment' as SortField, label: t.comment },
+                            { key: 'tabSwitchCount' as SortField, label: t.violations },
                           ]).map(col => (
                             <th
                               key={col.label}
@@ -878,6 +810,15 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                                 <p className="text-gray-600 dark:text-gray-400 truncate" title={row.comment}>{row.comment}</p>
                               ) : <span className="text-gray-400">—</span>}
                             </td>
+                            <td className="px-3 py-3 text-center whitespace-nowrap">
+                              {row.tabSwitchCount > 0 ? (
+                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${row.isAutoSubmitted ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400'}`}>
+                                  ⚠️ {row.tabSwitchCount}{row.isAutoSubmitted ? ' 🚨' : ''}
+                                </span>
+                              ) : (
+                                <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>
+                              )}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -927,99 +868,6 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                 </div>
               )}
             </div>
-
-          {/* ═══════════════════════════════════════════════════ */}
-          {/* KNOWLEDGE ASSESSMENT (test questions only)          */}
-          {/* ═══════════════════════════════════════════════════ */}
-          {knowledgeAssessment && (
-            <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 overflow-hidden">
-              <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-gray-100 dark:border-gray-700">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">🎯</span>
-                  <h3 className="text-sm font-bold text-gray-900 dark:text-white">{t.knowledgeAssessment}</h3>
-                </div>
-                <div className={`px-3 py-1 rounded-full text-xs font-bold ${
-                  knowledgeAssessment.overallPct >= 70
-                    ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400'
-                    : knowledgeAssessment.overallPct >= 40
-                    ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400'
-                    : 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400'
-                }`}>
-                  {t.overallAccuracy}: {knowledgeAssessment.overallPct}%
-                </div>
-              </div>
-
-              {/* Per-question accuracy */}
-              <div className="px-4 sm:px-5 py-3 border-b border-gray-50 dark:border-gray-700/50">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{t.questionAccuracy}</p>
-                <div className="space-y-2">
-                  {knowledgeAssessment.perQuestion.map(q => (
-                    <div key={q.questionId} className="flex items-center gap-3">
-                      <p className="flex-1 text-xs text-gray-700 dark:text-gray-300 truncate" title={q.questionText}>{q.questionText}</p>
-                      <span className="text-[10px] text-gray-400 whitespace-nowrap">{q.correctCount}/{q.totalAttempts}</span>
-                      <div className="w-20 bg-gray-100 dark:bg-gray-700 h-1.5 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${q.accuracyPct >= 70 ? 'bg-green-500' : q.accuracyPct >= 40 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${q.accuracyPct}%` }} />
-                      </div>
-                      <span className="text-xs font-bold text-gray-600 dark:text-gray-300 w-10 text-right">{q.accuracyPct}%</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Per-student scores with anti-cheat violations */}
-              <div className="px-4 sm:px-5 py-3">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{t.studentScores}</p>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="text-gray-400 border-b border-gray-100 dark:border-gray-700">
-                        <th className="text-left py-2 pr-2">{t.student}</th>
-                        <th className="text-center py-2 px-2">{t.attempted}</th>
-                        <th className="text-center py-2 px-2">{t.correct}</th>
-                        <th className="text-center py-2 px-2">{t.score}</th>
-                        <th className="text-center py-2 px-2">{t.tabSwitches}</th>
-                        <th className="text-center py-2 pl-2">{t.autoSubmitted}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
-                      {knowledgeAssessment.studentScores.map(s => (
-                        <tr key={s.studentId} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors">
-                          <td className="py-2 pr-2 font-medium text-gray-900 dark:text-white">{s.studentName}</td>
-                          <td className="py-2 px-2 text-center text-gray-500">{s.attempted}</td>
-                          <td className="py-2 px-2 text-center text-gray-500">{s.correct}</td>
-                          <td className="py-2 px-2 text-center">
-                            <span className={`font-bold ${
-                              s.scorePct >= 70 ? 'text-green-600 dark:text-green-400'
-                              : s.scorePct >= 40 ? 'text-amber-600 dark:text-amber-400'
-                              : 'text-red-600 dark:text-red-400'
-                            }`}>{s.scorePct}%</span>
-                          </td>
-                          <td className="py-2 px-2 text-center">
-                            {s.tabSwitchCount > 0 ? (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] font-bold">
-                                ⚠️ {s.tabSwitchCount}
-                              </span>
-                            ) : (
-                              <span className="text-gray-300 dark:text-gray-600">—</span>
-                            )}
-                          </td>
-                          <td className="py-2 pl-2 text-center">
-                            {s.isAutoSubmitted ? (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 text-[10px] font-bold">
-                                🚨 Yes
-                              </span>
-                            ) : (
-                              <span className="text-gray-300 dark:text-gray-600">—</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
 
         </>
       )}

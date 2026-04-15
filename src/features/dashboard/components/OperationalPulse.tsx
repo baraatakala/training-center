@@ -120,7 +120,7 @@ export function OperationalPulse() {
             {todaySessions.map(s => (
               <Link
                 key={s.session_id}
-                to={`/attendance?session=${s.session_id}`}
+                to={`/attendance/${s.session_id}`}
                 className="flex items-center justify-between px-5 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
               >
                 <div className="min-w-0 flex-1">

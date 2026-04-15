@@ -1,8 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+﻿import { useState, useEffect, useCallback, useRef } from 'react';
 import { feedbackService, type FeedbackQuestion } from '@/features/feedback/services/feedbackService';
 import { Button } from '@/shared/components/ui';
-
-const MAX_TAB_SWITCHES = 3;
 
 interface Props {
   sessionId: string;
@@ -32,12 +30,13 @@ export default function SessionFeedbackForm({
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
   const [feedbackEnabled, setFeedbackEnabled] = useState(true);
+  const [maxTabSwitches, setMaxTabSwitches] = useState(3);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [gradedResults, setGradedResults] = useState<Array<{ question: FeedbackQuestion; isCorrect: boolean; userAnswer: string }>>([]);
   const primaryRatingQuestion = customQuestions.find((question) => question.question_type === 'rating') || null;
   const hasConfiguredQuestions = customQuestions.length > 0;
 
-  // ─── Anti-cheat state ──────────────────────────────────────
+  // â”€â”€â”€ Anti-cheat state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const isTestMode = customQuestions.some(q => q.correct_answer);
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
   const [showViolationWarning, setShowViolationWarning] = useState(false);
@@ -61,6 +60,7 @@ export default function SessionFeedbackForm({
 
       setFeedbackEnabled(configResult.enabled);
       setAnonymousAllowed(configResult.anonymousAllowed);
+      setMaxTabSwitches(configResult.maxTabSwitches ?? 3);
       setAlreadySubmitted(hasSubmittedResult.alreadySubmitted);
       setLoadError(
         configError?.message ||
@@ -77,7 +77,7 @@ export default function SessionFeedbackForm({
     return () => { cancelled = true; };
   }, [attendanceDate, sessionId, studentId]);
 
-  // ─── Anti-cheat: tab switch detection (test mode only) ─────
+  // â”€â”€â”€ Anti-cheat: tab switch detection (test mode only) â”€â”€â”€â”€â”€
   useEffect(() => {
     if (!isTestMode || submitted || loading) return;
 
@@ -85,7 +85,7 @@ export default function SessionFeedbackForm({
       if (document.hidden) {
         setTabSwitchCount(prev => {
           const next = prev + 1;
-          if (next >= MAX_TAB_SWITCHES && !autoSubmitTriggered.current) {
+          if (next >= maxTabSwitches && !autoSubmitTriggered.current) {
             autoSubmitTriggered.current = true;
             // Trigger auto-submit on next tick so state is updated
             setTimeout(() => {
@@ -103,7 +103,7 @@ export default function SessionFeedbackForm({
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [isTestMode, submitted, loading]);
 
-  // ─── Anti-cheat: disable copy/paste/context menu in test mode ──
+  // â”€â”€â”€ Anti-cheat: disable copy/paste/context menu in test mode â”€â”€
   useEffect(() => {
     if (!isTestMode || submitted || loading) return;
 
@@ -219,7 +219,7 @@ export default function SessionFeedbackForm({
         {/* Auto-submit warning */}
         {autoSubmitTriggered.current && (
           <div className="text-center p-4 bg-red-50 dark:bg-red-900/30 rounded-2xl border border-red-200 dark:border-red-700">
-            <span className="text-3xl block mb-1">⚠️</span>
+            <span className="text-3xl block mb-1">âš ï¸</span>
             <p className="text-sm font-semibold text-red-700 dark:text-red-300">Auto-submitted due to tab switching</p>
             <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-1">
               You switched tabs {tabSwitchCount} time{tabSwitchCount !== 1 ? 's' : ''} during the test. Your answers were submitted automatically.
@@ -229,7 +229,7 @@ export default function SessionFeedbackForm({
 
         {/* Thank-you banner */}
         <div className="text-center p-5 bg-purple-50 dark:bg-purple-900/30 rounded-2xl border border-purple-200 dark:border-purple-700">
-          <span className="text-4xl block mb-2">💜</span>
+          <span className="text-4xl block mb-2">ðŸ’œ</span>
           <p className="text-base font-semibold text-purple-700 dark:text-purple-300">Thank you for your feedback!</p>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Your response helps improve future sessions.</p>
         </div>
@@ -240,7 +240,7 @@ export default function SessionFeedbackForm({
             {/* Score header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-amber-200 dark:border-amber-700">
               <div className="flex items-center gap-2">
-                <span className="text-lg">{allCorrect ? '🏆' : '🎯'}</span>
+                <span className="text-lg">{allCorrect ? 'ðŸ†' : 'ðŸŽ¯'}</span>
                 <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Knowledge Check Results</p>
               </div>
               <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-bold ${
@@ -259,7 +259,7 @@ export default function SessionFeedbackForm({
               {gradedResults.map(({ question, isCorrect, userAnswer }) => (
                 <div key={question.id} className="px-4 py-3 space-y-1">
                   <div className="flex items-start gap-2">
-                    <span className="mt-0.5 text-base shrink-0">{isCorrect ? '✅' : '❌'}</span>
+                    <span className="mt-0.5 text-base shrink-0">{isCorrect ? 'âœ…' : 'âŒ'}</span>
                     <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{question.question_text}</p>
                   </div>
                   <div className="ml-7 space-y-0.5">
@@ -270,7 +270,7 @@ export default function SessionFeedbackForm({
                           ? 'text-green-600 dark:text-green-400'
                           : 'text-red-600 dark:text-red-400'
                       }`}>
-                        {userAnswer || '—'}
+                        {userAnswer || 'â€”'}
                       </span>
                     </p>
                     {!isCorrect && (
@@ -293,7 +293,7 @@ export default function SessionFeedbackForm({
             onClick={onComplete}
             className="w-full py-2.5 text-sm font-medium text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 transition-colors"
           >
-            Continue →
+            Continue â†’
           </button>
         )}
       </div>
@@ -358,7 +358,7 @@ export default function SessionFeedbackForm({
           onClick={onSkip}
           className="mt-3 text-sm text-blue-600 dark:text-blue-400 hover:underline"
         >
-          Continue →
+          Continue â†’
         </button>
       </div>
     );
@@ -370,21 +370,21 @@ export default function SessionFeedbackForm({
       {showViolationWarning && isTestMode && !submitted && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <div className="mx-4 max-w-sm w-full bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-2xl border-2 border-red-400 dark:border-red-600 text-center space-y-3 animate-scale-in">
-            <span className="text-5xl block">🚨</span>
+            <span className="text-5xl block">ðŸš¨</span>
             <h3 className="text-lg font-bold text-red-700 dark:text-red-300">Tab Switch Detected!</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Leaving this page during a test is not allowed. Violation {tabSwitchCount} of {MAX_TAB_SWITCHES}.
+              Leaving this page during a test is not allowed. Violation {tabSwitchCount} of {maxTabSwitches}.
             </p>
-            {tabSwitchCount < MAX_TAB_SWITCHES ? (
+            {tabSwitchCount < maxTabSwitches ? (
               <p className="text-xs text-red-600 dark:text-red-400 font-medium">
-                After {MAX_TAB_SWITCHES} violations your answers will be auto-submitted.
+                After {maxTabSwitches} violations your answers will be auto-submitted.
               </p>
             ) : (
               <p className="text-xs text-red-700 dark:text-red-300 font-bold">
                 Maximum violations reached. Auto-submitting your answers now...
               </p>
             )}
-            {tabSwitchCount < MAX_TAB_SWITCHES && (
+            {tabSwitchCount < maxTabSwitches && (
               <button
                 onClick={() => setShowViolationWarning(false)}
                 className="mt-2 w-full py-2.5 text-sm font-semibold rounded-xl bg-red-600 hover:bg-red-700 text-white transition-colors"
@@ -417,17 +417,17 @@ export default function SessionFeedbackForm({
       {isTestMode && (
         <div className="mb-4 rounded-xl border border-red-200 dark:border-red-700 bg-red-50/80 dark:bg-red-900/20 px-4 py-3 space-y-1">
           <div className="flex items-center gap-2">
-            <span className="text-base">🔒</span>
+            <span className="text-base">ðŸ”’</span>
             <p className="text-sm font-bold text-red-700 dark:text-red-300">Exam Mode Active</p>
           </div>
           <ul className="text-xs text-red-600/80 dark:text-red-400/80 space-y-0.5 ml-6 list-disc">
             <li>Do not switch tabs or leave this page</li>
             <li>Copy, paste, and right-click are disabled</li>
-            <li>After {MAX_TAB_SWITCHES} tab switches your answers will be auto-submitted</li>
+            <li>After {maxTabSwitches} tab switches your answers will be auto-submitted</li>
           </ul>
           {tabSwitchCount > 0 && (
             <p className="text-xs font-semibold text-red-700 dark:text-red-300 mt-1 ml-6">
-              ⚠️ Violations: {tabSwitchCount}/{MAX_TAB_SWITCHES}
+              âš ï¸ Violations: {tabSwitchCount}/{maxTabSwitches}
             </p>
           )}
         </div>
@@ -466,7 +466,7 @@ export default function SessionFeedbackForm({
                         : 'bg-gray-100 dark:bg-gray-700 text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                   >
-                    ★
+                    â˜…
                   </button>
                 ))}
               </div>
@@ -514,7 +514,7 @@ export default function SessionFeedbackForm({
           />
         </div>
 
-        {/* Anonymous Toggle — disabled in test mode */}
+        {/* Anonymous Toggle â€” disabled in test mode */}
         {anonymousAllowed && !isTestMode && (
           <label className="flex items-center gap-2 mb-4 cursor-pointer select-none">
             <div
@@ -530,7 +530,7 @@ export default function SessionFeedbackForm({
               />
             </div>
             <span className="text-xs text-gray-600 dark:text-gray-400">
-              🕵️ Submit anonymously
+              ðŸ•µï¸ Submit anonymously
             </span>
           </label>
         )}
@@ -543,7 +543,7 @@ export default function SessionFeedbackForm({
               onClick={onSkip}
               className="flex-1 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
             >
-              Skip for now →
+              Skip for now â†’
             </button>
           )}
           <Button
@@ -558,7 +558,7 @@ export default function SessionFeedbackForm({
                 Sending...
               </span>
             ) : (
-              <span>{isTestMode ? '🔒 Submit Test' : '💜 Submit Feedback'}</span>
+              <span>{isTestMode ? 'ðŸ”’ Submit Test' : 'ðŸ’œ Submit Feedback'}</span>
             )}
           </Button>
         </div>

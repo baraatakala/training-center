@@ -127,13 +127,14 @@ export const feedbackService = {
   async isEnabled(sessionId: string) {
     const { data, error } = await supabase
       .from('session')
-      .select('feedback_enabled, feedback_anonymous_allowed')
+      .select('feedback_enabled, feedback_anonymous_allowed, max_tab_switches')
       .eq('session_id', sessionId)
       .single();
 
     return {
       enabled: data?.feedback_enabled ?? false,
       anonymousAllowed: data?.feedback_anonymous_allowed ?? true,
+      maxTabSwitches: data?.max_tab_switches ?? 3,
       error: normalizeFeedbackError(error),
     };
   },

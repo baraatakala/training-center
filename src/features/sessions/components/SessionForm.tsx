@@ -40,6 +40,7 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
     default_recording_visibility: initialData?.default_recording_visibility || 'course_staff',
     feedback_enabled: initialData?.feedback_enabled ?? false,
     feedback_anonymous_allowed: initialData?.feedback_anonymous_allowed ?? true,
+    max_tab_switches: initialData?.max_tab_switches ?? 3,
     teacher_can_host: initialData?.teacher_can_host ?? true,
   });
 
@@ -122,6 +123,7 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
       default_recording_visibility: initialData?.default_recording_visibility || 'course_staff',
       feedback_enabled: initialData?.feedback_enabled ?? false,
       feedback_anonymous_allowed: initialData?.feedback_anonymous_allowed ?? true,
+      max_tab_switches: initialData?.max_tab_switches ?? 3,
       teacher_can_host: initialData?.teacher_can_host ?? true,
     });
     setSelectedDays(initialData?.day ? initialData.day.split(',').map(d => d.trim()) : []);
@@ -563,6 +565,37 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
                   />
                   <span className="text-sm text-gray-600 dark:text-gray-400">Allow anonymous submissions</span>
                 </label>
+              )}
+              {formData.feedback_enabled && (
+                <div className="ml-6 space-y-1">
+                  <label className="block text-sm text-gray-600 dark:text-gray-400">
+                    Tab-switch limit (anti-cheat)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={formData.max_tab_switches ?? 3}
+                      onChange={(e) => setFormData({ ...formData, max_tab_switches: Math.min(20, Math.max(1, Number(e.target.value) || 3)) })}
+                      className="w-20 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 5].map(n => (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => setFormData({ ...formData, max_tab_switches: n })}
+                          className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${(formData.max_tab_switches ?? 3) === n ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                    <span className="text-xs text-gray-400">violations before auto-submit</span>
+                  </div>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">Only active when feedback questions have correct answers (test mode).</p>
+                </div>
               )}
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 Students will see an optional feedback form after successful QR or face check-in.
