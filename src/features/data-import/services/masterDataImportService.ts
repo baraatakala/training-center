@@ -263,21 +263,19 @@ export async function parseImportFile(file: File) {
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
+  // raw:false + dateNF forces XLSX to format date cells as 'yyyy-mm-dd' strings,
+  // avoiding all Date-object timezone pitfalls (UTC vs local).
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+    defval: '',
+    raw: false,
+    dateNF: 'yyyy-mm-dd',
+  });
 
   return rows
     .map((row) => {
       const normalized: ImportRow = {};
       Object.entries(row).forEach(([key, value]) => {
-        if (value instanceof Date) {
-          // Format JS Date objects (from cellDates:true) as YYYY-MM-DD
-          const yyyy = value.getFullYear();
-          const mm = String(value.getMonth() + 1).padStart(2, '0');
-          const dd = String(value.getDate()).padStart(2, '0');
-          normalized[normalizeHeader(key)] = `${yyyy}-${mm}-${dd}`;
-        } else {
-          normalized[normalizeHeader(key)] = typeof value === 'string' ? value.trim() : String(value ?? '').trim();
-        }
+        normalized[normalizeHeader(key)] = String(value ?? '').trim();
       });
       return normalized;
     })
