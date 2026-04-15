@@ -100,13 +100,13 @@ export function Teachers() {
   }, [filteredTeachers, currentPage, itemsPerPage]);
 
   const exportToCSV = useCallback(() => {
-    const headers = ['Name', 'Email', 'Phone', 'Specialization', 'Enrolled Students'];
+    const headers = ['name', 'email', 'phone', 'address', 'specialization'];
     const rows = filteredTeachers.map(t => [
       t.name,
       t.email,
       t.phone || '',
+      t.address || '',
       t.specialization || '',
-      String(t.enrolledCount || 0),
     ]);
     const csvContent = [headers, ...rows].map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });

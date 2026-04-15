@@ -10,10 +10,8 @@ export function SessionCard({
   enrollmentCount,
   isTeacher,
   isAdmin,
-  cloneCount: _cloneCount,
   onOpenSchedule,
   onOpenRecordings,
-  onClone,
   onEdit,
   onDelete,
   onMerge,
@@ -22,10 +20,8 @@ export function SessionCard({
   enrollmentCount: number;
   isTeacher: boolean;
   isAdmin: boolean;
-  cloneCount?: number;
   onOpenSchedule: (session: SessionWithDetails) => void;
   onOpenRecordings: (session: SessionWithDetails) => void;
-  onClone: (session: SessionWithDetails) => void;
   onEdit: (session: SessionWithDetails) => void;
   onDelete: (session: SessionWithDetails) => void;
   onMerge: (session: SessionWithDetails) => void;
@@ -188,16 +184,7 @@ export function SessionCard({
           </div>
         )}
         {isAdmin && (
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => onClone(session)}
-              title="Clone session with new dates and copy all students"
-              className="w-full min-h-[36px] justify-center"
-            >
-              📋 Clone
-            </Button>
+          <div className="grid grid-cols-2 xl:grid-cols-3 gap-2">
             <Button
               size="sm"
               variant="outline"

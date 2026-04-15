@@ -24,6 +24,7 @@ export type SessionWithDetails = {
   };
   teacher: {
     name: string;
+    email: string;
   };
 };
 

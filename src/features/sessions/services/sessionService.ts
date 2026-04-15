@@ -124,7 +124,7 @@ export const sessionService = {
       .select(`
         *,
         course:course_id(course_name, category),
-        teacher:teacher_id(name)
+        teacher:teacher_id(name, email)
       `)
       .order('start_date', { ascending: false });
   },

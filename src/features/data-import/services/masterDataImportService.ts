@@ -271,11 +271,9 @@ export async function parseImportFile(file: File) {
       Object.entries(row).forEach(([key, value]) => {
         if (value instanceof Date) {
           // Format JS Date objects (from cellDates:true) as YYYY-MM-DD
-          // Use UTC methods — XLSX.js creates dates at UTC midnight;
-          // local getDate() can shift ±1 day depending on the browser timezone.
-          const yyyy = value.getUTCFullYear();
-          const mm = String(value.getUTCMonth() + 1).padStart(2, '0');
-          const dd = String(value.getUTCDate()).padStart(2, '0');
+          const yyyy = value.getFullYear();
+          const mm = String(value.getMonth() + 1).padStart(2, '0');
+          const dd = String(value.getDate()).padStart(2, '0');
           normalized[normalizeHeader(key)] = `${yyyy}-${mm}-${dd}`;
         } else {
           normalized[normalizeHeader(key)] = typeof value === 'string' ? value.trim() : String(value ?? '').trim();

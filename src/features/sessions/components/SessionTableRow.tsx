@@ -11,10 +11,8 @@ export function SessionTableRow({
   enrollmentCount,
   isTeacher,
   isAdmin,
-  cloneCount: _cloneCount,
   onOpenSchedule,
   onOpenRecordings,
-  onClone,
   onEdit,
   onDelete,
   onMerge,
@@ -23,10 +21,8 @@ export function SessionTableRow({
   enrollmentCount: number;
   isTeacher: boolean;
   isAdmin: boolean;
-  cloneCount?: number;
   onOpenSchedule: (session: SessionWithDetails) => void;
   onOpenRecordings: (session: SessionWithDetails) => void;
-  onClone: (session: SessionWithDetails) => void;
   onEdit: (session: SessionWithDetails) => void;
   onDelete: (session: SessionWithDetails) => void;
   onMerge: (session: SessionWithDetails) => void;
@@ -132,9 +128,6 @@ export function SessionTableRow({
           )}
           {isAdmin && (
             <>
-              <Button size="sm" variant="outline" onClick={() => onClone(session)} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Clone">
-                📋
-              </Button>
               <Button size="sm" variant="outline" onClick={() => onMerge(session)} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Merge attendance from another session into this one">
                 ⇄
               </Button>

@@ -8,7 +8,7 @@ export const courseService = {
       .from(Tables.COURSE)
       .select(`
         *,
-        teacher:teacher_id(name)
+        teacher:teacher_id(name, email)
       `)
       .order('course_name');
   },
@@ -18,7 +18,7 @@ export const courseService = {
       .from(Tables.COURSE)
       .select(`
         *,
-        teacher:teacher_id(name)
+        teacher:teacher_id(name, email)
       `)
       .eq('course_id', courseId)
       .single();

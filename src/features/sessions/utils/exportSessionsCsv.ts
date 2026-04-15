@@ -1,29 +1,24 @@
 import type { SessionWithDetails } from '@/features/sessions/constants/sessionConstants';
-import { formatLearningMethod, formatVirtualProvider, formatRecordingVisibility } from '@/features/sessions/utils/sessionHelpers';
 
 export function downloadSessionsCsv(
   sessions: SessionWithDetails[],
-  enrollmentCounts: Record<string, number>,
+  _enrollmentCounts: Record<string, number>,
 ): void {
-  const headers = ['Course', 'Category', 'Teacher', 'Start Date', 'End Date', 'Day', 'Time', 'Location', 'Learning Method', 'Virtual Provider', 'Meeting Link', 'Requires Recording', 'Recording Visibility', 'Feedback Enabled', 'Anonymous Feedback', 'Teacher Can Host', 'Enrolled'];
+  const headers = ['course_name', 'teacher_email', 'start_date', 'end_date', 'day', 'time', 'location', 'grace_period_minutes', 'learning_method', 'virtual_provider', 'virtual_meeting_link', 'requires_recording', 'default_recording_visibility'];
   const rows = sessions.map(s => [
     s.course?.course_name || '',
-    s.course?.category || '',
-    s.teacher?.name || '',
+    s.teacher?.email || '',
     s.start_date,
     s.end_date,
     s.day || '',
     s.time || '',
     s.location || '',
-    formatLearningMethod(s.learning_method),
-    formatVirtualProvider(s.virtual_provider),
+    String(s.grace_period_minutes ?? ''),
+    s.learning_method || '',
+    s.virtual_provider || '',
     s.virtual_meeting_link || '',
-    s.requires_recording ? 'Yes' : 'No',
-    formatRecordingVisibility(s.default_recording_visibility),
-    s.feedback_enabled ? 'Yes' : 'No',
-    s.feedback_anonymous_allowed ? 'Yes' : 'No',
-    s.teacher_can_host ? 'Yes' : 'No',
-    String(enrollmentCounts[s.session_id] || 0),
+    s.requires_recording ? 'true' : 'false',
+    s.default_recording_visibility || '',
   ]);
   const csvContent = [headers, ...rows].map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
   const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });

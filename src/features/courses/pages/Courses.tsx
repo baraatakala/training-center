@@ -26,6 +26,7 @@ interface CourseWithTeacher {
   description_updated_at?: string | null;
   teacher: {
     name: string;
+    email: string;
   };
 }
 
@@ -121,12 +122,13 @@ export function Courses() {
   }, [debouncedSearch, sortField, sortDirection, selectedCategory]);
 
   const exportToCSV = useCallback(() => {
-    const headers = ['Course Name', 'Category', 'Teacher', 'Description'];
+    const headers = ['course_name', 'category', 'teacher_email', 'description', 'description_format'];
     const rows = filteredCourses.map(c => [
       c.course_name,
       c.category || '',
-      c.teacher?.name || '',
+      c.teacher?.email || '',
       c.description || '',
+      c.description_format || '',
     ]);
     const csvContent = [headers, ...rows].map(r => r.map(col => `"${col.replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });

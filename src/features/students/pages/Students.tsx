@@ -121,14 +121,16 @@ export function Students() {
   );
 
   const exportToCSV = useCallback(() => {
-    const headers = ['Name', 'Email', 'Phone', 'Nationality', 'Specialization', 'Age'];
+    const headers = ['name', 'email', 'phone', 'address', 'location', 'nationality', 'age', 'specialization'];
     const rows = filteredStudents.map(s => [
       s.name,
       s.email,
       s.phone || '',
+      s.address || '',
+      s.location || '',
       s.nationality || '',
-      s.specialization || '',
       String(s.age || ''),
+      s.specialization || '',
     ]);
     const csvContent = [headers, ...rows].map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });

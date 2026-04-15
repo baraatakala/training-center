@@ -12,7 +12,6 @@ import BulkScheduleTable from '@/features/sessions/components/BulkScheduleTable'
 import { SessionSummaryCards } from '@/features/sessions/components/SessionSummaryCards';
 import { SessionCard } from '@/features/sessions/components/SessionCard';
 import { SessionTableRow } from '@/features/sessions/components/SessionTableRow';
-import { CloneSessionModal } from '@/features/sessions/components/CloneSessionModal';
 import { SessionMergeModal } from '@/features/sessions/components/SessionMergeModal';
 import { ScheduleChangeCutoffPicker } from '@/features/sessions/components/ScheduleChangeCutoffPicker';
 import { sessionService } from '@/features/sessions/services/sessionService';
@@ -23,7 +22,7 @@ import { useDebounce } from '@/shared/hooks/useDebounce';
 import { useRefreshOnFocus } from '@/shared/hooks/useRefreshOnFocus';
 import type { CreateSession } from '@/shared/types/database.types';
 import type { SessionWithDetails } from '@/features/sessions/constants/sessionConstants';
-import { formatLearningMethod, parseLocalDate, formatLocalDate, buildConflictMessage } from '@/features/sessions/utils/sessionHelpers';
+import { formatLearningMethod, buildConflictMessage } from '@/features/sessions/utils/sessionHelpers';
 import { downloadSessionsCsv } from '@/features/sessions/utils/exportSessionsCsv';
 
 
@@ -33,7 +32,6 @@ export function Sessions() {
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebounce(searchQuery, 300);
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'upcoming' | 'completed'>('all');
-  const [cloneFilter, setCloneFilter] = useState<'all' | 'roots' | 'clones'>('all');
   const [sortBy, setSortBy] = useState<'course' | 'teacher' | 'startDate' | 'endDate'>('startDate');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -53,21 +51,8 @@ export function Sessions() {
     return (localStorage.getItem('sessions_view_mode') as 'table' | 'cards') || 'table';
   });
 
-  // Clone session state
-  const [cloneSource, setCloneSource] = useState<SessionWithDetails | null>(null);
-
   // Merge session state — mergeTarget is the session receiving attendance FROM another
   const [mergeTarget, setMergeTarget] = useState<SessionWithDetails | null>(null);
-  const [cloneForm, setCloneForm] = useState({
-    start_date: '',
-    end_date: '',
-    day: '' as string,
-    time: '',
-    location: '',
-    copyEnrollments: true,
-  });
-  const [cloning, setCloning] = useState(false);
-  const [selectedCloneDays, setSelectedCloneDays] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
 
@@ -177,13 +162,6 @@ export function Sessions() {
       });
     }
 
-    if (cloneFilter === 'roots') {
-      // parent_session_id removed in migration 033 — no clones exist
-      filtered = filtered;
-    } else if (cloneFilter === 'clones') {
-      filtered = [];
-    }
-
     filtered.sort((a, b) => {
       let aVal: string, bVal: string;
       
@@ -214,12 +192,12 @@ export function Sessions() {
     });
 
     return filtered;
-  }, [debouncedSearch, statusFilter, cloneFilter, sessions, sortBy, sortOrder]);
+  }, [debouncedSearch, statusFilter, sessions, sortBy, sortOrder]);
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, statusFilter, cloneFilter, sortBy, sortOrder]);
+  }, [debouncedSearch, statusFilter, sortBy, sortOrder]);
 
   // Removed unused toggleSort function - sorting is handled by dropdown and toggle button
 
@@ -378,86 +356,6 @@ export function Sessions() {
     setIsModalOpen(true);
   };
 
-  const openCloneModal = (session: SessionWithDetails) => {
-    const sourceStart = parseLocalDate(session.start_date);
-    const sourceEnd = parseLocalDate(session.end_date);
-    const sessionDurationDays = sourceStart && sourceEnd
-      ? Math.max(0, Math.round((sourceEnd.getTime() - sourceStart.getTime()) / (1000 * 60 * 60 * 24)))
-      : 0;
-    const suggestedStart = sourceEnd ? new Date(sourceEnd.getFullYear(), sourceEnd.getMonth(), sourceEnd.getDate() + 1) : null;
-    const suggestedEnd = suggestedStart
-      ? new Date(suggestedStart.getFullYear(), suggestedStart.getMonth(), suggestedStart.getDate() + sessionDurationDays)
-      : null;
-    setCloneSource(session);
-    const days = session.day ? session.day.split(',').map(d => d.trim()) : [];
-    setSelectedCloneDays(days);
-    setCloneForm({
-      start_date: suggestedStart ? formatLocalDate(suggestedStart) : '',
-      end_date: suggestedEnd ? formatLocalDate(suggestedEnd) : '',
-      day: session.day || '',
-      time: session.time || '',
-      location: session.location || '',
-      copyEnrollments: true,
-    });
-  };
-
-  const handleCloneSession = async () => {
-    if (!cloneSource) return;
-    if (!cloneForm.start_date || !cloneForm.end_date || selectedCloneDays.length === 0) {
-      toast.error('Please fill in start date, end date, and select at least one day');
-      return;
-    }
-    if (new Date(cloneForm.end_date) < new Date(cloneForm.start_date)) {
-      toast.error('End date cannot be before start date');
-      return;
-    }
-    setCloning(true);
-    try {
-      const conflictMsg = await checkScheduleConflicts({
-        teacherId: cloneSource.teacher_id,
-        startDate: cloneForm.start_date,
-        endDate: cloneForm.end_date,
-        day: selectedCloneDays.join(', ') || null,
-        time: cloneForm.time || null,
-      });
-
-      if (conflictMsg) {
-        // For clone, show toast warning but let them decide
-        const proceed = window.confirm(
-          `${conflictMsg}\n\nDo you want to proceed anyway?`
-        );
-        if (!proceed) {
-          setCloning(false);
-          return;
-        }
-      }
-
-      const { error, copied } = await sessionService.cloneSession(
-        cloneSource.session_id,
-        {
-          start_date: cloneForm.start_date,
-          end_date: cloneForm.end_date,
-          day: selectedCloneDays.join(', '),
-          time: cloneForm.time || undefined,
-          location: cloneForm.location || undefined,
-        },
-        cloneForm.copyEnrollments,
-      );
-      if (error) {
-        toast.error('Failed to clone session: ' + error.message);
-      } else {
-        const msg = cloneForm.copyEnrollments
-          ? `Session cloned! ${copied} students copied.`
-          : 'Session cloned (without students).';
-        toast.success(msg);
-        setCloneSource(null);
-        loadSessions();
-      }
-    } finally {
-      setCloning(false);
-    }
-  };
-
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   
@@ -485,12 +383,6 @@ export function Sessions() {
     downloadSessionsCsv(filteredSessions, enrollmentCounts);
     toast.success(`Exported ${filteredSessions.length} sessions to CSV`);
   }, [filteredSessions, enrollmentCounts]);
-
-  // Clone counts: parent_session_id removed in migration 033 — always empty
-  const cloneCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    return counts;
-  }, [sessions]);
 
   const handleDownloadTemplate = async () => {
     const [{ buildImportTemplateWithData }, XLSX] = await Promise.all([
@@ -606,17 +498,6 @@ export function Sessions() {
               ]}
             />
           </div>
-          <div className="w-full sm:w-44">
-            <Select
-              value={cloneFilter}
-              onChange={(value) => setCloneFilter(value as typeof cloneFilter)}
-              options={[
-                { value: 'all', label: 'All (Root + Clones)' },
-                { value: 'roots', label: '📋 Root Only' },
-                { value: 'clones', label: '🔗 Clones Only' }
-              ]}
-            />
-          </div>
         </div>
         
         {/* Sort Controls */}
@@ -703,10 +584,8 @@ export function Sessions() {
                       enrollmentCount={enrollmentCounts[session.session_id] || 0}
                       isTeacher={isTeacher}
                       isAdmin={isAdmin}
-                      cloneCount={cloneCounts[session.session_id] || 0}
                       onOpenSchedule={(s) => { setSelectedSessionForSchedule(s); setIsScheduleModalOpen(true); }}
                       onOpenRecordings={setSelectedSessionForRecordings}
-                      onClone={openCloneModal}
                       onEdit={openEditModal}
                       onDelete={setDeletingSession}
                       onMerge={setMergeTarget}
@@ -772,10 +651,8 @@ export function Sessions() {
                       enrollmentCount={enrollmentCounts[session.session_id] || 0}
                       isTeacher={isTeacher}
                       isAdmin={isAdmin}
-                      cloneCount={cloneCounts[session.session_id] || 0}
                       onOpenSchedule={(s) => { setSelectedSessionForSchedule(s); setIsScheduleModalOpen(true); }}
                       onOpenRecordings={setSelectedSessionForRecordings}
-                      onClone={openCloneModal}
                       onEdit={openEditModal}
                       onDelete={setDeletingSession}
                       onMerge={setMergeTarget}
@@ -906,27 +783,6 @@ export function Sessions() {
         onConfirm={handleConflictProceed}
         onCancel={() => setConflictConfirm(null)}
       />
-
-      {/* Clone Session Modal */}
-      <Modal
-        isOpen={!!cloneSource}
-        onClose={() => setCloneSource(null)}
-        title={`Clone Session — ${cloneSource?.course?.course_name || ''}`}
-      >
-        {cloneSource && (
-          <CloneSessionModal
-            cloneSource={cloneSource}
-            cloneForm={cloneForm}
-            setCloneForm={setCloneForm}
-            selectedCloneDays={selectedCloneDays}
-            setSelectedCloneDays={setSelectedCloneDays}
-            cloning={cloning}
-            enrollmentCount={enrollmentCounts[cloneSource.session_id] || 0}
-            onClone={handleCloneSession}
-            onClose={() => setCloneSource(null)}
-          />
-        )}
-      </Modal>
 
       {/* Schedule Change Dialog */}
       <Modal

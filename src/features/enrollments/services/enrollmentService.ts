@@ -14,7 +14,7 @@ export const enrollmentService = {
         session:session_id(
           *,
           course:course_id(course_name),
-          teacher:teacher_id(name)
+          teacher:teacher_id(name, email)
         )
       `)
       .order('enrollment_date', { ascending: false });

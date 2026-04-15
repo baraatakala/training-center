@@ -28,8 +28,13 @@ interface EnrollmentWithDetails {
   };
   session: {
     start_date: string;
+    end_date: string;
     course: {
       course_name: string;
+    };
+    teacher: {
+      name: string;
+      email: string;
     };
   };
 }
@@ -217,14 +222,16 @@ export function Enrollments() {
   };
 
   const exportToCSV = useCallback(() => {
-    const headers = ['Student', 'Email', 'Course', 'Enrollment Date', 'Status', 'Can Host', 'Host Date'];
+    const headers = ['student_email', 'teacher_email', 'course_name', 'session_start_date', 'session_end_date', 'enrollment_date', 'status', 'can_host', 'host_date'];
     const rows = filteredEnrollments.map(e => [
-      e.student?.name || '',
       e.student?.email || '',
+      e.session?.teacher?.email || '',
       e.session?.course?.course_name || '',
+      e.session?.start_date || '',
+      e.session?.end_date || '',
       e.enrollment_date,
       e.status,
-      e.can_host ? 'Yes' : 'No',
+      e.can_host ? 'true' : 'false',
       e.host_date || '',
     ]);
     const csvContent = [headers, ...rows].map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
