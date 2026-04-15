@@ -287,6 +287,8 @@ export interface SessionFeedback {
   comment: string | null;
   responses: Record<string, unknown>;
   check_in_method: string | null;
+  tab_switch_count: number;
+  is_auto_submitted: boolean;
   created_at: string;
   student_name?: string | null;
 }

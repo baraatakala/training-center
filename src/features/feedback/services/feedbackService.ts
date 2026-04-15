@@ -64,6 +64,8 @@ export const feedbackService = {
     comment?: string;
     responses?: Record<string, unknown>;
     check_in_method?: string;
+    tab_switch_count?: number;
+    is_auto_submitted?: boolean;
   }) {
     if (!feedback.student_id) {
       return {
@@ -83,6 +85,8 @@ export const feedbackService = {
       comment: feedback.comment || null,
       responses: feedback.responses || {},
       check_in_method: feedback.check_in_method || null,
+      tab_switch_count: feedback.tab_switch_count ?? 0,
+      is_auto_submitted: feedback.is_auto_submitted ?? false,
     };
 
     const { data, error } = await supabase

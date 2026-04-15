@@ -43,17 +43,21 @@ interface FlattenedRecord {
   /** null = not a test question; true/false = graded result */
   isCorrect: boolean | null;
   correctAnswer: string | null;
+  tabSwitchCount: number;
+  isAutoSubmitted: boolean;
 }
 
 // ─── Simple sentiment detection ─────────────────────────────
 
 // ─── CSV export (one row per question-answer) ───────────────
 function exportFeedbackCSV(records: FlattenedRecord[], courseName: string, selectedDate?: string) {
-  const headers = ['Student', 'Date', 'Question Type', 'Question', 'Answer', 'Correct?', 'Comment'];
+  const headers = ['Student', 'Date', 'Question Type', 'Question', 'Answer', 'Correct?', 'Tab Switches', 'Auto-Submitted', 'Comment'];
   const rows = records.map(r => [
     r.studentName, r.attendanceDate,
     r.questionType, r.questionText, r.answer,
     r.isCorrect === null ? '' : r.isCorrect ? 'Yes' : 'No',
+    String(r.tabSwitchCount),
+    r.isAutoSubmitted ? 'Yes' : '',
     r.comment || '',
   ]);
   const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -136,6 +140,9 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
     studentScores: 'درجات الطلاب',
     attempted: 'حاول',
     score: 'الدرجة',
+    tabSwitches: 'تبديل التبويب',
+    autoSubmitted: 'تسليم تلقائي',
+    violations: 'مخالفات',
   } : {
     feedbackAnalytics: 'Feedback Analytics',
     subtitle: 'Analyze student feedback responses per question, session, and date.',
@@ -194,6 +201,9 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
     studentScores: 'Student Scores',
     attempted: 'Attempted',
     score: 'Score',
+    tabSwitches: 'Tab Switches',
+    autoSubmitted: 'Auto-Submitted',
+    violations: 'Violations',
   }, [arabicMode]);
 
   const [sessions, setSessions] = useState<SessionOption[]>([]);
@@ -376,6 +386,8 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
             comment: fb.comment,
             isCorrect: null,
             correctAnswer: null,
+            tabSwitchCount: fb.tab_switch_count ?? 0,
+            isAutoSubmitted: fb.is_auto_submitted ?? false,
           });
         }
       } else {
@@ -403,6 +415,8 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
             comment: fb.comment,
             isCorrect,
             correctAnswer,
+            tabSwitchCount: fb.tab_switch_count ?? 0,
+            isAutoSubmitted: fb.is_auto_submitted ?? false,
           });
         }
       }
@@ -484,13 +498,19 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
       attempted: number;
       correct: number;
       scorePct: number;
+      tabSwitchCount: number;
+      isAutoSubmitted: boolean;
     }
     const studentMap = new Map<string, StudentScore>();
     for (const fb of filteredFeedbacks) {
       const sid = fb.student_id || fb.id;
       const name = fb.is_anonymous ? 'Anonymous' : (fb.student_name || 'Unknown');
-      if (!studentMap.has(sid)) studentMap.set(sid, { studentId: sid, studentName: name, attempted: 0, correct: 0, scorePct: 0 });
+      if (!studentMap.has(sid)) studentMap.set(sid, { studentId: sid, studentName: name, attempted: 0, correct: 0, scorePct: 0, tabSwitchCount: 0, isAutoSubmitted: false });
       const entry = studentMap.get(sid)!;
+      // Aggregate tab switch count (max across submissions)
+      const fbSwitches = fb.tab_switch_count ?? 0;
+      if (fbSwitches > entry.tabSwitchCount) entry.tabSwitchCount = fbSwitches;
+      if (fb.is_auto_submitted) entry.isAutoSubmitted = true;
       for (const q of testQuestions) {
         const val = fb.responses?.[q.id];
         if (val === undefined || val === '') continue;
@@ -907,6 +927,99 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                 </div>
               )}
             </div>
+
+          {/* ═══════════════════════════════════════════════════ */}
+          {/* KNOWLEDGE ASSESSMENT (test questions only)          */}
+          {/* ═══════════════════════════════════════════════════ */}
+          {knowledgeAssessment && (
+            <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 overflow-hidden">
+              <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-gray-100 dark:border-gray-700">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🎯</span>
+                  <h3 className="text-sm font-bold text-gray-900 dark:text-white">{t.knowledgeAssessment}</h3>
+                </div>
+                <div className={`px-3 py-1 rounded-full text-xs font-bold ${
+                  knowledgeAssessment.overallPct >= 70
+                    ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400'
+                    : knowledgeAssessment.overallPct >= 40
+                    ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400'
+                    : 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400'
+                }`}>
+                  {t.overallAccuracy}: {knowledgeAssessment.overallPct}%
+                </div>
+              </div>
+
+              {/* Per-question accuracy */}
+              <div className="px-4 sm:px-5 py-3 border-b border-gray-50 dark:border-gray-700/50">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{t.questionAccuracy}</p>
+                <div className="space-y-2">
+                  {knowledgeAssessment.perQuestion.map(q => (
+                    <div key={q.questionId} className="flex items-center gap-3">
+                      <p className="flex-1 text-xs text-gray-700 dark:text-gray-300 truncate" title={q.questionText}>{q.questionText}</p>
+                      <span className="text-[10px] text-gray-400 whitespace-nowrap">{q.correctCount}/{q.totalAttempts}</span>
+                      <div className="w-20 bg-gray-100 dark:bg-gray-700 h-1.5 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${q.accuracyPct >= 70 ? 'bg-green-500' : q.accuracyPct >= 40 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${q.accuracyPct}%` }} />
+                      </div>
+                      <span className="text-xs font-bold text-gray-600 dark:text-gray-300 w-10 text-right">{q.accuracyPct}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Per-student scores with anti-cheat violations */}
+              <div className="px-4 sm:px-5 py-3">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{t.studentScores}</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-gray-400 border-b border-gray-100 dark:border-gray-700">
+                        <th className="text-left py-2 pr-2">{t.student}</th>
+                        <th className="text-center py-2 px-2">{t.attempted}</th>
+                        <th className="text-center py-2 px-2">{t.correct}</th>
+                        <th className="text-center py-2 px-2">{t.score}</th>
+                        <th className="text-center py-2 px-2">{t.tabSwitches}</th>
+                        <th className="text-center py-2 pl-2">{t.autoSubmitted}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                      {knowledgeAssessment.studentScores.map(s => (
+                        <tr key={s.studentId} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors">
+                          <td className="py-2 pr-2 font-medium text-gray-900 dark:text-white">{s.studentName}</td>
+                          <td className="py-2 px-2 text-center text-gray-500">{s.attempted}</td>
+                          <td className="py-2 px-2 text-center text-gray-500">{s.correct}</td>
+                          <td className="py-2 px-2 text-center">
+                            <span className={`font-bold ${
+                              s.scorePct >= 70 ? 'text-green-600 dark:text-green-400'
+                              : s.scorePct >= 40 ? 'text-amber-600 dark:text-amber-400'
+                              : 'text-red-600 dark:text-red-400'
+                            }`}>{s.scorePct}%</span>
+                          </td>
+                          <td className="py-2 px-2 text-center">
+                            {s.tabSwitchCount > 0 ? (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] font-bold">
+                                ⚠️ {s.tabSwitchCount}
+                              </span>
+                            ) : (
+                              <span className="text-gray-300 dark:text-gray-600">—</span>
+                            )}
+                          </td>
+                          <td className="py-2 pl-2 text-center">
+                            {s.isAutoSubmitted ? (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 text-[10px] font-bold">
+                                🚨 Yes
+                              </span>
+                            ) : (
+                              <span className="text-gray-300 dark:text-gray-600">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
 
         </>
       )}

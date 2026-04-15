@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { feedbackService, type FeedbackQuestion } from '@/features/feedback/services/feedbackService';
 import { Button } from '@/shared/components/ui';
 
-
+const MAX_TAB_SWITCHES = 3;
 
 interface Props {
   sessionId: string;
@@ -36,6 +36,12 @@ export default function SessionFeedbackForm({
   const [gradedResults, setGradedResults] = useState<Array<{ question: FeedbackQuestion; isCorrect: boolean; userAnswer: string }>>([]);
   const primaryRatingQuestion = customQuestions.find((question) => question.question_type === 'rating') || null;
   const hasConfiguredQuestions = customQuestions.length > 0;
+
+  // ─── Anti-cheat state ──────────────────────────────────────
+  const isTestMode = customQuestions.some(q => q.correct_answer);
+  const [tabSwitchCount, setTabSwitchCount] = useState(0);
+  const [showViolationWarning, setShowViolationWarning] = useState(false);
+  const autoSubmitTriggered = useRef(false);
 
   // Load feedback config and questions
   useEffect(() => {
@@ -71,42 +77,86 @@ export default function SessionFeedbackForm({
     return () => { cancelled = true; };
   }, [attendanceDate, sessionId, studentId]);
 
+  // ─── Anti-cheat: tab switch detection (test mode only) ─────
+  useEffect(() => {
+    if (!isTestMode || submitted || loading) return;
+
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        setTabSwitchCount(prev => {
+          const next = prev + 1;
+          if (next >= MAX_TAB_SWITCHES && !autoSubmitTriggered.current) {
+            autoSubmitTriggered.current = true;
+            // Trigger auto-submit on next tick so state is updated
+            setTimeout(() => {
+              const autoBtn = document.getElementById('feedback-auto-submit');
+              autoBtn?.click();
+            }, 0);
+          }
+          return next;
+        });
+        setShowViolationWarning(true);
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isTestMode, submitted, loading]);
+
+  // ─── Anti-cheat: disable copy/paste/context menu in test mode ──
+  useEffect(() => {
+    if (!isTestMode || submitted || loading) return;
+
+    function block(e: Event) { e.preventDefault(); }
+    document.addEventListener('copy', block);
+    document.addEventListener('paste', block);
+    document.addEventListener('contextmenu', block);
+    return () => {
+      document.removeEventListener('copy', block);
+      document.removeEventListener('paste', block);
+      document.removeEventListener('contextmenu', block);
+    };
+  }, [isTestMode, submitted, loading]);
+
   const handleSetResponse = useCallback((questionId: string, value: unknown) => {
     setResponses(prev => ({ ...prev, [questionId]: value }));
   }, []);
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (isAutoSubmit = false) => {
     const derivedOverallRating = primaryRatingQuestion
       ? Number(responses[primaryRatingQuestion.id] || 0)
       : null;
 
-    if (!hasConfiguredQuestions) {
-      setSubmissionError('No feedback questions are configured for this session date.');
-      return;
-    }
+    // Skip validation for auto-submit (anti-cheat forced submission)
+    if (!isAutoSubmit) {
+      if (!hasConfiguredQuestions) {
+        setSubmissionError('No feedback questions are configured for this session date.');
+        return;
+      }
 
-    if (primaryRatingQuestion && (!derivedOverallRating || Number.isNaN(derivedOverallRating))) {
-      setSubmissionError('Please answer the overall rating before submitting feedback.');
-      return;
-    }
+      if (primaryRatingQuestion && (!derivedOverallRating || Number.isNaN(derivedOverallRating))) {
+        setSubmissionError('Please answer the overall rating before submitting feedback.');
+        return;
+      }
 
-    const missingRequiredQuestions = customQuestions.filter((question) => {
-      if (!question.is_required) return false;
-      const answer = responses[question.id];
-      if (answer === undefined || answer === null) return true;
-      if (typeof answer === 'string') return answer.trim().length === 0;
-      return false;
-    });
+      const missingRequiredQuestions = customQuestions.filter((question) => {
+        if (!question.is_required) return false;
+        const answer = responses[question.id];
+        if (answer === undefined || answer === null) return true;
+        if (typeof answer === 'string') return answer.trim().length === 0;
+        return false;
+      });
 
-    if (missingRequiredQuestions.length > 0) {
-      const preview = missingRequiredQuestions
-        .slice(0, 2)
-        .map((question) => question.question_text)
-        .join(' / ');
-      setSubmissionError(
-        `Please answer all required questions before submitting.${preview ? ` Missing: ${preview}` : ''}`
-      );
-      return;
+      if (missingRequiredQuestions.length > 0) {
+        const preview = missingRequiredQuestions
+          .slice(0, 2)
+          .map((question) => question.question_text)
+          .join(' / ');
+        setSubmissionError(
+          `Please answer all required questions before submitting.${preview ? ` Missing: ${preview}` : ''}`
+        );
+        return;
+      }
     }
 
     setSubmissionError(null);
@@ -120,6 +170,8 @@ export default function SessionFeedbackForm({
       comment: comment.trim() || undefined,
       responses,
       check_in_method: checkInMethod,
+      tab_switch_count: tabSwitchCount,
+      is_auto_submitted: isAutoSubmit,
     });
 
     if (error) {
@@ -164,6 +216,17 @@ export default function SessionFeedbackForm({
 
     return (
       <div className="animate-scale-in mt-6 space-y-4">
+        {/* Auto-submit warning */}
+        {autoSubmitTriggered.current && (
+          <div className="text-center p-4 bg-red-50 dark:bg-red-900/30 rounded-2xl border border-red-200 dark:border-red-700">
+            <span className="text-3xl block mb-1">⚠️</span>
+            <p className="text-sm font-semibold text-red-700 dark:text-red-300">Auto-submitted due to tab switching</p>
+            <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-1">
+              You switched tabs {tabSwitchCount} time{tabSwitchCount !== 1 ? 's' : ''} during the test. Your answers were submitted automatically.
+            </p>
+          </div>
+        )}
+
         {/* Thank-you banner */}
         <div className="text-center p-5 bg-purple-50 dark:bg-purple-900/30 rounded-2xl border border-purple-200 dark:border-purple-700">
           <span className="text-4xl block mb-2">💜</span>
@@ -303,14 +366,72 @@ export default function SessionFeedbackForm({
 
   return (
     <div className="animate-fade-in mt-6">
+      {/* Violation warning overlay */}
+      {showViolationWarning && isTestMode && !submitted && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="mx-4 max-w-sm w-full bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-2xl border-2 border-red-400 dark:border-red-600 text-center space-y-3 animate-scale-in">
+            <span className="text-5xl block">🚨</span>
+            <h3 className="text-lg font-bold text-red-700 dark:text-red-300">Tab Switch Detected!</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Leaving this page during a test is not allowed. Violation {tabSwitchCount} of {MAX_TAB_SWITCHES}.
+            </p>
+            {tabSwitchCount < MAX_TAB_SWITCHES ? (
+              <p className="text-xs text-red-600 dark:text-red-400 font-medium">
+                After {MAX_TAB_SWITCHES} violations your answers will be auto-submitted.
+              </p>
+            ) : (
+              <p className="text-xs text-red-700 dark:text-red-300 font-bold">
+                Maximum violations reached. Auto-submitting your answers now...
+              </p>
+            )}
+            {tabSwitchCount < MAX_TAB_SWITCHES && (
+              <button
+                onClick={() => setShowViolationWarning(false)}
+                className="mt-2 w-full py-2.5 text-sm font-semibold rounded-xl bg-red-600 hover:bg-red-700 text-white transition-colors"
+              >
+                Return to Test
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Hidden auto-submit trigger */}
+      <button
+        id="feedback-auto-submit"
+        type="button"
+        className="hidden"
+        onClick={() => handleSubmit(true)}
+      />
+
       {/* Divider */}
       <div className="flex items-center gap-3 mb-4">
         <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
         <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-          Quick Feedback
+          {isTestMode ? 'Knowledge Check' : 'Quick Feedback'}
         </span>
         <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
       </div>
+
+      {/* Test mode banner */}
+      {isTestMode && (
+        <div className="mb-4 rounded-xl border border-red-200 dark:border-red-700 bg-red-50/80 dark:bg-red-900/20 px-4 py-3 space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="text-base">🔒</span>
+            <p className="text-sm font-bold text-red-700 dark:text-red-300">Exam Mode Active</p>
+          </div>
+          <ul className="text-xs text-red-600/80 dark:text-red-400/80 space-y-0.5 ml-6 list-disc">
+            <li>Do not switch tabs or leave this page</li>
+            <li>Copy, paste, and right-click are disabled</li>
+            <li>After {MAX_TAB_SWITCHES} tab switches your answers will be auto-submitted</li>
+          </ul>
+          {tabSwitchCount > 0 && (
+            <p className="text-xs font-semibold text-red-700 dark:text-red-300 mt-1 ml-6">
+              ⚠️ Violations: {tabSwitchCount}/{MAX_TAB_SWITCHES}
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-2xl p-5 border border-purple-100 dark:border-purple-800/50">
         {submissionError && (
@@ -393,8 +514,8 @@ export default function SessionFeedbackForm({
           />
         </div>
 
-        {/* Anonymous Toggle */}
-        {anonymousAllowed && (
+        {/* Anonymous Toggle — disabled in test mode */}
+        {anonymousAllowed && !isTestMode && (
           <label className="flex items-center gap-2 mb-4 cursor-pointer select-none">
             <div
               onClick={() => setIsAnonymous(!isAnonymous)}
@@ -416,17 +537,19 @@ export default function SessionFeedbackForm({
 
         {/* Actions */}
         <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={onSkip}
-            className="flex-1 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
-          >
-            Skip for now →
-          </button>
+          {!isTestMode && (
+            <button
+              type="button"
+              onClick={onSkip}
+              className="flex-1 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+            >
+              Skip for now →
+            </button>
+          )}
           <Button
-            onClick={handleSubmit}
+            onClick={() => handleSubmit(false)}
             disabled={submitting || !hasConfiguredQuestions}
-            className="flex-1"
+            className={isTestMode ? 'w-full' : 'flex-1'}
             size="sm"
           >
             {submitting ? (
@@ -435,7 +558,7 @@ export default function SessionFeedbackForm({
                 Sending...
               </span>
             ) : (
-              <span>💜 Submit Feedback</span>
+              <span>{isTestMode ? '🔒 Submit Test' : '💜 Submit Feedback'}</span>
             )}
           </Button>
         </div>

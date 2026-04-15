@@ -408,6 +408,8 @@ CREATE TABLE IF NOT EXISTS public.session_feedback (
   comment TEXT,
   responses JSONB DEFAULT '{}'::JSONB,
   check_in_method TEXT,
+  tab_switch_count INTEGER NOT NULL DEFAULT 0,
+  is_auto_submitted BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT session_feedback_pkey PRIMARY KEY (id),
   CONSTRAINT session_feedback_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id),
