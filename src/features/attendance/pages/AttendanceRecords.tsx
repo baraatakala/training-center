@@ -733,7 +733,7 @@ export const AttendanceRecords = () => {
   const loadFilterOptions = async () => {
     try {
       // Load all filter options in parallel for better performance
-      const [studentsRes, coursesRes, teachersRes, hostRes, sessionsRes] = await Promise.all([
+      const [studentsRes, coursesRes, teachersRes, sessionsRes] = await Promise.all([
         supabase
           .from('student')
           .select('student_id, name')
@@ -746,10 +746,6 @@ export const AttendanceRecords = () => {
           .from('teacher')
           .select('teacher_id, name')
           .order('name'),
-        supabase
-          .from('attendance')
-          .select('host_address')
-          .not('host_address', 'is', null),
         supabase
           .from('session')
           .select('session_id, start_date, end_date, course:course_id(course_name)')
@@ -775,11 +771,6 @@ export const AttendanceRecords = () => {
       }
       if (teachersRes.error) {
         console.error('Error loading teachers:', teachersRes.error);
-      }
-
-      if (hostRes.data) {
-        const unique = [...new Set(hostRes.data.map((h: { host_address: string }) => h.host_address).filter(Boolean))].sort();
-        setHostAddresses(unique.map(a => ({ value: a, label: a })));
       }
 
       if (sessionsRes.data) {
@@ -818,7 +809,11 @@ export const AttendanceRecords = () => {
       if (error) throw error;
       warnings.forEach((message) => console.warn(message));
       hostGpsLookupRef.current = hostGpsLookup;
-      setRecords((data || []) as AttendanceRecord[]);
+      const loaded = (data || []) as AttendanceRecord[];
+      setRecords(loaded);
+      // Derive host filter options from loaded records (merged with session_date_host)
+      const uniqueHosts = [...new Set(loaded.map(r => r.host_address).filter(Boolean) as string[])].sort();
+      setHostAddresses(uniqueHosts.map(a => ({ value: a, label: a })));
     } catch (error) {
       console.error('Error loading records:', error);
       showError('Failed to load attendance records. Please try again.');

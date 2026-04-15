@@ -79,6 +79,7 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
   const [stats, setStats] = useState<FeedbackStats | null>(null);
   const [questions, setQuestions] = useState<FeedbackQuestion[]>([]);
   const [loading, setLoading] = useState(false);
+  const [sessionsLoaded, setSessionsLoaded] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
 
   // ─── Global Filters ───
@@ -102,7 +103,7 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
   useEffect(() => {
     async function loadSessions() {
       const { data, error } = await feedbackService.getSessionsForAnalytics();
-      if (error) { setPageError(error.message || 'Unable to load feedback sessions.'); return; }
+      if (error) { setPageError(error.message || 'Unable to load feedback sessions.'); setSessionsLoaded(true); return; }
       if (data) {
         const mapped = data.map((s: Record<string, unknown>) => {
           const course = s.course as Record<string, string> | Record<string, string>[] | null;
@@ -118,6 +119,7 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
           };
         });
         setSessions(mapped);
+        setSessionsLoaded(true);
         setPageError(null);
         if (sessionParam && mapped.some(s => s.session_id === sessionParam)) setSelectedSessionId(sessionParam);
         else if (selectedSessionId && mapped.some(s => s.session_id === selectedSessionId)) { /* keep */ }
@@ -431,7 +433,7 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
       </div>
 
       {/* ─── Loading / Empty States ──────────────────────────── */}
-      {sessions.length === 0 && !loading && (
+      {sessions.length === 0 && !loading && sessionsLoaded && (
         <div className="rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800/60 p-8 sm:p-12">
           <div className="max-w-md mx-auto text-center">
             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-purple-100 to-violet-100 dark:from-purple-900/30 dark:to-violet-900/30 flex items-center justify-center">
