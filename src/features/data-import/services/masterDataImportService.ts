@@ -184,7 +184,7 @@ function parseRequiredDate(value: string | undefined, field: string, rowIndex: n
   }
   const result = normalizeDate(trimmed);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(result)) {
-    throw new Error(`Row ${rowIndex}: ${field} must be a valid date (YYYY-MM-DD, DD/MM/YYYY, or MM/DD/YYYY).`);
+    throw new Error(`Row ${rowIndex}: ${field} must be a valid date (YYYY-MM-DD or DD/MM/YYYY).`);
   }
   return result;
 }

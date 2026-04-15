@@ -152,7 +152,7 @@ export const dashboardService = {
         .select('status', { count: 'exact' })
         .eq('attendance_date', today),
       supabase.from('excuse_request')
-        .select('id, status', { count: 'exact' })
+        .select('request_id, status', { count: 'exact' })
         .eq('status', 'pending'),
     ]);
 

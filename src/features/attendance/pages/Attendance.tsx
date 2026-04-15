@@ -181,7 +181,7 @@ export function Attendance() {
   const [fbEditingQuestionId, setFbEditingQuestionId] = useState<string | null>(null);
   const [showFeedbackSetup, setShowFeedbackSetup] = useState(false);
   const [fbQuestionText, setFbQuestionText] = useState('');
-  const [fbQuestionType, setFbQuestionType] = useState<'rating' | 'text' | 'emoji' | 'multiple_choice'>('rating');
+  const [fbQuestionType, setFbQuestionType] = useState<'rating' | 'text' | 'multiple_choice'>('rating');
   const [fbQuestionRequired, setFbQuestionRequired] = useState(false);
   const [fbOptionsText, setFbOptionsText] = useState('');
   const [fbCorrectAnswer, setFbCorrectAnswer] = useState('');

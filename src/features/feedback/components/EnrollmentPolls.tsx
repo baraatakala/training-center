@@ -23,11 +23,6 @@ function aggregateQuestion(question: FeedbackQuestion, feedbacks: SessionFeedbac
     const avg = nums.length > 0 ? nums.reduce((a, b) => a + b, 0) / nums.length : 0;
     return { type: 'rating' as const, distribution: dist, avg: Math.round(avg * 10) / 10, total: values.length };
   }
-  if (question.question_type === 'emoji') {
-    const dist: Record<string, number> = {};
-    for (const v of values) dist[String(v)] = (dist[String(v)] || 0) + 1;
-    return { type: 'emoji' as const, distribution: dist, total: values.length };
-  }
   if (question.question_type === 'multiple_choice') {
     const dist: Record<string, number> = {};
     for (const v of values) dist[String(v)] = (dist[String(v)] || 0) + 1;

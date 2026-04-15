@@ -28,15 +28,10 @@ export function IntelligenceFeed({ feedbacks, questions }: IntelligenceFeedProps
       const name = fb.is_anonymous ? 'Anonymous' : (fb.student_name || 'Unknown');
       const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 
-      // Detect sentiment from emoji question response
-      const emojiQ = questions.find(q => q.question_type === 'emoji');
-      const mood = emojiQ ? String(fb.responses?.[emojiQ.id] || '') : '';
-      const positiveMoods = new Set(['Happy', 'Energized']);
-      const negativeMoods = new Set(['Tired', 'Confused']);
-
+      // Detect sentiment from overall rating
       let sentiment: 'positive' | 'negative' | 'neutral' = 'neutral';
-      if (positiveMoods.has(mood) || (fb.overall_rating && fb.overall_rating >= 4)) sentiment = 'positive';
-      if (negativeMoods.has(mood) || (fb.overall_rating && fb.overall_rating <= 2)) sentiment = 'negative';
+      if (fb.overall_rating && fb.overall_rating >= 4) sentiment = 'positive';
+      if (fb.overall_rating && fb.overall_rating <= 2) sentiment = 'negative';
 
       // Generate tag based on content analysis
       const comment = (fb.comment || '').toLowerCase();

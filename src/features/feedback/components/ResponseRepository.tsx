@@ -27,7 +27,7 @@ export function ResponseRepository({ feedbacks, questions, search, onSearchChang
   ), [questions]);
 
   const moodQuestion = useMemo(() => questions.find(q =>
-    q.question_type === 'emoji'
+    q.question_text.toLowerCase().includes('mood')
   ), [questions]);
 
   const filteredFeedbacks = useMemo(() => {

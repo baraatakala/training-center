@@ -1,65 +1,38 @@
-import { format, parse, isValid } from 'date-fns';
+import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import type { ImportRow } from '@/features/data-import/constants/importConstants';
 import { TEMPLATE_HEADERS, EXAMPLE_ROWS } from '@/features/data-import/constants/importConstants';
 
+/**
+ * Normalises a date string to YYYY-MM-DD.
+ * Accepted inputs:
+ *   - YYYY-MM-DD  (pass-through)
+ *   - DD/MM/YYYY or DD-MM-YYYY
+ *   - Excel serial number (e.g. 46131)
+ */
 export const normalizeDate = (dateStr: string): string => {
   if (!dateStr) return '';
-
-  // Trim and clean the string
   const cleaned = dateStr.trim();
 
-  // Already in YYYY-MM-DD format
-  if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) {
-    return cleaned;
+  // Already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) return cleaned;
+
+  // DD/MM/YYYY or DD-MM-YYYY
+  const slashMatch = cleaned.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (slashMatch) {
+    const day = slashMatch[1].padStart(2, '0');
+    const month = slashMatch[2].padStart(2, '0');
+    const year = slashMatch[3];
+    return `${year}-${month}-${day}`;
   }
 
-  // Handle Excel numeric dates (days since 1900-01-01)
+  // Excel serial number
   if (/^\d+$/.test(cleaned)) {
-    try {
-      const excelEpoch = new Date(1900, 0, 1);
-      const days = parseInt(cleaned, 10) - 2; // Excel has a leap year bug for 1900
-      const date = new Date(excelEpoch.getTime() + days * 24 * 60 * 60 * 1000);
-      if (isValid(date)) {
-        return format(date, 'yyyy-MM-dd');
-      }
-    } catch {
-      // Fall through
-    }
-  }
-
-  // Try DD/MM/YYYY or DD-MM-YYYY format (most common international format)
-  if (/^\d{1,2}[/-]\d{1,2}[/-]\d{4}$/.test(cleaned)) {
-    const parts = cleaned.split(/[/-]/);
-    const first = parseInt(parts[0], 10);
-    const second = parseInt(parts[1], 10);
-    const year = parts[2];
-
-    // If first part > 12, it must be day (DD/MM/YYYY)
-    if (first > 12) {
-      const day = first.toString().padStart(2, '0');
-      const month = second.toString().padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    }
-    // If second part > 12, format is MM/DD/YYYY
-    else if (second > 12) {
-      const month = first.toString().padStart(2, '0');
-      const day = second.toString().padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    }
-    // Ambiguous case: try to parse as M/d/yyyy
-    else {
-      try {
-        const date = parse(cleaned, 'M/d/yyyy', new Date());
-        if (isValid(date)) {
-          return format(date, 'yyyy-MM-dd');
-        }
-      } catch {
-        // If parsing fails, assume DD/MM/YYYY (international standard)
-        const day = first.toString().padStart(2, '0');
-        const month = second.toString().padStart(2, '0');
-        return `${year}-${month}-${day}`;
-      }
+    const serial = parseInt(cleaned, 10);
+    if (serial > 0 && serial < 2958466) { // valid range up to year 9999
+      const epoch = new Date(1900, 0, 1);
+      const date = new Date(epoch.getTime() + (serial - 2) * 86400000);
+      return format(date, 'yyyy-MM-dd');
     }
   }
 

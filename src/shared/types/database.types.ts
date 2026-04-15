@@ -266,7 +266,7 @@ export interface FeedbackQuestion {
   id: string;
   session_id: string;
   question_text: string;
-  question_type: 'rating' | 'text' | 'emoji' | 'multiple_choice';
+  question_type: 'rating' | 'text' | 'multiple_choice';
   options: string[];
   /** Non-null marks this as a "test question". Grading compares student responses
    *  (trimmed, case-insensitive) to this value. Only valid for text/multiple_choice. */
