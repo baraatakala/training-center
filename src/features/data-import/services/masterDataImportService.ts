@@ -261,10 +261,10 @@ export async function parseImportFile(file: File) {
   }
 
   const buffer = await file.arrayBuffer();
-  const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+  // Do NOT use cellDates — it creates JS Date objects subject to timezone shifts.
+  // Instead, raw:false + dateNF lets XLSX format serial-number dates as strings directly.
+  const workbook = XLSX.read(buffer, { type: 'array' });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  // raw:false + dateNF forces XLSX to format date cells as 'yyyy-mm-dd' strings,
-  // avoiding all Date-object timezone pitfalls (UTC vs local).
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
     defval: '',
     raw: false,
