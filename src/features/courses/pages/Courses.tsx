@@ -49,7 +49,7 @@ export function Courses() {
   const [editingCourse, setEditingCourse] = useState<CourseWithTeacher | undefined>();
   const [isBookReferencesOpen, setIsBookReferencesOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<CourseWithTeacher | null>(null);
-  const { isTeacher, isAdmin } = useIsTeacher();
+  const { isTeacher, isAdmin, loading: roleLoading } = useIsTeacher();
   const [error, setError] = useState<string | null>(null);
   const [deletingCourse, setDeletingCourse] = useState<CourseWithTeacher | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -243,6 +243,15 @@ export function Courses() {
     }
     setDeletingCourse(null);
   };
+
+  if (roleLoading) {
+    return (
+      <div className="space-y-6 animate-pulse">
+        <div className="h-10 w-64 bg-gray-200 dark:bg-gray-700 rounded-lg" />
+        <div className="bg-white/80 dark:bg-gray-800/80 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700/50 p-6"><div className="space-y-3">{[...Array(6)].map((_, i) => <div key={i} className="h-8 bg-gray-200 dark:bg-gray-700 rounded" />)}</div></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

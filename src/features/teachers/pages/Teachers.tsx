@@ -26,7 +26,7 @@ export function Teachers() {
   const debouncedSearch = useDebounce(searchQuery, 300);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | undefined>();
-  const { isTeacher, isAdmin } = useIsTeacher();
+  const { isTeacher, isAdmin, loading: roleLoading } = useIsTeacher();
   const [error, setError] = useState<string | null>(null);
   const [sortField, setSortField] = useState<'name' | 'email' | 'phone' | 'specialization' | 'enrolledCount'>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -216,6 +216,17 @@ export function Teachers() {
     setEditingTeacher(teacher);
     setIsModalOpen(true);
   };
+
+  if (roleLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-10 w-64 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+        <div className="bg-white/80 dark:bg-gray-800/80 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700/50 overflow-hidden">
+          <TableSkeleton rows={6} columns={6} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

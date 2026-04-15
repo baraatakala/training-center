@@ -7,7 +7,7 @@ import { useIsTeacher } from '@/shared/hooks/useIsTeacher';
 import { specializationService, type Specialization } from '@/features/specializations/services/specializationService';
 
 export function Specializations() {
-  const { isTeacher } = useIsTeacher();
+  const { isTeacher, loading: roleLoading } = useIsTeacher();
   const [specializations, setSpecializations] = useState<Specialization[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState('');
@@ -88,7 +88,7 @@ export function Specializations() {
     setDeletingSpec(null);
   };
 
-  if (loading) {
+  if (roleLoading || loading) {
     return (
       <div className="space-y-6 animate-pulse">
         <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded-lg w-56" />

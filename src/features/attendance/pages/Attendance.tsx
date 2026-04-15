@@ -18,6 +18,7 @@ import { Breadcrumb } from '@/shared/components/ui/Breadcrumb';
 import { excuseRequestService, EXCUSE_REASONS as SERVICE_EXCUSE_REASONS, type ExcuseRequest } from '@/features/excuses/services/excuseRequestService';
 import { sessionRecordingService } from '@/features/sessions/services/sessionRecordingService';
 import { feedbackService, type FeedbackQuestion, type FeedbackTemplate } from '@/features/feedback/services/feedbackService';
+import { AttendanceImportGuidelines } from '@/features/attendance/components/AttendanceImportGuidelines';
 
 function toTemplateQuestions(questions: Array<Pick<FeedbackQuestion, 'question_type' | 'question_text' | 'is_required' | 'options' | 'correct_answer' | 'allow_multiple' | 'grading_mode'>>) {
   return questions.map((question) => ({
@@ -190,6 +191,10 @@ export function Attendance() {
   const [fbCorrectAnswer, setFbCorrectAnswer] = useState('');
   const [fbAllowMultiple, setFbAllowMultiple] = useState(false);
   const [fbGradingMode, setFbGradingMode] = useState<'exact' | 'partial' | 'any'>('exact');
+
+  // Attendance import state
+  const [showImportGuidelines, setShowImportGuidelines] = useState(false);
+  const [importingAttendance, setImportingAttendance] = useState(false);
 
   // Memoized attendance stats to avoid re-filtering on every render
   const attendanceStats = useMemo(() => ({
@@ -2048,6 +2053,58 @@ export function Attendance() {
     );
   }
 
+  const handleDownloadAttendanceTemplate = async () => {
+    if (!sessionId) return;
+    try {
+      const [{ buildAttendanceTemplate }, XLSX] = await Promise.all([
+        import('@/features/attendance/services/attendanceImportService'),
+        import('xlsx'),
+      ]);
+      const workbook = await buildAttendanceTemplate(sessionId);
+      XLSX.writeFile(workbook, 'attendance-import-template.xlsx');
+      toast.success('Template downloaded successfully.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to download template.');
+    }
+  };
+
+  const handleImportAttendanceFile = async (file: File) => {
+    if (!sessionId) return;
+    setImportingAttendance(true);
+    try {
+      const { parseAttendanceFile, importAttendance } = await import(
+        '@/features/attendance/services/attendanceImportService'
+      );
+      const rows = await parseAttendanceFile(file);
+      if (rows.length === 0) {
+        toast.error('File contains no data rows.');
+        return;
+      }
+
+      const result = await importAttendance(sessionId, rows);
+
+      if (result.errors.length > 0) {
+        toast.warning(
+          `Import done with ${result.errors.length} error(s): ${result.errors.slice(0, 3).join('; ')}`,
+        );
+      } else if (result.created === 0 && result.updated > 0) {
+        toast.info(`${result.updated} record(s) updated. No new records created.`);
+      } else {
+        toast.success(`${result.created} created, ${result.updated} updated.`);
+      }
+
+      setShowImportGuidelines(false);
+      // Reload attendance data
+      if (selectedDate) {
+        loadAttendance();
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Import failed.');
+    } finally {
+      setImportingAttendance(false);
+    }
+  };
+
   const sessionInfo = (session as Session & { course?: { course_name: string } })?.course;
   const courseName = sessionInfo?.course_name || 'Unknown Course';
 
@@ -2073,6 +2130,13 @@ export function Attendance() {
           </div>
           {selectedDate && !sessionNotHeld && (
             <div className="flex gap-2">
+              <Button
+                onClick={() => setShowImportGuidelines(true)}
+                className="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white border border-white/30 flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                <span className="hidden sm:inline">Import</span>
+              </Button>
               <Button
                 onClick={() => {
                   if (!selectedAddress || selectedAddress === '') {
@@ -3625,6 +3689,14 @@ export function Attendance() {
           setConfirmClearGPS(null);
         }}
         onCancel={() => setConfirmClearGPS(null)}
+      />
+
+      <AttendanceImportGuidelines
+        isOpen={showImportGuidelines}
+        onClose={() => setShowImportGuidelines(false)}
+        onImport={handleImportAttendanceFile}
+        onDownloadTemplate={handleDownloadAttendanceTemplate}
+        importing={importingAttendance}
       />
     </div>
   );

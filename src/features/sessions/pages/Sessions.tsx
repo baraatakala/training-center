@@ -40,7 +40,7 @@ export function Sessions() {
   const [selectedSessionForSchedule, setSelectedSessionForSchedule] = useState<SessionWithDetails | null>(null);
   const [selectedSessionForRecordings, setSelectedSessionForRecordings] = useState<SessionWithDetails | null>(null);
   const [enrollmentCounts, setEnrollmentCounts] = useState<Record<string, number>>({});
-  const { isTeacher, isAdmin } = useIsTeacher();
+  const { isTeacher, isAdmin, loading: roleLoading } = useIsTeacher();
   const [error, setError] = useState<string | null>(null);
   const [deletingSession, setDeletingSession] = useState<SessionWithDetails | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -420,6 +420,15 @@ export function Sessions() {
       setImporting(false);
     }
   };
+
+  if (roleLoading) {
+    return (
+      <div className="space-y-6 animate-pulse">
+        <div className="h-10 w-64 bg-gray-200 dark:bg-gray-700 rounded-lg" />
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6"><div className="space-y-3">{[...Array(8)].map((_, i) => <div key={i} className="h-8 bg-gray-200 dark:bg-gray-700 rounded" />)}</div></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 p-4 md:p-6">
