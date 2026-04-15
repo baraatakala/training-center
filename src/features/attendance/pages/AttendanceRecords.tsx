@@ -322,10 +322,10 @@ export const AttendanceRecords = () => {
   }, [activeSection, exportDataType, showAdvancedLayout]);
 
   // Table include/exclude toggles for exports — persisted in localStorage
-  const [activeAnalyticsTab, setActiveAnalyticsTab] = useState<'student' | 'date' | 'host' | 'specialization' | 'matrix'>(() => {
+  const [activeAnalyticsTab, setActiveAnalyticsTab] = useState<'student' | 'date' | 'host' | 'specialization' | 'matrix' | 'location'>(() => {
     try {
       const saved = localStorage.getItem('attendance_activeAnalyticsTab');
-      if (saved && ['student', 'date', 'host', 'specialization', 'matrix'].includes(saved)) return saved as 'student' | 'date' | 'host' | 'specialization' | 'matrix';
+      if (saved && ['student', 'date', 'host', 'specialization', 'matrix', 'location'].includes(saved)) return saved as 'student' | 'date' | 'host' | 'specialization' | 'matrix' | 'location';
       // Migrate legacy matrix section selection
       const section = localStorage.getItem('attendance_activeSection');
       if (section === 'matrix') return 'matrix';
@@ -5607,6 +5607,7 @@ export const AttendanceRecords = () => {
                 { key: 'host' as const, label: arabicMode ? '🏠 المضيف' : '🏠 Host', included: includedTables.host, count: (() => { const hosts = new Set<string>(); filteredRecords.forEach(r => { const h = r.host_address || r.session_location; if (h && h !== 'SESSION_NOT_HELD') hosts.add(h); }); return hosts.size; })() },
                 { key: 'specialization' as const, label: arabicMode ? '📊 التخصصات' : '📊 Specializations', included: includedTables.specialization },
                 { key: 'matrix' as const, label: arabicMode ? '🗓️ المصفوفة' : '🗓️ Matrix', included: includedTables.crosstab, count: studentAnalytics.length },
+                { key: 'location' as const, label: arabicMode ? '📍 الخريطة' : '📍 Location Map', included: includedTables.host },
               ]).filter(tab => tab.included).map(tab => (
                 <button
                   key={tab.key}
@@ -6406,13 +6407,11 @@ export const AttendanceRecords = () => {
 
           </>
           )}
-          </div>
-          )}
 
           {/* ═══════════════════════════════════════════════════════════════
               LOCATION MAP — Host Locations with Map Embed & Distance Matrix
               ═══════════════════════════════════════════════════════════════ */}
-          {includedTables.host && (
+          {activeAnalyticsTab === 'location' && includedTables.host && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 overflow-hidden">
             {(() => {
               // Build location points from attendance records and host addresses
@@ -6473,51 +6472,43 @@ export const AttendanceRecords = () => {
                 }
               });
 
-              if (locationPoints.length === 0) return null;
+              if (locationPoints.length === 0) return (
+                <div className="px-4 sm:px-6 py-8 text-center text-gray-400 dark:text-gray-500 text-sm">
+                  {arabicMode ? 'لا توجد بيانات موقع متاحة' : 'No location data available'}
+                </div>
+              );
 
               const totalSessions = locationPoints.reduce((s, p) => s + p.count, 0);
 
               return (
                 <>
-                  <button
-                    onClick={() => {
-                      const el = document.getElementById('location-map-body');
-                      if (el) el.classList.toggle('hidden');
-                    }}
-                    className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/30 dark:to-cyan-900/30 border-b dark:border-gray-600 flex items-center justify-between hover:from-blue-100 hover:to-cyan-100 dark:hover:from-blue-900/40 dark:hover:to-cyan-900/40 transition-colors cursor-pointer"
-                  >
+                  <div className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/30 dark:to-cyan-900/30 border-b dark:border-gray-600 flex items-center justify-between">
                     <div>
                       <h2 className="text-base sm:text-lg font-semibold dark:text-white">{t.locationMap}</h2>
                       <p className="text-[10px] text-gray-500 dark:text-gray-400">{t.locationMapDesc}</p>
                     </div>
-                    <div className="flex items-center gap-3">
-                      {/* Summary badges */}
-                      <div className="hidden sm:flex items-center gap-2">
-                        <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded text-[10px] font-medium">
-                          {locationPoints.length} {t.uniqueLocations}
-                        </span>
-                        <span className="px-2 py-0.5 bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300 rounded text-[10px] font-medium">
-                          {totalSessions} {t.totalSessions}
-                        </span>
-                      </div>
-                      <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded text-[10px] font-medium">
+                        {locationPoints.length} {t.uniqueLocations}
+                      </span>
+                      <span className="px-2 py-0.5 bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300 rounded text-[10px] font-medium">
+                        {totalSessions} {t.totalSessions}
+                      </span>
                     </div>
-                  </button>
+                  </div>
 
-                  <div id="location-map-body">
-                    <Suspense fallback={<div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 px-4 py-8 text-sm text-gray-500 dark:text-gray-400 text-center">Loading map...</div>}>
-                      <LocationMap
-                        locations={locationPoints}
-                        showEmbed={true}
-                        zoom={13}
-                      />
-                    </Suspense>
-                    </div>
+                  <Suspense fallback={<div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 px-4 py-8 text-sm text-gray-500 dark:text-gray-400 text-center">Loading map...</div>}>
+                    <LocationMap
+                      locations={locationPoints}
+                      showEmbed={true}
+                      zoom={13}
+                    />
+                  </Suspense>
                 </>
               );
             })()}
+          </div>
+          )}
           </div>
           )}
         </div>
@@ -6526,7 +6517,7 @@ export const AttendanceRecords = () => {
       {/* Feedback Analytics Tab */}
       {activeSection === 'feedback' && (
         <Suspense fallback={<div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-2 border-purple-500 border-t-transparent" /></div>}>
-          <FeedbackAnalytics embedded />
+          <FeedbackAnalytics embedded arabicMode={arabicMode} />
         </Suspense>
       )}
 

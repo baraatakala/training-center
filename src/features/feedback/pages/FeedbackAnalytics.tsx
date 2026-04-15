@@ -69,10 +69,133 @@ function exportFeedbackCSV(records: FlattenedRecord[], courseName: string, selec
 // ═══════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════
-export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } = {}) {
+export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp }: { embedded?: boolean; arabicMode?: boolean } = {}) {
   const [searchParams] = useSearchParams();
   const sessionParam = searchParams.get('session');
   const dateParam = searchParams.get('date');
+
+  // Arabic mode — use prop when embedded, own state when standalone
+  const [localArabicMode, setLocalArabicMode] = useState(false);
+  const arabicMode = arabicModeProp ?? localArabicMode;
+
+  const t = useMemo(() => arabicMode ? {
+    feedbackAnalytics: 'تحليلات التقييم',
+    subtitle: 'تحليل ردود الطلاب على الأسئلة والجلسات والتواريخ.',
+    exportCSV: '📥 تصدير CSV',
+    selectSession: 'اختر الجلسة...',
+    noFeedbackSessions: 'لا توجد جلسات تقييم',
+    noFeedbackDesc: 'لم يتم تفعيل جمع التقييمات لأي جلسة بعد. قم بتفعيلها من إعدادات الجلسة في صفحة الحضور لبدء جمع ردود الطلاب.',
+    openSession: 'افتح جلسة',
+    enableFeedback: 'فعّل التقييم',
+    addQuestions: 'أضف أسئلة',
+    awaitingResponses: 'بانتظار الردود',
+    awaitingDesc: 'هذه الجلسة مفعّلة للتقييم لكن لم يقدم أي طالب ردوداً بعد. ستظهر الردود هنا بعد تسجيل الحضور وإكمال نموذج التقييم.',
+    responses: 'الردود',
+    avgRating: 'متوسط التقييم',
+    participation: 'المشاركة',
+    dates: 'التواريخ',
+    students: 'طلاب',
+    dateRange: 'نطاق التاريخ',
+    from: 'من',
+    to: 'إلى',
+    student: 'الطالب',
+    allStudents: 'جميع الطلاب',
+    questionType: 'نوع السؤال',
+    allTypes: 'جميع الأنواع',
+    rating: 'تقييم',
+    text: 'نص',
+    multipleChoice: 'اختيار من متعدد',
+    search: 'بحث',
+    searchPlaceholder: 'بحث في الإجابات والتعليقات...',
+    correctness: 'الصحة',
+    allResults: 'جميع النتائج',
+    correctOnly: '✓ صحيح فقط',
+    incorrectOnly: '✗ خاطئ فقط',
+    notGraded: '— غير مقيّم',
+    ratingRange: 'نطاق التقييم',
+    bad: '😢 سيء (1-2)',
+    neutral: '😐 محايد (3)',
+    good: '😊 جيد (4-5)',
+    clearFilters: '✕ مسح الفلاتر',
+    date: 'التاريخ',
+    type: 'النوع',
+    question: 'السؤال',
+    answer: 'الإجابة',
+    correct: 'صحيح؟',
+    comment: 'تعليق',
+    noRecordsMatch: 'لا توجد سجلات تطابق الفلاتر.',
+    anon: '🕵️ مجهول',
+    overallRating: 'التقييم العام',
+    of: 'من',
+    knowledgeAssessment: 'تقييم المعرفة',
+    overallAccuracy: 'الدقة الإجمالية',
+    questionAccuracy: 'دقة الأسئلة',
+    correctAnswer: 'الإجابة الصحيحة',
+    attempts: 'محاولات',
+    accuracy: 'الدقة',
+    studentScores: 'درجات الطلاب',
+    attempted: 'حاول',
+    score: 'الدرجة',
+  } : {
+    feedbackAnalytics: 'Feedback Analytics',
+    subtitle: 'Analyze student feedback responses per question, session, and date.',
+    exportCSV: '📥 Export CSV',
+    selectSession: 'Select session...',
+    noFeedbackSessions: 'No Feedback Sessions',
+    noFeedbackDesc: 'Feedback collection is not enabled for any session yet. Enable it in the Attendance page session settings to start gathering student responses.',
+    openSession: 'Open a session',
+    enableFeedback: 'Enable feedback',
+    addQuestions: 'Add questions',
+    awaitingResponses: 'Awaiting Responses',
+    awaitingDesc: 'This session has feedback enabled but no students have submitted responses yet. Responses appear here after students check in and complete the feedback form.',
+    responses: 'Responses',
+    avgRating: 'Avg Rating',
+    participation: 'Participation',
+    dates: 'Dates',
+    students: 'students',
+    dateRange: 'Date Range',
+    from: 'From',
+    to: 'To',
+    student: 'Student',
+    allStudents: 'All Students',
+    questionType: 'Question Type',
+    allTypes: 'All Types',
+    rating: 'Rating',
+    text: 'Text',
+    multipleChoice: 'Multiple Choice',
+    search: 'Search',
+    searchPlaceholder: 'Search answers, comments...',
+    correctness: 'Correctness',
+    allResults: 'All Results',
+    correctOnly: '✓ Correct Only',
+    incorrectOnly: '✗ Incorrect Only',
+    notGraded: '— Not Graded',
+    ratingRange: 'Rating Range',
+    bad: '😢 Bad (1-2)',
+    neutral: '😐 Neutral (3)',
+    good: '😊 Good (4-5)',
+    clearFilters: '✕ Clear Filters',
+    date: 'Date',
+    type: 'Type',
+    question: 'Question',
+    answer: 'Answer',
+    correct: 'Correct?',
+    comment: 'Comment',
+    noRecordsMatch: 'No records match your filters.',
+    anon: '🕵️ Anon',
+    overallRating: 'Overall Rating',
+    of: 'of',
+    knowledgeAssessment: 'Knowledge Assessment',
+    overallAccuracy: 'Overall Accuracy',
+    questionAccuracy: 'Question Accuracy',
+    correctAnswer: 'Correct Answer',
+    attempts: 'Attempts',
+    accuracy: 'Accuracy',
+    studentScores: 'Student Scores',
+    attempted: 'Attempted',
+    score: 'Score',
+  }, [arabicMode]);
+
   const [sessions, setSessions] = useState<SessionOption[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
   const [feedbacks, setFeedbacks] = useState<SessionFeedback[]>([]);
@@ -248,7 +371,7 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
             feedbackId: fb.id, studentName, isAnonymous: fb.is_anonymous,
             attendanceDate: fb.attendance_date, overallRating: fb.overall_rating != null ? Number(fb.overall_rating) : null,
             questionType: 'rating',
-            questionText: 'Overall Rating',
+            questionText: t.overallRating,
             answer: fb.overall_rating != null ? String(fb.overall_rating) : '—',
             comment: fb.comment,
             isCorrect: null,
@@ -285,7 +408,7 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
       }
     }
     return rows;
-  }, [filteredFeedbacks, questions, questionTypeFilter]);
+  }, [filteredFeedbacks, questions, questionTypeFilter, t]);
 
   // ─── Correctness-filtered records (for display/export) ─────
   const displayRecords = useMemo(() => {
@@ -389,23 +512,39 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
   // RENDER
   // ═══════════════════════════════════════════════════════════
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {!embedded && <Breadcrumb items={[{ label: 'Dashboard', path: '/' }, { label: 'Feedback Analytics' }]} />}
+    <div className="space-y-4 sm:space-y-6" dir={arabicMode ? 'rtl' : 'ltr'}>
+      {!embedded && <Breadcrumb items={[{ label: 'Dashboard', path: '/' }, { label: t.feedbackAnalytics }]} />}
 
       {/* ─── Header ───────────────────────────────────────── */}
       {!embedded && (
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-        <div className="space-y-1 min-w-0">
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-white tracking-tight">
-            Feedback Analytics
-          </h1>
-          <p className="text-xs sm:text-sm text-gray-400 dark:text-gray-500 max-w-xl">
-            Analyze student feedback responses per question, session, and date.
-          </p>
+        <div className="space-y-1 min-w-0 flex items-center gap-3">
+          <div>
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-white tracking-tight">
+              {t.feedbackAnalytics}
+            </h1>
+            <p className="text-xs sm:text-sm text-gray-400 dark:text-gray-500 max-w-xl">
+              {t.subtitle}
+            </p>
+          </div>
+          {arabicModeProp === undefined && (
+            <button
+              onClick={() => setLocalArabicMode(!localArabicMode)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all border ${
+                arabicMode
+                  ? 'bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-600'
+                  : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'
+              }`}
+              title={arabicMode ? 'Switch to English' : 'التبديل إلى العربية'}
+            >
+              <span className="text-base">{arabicMode ? '🇺🇸' : '🇸🇦'}</span>
+              <span>{arabicMode ? 'EN' : 'عربي'}</span>
+            </button>
+          )}
         </div>
         {displayRecords.length > 0 && (
           <Button variant="outline" size="sm" className="rounded-full self-start sm:self-auto" onClick={() => exportFeedbackCSV(displayRecords, selectedSession?.course_name || 'feedback', dateFrom && dateTo ? `${dateFrom}_to_${dateTo}` : dateFrom || dateTo || '')}>
-            📥 Export CSV
+            {t.exportCSV}
           </Button>
         )}
       </div>
@@ -422,12 +561,12 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
               value: s.session_id,
               label: `${s.course_name} · ${s.teacher_name}${s.feedback_enabled ? '' : ' · OFF'}`,
             }))}
-            placeholder="Select session..."
+            placeholder={t.selectSession}
           />
         </div>
         {embedded && displayRecords.length > 0 && (
           <Button variant="outline" size="sm" className="rounded-full shrink-0" onClick={() => exportFeedbackCSV(displayRecords, selectedSession?.course_name || 'feedback', dateFrom && dateTo ? `${dateFrom}_to_${dateTo}` : dateFrom || dateTo || '')}>
-            📥 Export CSV
+            {t.exportCSV}
           </Button>
         )}
       </div>
@@ -441,24 +580,24 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
             </div>
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">No Feedback Sessions</h3>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">{t.noFeedbackSessions}</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">
-              Feedback collection is not enabled for any session yet. Enable it in the Attendance page session settings to start gathering student responses.
+              {t.noFeedbackDesc}
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 text-xs text-gray-400">
               <div className="flex items-center gap-1.5">
                 <span className="w-5 h-5 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-500 text-[10px] font-bold">1</span>
-                Open a session
+                {t.openSession}
               </div>
               <span className="hidden sm:inline text-gray-300 dark:text-gray-600">→</span>
               <div className="flex items-center gap-1.5">
                 <span className="w-5 h-5 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-500 text-[10px] font-bold">2</span>
-                Enable feedback
+                {t.enableFeedback}
               </div>
               <span className="hidden sm:inline text-gray-300 dark:text-gray-600">→</span>
               <div className="flex items-center gap-1.5">
                 <span className="w-5 h-5 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-500 text-[10px] font-bold">3</span>
-                Add questions
+                {t.addQuestions}
               </div>
             </div>
           </div>
@@ -485,9 +624,9 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
             </div>
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Awaiting Responses</h3>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">{t.awaitingResponses}</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 leading-relaxed">
-              This session has feedback enabled but no students have submitted responses yet. Responses appear here after students check in and complete the feedback form.
+              {t.awaitingDesc}
             </p>
             {selectedSession && (
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-50 dark:bg-gray-700/50 text-xs text-gray-500 dark:text-gray-400">
@@ -504,27 +643,27 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
           {/* ─── KPI Summary Cards ─────────────────────────── */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
             <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-3 sm:p-4">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Responses</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">{t.responses}</p>
               <p className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white">{filteredStats.totalResponses}</p>
-              <p className="text-[10px] text-gray-400">{filteredStats.engagedStudents} students</p>
+              <p className="text-[10px] text-gray-400">{filteredStats.engagedStudents} {t.students}</p>
             </div>
             <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-3 sm:p-4">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Avg Rating</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">{t.avgRating}</p>
               <p className="text-xl sm:text-2xl font-black text-purple-600 dark:text-purple-400">
                 {filteredStats.averageRating || '—'}<span className="text-xs sm:text-sm font-bold text-gray-400 ml-1">/ 5</span>
               </p>
               <p className="text-[10px] text-gray-400">{RATING_EMOJIS[Math.round(filteredStats.averageRating) - 1] || ''}</p>
             </div>
             <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-3 sm:p-4">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1" title="Avg % of enrolled students who submitted feedback per date">Participation</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1" title="Avg % of enrolled students who submitted feedback per date">{t.participation}</p>
               <p className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400">{filteredResponseRate}%</p>
               <div className="w-full bg-gray-100 dark:bg-gray-700 h-1.5 rounded-full overflow-hidden mt-1">
                 <div className="h-full rounded-full bg-emerald-500" style={{ width: `${filteredResponseRate}%` }} />
               </div>
-              <p className="text-[10px] text-gray-400 mt-0.5">{filteredStats.engagedStudents} / {stats?.enrolledCount ?? '?'} students</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">{filteredStats.engagedStudents} / {stats?.enrolledCount ?? '?'} {t.students}</p>
             </div>
             <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-3 sm:p-4">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Dates</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">{t.dates}</p>
               <p className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white">{filteredStats.datesCovered}</p>
             </div>
           </div>
@@ -532,14 +671,14 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
           {/* ─── Global Filters (shared by Records & Analytics) ─── */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 items-end">
             <div className="min-w-0">
-              <label className="text-[11px] text-gray-400 block mb-1">Date Range</label>
+              <label className="text-[11px] text-gray-400 block mb-1">{t.dateRange}</label>
               <div className="flex gap-1">
                 <select
                   value={dateFrom}
                   onChange={e => { setDateFrom(e.target.value); setRecordsPage(0); }}
                   className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-2 text-gray-900 dark:text-white"
                 >
-                  <option value="">From</option>
+                  <option value="">{t.from}</option>
                   {uniqueDates.slice().sort().map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
                 <select
@@ -547,42 +686,42 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
                   onChange={e => { setDateTo(e.target.value); setRecordsPage(0); }}
                   className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-2 text-gray-900 dark:text-white"
                 >
-                  <option value="">To</option>
+                  <option value="">{t.to}</option>
                   {uniqueDates.slice().sort().map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
             </div>
             <div className="min-w-0">
-              <label className="text-[11px] text-gray-400 block mb-1">Student</label>
+              <label className="text-[11px] text-gray-400 block mb-1">{t.student}</label>
               <select
                 value={studentFilter}
                 onChange={e => { setStudentFilter(e.target.value); setRecordsPage(0); }}
                 className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white"
               >
-                <option value="">All Students</option>
+                <option value="">{t.allStudents}</option>
                 {uniqueStudents.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             <div className="min-w-0">
-              <label className="text-[11px] text-gray-400 block mb-1">Question Type</label>
+              <label className="text-[11px] text-gray-400 block mb-1">{t.questionType}</label>
               <select
                 value={questionTypeFilter}
                 onChange={e => { setQuestionTypeFilter(e.target.value as QuestionTypeFilter); setRecordsPage(0); }}
                 className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white"
               >
-                <option value="all">All Types</option>
-                <option value="rating">Rating</option>
-                <option value="text">Text</option>
-                <option value="multiple_choice">Multiple Choice</option>
+                <option value="all">{t.allTypes}</option>
+                <option value="rating">{t.rating}</option>
+                <option value="text">{t.text}</option>
+                <option value="multiple_choice">{t.multipleChoice}</option>
               </select>
             </div>
             <div className="min-w-0">
-              <label className="text-[11px] text-gray-400 block mb-1">Search</label>
+              <label className="text-[11px] text-gray-400 block mb-1">{t.search}</label>
               <input
                 type="text"
                 value={feedbackSearch}
                 onChange={e => { setFeedbackSearch(e.target.value); setRecordsPage(0); }}
-                placeholder="Search answers, comments..."
+                placeholder={t.searchPlaceholder}
                 className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white placeholder:text-gray-400"
               />
             </div>
@@ -591,26 +730,26 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
           <div className="flex flex-wrap items-center gap-2 -mt-1">
             {knowledgeAssessment && (
               <div className="min-w-[140px]">
-                <label className="text-[11px] text-gray-400 block mb-1">Correctness</label>
+                <label className="text-[11px] text-gray-400 block mb-1">{t.correctness}</label>
                 <select
                   value={correctnessFilter}
                   onChange={e => { setCorrectnessFilter(e.target.value as CorrectnessFilter); setRecordsPage(0); }}
                   className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white"
                 >
-                  <option value="all">All Results</option>
-                  <option value="correct">✓ Correct Only</option>
-                  <option value="incorrect">✗ Incorrect Only</option>
-                  <option value="not-graded">— Not Graded</option>
+                  <option value="all">{t.allResults}</option>
+                  <option value="correct">{t.correctOnly}</option>
+                  <option value="incorrect">{t.incorrectOnly}</option>
+                  <option value="not-graded">{t.notGraded}</option>
                 </select>
               </div>
             )}
             <div className="min-w-[130px]">
-              <label className="text-[11px] text-gray-400 block mb-1">Rating Range</label>
+              <label className="text-[11px] text-gray-400 block mb-1">{t.ratingRange}</label>
               <div className="flex flex-col gap-1">
                 {([
-                  { value: 'bad' as const, label: '😢 Bad (1-2)' },
-                  { value: 'neutral' as const, label: '😐 Neutral (3)' },
-                  { value: 'good' as const, label: '😊 Good (4-5)' },
+                  { value: 'bad' as const, label: t.bad },
+                  { value: 'neutral' as const, label: t.neutral },
+                  { value: 'good' as const, label: t.good },
                 ] as { value: RatingRangeFilter; label: string }[]).map(opt => (
                   <label key={opt.value} className="flex items-center gap-1.5 cursor-pointer text-xs text-gray-700 dark:text-gray-300">
                     <input
@@ -632,7 +771,7 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
                 onClick={() => { setFeedbackSearch(''); setDateFrom(''); setDateTo(''); setStudentFilter(''); setQuestionTypeFilter('all'); setCorrectnessFilter('all'); setRatingRangeFilters([]); setRecordsPage(0); }}
                 className="text-xs text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 px-3 py-1.5 rounded-lg border border-purple-200 dark:border-purple-700 mt-auto"
               >
-                ✕ Clear Filters
+                {t.clearFilters}
               </button>
             )}
           </div>
@@ -645,7 +784,7 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
               {displayRecords.length === 0 ? (
                 <div className="text-center py-12">
                   <span className="text-4xl block mb-3">🔍</span>
-                  <p className="text-sm text-gray-500">No records match your filters.</p>
+                  <p className="text-sm text-gray-500">{t.noRecordsMatch}</p>
                 </div>
               ) : (
                 <div className="rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 overflow-hidden">
@@ -654,13 +793,13 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
                       <thead className="bg-gray-50 dark:bg-gray-800/60">
                         <tr>
                           {([
-                            { key: 'studentName' as SortField, label: 'Student' },
-                            { key: 'attendanceDate' as SortField, label: 'Date' },
-                            { key: 'questionType' as SortField, label: 'Type' },
-                            { key: 'questionText' as SortField, label: 'Question' },
-                            { key: 'answer' as SortField, label: 'Answer' },
-                            { key: null, label: 'Correct?' },
-                            { key: 'comment' as SortField, label: 'Comment' },
+                            { key: 'studentName' as SortField, label: t.student },
+                            { key: 'attendanceDate' as SortField, label: t.date },
+                            { key: 'questionType' as SortField, label: t.type },
+                            { key: 'questionText' as SortField, label: t.question },
+                            { key: 'answer' as SortField, label: t.answer },
+                            { key: null, label: t.correct },
+                            { key: 'comment' as SortField, label: t.comment },
                           ]).map(col => (
                             <th
                               key={col.label}
@@ -684,7 +823,7 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
                           <tr key={`${row.feedbackId}-${idx}`} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors">
                             <td className="px-3 py-3 pl-4 sm:pl-5 whitespace-nowrap">
                               {row.isAnonymous ? (
-                                <span className="text-gray-400 italic">🕵️ Anon</span>
+                                <span className="text-gray-400 italic">{t.anon}</span>
                               ) : (
                                 <span className="font-medium text-gray-900 dark:text-white">{row.studentName}</span>
                               )}
@@ -729,7 +868,7 @@ export function FeedbackAnalytics({ embedded = false }: { embedded?: boolean } =
                   {totalPages > 1 && (
                     <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-t border-gray-100 dark:border-gray-700">
                       <p className="text-[11px] text-gray-400">
-                        {recordsPage * RECORDS_PER_PAGE + 1}–{Math.min((recordsPage + 1) * RECORDS_PER_PAGE, displayRecords.length)} of {displayRecords.length}
+                        {recordsPage * RECORDS_PER_PAGE + 1}–{Math.min((recordsPage + 1) * RECORDS_PER_PAGE, displayRecords.length)} {t.of} {displayRecords.length}
                       </p>
                       <div className="flex gap-1">
                         <button

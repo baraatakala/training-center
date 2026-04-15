@@ -7,6 +7,7 @@ import { sessionService } from '@/features/sessions/services/sessionService';
 import { enrollmentService } from '@/features/enrollments/services/enrollmentService';
 import { Tables } from '@/shared/types/database.types';
 import { getAll as getAllSpecializations } from '@/features/specializations/services/specializationService';
+import { normalizeDate } from '@/features/data-import/utils/importHelpers';
 
 export type MasterImportEntity = 'teachers' | 'students' | 'courses' | 'sessions' | 'enrollments';
 
@@ -177,22 +178,15 @@ function parseOptionalNumber(value: string | undefined) {
 }
 
 function parseRequiredDate(value: string | undefined, field: string, rowIndex: number) {
-  const normalized = normalizeText(value);
-  // Handle Excel date serial numbers (e.g., 46022 → 2026-01-18)
-  if (/^\d{4,5}$/.test(normalized)) {
-    const serial = Number(normalized);
-    if (serial > 25000 && serial < 100000) {
-      const d = new Date((serial - 25569) * 86400000);
-      const yyyy = d.getUTCFullYear();
-      const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-      const dd = String(d.getUTCDate()).padStart(2, '0');
-      return `${yyyy}-${mm}-${dd}`;
-    }
+  const trimmed = normalizeText(value);
+  if (!trimmed) {
+    throw new Error(`Row ${rowIndex}: ${field} is required.`);
   }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
-    throw new Error(`Row ${rowIndex}: ${field} must be in YYYY-MM-DD format.`);
+  const result = normalizeDate(trimmed);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(result)) {
+    throw new Error(`Row ${rowIndex}: ${field} must be a valid date (YYYY-MM-DD, DD/MM/YYYY, or MM/DD/YYYY).`);
   }
-  return normalized;
+  return result;
 }
 
 function getRequired(row: ImportRow, field: string, rowIndex: number) {
@@ -277,9 +271,11 @@ export async function parseImportFile(file: File) {
       Object.entries(row).forEach(([key, value]) => {
         if (value instanceof Date) {
           // Format JS Date objects (from cellDates:true) as YYYY-MM-DD
-          const yyyy = value.getFullYear();
-          const mm = String(value.getMonth() + 1).padStart(2, '0');
-          const dd = String(value.getDate()).padStart(2, '0');
+          // Use UTC methods — XLSX.js creates dates at UTC midnight;
+          // local getDate() can shift ±1 day depending on the browser timezone.
+          const yyyy = value.getUTCFullYear();
+          const mm = String(value.getUTCMonth() + 1).padStart(2, '0');
+          const dd = String(value.getUTCDate()).padStart(2, '0');
           normalized[normalizeHeader(key)] = `${yyyy}-${mm}-${dd}`;
         } else {
           normalized[normalizeHeader(key)] = typeof value === 'string' ? value.trim() : String(value ?? '').trim();
@@ -667,7 +663,10 @@ async function importEnrollments(rows: ImportRow[]): Promise<MasterImportResult>
   const sessionByKey = new Map(
     (sessions || []).map((session) => {
       const course = Array.isArray(session.course) ? session.course[0] : session.course;
-      return [`${normalizeLower(course?.course_name || '')}|${session.teacher_id}|${session.start_date}|${session.end_date}`, session.session_id];
+      // Defensive: extract first 10 chars in case PostgREST returns ISO-8601 with time
+      const startDate = (session.start_date || '').substring(0, 10);
+      const endDate = (session.end_date || '').substring(0, 10);
+      return [`${normalizeLower(course?.course_name || '')}|${session.teacher_id}|${startDate}|${endDate}`, session.session_id];
     }),
   );
   const enrollmentByKey = new Map(
@@ -688,9 +687,12 @@ async function importEnrollments(rows: ImportRow[]): Promise<MasterImportResult>
 
       const sessionStartDate = parseRequiredDate(row.session_start_date, 'session_start_date', rowIndex);
       const sessionEndDate = parseRequiredDate(row.session_end_date, 'session_end_date', rowIndex);
-      const sessionId = sessionByKey.get(`${normalizeLower(courseName)}|${teacherId}|${sessionStartDate}|${sessionEndDate}`);
+      const lookupKey = `${normalizeLower(courseName)}|${teacherId}|${sessionStartDate}|${sessionEndDate}`;
+      const sessionId = sessionByKey.get(lookupKey);
       if (!sessionId) {
-        throw new Error(`Row ${rowIndex}: session could not be found for the supplied teacher, course, and dates.`);
+        throw new Error(
+          `Row ${rowIndex}: session could not be found for teacher="${teacherEmail}", course="${courseName}", dates=${sessionStartDate}→${sessionEndDate}.`
+        );
       }
 
       const status = normalizeText(row.status) || 'active';
