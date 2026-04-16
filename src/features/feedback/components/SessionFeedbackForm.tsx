@@ -320,6 +320,21 @@ export default function SessionFeedbackForm({
                         Partial credit: {Math.round((result.score ?? 0) * 100)}%
                       </p>
                     )}
+                    {question.allow_multiple && question.grading_mode && (
+                      <span className={`inline-block mt-0.5 text-[9px] px-1.5 py-0.5 rounded-full font-semibold ${
+                        question.grading_mode === 'exact'
+                          ? 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                          : question.grading_mode === 'partial'
+                          ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300'
+                          : 'bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-300'
+                      }`}>
+                        {{
+                          exact: 'Graded: Exact Match — must select all correct answers',
+                          partial: 'Graded: Partial Credit — proportional score, wrong picks reduce it',
+                          any: 'Graded: Any Correct — any right pick counts',
+                        }[question.grading_mode]}
+                      </span>
+                    )}
                   </div>
                 </div>
                 );

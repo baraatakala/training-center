@@ -50,6 +50,8 @@ interface FlattenedRecord {
   gradingDetail: string | null;
   /** 0–1 score for partial credit */
   gradingScore: number | null;
+  /** grading mode used — null if not a test question */
+  gradingMode: 'exact' | 'partial' | 'any' | null;
   tabSwitchCount: number;
   isAutoSubmitted: boolean;
 }
@@ -58,12 +60,13 @@ interface FlattenedRecord {
 
 // ─── CSV export (one row per question-answer) ───────────────
 function exportFeedbackCSV(records: FlattenedRecord[], courseName: string, selectedDate?: string) {
-  const headers = ['Student', 'Date', 'Check-In Time', 'Question Type', 'Question', 'Answer', 'Correct Answer', 'Correct?', 'Violations', 'Auto-Submitted', 'Comment'];
+  const headers = ['Student', 'Date', 'Check-In Time', 'Question Type', 'Question', 'Answer', 'Correct Answer', 'Grading Mode', 'Correct?', 'Violations', 'Auto-Submitted', 'Comment'];
   const rows = records.map(r => [
     r.studentName, r.attendanceDate,
     r.checkInTime ? new Date(r.checkInTime).toLocaleTimeString() : '',
     r.questionType, r.questionText, r.answer,
     r.correctAnswer || '',
+    r.gradingMode ? ({ exact: 'Exact Match', partial: 'Partial Credit', any: 'Any Correct' }[r.gradingMode] ?? '') : '',
     r.isCorrect === null ? '' : r.isCorrect ? 'Yes' : (r.gradingScore !== null && r.gradingScore > 0) ? `Partial (${r.gradingDetail})` : 'No',
     String(r.tabSwitchCount),
     r.isAutoSubmitted ? 'Yes' : '',
@@ -380,6 +383,7 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
             isCorrect: null,
             gradingDetail: null,
             gradingScore: null,
+            gradingMode: null,
             correctAnswer: null,
             tabSwitchCount: fb.tab_switch_count ?? 0,
             isAutoSubmitted: fb.is_auto_submitted ?? false,
@@ -414,6 +418,7 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
             correctAnswer,
             gradingDetail,
             gradingScore,
+            gradingMode: (q?.correct_answer != null ? (q?.grading_mode ?? null) : null),
             tabSwitchCount: fb.tab_switch_count ?? 0,
             isAutoSubmitted: fb.is_auto_submitted ?? false,
           });
@@ -770,6 +775,7 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                             { key: 'questionText' as SortField, label: t.question },
                             { key: 'answer' as SortField, label: t.answer },
                             { key: null, label: 'Correct Answer' },
+                            { key: null, label: 'Grading Mode' },
                             { key: null, label: t.correct },
                             { key: 'comment' as SortField, label: t.comment },
                             { key: 'tabSwitchCount' as SortField, label: t.violations },
@@ -825,6 +831,19 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                             <td className="px-3 py-3 max-w-[140px]">
                               {row.correctAnswer ? (
                                 <span className="text-green-700 dark:text-green-400 font-medium truncate block text-[10px]" title={row.correctAnswer}>{row.correctAnswer}</span>
+                              ) : <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>}
+                            </td>
+                            <td className="px-3 py-3 whitespace-nowrap">
+                              {row.gradingMode ? (
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
+                                  row.gradingMode === 'exact'
+                                    ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                                    : row.gradingMode === 'partial'
+                                    ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                                    : 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'
+                                }`}>
+                                  {{ exact: 'Exact', partial: 'Partial', any: 'Any Correct' }[row.gradingMode]}
+                                </span>
                               ) : <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>}
                             </td>
                             <td className="px-3 py-3 text-center">
