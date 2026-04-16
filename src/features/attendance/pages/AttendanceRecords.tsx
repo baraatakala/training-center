@@ -1513,6 +1513,7 @@ export const AttendanceRecords = () => {
       return;
     }
 
+    try {
     // Capture selected charts as images before generating Excel
     let chartImages: Map<string, string> = new Map();
     if (selectedChartsForExport.size > 0 && chartRef.current) {
@@ -1934,6 +1935,10 @@ export const AttendanceRecords = () => {
       ? `تقرير_التحليلات_${format(new Date(), 'yyyy-MM-dd')}.xlsx`
       : `analytics-report-${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
     XLSX.writeFile(wb, excelFileName);
+    } catch (err) {
+      console.error('Error exporting analytics to Excel:', err);
+      showError('Failed to export analytics to Excel. Please try again.');
+    }
   };
 
   // ========== ANALYTICS CSV EXPORT - Uses saved field selections and sorting ==========
@@ -1943,6 +1948,7 @@ export const AttendanceRecords = () => {
       return;
     }
 
+    try {
     const isArabic = reportLanguage === 'ar';
     
     // Escape CSV fields and add proper quoting
@@ -2318,6 +2324,10 @@ export const AttendanceRecords = () => {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error exporting analytics to CSV:', err);
+      showError('Failed to export analytics to CSV. Please try again.');
+    }
   };
 
   const exportAnalyticsToPDF = async (skipArabicCheck = false) => {
@@ -2326,6 +2336,7 @@ export const AttendanceRecords = () => {
       return;
     }
 
+    try {
     // Capture selected charts as images before generating PDF
     let chartImages: Map<string, string> = new Map();
     if (selectedChartsForExport.size > 0 && chartRef.current) {
@@ -2524,9 +2535,40 @@ export const AttendanceRecords = () => {
       return getColorForPercentage(value, theme).rgb;
     };
 
-    // Layout settings shorthand
-    const tblFontSize = exportLayout.tableFontSize;
+    // Layout settings shorthand — merge AdvancedExportBuilder settings from ALL analytics types
+    // (user might set headerBgColor from any builder, not just studentAnalytics)
+    const layoutSettings = (() => {
+      const types = ['studentAnalytics', 'dateAnalytics', 'hostAnalytics', 'specializationAnalytics'] as const;
+      const base = { ...savedExportSettings.studentAnalytics };
+      for (const key of types) {
+        const s = savedExportSettings[key];
+        if (s.headerBgColor && !base.headerBgColor) base.headerBgColor = s.headerBgColor;
+        if (s.headerFontSizePt && !base.headerFontSizePt) base.headerFontSizePt = s.headerFontSizePt;
+        if (s.bodyFontSizePt && !base.bodyFontSizePt) base.bodyFontSizePt = s.bodyFontSizePt;
+        if (s.showGridlines !== undefined && base.showGridlines === undefined) base.showGridlines = s.showGridlines;
+        if (s.alternateRowColors !== undefined && base.alternateRowColors === undefined) base.alternateRowColors = s.alternateRowColors;
+        if (s.rowDensity && !base.rowDensity) base.rowDensity = s.rowDensity;
+      }
+      return base;
+    })();
+    const tblFontSize = layoutSettings.bodyFontSizePt ?? exportLayout.tableFontSize;
+    const headerFontSizePdf = layoutSettings.headerFontSizePt ?? tblFontSize;
     const sectionGap = exportLayout.sectionSpacing;
+    // Parse header background color from saved settings (hex string like 'ff0000' or '#ff0000')
+    const headerBgRgb: [number, number, number] = (() => {
+      const hex = layoutSettings.headerBgColor;
+      if (hex && hex.length >= 6) {
+        const clean = hex.replace('#', '');
+        const r = parseInt(clean.substring(0, 2), 16);
+        const g = parseInt(clean.substring(2, 4), 16);
+        const b = parseInt(clean.substring(4, 6), 16);
+        if (!isNaN(r) && !isNaN(g) && !isNaN(b)) return [r, g, b];
+      }
+      return [59, 130, 246]; // default blue-500
+    })();
+    const showAltRows = layoutSettings.alternateRowColors !== false;
+    const altRowColor: [number, number, number] = [245, 245, 245];
+    const cellPaddingByDensity = layoutSettings.rowDensity === 'compact' ? 1 : layoutSettings.rowDensity === 'comfortable' ? 3 : 2;
     const addPageBreakIfNeeded = () => {
       if (exportLayout.pageBreakBetweenTables) {
         doc.addPage();
@@ -2549,15 +2591,15 @@ export const AttendanceRecords = () => {
       autoTable(doc, {
         startY: currentY + 8,
         head: [studentConfig.headers],
-        body: studentDataObjects.slice(0, 20).map((data, index) => studentConfig.getData(data as Record<string, unknown>, index)) as (string | number)[][],
-        styles: { fontSize: tblFontSize, cellPadding: 2 },
-        headStyles: { fillColor: [59, 130, 246], fontSize: tblFontSize },
-        alternateRowStyles: { fillColor: [245, 245, 245] },
+        body: studentDataObjects.map((data, index) => studentConfig.getData(data as Record<string, unknown>, index)) as (string | number)[][],
+        styles: { fontSize: tblFontSize, cellPadding: cellPaddingByDensity },
+        headStyles: { fillColor: headerBgRgb, fontSize: headerFontSizePdf },
+        ...(showAltRows ? { alternateRowStyles: { fillColor: altRowColor } } : {}),
         rowPageBreak: 'avoid',
         didParseCell: (hookData) => {
           if (studentColoring.enabled && hookData.section === 'body' && studentColorColumns.includes(hookData.column.index)) {
             const cellText = hookData.cell.text.join('');
-            const numMatch = cellText.match(/(\d+\.?\d*)/);
+            const numMatch = cellText.match(/^\s*(\d+\.?\d*)\s*%?\s*$/);
             if (numMatch) {
               const value = parseFloat(numMatch[1]);
               if (!isNaN(value) && value >= 0 && value <= 100) {
@@ -2647,14 +2689,14 @@ export const AttendanceRecords = () => {
       startY: currentY + 14,
       head: [dateConfig.headers],
       body: dateDataObjects.map((data, index) => dateConfig.getData(data as Record<string, unknown>, index)) as (string | number)[][],
-      styles: { fontSize: Math.max(tblFontSize - 1, 5), cellPadding: 1.5 },
-      headStyles: { fillColor: [59, 130, 246], fontSize: Math.max(tblFontSize - 1, 5) },
-      alternateRowStyles: { fillColor: [245, 245, 245] },
+      styles: { fontSize: Math.max(tblFontSize - 1, 5), cellPadding: cellPaddingByDensity },
+      headStyles: { fillColor: headerBgRgb, fontSize: Math.max(headerFontSizePdf - 1, 5) },
+      ...(showAltRows ? { alternateRowStyles: { fillColor: altRowColor } } : {}),
       rowPageBreak: 'avoid',
       didParseCell: (hookData) => {
         if (dateColoring.enabled && hookData.section === 'body' && dateColorColumns.includes(hookData.column.index)) {
           const cellText = hookData.cell.text.join('');
-          const numMatch = cellText.match(/(\d+\.?\d*)/);
+          const numMatch = cellText.match(/^\s*(\d+\.?\d*)\s*%?\s*$/);
           if (numMatch) {
             const value = parseFloat(numMatch[1]);
             if (!isNaN(value) && value >= 0 && value <= 100) {
@@ -2762,13 +2804,13 @@ export const AttendanceRecords = () => {
         startY: currentY + 14,
         head: [hostConfig.headers],
         body: hostDataObjects.map((data, index) => hostConfig.getData(data as Record<string, unknown>, index)) as (string | number)[][],
-        styles: { fontSize: tblFontSize, cellPadding: 2 },
-        headStyles: { fillColor: [59, 130, 246], fontSize: tblFontSize },
-        alternateRowStyles: { fillColor: [245, 245, 245] },
+        styles: { fontSize: tblFontSize, cellPadding: cellPaddingByDensity },
+        headStyles: { fillColor: headerBgRgb, fontSize: headerFontSizePdf },
+        ...(showAltRows ? { alternateRowStyles: { fillColor: altRowColor } } : {}),
         didParseCell: (hookData) => {
           if (hostColoring.enabled && hookData.section === 'body' && hostColorColumns.includes(hookData.column.index)) {
             const cellText = hookData.cell.text.join('');
-            const numMatch = cellText.match(/(\d+\.?\d*)/);
+            const numMatch = cellText.match(/^\s*(\d+\.?\d*)\s*%?\s*$/);
             if (numMatch) {
               const value = parseFloat(numMatch[1]);
               if (!isNaN(value) && value >= 0 && value <= 100) {
@@ -2808,13 +2850,13 @@ export const AttendanceRecords = () => {
         startY: currentY + 14,
         head: [specConfig.headers],
         body: specDataObjects.map((data, index) => specConfig.getData(data as Record<string, unknown>, index)) as (string | number)[][],
-        styles: { fontSize: tblFontSize, cellPadding: 2 },
-        headStyles: { fillColor: [139, 92, 246], fontSize: tblFontSize },
-        alternateRowStyles: { fillColor: [245, 245, 245] },
+        styles: { fontSize: tblFontSize, cellPadding: cellPaddingByDensity },
+        headStyles: { fillColor: headerBgRgb, fontSize: headerFontSizePdf },
+        ...(showAltRows ? { alternateRowStyles: { fillColor: altRowColor } } : {}),
         didParseCell: (hookData) => {
           if (specColoring.enableConditionalColoring && hookData.section === 'body' && specColorColumns.includes(hookData.column.index)) {
             const cellText = hookData.cell.text.join('');
-            const numMatch = cellText.match(/(\d+\.?\d*)/);
+            const numMatch = cellText.match(/^\s*(\d+\.?\d*)\s*%?\s*$/);
             if (numMatch) {
               const value = parseFloat(numMatch[1]);
               if (!isNaN(value) && value >= 0 && value <= 100) {
@@ -2988,9 +3030,9 @@ export const AttendanceRecords = () => {
           head: [ctHeaders],
           body: ctBody,
           styles: { fontSize, cellPadding, halign: 'center', overflow: 'hidden' },
-          headStyles: { fillColor: [124, 58, 237], fontSize: headerFontSize, cellPadding: 0.8 },
+          headStyles: { fillColor: headerBgRgb, fontSize: headerFontSize, cellPadding: 0.8 },
           columnStyles: colStyles,
-          alternateRowStyles: { fillColor: [245, 245, 245] },
+          ...(showAltRows ? { alternateRowStyles: { fillColor: altRowColor } } : {}),
           rowPageBreak: 'avoid',
           margin: { left: 14, right: 14 },
           didParseCell: (hookData) => {
@@ -3091,6 +3133,10 @@ export const AttendanceRecords = () => {
       ? `تقرير_التحليلات_${format(new Date(), 'yyyy-MM-dd')}.pdf`
       : `analytics-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`;
     doc.save(pdfFileName);
+    } catch (err) {
+      console.error('Error exporting analytics to PDF:', err);
+      showError('Failed to export analytics to PDF. Please try again.');
+    }
   };
 
   const exportAnalyticsToWord = async () => {
@@ -3514,12 +3560,37 @@ export const AttendanceRecords = () => {
           specializationData: specDataForExport,
           specializationHeaders: specHeadersForExport,
           chartImages: chartImages.size > 0 ? Object.fromEntries(chartImages) : undefined,
-          layoutSettings: {
-            tableFontSize: exportLayout.tableFontSize,
-            sectionSpacing: exportLayout.sectionSpacing,
-            chartWidth: exportLayout.chartWidth,
-            pageBreakBetweenTables: exportLayout.pageBreakBetweenTables,
-          },
+          layoutSettings: (() => {
+            // Merge layout settings from all analytics types (user may configure from any builder)
+            const types = ['studentAnalytics', 'dateAnalytics', 'hostAnalytics', 'specializationAnalytics'] as const;
+            let headerBgColor: string | undefined;
+            let headerFontSizePt: number | undefined;
+            let bodyFontSizePt: number | undefined;
+            let showGridlines: boolean | undefined;
+            let alternateRowColors: boolean | undefined;
+            let rowDensity: 'compact' | 'normal' | 'comfortable' | undefined;
+            for (const key of types) {
+              const s = savedExportSettings[key];
+              if (s.headerBgColor && !headerBgColor) headerBgColor = s.headerBgColor;
+              if (s.headerFontSizePt && !headerFontSizePt) headerFontSizePt = s.headerFontSizePt;
+              if (s.bodyFontSizePt && !bodyFontSizePt) bodyFontSizePt = s.bodyFontSizePt;
+              if (s.showGridlines !== undefined && showGridlines === undefined) showGridlines = s.showGridlines;
+              if (s.alternateRowColors !== undefined && alternateRowColors === undefined) alternateRowColors = s.alternateRowColors;
+              if (s.rowDensity && !rowDensity) rowDensity = s.rowDensity;
+            }
+            return {
+              tableFontSize: exportLayout.tableFontSize,
+              sectionSpacing: exportLayout.sectionSpacing,
+              chartWidth: exportLayout.chartWidth,
+              pageBreakBetweenTables: exportLayout.pageBreakBetweenTables,
+              headerBgColor,
+              headerFontSizePt,
+              bodyFontSizePt,
+              showGridlines,
+              alternateRowColors,
+              rowDensity,
+            };
+          })(),
         }
       );
       success('Word document exported successfully!');
@@ -4908,8 +4979,8 @@ export const AttendanceRecords = () => {
         : '-';
       
       return {
-        // Basic Info — pass raw ISO so AdvancedExportBuilder formatValue can re-format
-        date: r.attendance_date,
+        // Basic Info
+        date: format(dateObj, 'MMM dd, yyyy'),
         dayOfWeek: format(dateObj, 'EEEE'),
         attendance_id: r.attendance_id,
         // Student Info
@@ -4939,7 +5010,7 @@ export const AttendanceRecords = () => {
         late_minutes: r.status === 'late' && r.late_minutes ? r.late_minutes : '-',
         late_bracket: r.status === 'late' && r.late_minutes ? lateBracketInfo.name : '-',
         check_in_time: r.gps_timestamp ? format(new Date(r.gps_timestamp), 'HH:mm:ss') : '-',
-        gps_timestamp: r.gps_timestamp || '-',
+        gps_timestamp: r.gps_timestamp ? format(new Date(r.gps_timestamp), 'MMM dd, yyyy HH:mm:ss') : '-',
         // Excuse Info
         excuse_reason: r.excuse_reason || '-',
         check_in_method: r.check_in_method || '-',
@@ -4948,7 +5019,7 @@ export const AttendanceRecords = () => {
         distance_from_host: r.distance_from_host ? `${Math.round(r.distance_from_host)}m` : '-',
         // Metadata
         marked_by: r.marked_by || '-',
-        marked_at: r.marked_at || '-',
+        marked_at: r.marked_at ? format(new Date(r.marked_at), 'MMM dd, HH:mm') : '-',
         session_id: r.session_id,
         teacher_id: r.teacher_id,
       };

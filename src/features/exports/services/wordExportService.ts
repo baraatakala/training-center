@@ -173,6 +173,13 @@ export interface ExportOptions {
     sectionSpacing?: number;
     chartWidth?: number;
     pageBreakBetweenTables?: boolean;
+    // AdvancedExportBuilder layout settings
+    headerBgColor?: string;
+    headerFontSizePt?: number;
+    bodyFontSizePt?: number;
+    showGridlines?: boolean;
+    alternateRowColors?: boolean;
+    rowDensity?: 'compact' | 'normal' | 'comfortable';
   };
 }
 
@@ -1782,7 +1789,15 @@ export class WordExportService {
     // Layout settings from user controls
     const sectionGap = Math.round((options?.layoutSettings?.sectionSpacing ?? 10) * 20); // mm → twips approx
     const shouldPageBreak = options?.layoutSettings?.pageBreakBetweenTables ?? false;
-    const fontSize = options?.layoutSettings?.tableFontSize;  // pt, passed to createTable
+    const fontSize = options?.layoutSettings?.bodyFontSizePt ?? options?.layoutSettings?.tableFontSize;  // pt, passed to createTable
+    // Build layoutOptions from AdvancedExportBuilder settings for createTable
+    const tableLayoutOptions = {
+      headerFontSizePt: options?.layoutSettings?.headerFontSizePt,
+      headerBgColor: options?.layoutSettings?.headerBgColor,
+      showGridlines: options?.layoutSettings?.showGridlines,
+      alternateRowColors: options?.layoutSettings?.alternateRowColors,
+      rowDensity: options?.layoutSettings?.rowDensity,
+    };
     const sections: (Paragraph | Table)[] = [];
 
     // Title and Date Info
@@ -1846,7 +1861,7 @@ export class WordExportService {
       ['Median Rate by Date', `${summaryStats.medianRateByDate.toFixed(1)}%`],
     ];
 
-    sections.push(this.createTable(summaryTableHeaders, summaryRows, isArabic, theme, undefined, fontSize));
+    sections.push(this.createTable(summaryTableHeaders, summaryRows, isArabic, theme, undefined, fontSize, tableLayoutOptions));
     sections.push(new Paragraph({ text: '', spacing: { after: sectionGap } }));
     }
 
@@ -1902,7 +1917,7 @@ export class WordExportService {
         })
       );
 
-      sections.push(this.createTable(studentHeaders, studentRows, isArabic, theme, studentColorColumns, fontSize));
+      sections.push(this.createTable(studentHeaders, studentRows, isArabic, theme, studentColorColumns, fontSize, tableLayoutOptions));
       sections.push(new Paragraph({ text: '', spacing: { after: sectionGap } }));
     }
 
@@ -1939,7 +1954,7 @@ export class WordExportService {
         })
       );
 
-      sections.push(this.createTable(dateHeaders, dateRows, isArabic, theme, dateColorColumns, fontSize));
+      sections.push(this.createTable(dateHeaders, dateRows, isArabic, theme, dateColorColumns, fontSize, tableLayoutOptions));
       sections.push(new Paragraph({ text: '', spacing: { after: sectionGap } }));
     }
 
@@ -1976,7 +1991,7 @@ export class WordExportService {
         })
       );
 
-      sections.push(this.createTable(hostHeaders, hostRows, isArabic, theme, hostColorColumns, fontSize));
+      sections.push(this.createTable(hostHeaders, hostRows, isArabic, theme, hostColorColumns, fontSize, tableLayoutOptions));
     }
 
     // Specialization Analytics Section (dynamic headers with conditional coloring)
@@ -2012,7 +2027,7 @@ export class WordExportService {
         })
       );
 
-      sections.push(this.createTable(specHeaders, specRows, isArabic, theme, specColorColumns, fontSize));
+      sections.push(this.createTable(specHeaders, specRows, isArabic, theme, specColorColumns, fontSize, tableLayoutOptions));
       sections.push(new Paragraph({ text: '', spacing: { after: sectionGap } }));
     }
 
@@ -2206,7 +2221,7 @@ export class WordExportService {
               alignment: AlignmentType.CENTER,
               spacing: { before: 20, after: 20 },
             })],
-            shading: { type: ShadingType.CLEAR, fill: '7C3AED', color: '7C3AED' },
+            shading: { type: ShadingType.CLEAR, fill: tableLayoutOptions.headerBgColor || '7C3AED', color: tableLayoutOptions.headerBgColor || '7C3AED' },
             borders: { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder },
           })
         ),
