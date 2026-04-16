@@ -60,10 +60,11 @@ interface FlattenedRecord {
 
 // ─── CSV export (one row per question-answer) ───────────────
 function exportFeedbackCSV(records: FlattenedRecord[], courseName: string, selectedDate?: string) {
-  const headers = ['Student', 'Date', 'Check-In Time', 'Question Type', 'Question', 'Answer', 'Correct Answer', 'Grading Mode', 'Correct?', 'Violations', 'Auto-Submitted', 'Comment'];
+  const headers = ['Student', 'Date', 'Check-In Time', 'Overall Rating', 'Question Type', 'Question', 'Answer', 'Correct Answer', 'Grading Mode', 'Correct?', 'Violations', 'Auto-Submitted', 'Comment'];
   const rows = records.map(r => [
     r.studentName, r.attendanceDate,
     r.checkInTime ? new Date(r.checkInTime).toLocaleTimeString() : '',
+    r.overallRating != null ? String(r.overallRating) : '',
     r.questionType, r.questionText, r.answer,
     r.correctAnswer || '',
     r.gradingMode ? ({ exact: 'Exact Match', partial: 'Partial Credit', any: 'Any Correct' }[r.gradingMode] ?? '') : '',
@@ -306,16 +307,9 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
           .filter(Boolean).join(' ').toLowerCase();
         if (!haystack.includes(feedbackSearch.trim().toLowerCase())) return false;
       }
-      // Rating Range filter
-      if (ratingRangeFilters.length > 0) {
-        if (fb.overall_rating == null) return false;
-        const r = fb.overall_rating;
-        const bucket: RatingRangeFilter = r <= 2 ? 'bad' : r === 3 ? 'neutral' : 'good';
-        if (!ratingRangeFilters.includes(bucket)) return false;
-      }
       return true;
     });
-  }, [feedbacks, dateFrom, dateTo, feedbackSearch, studentFilter, ratingRangeFilters]);
+  }, [feedbacks, dateFrom, dateTo, feedbackSearch, studentFilter]);
 
   const uniqueStudents = useMemo(() => {
     const names = new Set<string>();
@@ -361,6 +355,8 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
   const uniqueDates = useMemo(() =>
     [...new Set(feedbacks.map(f => f.attendance_date))].sort().reverse(),
     [feedbacks]);
+
+  const hasTestQuestions = useMemo(() => questions.some(q => q.correct_answer), [questions]);
 
   // ─── Flatten feedbacks into one row per question-answer ────
   const flattenedRecords = useMemo(() => {
@@ -442,8 +438,16 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
     if (violationsFilter === 'has_violations') {
       result = result.filter(r => r.tabSwitchCount > 0);
     }
+    // Rating range — filter on per-row overallRating so only rating-type rows with matching bucket show
+    if (ratingRangeFilters.length > 0) {
+      result = result.filter(r => {
+        if (r.overallRating == null) return false;
+        const bucket: RatingRangeFilter = r.overallRating <= 2 ? 'bad' : r.overallRating === 3 ? 'neutral' : 'good';
+        return ratingRangeFilters.includes(bucket);
+      });
+    }
     return result;
-  }, [flattenedRecords, correctnessFilter, violationsFilter]);
+  }, [flattenedRecords, correctnessFilter, violationsFilter, ratingRangeFilters]);
 
   const paginatedRecords = useMemo(() => {
     const sorted = [...displayRecords];
@@ -669,7 +673,13 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
               <label className="text-[11px] text-gray-400 block mb-1">{t.questionType}</label>
               <select
                 value={questionTypeFilter}
-                onChange={e => { setQuestionTypeFilter(e.target.value as QuestionTypeFilter); setRecordsPage(0); }}
+                onChange={e => {
+                  const v = e.target.value as QuestionTypeFilter;
+                  setQuestionTypeFilter(v);
+                  setRecordsPage(0);
+                  // Clear rating range if leaving rating view
+                  if (v !== 'rating' && v !== 'all') setRatingRangeFilters([]);
+                }}
                 className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white"
               >
                 <option value="all">{t.allTypes}</option>
@@ -691,7 +701,7 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
           </div>
           {/* Correctness filter row + advanced filters + clear button */}
           <div className="flex flex-wrap items-center gap-2 -mt-1">
-            {questions.some(q => q.correct_answer) && (
+            {hasTestQuestions && (
               <div className="min-w-[140px]">
                 <label className="text-[11px] text-gray-400 block mb-1">{t.correctness}</label>
                 <select
@@ -718,6 +728,7 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                 <option value="has_violations">⚠️ {t.hasViolations}</option>
               </select>
             </div>
+            {(questionTypeFilter === 'all' || questionTypeFilter === 'rating') && (
             <div className="min-w-[130px]">
               <label className="text-[11px] text-gray-400 block mb-1">{t.ratingRange}</label>
               <div className="flex flex-col gap-1">
@@ -730,9 +741,15 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                     <input
                       type="checkbox"
                       checked={ratingRangeFilters.includes(opt.value)}
-                      onChange={() => setRatingRangeFilters(prev =>
-                        prev.includes(opt.value) ? prev.filter(v => v !== opt.value) : [...prev, opt.value]
-                      )}
+                      onChange={() => {
+                        setRatingRangeFilters(prev => {
+                          const next = prev.includes(opt.value) ? prev.filter(v => v !== opt.value) : [...prev, opt.value];
+                          // Auto-switch to rating view so the range filter makes sense
+                          if (next.length > 0 && questionTypeFilter !== 'rating') setQuestionTypeFilter('rating');
+                          if (next.length === 0 && questionTypeFilter === 'rating') setQuestionTypeFilter('all');
+                          return next;
+                        });
+                      }}
                       className="rounded border-gray-300 dark:border-gray-600 text-purple-600 focus:ring-purple-500"
                     />
                     {opt.label}
@@ -740,6 +757,7 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                 ))}
               </div>
             </div>
+            )}
 
             {(feedbackSearch || dateFrom || dateTo || studentFilter || questionTypeFilter !== 'all' || correctnessFilter !== 'all' || violationsFilter !== 'all' || ratingRangeFilters.length > 0) && (
               <button
@@ -771,12 +789,15 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                             { key: 'studentName' as SortField, label: t.student },
                             { key: 'attendanceDate' as SortField, label: t.date },
                             { key: 'checkInTime' as SortField, label: 'Check-In' },
+                            { key: 'overallRating' as SortField, label: t.overallRating },
                             { key: 'questionType' as SortField, label: t.type },
                             { key: 'questionText' as SortField, label: t.question },
                             { key: 'answer' as SortField, label: t.answer },
-                            { key: null, label: 'Correct Answer' },
-                            { key: null, label: 'Grading Mode' },
-                            { key: null, label: t.correct },
+                            ...(hasTestQuestions ? [
+                              { key: null, label: 'Correct Answer' },
+                              { key: null, label: 'Grading Mode' },
+                              { key: null, label: t.correct },
+                            ] : []) as { key: SortField | null; label: string }[],
                             { key: 'comment' as SortField, label: t.comment },
                             { key: 'tabSwitchCount' as SortField, label: t.violations },
                           ]).map(col => (
@@ -811,6 +832,15 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                             <td className="px-3 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap text-[10px]">
                               {row.checkInTime ? new Date(row.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
                             </td>
+                            <td className="px-3 py-3 text-center whitespace-nowrap">
+                              {row.overallRating != null ? (
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                                  row.overallRating <= 2 ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                                  : row.overallRating === 3 ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400'
+                                  : 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'
+                                }`}>{'⭐'.repeat(row.overallRating)}</span>
+                              ) : <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>}
+                            </td>
                             <td className="px-3 py-3">
                               <span className="px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-[10px] capitalize whitespace-nowrap">
                                 {row.questionType}
@@ -828,6 +858,8 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                                 : 'text-gray-900 dark:text-white'
                               }`} title={row.answer}>{row.answer}</span>
                             </td>
+                            {hasTestQuestions && (
+                            <>
                             <td className="px-3 py-3 max-w-[140px]">
                               {row.correctAnswer ? (
                                 <span className="text-green-700 dark:text-green-400 font-medium truncate block text-[10px]" title={row.correctAnswer}>{row.correctAnswer}</span>
@@ -860,6 +892,8 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                                 <span title={`Correct answer: ${row.correctAnswer}`}>❌</span>
                               )}
                             </td>
+                            </>
+                            )}
                             <td className="px-3 py-3 max-w-[140px]">
                               {row.comment ? (
                                 <p className="text-gray-600 dark:text-gray-400 truncate" title={row.comment}>{row.comment}</p>
