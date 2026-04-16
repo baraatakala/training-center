@@ -10,6 +10,16 @@ interface AttendanceImportGuidelinesProps {
   importing: boolean;
 }
 
+const FieldBadge = ({ children }: { children: React.ReactNode }) => (
+  <span className="font-mono text-xs bg-blue-100 dark:bg-blue-800 px-1.5 py-0.5 rounded">{children}</span>
+);
+
+const CategoryBadge = ({ icon, children }: { icon: string; children: React.ReactNode }) => (
+  <span className="inline-flex items-center gap-1 font-semibold">
+    <span>{icon}</span>{children}
+  </span>
+);
+
 export const AttendanceImportGuidelines: React.FC<AttendanceImportGuidelinesProps> = ({
   isOpen,
   onClose,
@@ -58,22 +68,74 @@ export const AttendanceImportGuidelines: React.FC<AttendanceImportGuidelinesProp
         <div className="p-6 space-y-5">
           {step === 'guidelines' && (
             <>
-              {/* Required Fields */}
+              {/* Export Builder Step-by-Step */}
               <section>
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-2">
-                  <span className="text-red-500">*</span> Required Columns
+                  📤 How to Export Records for Import
+                </h3>
+                <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-3 text-sm text-blue-800 dark:text-blue-200 space-y-3">
+                  <ol className="list-decimal list-inside space-y-2 ml-1">
+                    <li>Go to <strong>Attendance Records</strong> page and open the <strong>Advanced Export Builder</strong></li>
+                    <li>Ensure data type is <strong>Records</strong> (the default view)</li>
+                    <li>
+                      Select these fields from the categories below:
+                      <div className="mt-2 space-y-1.5 ml-4">
+                        <div>
+                          <CategoryBadge icon="👤">Student Info</CategoryBadge>
+                          {' '}&rarr;{' '}<FieldBadge>Student Name</FieldBadge>
+                          <span className="text-blue-600 dark:text-blue-300 text-xs ml-1">(required)</span>
+                        </div>
+                        <div>
+                          <CategoryBadge icon="📋">Basic Info</CategoryBadge>
+                          {' '}&rarr;{' '}<FieldBadge>Date</FieldBadge>
+                          <span className="text-blue-600 dark:text-blue-300 text-xs ml-1">(required)</span>
+                        </div>
+                        <div>
+                          <CategoryBadge icon="✅">Attendance Details</CategoryBadge>
+                          {' '}&rarr;{' '}<FieldBadge>Status</FieldBadge>
+                          <span className="text-blue-600 dark:text-blue-300 text-xs ml-1">(required)</span>
+                        </div>
+                        <div>
+                          <CategoryBadge icon="⏰">Timing Details</CategoryBadge>
+                          {' '}&rarr;{' '}<FieldBadge>Late Duration (min)</FieldBadge>,{' '}
+                          <FieldBadge>Check-in Method</FieldBadge>
+                          <span className="text-blue-600/70 dark:text-blue-300/70 text-xs ml-1">(recommended)</span>
+                        </div>
+                        <div>
+                          <CategoryBadge icon="📝">Excuse Info</CategoryBadge>
+                          {' '}&rarr;{' '}<FieldBadge>Excuse Reason</FieldBadge>
+                          <span className="text-blue-600/70 dark:text-blue-300/70 text-xs ml-1">(recommended)</span>
+                        </div>
+                        <div>
+                          <CategoryBadge icon="📍">Location Info</CategoryBadge>
+                          {' '}&rarr;{' '}<FieldBadge>Host Address</FieldBadge>
+                          <span className="text-blue-600/70 dark:text-blue-300/70 text-xs ml-1">(optional)</span>
+                        </div>
+                      </div>
+                    </li>
+                    <li><strong>Filter by date range</strong> to limit the export to a specific period — this prevents out-of-range or duplicate records</li>
+                    <li>Export as <strong>CSV</strong> or <strong>Excel</strong> format</li>
+                    <li>Import the exported file here</li>
+                  </ol>
+                </div>
+              </section>
+
+              {/* Accepted Columns Summary */}
+              <section>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-2">
+                  <span className="text-red-500">*</span> Required &amp; Optional Columns
                 </h3>
                 <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 text-sm space-y-1.5">
-                  <div className="grid grid-cols-[120px_1fr] gap-1">
-                    <code className="text-indigo-600 dark:text-indigo-400 font-mono text-xs">student_email</code>
-                    <span className="text-gray-600 dark:text-gray-300">Enrolled student&apos;s email address</span>
+                  <div className="grid grid-cols-[160px_1fr] gap-1">
+                    <code className="text-indigo-600 dark:text-indigo-400 font-mono text-xs">Student Name *</code>
+                    <span className="text-gray-600 dark:text-gray-300">Must match an enrolled student&apos;s name in this session</span>
                   </div>
-                  <div className="grid grid-cols-[120px_1fr] gap-1">
-                    <code className="text-indigo-600 dark:text-indigo-400 font-mono text-xs">attendance_date</code>
-                    <span className="text-gray-600 dark:text-gray-300">Date in YYYY-MM-DD or DD/MM/YYYY format</span>
+                  <div className="grid grid-cols-[160px_1fr] gap-1">
+                    <code className="text-indigo-600 dark:text-indigo-400 font-mono text-xs">Date *</code>
+                    <span className="text-gray-600 dark:text-gray-300">YYYY-MM-DD or DD/MM/YYYY format</span>
                   </div>
-                  <div className="grid grid-cols-[120px_1fr] gap-1">
-                    <code className="text-indigo-600 dark:text-indigo-400 font-mono text-xs">status</code>
+                  <div className="grid grid-cols-[160px_1fr] gap-1">
+                    <code className="text-indigo-600 dark:text-indigo-400 font-mono text-xs">Status *</code>
                     <span className="text-gray-600 dark:text-gray-300">
                       <span className="inline-flex gap-1 flex-wrap">
                         {['on time', 'absent', 'late', 'excused'].map((s) => (
@@ -82,58 +144,23 @@ export const AttendanceImportGuidelines: React.FC<AttendanceImportGuidelinesProp
                       </span>
                     </span>
                   </div>
-                </div>
-              </section>
-
-              {/* Optional Fields */}
-              <section>
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Optional Columns</h3>
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 text-sm space-y-1.5">
-                  <div className="grid grid-cols-[120px_1fr] gap-1">
-                    <code className="text-gray-500 dark:text-gray-400 font-mono text-xs">notes</code>
-                    <span className="text-gray-600 dark:text-gray-300">Free-text notes for the record</span>
+                  <hr className="border-gray-200 dark:border-gray-600 my-1" />
+                  <div className="grid grid-cols-[160px_1fr] gap-1">
+                    <code className="text-gray-500 dark:text-gray-400 font-mono text-xs">Excuse Reason</code>
+                    <span className="text-gray-600 dark:text-gray-300">Required when status is <em>excused</em></span>
                   </div>
-                  <div className="grid grid-cols-[120px_1fr] gap-1">
-                    <code className="text-gray-500 dark:text-gray-400 font-mono text-xs">excuse_reason</code>
-                    <span className="text-gray-600 dark:text-gray-300">Required when status is <em>excused</em> (e.g. sick, abroad)</span>
+                  <div className="grid grid-cols-[160px_1fr] gap-1">
+                    <code className="text-gray-500 dark:text-gray-400 font-mono text-xs">Late Duration (min)</code>
+                    <span className="text-gray-600 dark:text-gray-300">Minutes late (defaults to 1 for <em>late</em> status)</span>
                   </div>
-                  <div className="grid grid-cols-[120px_1fr] gap-1">
-                    <code className="text-gray-500 dark:text-gray-400 font-mono text-xs">late_minutes</code>
-                    <span className="text-gray-600 dark:text-gray-300">Minutes late (for <em>late</em> status; defaults to 1)</span>
-                  </div>
-                  <div className="grid grid-cols-[120px_1fr] gap-1">
-                    <code className="text-gray-500 dark:text-gray-400 font-mono text-xs">check_in_method</code>
+                  <div className="grid grid-cols-[160px_1fr] gap-1">
+                    <code className="text-gray-500 dark:text-gray-400 font-mono text-xs">Check-in Method</code>
                     <span className="text-gray-600 dark:text-gray-300">qr_code, photo, manual, or bulk (defaults to manual)</span>
                   </div>
-                  <div className="grid grid-cols-[120px_1fr] gap-1">
-                    <code className="text-gray-500 dark:text-gray-400 font-mono text-xs">host_address</code>
+                  <div className="grid grid-cols-[160px_1fr] gap-1">
+                    <code className="text-gray-500 dark:text-gray-400 font-mono text-xs">Host Address</code>
                     <span className="text-gray-600 dark:text-gray-300">Location where the session was held</span>
                   </div>
-                </div>
-              </section>
-
-              {/* Export Builder Guide */}
-              <section>
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-2">
-                  📤 Preparing Data from Advanced Export Builder
-                </h3>
-                <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-3 text-sm text-blue-800 dark:text-blue-200 space-y-2">
-                  <p>To export attendance data from an existing system for import here:</p>
-                  <ol className="list-decimal list-inside space-y-1 ml-1">
-                    <li>Open <strong>Advanced Export Builder</strong> from the dashboard or exports page</li>
-                    <li>Select these fields from the <strong>Student Info</strong> category:
-                      <span className="font-mono text-xs bg-blue-100 dark:bg-blue-800 px-1 rounded ml-1">Student Email</span>
-                    </li>
-                    <li>Select these fields from the <strong>Attendance</strong> category:
-                      <span className="font-mono text-xs bg-blue-100 dark:bg-blue-800 px-1 rounded ml-1">Attendance Date</span>,{' '}
-                      <span className="font-mono text-xs bg-blue-100 dark:bg-blue-800 px-1 rounded ml-1">Status</span>,{' '}
-                      <span className="font-mono text-xs bg-blue-100 dark:bg-blue-800 px-1 rounded ml-1">Notes</span>,{' '}
-                      <span className="font-mono text-xs bg-blue-100 dark:bg-blue-800 px-1 rounded ml-1">Excuse Reason</span>,{' '}
-                      <span className="font-mono text-xs bg-blue-100 dark:bg-blue-800 px-1 rounded ml-1">Late Minutes</span>
-                    </li>
-                    <li><strong>Filter by date range</strong> to limit the export to a specific period — this prevents duplicate or out-of-range records</li>
-                    <li>Export as <strong>CSV</strong> or <strong>Excel</strong> format</li>
-                  </ol>
                 </div>
               </section>
 
@@ -144,10 +171,11 @@ export const AttendanceImportGuidelines: React.FC<AttendanceImportGuidelinesProp
                 </h3>
                 <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg p-3 text-sm text-yellow-800 dark:text-yellow-200 space-y-1">
                   <p>• Students must already be <strong>enrolled</strong> in this session before importing</p>
-                  <p>• Existing records for the same student + date will be <strong>updated</strong> (not duplicated)</p>
-                  <p>• Use <strong>date filtering</strong> when exporting to avoid importing dates outside the session range</p>
-                  <p>• Column headers are <strong>case-insensitive</strong> and spaces are treated as underscores</p>
-                  <p>• Supported file formats: <strong>CSV, XLSX, XLS, TSV</strong></p>
+                  <p>• Students are matched by <strong>name</strong> — make sure names match exactly as in the system</p>
+                  <p>• Existing records for the same student + date are <strong>updated</strong> (not duplicated)</p>
+                  <p>• If you <strong>renamed columns</strong> in the Export Builder, revert them to defaults before exporting for import</p>
+                  <p>• Column headers are <strong>case-insensitive</strong>; spaces and underscores are interchangeable</p>
+                  <p>• Supported formats: <strong>CSV, XLSX, XLS, TSV</strong></p>
                 </div>
               </section>
 
@@ -189,7 +217,8 @@ export const AttendanceImportGuidelines: React.FC<AttendanceImportGuidelinesProp
             <div className="text-center space-y-4">
               <div className="text-5xl">📄</div>
               <p className="text-gray-700 dark:text-gray-300">
-                The template will include column headers and a sample row with an enrolled student from this session.
+                The template uses the same column headers as the Advanced Export Builder&apos;s <strong>Records</strong> view.
+                It includes a sample row with an enrolled student from this session.
               </p>
               <div className="flex gap-3 justify-center">
                 <Button onClick={() => setStep('guidelines')} variant="outline">
