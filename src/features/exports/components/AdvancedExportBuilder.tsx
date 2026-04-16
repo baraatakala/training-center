@@ -462,6 +462,13 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
       }
     } else if (value instanceof Date) {
       return format(value, 'MMM dd, yyyy');
+    } else if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+      // Default: format ISO date strings as medium format when formatDates is off
+      const parsed = new Date(value);
+      if (!isNaN(parsed.getTime())) {
+        // Date-only (YYYY-MM-DD) → "MMM dd, yyyy"; datetime → "MMM dd, yyyy HH:mm"
+        return value.includes('T') ? format(parsed, 'MMM dd, yyyy HH:mm') : format(parsed, 'MMM dd, yyyy');
+      }
     }
     
     // Apply formatting options from config

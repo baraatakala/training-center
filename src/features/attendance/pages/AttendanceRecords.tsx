@@ -4908,8 +4908,8 @@ export const AttendanceRecords = () => {
         : '-';
       
       return {
-        // Basic Info
-        date: format(dateObj, 'MMM dd, yyyy'),
+        // Basic Info — pass raw ISO so AdvancedExportBuilder formatValue can re-format
+        date: r.attendance_date,
         dayOfWeek: format(dateObj, 'EEEE'),
         attendance_id: r.attendance_id,
         // Student Info
@@ -4939,7 +4939,7 @@ export const AttendanceRecords = () => {
         late_minutes: r.status === 'late' && r.late_minutes ? r.late_minutes : '-',
         late_bracket: r.status === 'late' && r.late_minutes ? lateBracketInfo.name : '-',
         check_in_time: r.gps_timestamp ? format(new Date(r.gps_timestamp), 'HH:mm:ss') : '-',
-        gps_timestamp: r.gps_timestamp ? format(new Date(r.gps_timestamp), 'MMM dd, yyyy HH:mm:ss') : '-',
+        gps_timestamp: r.gps_timestamp || '-',
         // Excuse Info
         excuse_reason: r.excuse_reason || '-',
         check_in_method: r.check_in_method || '-',
@@ -4948,7 +4948,7 @@ export const AttendanceRecords = () => {
         distance_from_host: r.distance_from_host ? `${Math.round(r.distance_from_host)}m` : '-',
         // Metadata
         marked_by: r.marked_by || '-',
-        marked_at: r.marked_at ? format(new Date(r.marked_at), 'MMM dd, HH:mm') : '-',
+        marked_at: r.marked_at || '-',
         session_id: r.session_id,
         teacher_id: r.teacher_id,
       };
