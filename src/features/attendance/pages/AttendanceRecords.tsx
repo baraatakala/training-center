@@ -268,6 +268,26 @@ export const AttendanceRecords = () => {
     localStorage.setItem('exportSettings', JSON.stringify(savedExportSettings));
   }, [savedExportSettings]);
 
+  // Shared layout settings — written by whichever AdvancedExportBuilder the user last configured
+  const [sharedLayoutSettings, setSharedLayoutSettings] = useState<{
+    headerBgColor?: string;
+    headerFontSizePt?: number;
+    bodyFontSizePt?: number;
+    showGridlines?: boolean;
+    alternateRowColors?: boolean;
+    rowDensity?: 'compact' | 'normal' | 'comfortable';
+  }>(() => {
+    try {
+      const saved = localStorage.getItem('sharedExportLayout');
+      if (saved) return JSON.parse(saved);
+    } catch { /* ignore */ }
+    return {};
+  });
+
+  useEffect(() => {
+    localStorage.setItem('sharedExportLayout', JSON.stringify(sharedLayoutSettings));
+  }, [sharedLayoutSettings]);
+
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<AttendanceRecord[]>([]);
   const hostGpsLookupRef = useRef(new Map<string, { lat: number; lon: number }>());
@@ -2535,22 +2555,8 @@ export const AttendanceRecords = () => {
       return getColorForPercentage(value, theme).rgb;
     };
 
-    // Layout settings shorthand — merge AdvancedExportBuilder settings from ALL analytics types
-    // (user might set headerBgColor from any builder, not just studentAnalytics)
-    const layoutSettings = (() => {
-      const types = ['studentAnalytics', 'dateAnalytics', 'hostAnalytics', 'specializationAnalytics'] as const;
-      const base = { ...savedExportSettings.studentAnalytics };
-      for (const key of types) {
-        const s = savedExportSettings[key];
-        if (s.headerBgColor && !base.headerBgColor) base.headerBgColor = s.headerBgColor;
-        if (s.headerFontSizePt && !base.headerFontSizePt) base.headerFontSizePt = s.headerFontSizePt;
-        if (s.bodyFontSizePt && !base.bodyFontSizePt) base.bodyFontSizePt = s.bodyFontSizePt;
-        if (s.showGridlines !== undefined && base.showGridlines === undefined) base.showGridlines = s.showGridlines;
-        if (s.alternateRowColors !== undefined && base.alternateRowColors === undefined) base.alternateRowColors = s.alternateRowColors;
-        if (s.rowDensity && !base.rowDensity) base.rowDensity = s.rowDensity;
-      }
-      return base;
-    })();
+    // Layout settings — use shared layout state (last builder's settings always win)
+    const layoutSettings = sharedLayoutSettings;
     const tblFontSize = layoutSettings.bodyFontSizePt ?? exportLayout.tableFontSize;
     const headerFontSizePdf = layoutSettings.headerFontSizePt ?? tblFontSize;
     const sectionGap = exportLayout.sectionSpacing;
@@ -3560,37 +3566,18 @@ export const AttendanceRecords = () => {
           specializationData: specDataForExport,
           specializationHeaders: specHeadersForExport,
           chartImages: chartImages.size > 0 ? Object.fromEntries(chartImages) : undefined,
-          layoutSettings: (() => {
-            // Merge layout settings from all analytics types (user may configure from any builder)
-            const types = ['studentAnalytics', 'dateAnalytics', 'hostAnalytics', 'specializationAnalytics'] as const;
-            let headerBgColor: string | undefined;
-            let headerFontSizePt: number | undefined;
-            let bodyFontSizePt: number | undefined;
-            let showGridlines: boolean | undefined;
-            let alternateRowColors: boolean | undefined;
-            let rowDensity: 'compact' | 'normal' | 'comfortable' | undefined;
-            for (const key of types) {
-              const s = savedExportSettings[key];
-              if (s.headerBgColor && !headerBgColor) headerBgColor = s.headerBgColor;
-              if (s.headerFontSizePt && !headerFontSizePt) headerFontSizePt = s.headerFontSizePt;
-              if (s.bodyFontSizePt && !bodyFontSizePt) bodyFontSizePt = s.bodyFontSizePt;
-              if (s.showGridlines !== undefined && showGridlines === undefined) showGridlines = s.showGridlines;
-              if (s.alternateRowColors !== undefined && alternateRowColors === undefined) alternateRowColors = s.alternateRowColors;
-              if (s.rowDensity && !rowDensity) rowDensity = s.rowDensity;
-            }
-            return {
-              tableFontSize: exportLayout.tableFontSize,
-              sectionSpacing: exportLayout.sectionSpacing,
-              chartWidth: exportLayout.chartWidth,
-              pageBreakBetweenTables: exportLayout.pageBreakBetweenTables,
-              headerBgColor,
-              headerFontSizePt,
-              bodyFontSizePt,
-              showGridlines,
-              alternateRowColors,
-              rowDensity,
-            };
-          })(),
+          layoutSettings: {
+            tableFontSize: exportLayout.tableFontSize,
+            sectionSpacing: exportLayout.sectionSpacing,
+            chartWidth: exportLayout.chartWidth,
+            pageBreakBetweenTables: exportLayout.pageBreakBetweenTables,
+            headerBgColor: sharedLayoutSettings.headerBgColor,
+            headerFontSizePt: sharedLayoutSettings.headerFontSizePt,
+            bodyFontSizePt: sharedLayoutSettings.bodyFontSizePt,
+            showGridlines: sharedLayoutSettings.showGridlines,
+            alternateRowColors: sharedLayoutSettings.alternateRowColors,
+            rowDensity: sharedLayoutSettings.rowDensity,
+          },
         }
       );
       success('Word document exported successfully!');
@@ -5067,6 +5054,19 @@ export const AttendanceRecords = () => {
                 ...prev,
                 [exportDataType]: settings
               }));
+              // Sync layout fields to shared state so global exports always use the latest
+              if (settings.headerBgColor || settings.headerFontSizePt || settings.bodyFontSizePt
+                || settings.showGridlines !== undefined || settings.alternateRowColors !== undefined
+                || settings.rowDensity) {
+                setSharedLayoutSettings({
+                  headerBgColor: settings.headerBgColor,
+                  headerFontSizePt: settings.headerFontSizePt,
+                  bodyFontSizePt: settings.bodyFontSizePt,
+                  showGridlines: settings.showGridlines,
+                  alternateRowColors: settings.alternateRowColors,
+                  rowDensity: settings.rowDensity,
+                });
+              }
             }}
             rowFilterKey={exportDataType === 'dateAnalytics' ? 'date' : undefined}
             rowFilterLabel={exportDataType === 'dateAnalytics' ? t.dateRowsToExport : undefined}
