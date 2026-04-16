@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -96,7 +96,6 @@ export interface ExportSettings {
   coloringFields?: string[];
   coloringTheme?: 'default' | 'traffic' | 'heatmap' | 'status';
   excludedRows?: string[];  // Row values to exclude (e.g., specific dates)
-  fieldRenames?: Record<string, string>;  // Deprecated — kept for backward compat with saved settings
   // Data validation flags
   removeDuplicates?: boolean;
   removeEmptyRows?: boolean;
@@ -242,9 +241,11 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     return isAr && c.labelAr ? c.labelAr : c.label;
   }, [isAr]);
 
-  // Reset config when modal opens or categories change - use saved settings
+  // Reset config when modal opens - use saved settings
+  // Track previous isOpen to only reset tab on actual open transition
+  const wasOpenRef = useRef(false);
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !wasOpenRef.current) {
       const newSelectedFields = getDefaultSelectedFields();
       setConfig(prev => ({
         ...prev,
@@ -290,6 +291,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
       // Restore excluded rows from saved settings
       setExcludedRows(new Set(savedSettings?.excludedRows || []));
     }
+    wasOpenRef.current = isOpen;
   }, [isOpen, getDefaultSelectedFields, defaultTitle, dateRange, savedSettings]);
 
   // Get all fields flat
@@ -438,13 +440,6 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     return [];
   };
 
-  // Get sorted preview data based on current sort settings
-  const getSortedPreviewData = (): Record<string, unknown>[] => {
-    const layers = getEffectiveSortLayers();
-    if (layers.length === 0) return data;
-    return [...data].sort((a, b) => multiLayerCompare(a, b, layers));
-  };
-
   // Format value for export
   const formatValue = (field: ExportField, record: Record<string, unknown>): string => {
     const value = record[field.key];
@@ -456,7 +451,18 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     if (value === null || value === undefined) return '-';
     if (typeof value === 'boolean') return value ? 'Yes' : 'No';
     if (Array.isArray(value)) return value.join(', ');
-    if (value instanceof Date) return format(value, 'MMM dd, yyyy');
+    // Date formatting - applies to Date objects and ISO date strings
+    if (config.dataValidation.formatDates) {
+      const dateFormatMap = { short: 'MM/dd/yy', medium: 'MMM dd, yyyy', long: 'MMMM dd, yyyy' };
+      const dateFmt = dateFormatMap[config.dataValidation.dateFormat] || 'MMM dd, yyyy';
+      if (value instanceof Date) return format(value, dateFmt);
+      if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+        const parsed = new Date(value);
+        if (!isNaN(parsed.getTime())) return format(parsed, dateFmt);
+      }
+    } else if (value instanceof Date) {
+      return format(value, 'MMM dd, yyyy');
+    }
     
     // Apply formatting options from config
     let result = String(value);
@@ -466,19 +472,22 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
       result = result.trim();
     }
     
-    // Format numbers if enabled
-    if (config.dataValidation.formatNumbers && !isNaN(Number(value)) && value !== '') {
+    // Format numbers and/or percentages (independent toggles)
+    const isPercentageField = 
+      field.key.toLowerCase().includes('rate') || 
+      field.key.toLowerCase().includes('percentage') ||
+      field.label.toLowerCase().includes('%');
+
+    if (!isNaN(Number(value)) && value !== '') {
       const num = Number(value);
-      // Check if it's a percentage field
-      if (config.dataValidation.formatPercentages && 
-          (field.key.toLowerCase().includes('rate') || 
-           field.key.toLowerCase().includes('percentage') ||
-           field.label.toLowerCase().includes('%'))) {
-        result = `${num.toLocaleString()}%`;
-      } else if (Number.isInteger(num)) {
-        result = num.toLocaleString();
-      } else {
-        result = num.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+      if (config.dataValidation.formatPercentages && isPercentageField) {
+        result = config.dataValidation.formatNumbers ? `${num.toLocaleString()}%` : `${num}%`;
+      } else if (config.dataValidation.formatNumbers) {
+        if (Number.isInteger(num)) {
+          result = num.toLocaleString();
+        } else {
+          result = num.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+        }
       }
     }
     
@@ -833,8 +842,28 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
       }
     }
 
-    // Color function for PDF
+    // Color function for PDF - respects coloringTheme config
     const getColorForValue = (value: number): [number, number, number] => {
+      const theme = config.dataValidation.coloringTheme || 'default';
+      if (theme === 'traffic') {
+        if (value >= 80) return [34, 197, 94];   // Green
+        if (value >= 50) return [234, 179, 8];   // Yellow
+        return [239, 68, 68];                    // Red
+      }
+      if (theme === 'heatmap') {
+        if (value >= 90) return [6, 95, 70];      // Dark green
+        if (value >= 75) return [16, 185, 129];   // Green
+        if (value >= 60) return [251, 191, 36];   // Amber
+        if (value >= 40) return [249, 115, 22];   // Orange
+        return [220, 38, 38];                     // Dark red
+      }
+      if (theme === 'status') {
+        if (value >= 90) return [16, 185, 129];   // Excellent - green
+        if (value >= 75) return [59, 130, 246];   // Good - blue
+        if (value >= 60) return [168, 85, 247];   // Average - purple
+        return [239, 68, 68];                     // Poor - red
+      }
+      // default theme
       if (value >= 90) return [16, 185, 129]; // Green (success)
       if (value >= 75) return [59, 130, 246]; // Blue (good)
       if (value >= 60) return [245, 158, 11]; // Yellow (moderate)
@@ -962,7 +991,15 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
       isArabic,
       undefined, // filename
       colorColumns.length > 0 ? colorColumns : undefined,
-      config.dataValidation.coloringTheme
+      config.dataValidation.coloringTheme,
+      {
+        headerFontSizePt: config.headerFontSizePt,
+        bodyFontSizePt: config.bodyFontSizePt,
+        headerBgColor: config.headerBgColor,
+        showGridlines: config.showGridlines,
+        alternateRowColors: config.alternateRowColors,
+        rowDensity: config.rowDensity,
+      }
     );
   };
 
@@ -981,7 +1018,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
         onFieldSelectionChange(config.selectedFields);
       }
       
-      // Save all export settings (sort, coloring, layout, etc.)
+      // Save all export settings (sort, coloring, validation, layout, etc.)
       if (onSettingsChange) {
         onSettingsChange({
           fields: config.selectedFields,
@@ -992,6 +1029,18 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
           coloringFields: config.dataValidation.coloringFields,
           coloringTheme: config.dataValidation.coloringTheme,
           excludedRows: [...excludedRows],
+          // Data validation flags
+          removeDuplicates: config.dataValidation.removeDuplicates,
+          removeEmptyRows: config.dataValidation.removeEmptyRows,
+          trimWhitespace: config.dataValidation.trimWhitespace,
+          validateRequired: config.dataValidation.validateRequired,
+          validateNumericRanges: config.dataValidation.validateNumericRanges,
+          validateDates: config.dataValidation.validateDates,
+          formatNumbers: config.dataValidation.formatNumbers,
+          formatPercentages: config.dataValidation.formatPercentages,
+          formatDates: config.dataValidation.formatDates,
+          dateFormat: config.dataValidation.dateFormat,
+          showDataQualityReport: config.dataValidation.showDataQualityReport,
           // Layout persistence
           rowDensity: config.rowDensity,
           pageSize: config.pageSize,
@@ -2376,7 +2425,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                   </div>
                   <div>
                     <span className="text-gray-500 dark:text-gray-400">Records:</span>
-                    <span className="ml-2 font-medium text-gray-900 dark:text-white">{data.length}</span>
+                    <span className="ml-2 font-medium text-gray-900 dark:text-white">{processDataForExport(data).stats.cleanedRows} of {data.length}</span>
                   </div>
                 </div>
                 
@@ -2462,57 +2511,105 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                 </div>
               </div>
 
-              {/* Data Preview Table - Shows sorted data */}
-              {config.selectedFields.length > 0 && data.length > 0 && (
-                <div className="border rounded-xl overflow-hidden">
-                  <div className="bg-gray-100 dark:bg-gray-700 px-4 py-2 font-semibold text-gray-700 dark:text-gray-300 flex items-center justify-between">
-                    <span>Data Preview (First 5 rows{config.sortByField ? ', sorted' : ''})</span>
-                    {config.sortByField && (
-                      <span className="text-xs text-indigo-600 font-normal">
-                        Sorted by {allFields.find(f => f.key === config.sortByField)?.label || config.sortByField} {config.sortDirection === 'desc' ? '↓' : '↑'}
-                      </span>
-                    )}
-                  </div>
-                  <div className="overflow-x-auto max-h-[320px] overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg">
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                      <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10">
-                        <tr>
-                          {getSelectedFieldsOrdered().map(field => (
-                            <th
-                              key={field.key}
-                              className={`px-4 py-2 text-left text-xs font-medium uppercase tracking-wider whitespace-nowrap ${
-                                field.key === config.sortByField ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30' : 'text-gray-500 dark:text-gray-400'
-                              }`}
-                            >
-                              {displayLabel(field)}
-                              {field.key === config.sortByField && (
-                                <span className="ml-1">{config.sortDirection === 'desc' ? '↓' : '↑'}</span>
-                              )}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                        {getSortedPreviewData().slice(0, 20).map((record, idx) => (
-                          <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                            {getSelectedFieldsOrdered().map(field => (
-                              <td key={field.key} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap max-w-[200px] truncate" title={formatValue(field, record)}>
-                                {formatValue(field, record).substring(0, 50)}
-                                {formatValue(field, record).length > 50 && '...'}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {getSortedPreviewData().length > 20 && (
-                      <div className="text-center py-2 text-xs text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
-                        Showing 20 of {getSortedPreviewData().length} rows
+              {/* Data Preview Table - Shows processed data exactly as it will be exported */}
+              {config.selectedFields.length > 0 && data.length > 0 && (() => {
+                const { processedData: previewProcessed, validationIssues: previewIssues, stats: previewStats } = processDataForExport(data);
+                const previewRows = previewProcessed.slice(0, 20);
+                return (
+                  <>
+                    {/* Validation issues */}
+                    {previewIssues.length > 0 && (
+                      <div className="border border-orange-200 dark:border-orange-700/50 rounded-xl overflow-hidden">
+                        <div className="bg-orange-50 dark:bg-orange-900/30 px-4 py-2 font-semibold text-orange-700 dark:text-orange-300 flex items-center justify-between">
+                          <span>⚠️ Validation Issues ({previewIssues.length})</span>
+                          <span className="text-xs font-normal">These issues will be flagged in the exported file</span>
+                        </div>
+                        <div className="max-h-[160px] overflow-y-auto">
+                          <table className="min-w-full divide-y divide-orange-200 dark:divide-orange-800">
+                            <thead className="bg-orange-50/50 dark:bg-orange-900/20 sticky top-0">
+                              <tr>
+                                <th className="px-4 py-1.5 text-left text-xs font-medium text-orange-600 dark:text-orange-400">Row</th>
+                                <th className="px-4 py-1.5 text-left text-xs font-medium text-orange-600 dark:text-orange-400">Field</th>
+                                <th className="px-4 py-1.5 text-left text-xs font-medium text-orange-600 dark:text-orange-400">Issue</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-orange-100 dark:divide-orange-900/30">
+                              {previewIssues.slice(0, 50).map((issue, idx) => (
+                                <tr key={idx} className="text-sm">
+                                  <td className="px-4 py-1.5 text-orange-800 dark:text-orange-300 font-mono">#{issue.row}</td>
+                                  <td className="px-4 py-1.5 text-orange-700 dark:text-orange-400">{issue.field}</td>
+                                  <td className="px-4 py-1.5 text-orange-600 dark:text-orange-500">{issue.issue}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                          {previewIssues.length > 50 && (
+                            <div className="text-center py-1.5 text-xs text-orange-400 dark:text-orange-500 bg-orange-50 dark:bg-orange-900/20">
+                              Showing 50 of {previewIssues.length} issues
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
-                  </div>
-                </div>
-              )}
+
+                    {/* Data processing stats */}
+                    {previewStats.totalRows !== previewStats.cleanedRows && (
+                      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/50 rounded-lg px-4 py-2 text-sm text-blue-700 dark:text-blue-300">
+                        📊 Data processing: {previewStats.totalRows} records → {previewStats.cleanedRows} records ({previewStats.totalRows - previewStats.cleanedRows} removed by cleaning rules)
+                      </div>
+                    )}
+
+                    <div className="border rounded-xl overflow-hidden">
+                      <div className="bg-gray-100 dark:bg-gray-700 px-4 py-2 font-semibold text-gray-700 dark:text-gray-300 flex items-center justify-between">
+                        <span>Data Preview (First {Math.min(20, previewProcessed.length)} of {previewProcessed.length} rows{config.sortByField ? ', sorted' : ''})</span>
+                        {config.sortByField && (
+                          <span className="text-xs text-indigo-600 font-normal">
+                            Sorted by {allFields.find(f => f.key === config.sortByField)?.label || config.sortByField} {config.sortDirection === 'desc' ? '↓' : '↑'}
+                          </span>
+                        )}
+                      </div>
+                      <div className="overflow-x-auto max-h-[320px] overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                          <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10">
+                            <tr>
+                              {getSelectedFieldsOrdered().map(field => (
+                                <th
+                                  key={field.key}
+                                  className={`px-4 py-2 text-left text-xs font-medium uppercase tracking-wider whitespace-nowrap ${
+                                    field.key === config.sortByField ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30' : 'text-gray-500 dark:text-gray-400'
+                                  }`}
+                                >
+                                  {displayLabel(field)}
+                                  {field.key === config.sortByField && (
+                                    <span className="ml-1">{config.sortDirection === 'desc' ? '↓' : '↑'}</span>
+                                  )}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                            {previewRows.map((record, idx) => (
+                              <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                {getSelectedFieldsOrdered().map(field => (
+                                  <td key={field.key} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap max-w-[200px] truncate" title={formatValue(field, record)}>
+                                    {formatValue(field, record).substring(0, 50)}
+                                    {formatValue(field, record).length > 50 && '...'}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {previewProcessed.length > 20 && (
+                          <div className="text-center py-2 text-xs text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+                            Showing 20 of {previewProcessed.length} rows
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           )}
         </div>

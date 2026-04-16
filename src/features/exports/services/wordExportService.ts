@@ -1645,7 +1645,15 @@ export class WordExportService {
     isArabic: boolean = false,
     filename?: string,
     colorColumns?: number[],  // Column indices to apply conditional coloring
-    colorTheme?: 'default' | 'traffic' | 'heatmap' | 'status'  // Color theme for conditional formatting
+    colorTheme?: 'default' | 'traffic' | 'heatmap' | 'status',  // Color theme for conditional formatting
+    layoutOptions?: {
+      headerFontSizePt?: number;
+      bodyFontSizePt?: number;
+      headerBgColor?: string;
+      showGridlines?: boolean;
+      alternateRowColors?: boolean;
+      rowDensity?: 'compact' | 'normal' | 'comfortable';
+    }
   ): Promise<void> {
     const dateText = isArabic
       ? `تاريخ التقرير: ${format(new Date(), 'yyyy-MM-dd HH:mm')}`
@@ -1679,7 +1687,7 @@ export class WordExportService {
     }
 
     // Add the main data table
-    sections.push(this.createTable(headers, rows, isArabic, theme, colorColumns));
+    sections.push(this.createTable(headers, rows, isArabic, theme, colorColumns, layoutOptions?.bodyFontSizePt));
 
     const doc = new Document({
       sections: [

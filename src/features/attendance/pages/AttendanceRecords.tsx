@@ -1285,15 +1285,7 @@ export const AttendanceRecords = () => {
     const def = RECORD_COLUMN_DEFS[colKey];
     if (!def) return null;
     const si = def.sortKey ? getRecordsSortIndicator(def.sortKey) : null;
-    // Apply field rename from export builder if available — skip stale renames from other language
-    let displayLabel = def.label;
-    const rename = savedExportSettings.records?.fieldRenames?.[colKey];
-    if (rename) {
-      const hasArabic = /[\u0600-\u06FF]/.test(rename);
-      if ((arabicMode && hasArabic) || (!arabicMode && !hasArabic)) {
-        displayLabel = rename;
-      }
-    }
+    const displayLabel = def.label;
     return (
       <th key={colKey} className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
         <div className="flex items-center gap-1">
@@ -4705,18 +4697,7 @@ export const AttendanceRecords = () => {
       .map(key => allFields.find(f => f.key === key))
       .filter((f): f is { key: string; label: string; labelAr: string } => f !== undefined);
     
-    // Apply saved field renames from export settings
-    // Skip renames whose script doesn't match the current language (stale from language switch)
-    const renames = savedExportSettings[dataType]?.fieldRenames;
     const headers = selectedFields.map(f => {
-      const rename = renames?.[f.key];
-      if (rename) {
-        const hasArabic = /[\u0600-\u06FF]/.test(rename);
-        // Only apply rename if its script matches the target language
-        if ((isArabic && hasArabic) || (!isArabic && !hasArabic)) return rename;
-        // Stale rename from other language — fall back to default
-        return isArabic ? f.labelAr : f.label;
-      }
       return isArabic ? f.labelAr : f.label;
     });
     

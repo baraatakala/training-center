@@ -37,7 +37,7 @@ export function Students() {
   const [photoStudent, setPhotoStudent] = useState<Student | undefined>();
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
-  const { isTeacher, isAdmin, loading: roleLoading } = useIsTeacher();
+  const { isTeacher, isAdmin } = useIsTeacher();
   const [error, setError] = useState<string | null>(null);
   const [sortField, setSortField] = useState<'name' | 'email' | 'phone' | 'nationality' | 'specialization' | 'age'>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -222,15 +222,6 @@ export function Students() {
   function openEditModal(student: Student) {
     setEditingStudent(student);
     setIsModalOpen(true);
-  }
-
-  if (roleLoading) {
-    return (
-      <div className="space-y-6 animate-pulse">
-        <div className="h-10 w-64 bg-gray-200 dark:bg-gray-700 rounded-lg" />
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6"><div className="space-y-3">{[...Array(6)].map((_, i) => <div key={i} className="h-8 bg-gray-200 dark:bg-gray-700 rounded" />)}</div></div>
-      </div>
-    );
   }
 
   if (loading && activeTab === 'students') {
