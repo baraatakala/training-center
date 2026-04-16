@@ -1224,6 +1224,8 @@ export const AttendanceRecords = () => {
     dayOfWeek: { label: arabicMode ? 'يوم الأسبوع' : 'Day', sortKey: 'dayOfWeek' },
     attendance_id: { label: arabicMode ? 'رقم السجل' : 'Record ID', sortKey: 'attendance_id' },
     student_name: { label: t.student, sortKey: 'student_name', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg> },
+    student_email: { label: arabicMode ? 'بريد الطالب' : 'Student Email', sortKey: 'student_email' },
+    student_specialization: { label: arabicMode ? 'التخصص' : 'Specialization', sortKey: 'student_specialization' },
     student_id: { label: arabicMode ? 'رقم الطالب' : 'Student ID', sortKey: 'student_id' },
     course_name: { label: t.course, sortKey: 'course_name' },
     course_id: { label: arabicMode ? 'رقم الدورة' : 'Course ID', sortKey: 'course_id' },
@@ -1310,6 +1312,10 @@ export const AttendanceRecords = () => {
         return <td key={colKey} className={`${tdClass} text-gray-500 dark:text-gray-400 font-mono text-[10px]`}>{record.attendance_id}</td>;
       case 'student_name':
         return <td key={colKey} className={`${tdClass} text-gray-900 dark:text-white`}>{record.student_name}</td>;
+      case 'student_email':
+        return <td key={colKey} className={`${tdClass} text-gray-600 dark:text-gray-300`}>{record.student_email || '-'}</td>;
+      case 'student_specialization':
+        return <td key={colKey} className={`${tdClass} text-gray-600 dark:text-gray-300`}>{record.student_specialization || '-'}</td>;
       case 'student_id':
         return <td key={colKey} className={`${tdClass} text-gray-500 dark:text-gray-400 font-mono text-[10px]`}>{record.student_id}</td>;
       case 'course_name':
