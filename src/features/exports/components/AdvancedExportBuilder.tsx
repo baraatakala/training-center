@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -96,7 +96,7 @@ export interface ExportSettings {
   coloringFields?: string[];
   coloringTheme?: 'default' | 'traffic' | 'heatmap' | 'status';
   excludedRows?: string[];  // Row values to exclude (e.g., specific dates)
-  fieldRenames?: Record<string, string>;  // Custom column header labels
+  fieldRenames?: Record<string, string>;  // Deprecated — kept for backward compat with saved settings
   // Data validation flags
   removeDuplicates?: boolean;
   removeEmptyRows?: boolean;
@@ -226,46 +226,16 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
     new Set(savedSettings?.excludedRows || [])
   );
 
-  // Field label renames — lets user override column headers for export
-  const [fieldRenames, setFieldRenames] = useState<Record<string, string>>(
-    savedSettings?.fieldRenames || {}
-  );
-  const [editingFieldKey, setEditingFieldKey] = useState<string | null>(null);
-
   const isAr = config.language === 'ar';
 
-  // Clear field renames when language changes — renames are language-specific
-  // Skip initial mount so saved renames from savedSettings are preserved
-  const langInitRef = useRef(true);
-  useEffect(() => {
-    if (langInitRef.current) {
-      langInitRef.current = false;
-      return;
-    }
-    setFieldRenames({});
-  }, [config.language]);
-
   const getFieldLabel = useCallback((f: ExportField, isArabic: boolean): string => {
-    const rename = fieldRenames[f.key];
-    if (rename) {
-      // Skip rename if it matches the OTHER language's default (stale from language switch)
-      if (isArabic && rename === f.label) return f.labelAr || f.label;
-      if (!isArabic && f.labelAr && rename === f.labelAr) return f.label;
-      return rename;
-    }
     return isArabic && f.labelAr ? f.labelAr : f.label;
-  }, [fieldRenames]);
+  }, []);
 
   /** Display label for a field in the UI — respects current language setting */
   const displayLabel = useCallback((f: ExportField): string => {
-    const rename = fieldRenames[f.key];
-    if (rename) {
-      if (isAr && rename === f.label) return f.labelAr || f.label;
-      if (!isAr && f.labelAr && rename === f.labelAr) return f.label;
-      return rename;
-    }
     return isAr && f.labelAr ? f.labelAr : f.label;
-  }, [fieldRenames, isAr]);
+  }, [isAr]);
 
   /** Display label for a category in the UI */
   const categoryDisplayLabel = useCallback((c: ExportCategory): string => {
@@ -319,8 +289,6 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
       setActiveTab('fields');
       // Restore excluded rows from saved settings
       setExcludedRows(new Set(savedSettings?.excludedRows || []));
-      // Restore field renames from saved settings
-      setFieldRenames(savedSettings?.fieldRenames || {});
     }
   }, [isOpen, getDefaultSelectedFields, defaultTitle, dateRange, savedSettings]);
 
@@ -1024,7 +992,6 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
           coloringFields: config.dataValidation.coloringFields,
           coloringTheme: config.dataValidation.coloringTheme,
           excludedRows: [...excludedRows],
-          fieldRenames: Object.keys(fieldRenames).length > 0 ? fieldRenames : undefined,
           // Layout persistence
           rowDensity: config.rowDensity,
           pageSize: config.pageSize,
@@ -1085,7 +1052,6 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
         coloringFields: config.dataValidation.coloringFields,
         coloringTheme: config.dataValidation.coloringTheme,
         excludedRows: [...excludedRows],
-        fieldRenames: Object.keys(fieldRenames).length > 0 ? fieldRenames : undefined,
         // Data validation flags
         removeDuplicates: config.dataValidation.removeDuplicates,
         removeEmptyRows: config.dataValidation.removeEmptyRows,
@@ -1242,40 +1208,9 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                             className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
                           />
                           <div className="flex-1 min-w-0">
-                            {editingFieldKey === field.key ? (
-                              <input
-                                type="text"
-                                autoFocus
-                                defaultValue={displayLabel(field)}
-                                onBlur={(e) => {
-                                  const val = e.target.value.trim();
-                                  setFieldRenames(prev => {
-                                    const next = { ...prev };
-                                    const originalLabel = isAr && field.labelAr ? field.labelAr : field.label;
-                                    if (!val || val === originalLabel) delete next[field.key];
-                                    else next[field.key] = val;
-                                    return next;
-                                  });
-                                  setEditingFieldKey(null);
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                                  if (e.key === 'Escape') { setEditingFieldKey(null); }
-                                }}
-                                className="w-full text-sm font-medium px-1.5 py-0.5 rounded border border-blue-400 dark:border-blue-500 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                              />
-                            ) : (
-                              <span
-                                className="text-sm font-medium text-gray-700 dark:text-gray-200 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 truncate block"
-                                title="Click to rename this column header for export"
-                                onClick={() => setEditingFieldKey(field.key)}
-                              >
-                                {displayLabel(field)}
-                                {fieldRenames[field.key] && (
-                                  <span className="ml-1 text-[10px] text-blue-500">✏️</span>
-                                )}
-                              </span>
-                            )}
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate block">
+                              {displayLabel(field)}
+                            </span>
                           </div>
                         </div>
                       ))}
@@ -1342,7 +1277,6 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                           {/* Field name */}
                           <span className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-200 truncate">
                             {displayLabel(field)}
-                            {fieldRenames[field.key] && <span className="ml-1 text-[10px] text-blue-500">✏️</span>}
                           </span>
                           {/* Up/Down arrows */}
                           <div className="flex items-center gap-0.5 flex-shrink-0">
@@ -1868,7 +1802,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                         <div key={field.key} className="flex items-center gap-3 p-2.5 bg-gray-50 dark:bg-gray-700 rounded-lg">
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{displayLabel(field)}</div>
-                            {field.labelAr && !fieldRenames[field.key] && <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{field.labelAr}</div>}
+                            {field.labelAr && <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{field.labelAr}</div>}
                           </div>
                           <div className="flex items-center gap-1.5 flex-shrink-0">
                             <input
@@ -2518,8 +2452,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                         key={field.key}
                         className="px-3 py-1 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full text-sm font-medium"
                       >
-                        {fieldRenames[field.key] || field.label}
-                        {fieldRenames[field.key] && <span className="ml-1 opacity-60">✏️</span>}
+                        {displayLabel(field)}
                       </span>
                     ))}
                     {config.selectedFields.length === 0 && (
@@ -2551,7 +2484,7 @@ export const AdvancedExportBuilder: React.FC<AdvancedExportBuilderProps> = ({
                                 field.key === config.sortByField ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30' : 'text-gray-500 dark:text-gray-400'
                               }`}
                             >
-                              {fieldRenames[field.key] || field.label}
+                              {displayLabel(field)}
                               {field.key === config.sortByField && (
                                 <span className="ml-1">{config.sortDirection === 'desc' ? '↓' : '↑'}</span>
                               )}

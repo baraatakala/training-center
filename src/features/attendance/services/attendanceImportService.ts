@@ -98,7 +98,7 @@ function parseCsvText(text: string): ImportRow[] {
   const lines = text
     .split(/\r?\n/)
     .map((line) => line.trim())
-    .filter((line) => line.length > 0);
+    .filter((line) => line.length > 0 && !line.startsWith('#'));
 
   if (lines.length === 0) return [];
 
@@ -128,7 +128,11 @@ export async function parseAttendanceFile(file: File): Promise<ImportRow[]> {
 
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: 'array' });
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  // Prefer the "Data" / "البيانات" sheet (export builder puts Summary first)
+  const dataSheetName = workbook.SheetNames.find(
+    (n) => n === 'Data' || n === 'البيانات',
+  ) || workbook.SheetNames[0];
+  const sheet = workbook.Sheets[dataSheetName];
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
     defval: '',
     raw: false,

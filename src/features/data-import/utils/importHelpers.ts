@@ -26,6 +26,26 @@ export const normalizeDate = (dateStr: string): string => {
     return `${year}-${month}-${day}`;
   }
 
+  // Named month format: Apr 15, 2026 / April 15, 2026 / 15 Apr 2026
+  const monthNames: Record<string, string> = {
+    jan: '01', january: '01', feb: '02', february: '02', mar: '03', march: '03',
+    apr: '04', april: '04', may: '05', jun: '06', june: '06',
+    jul: '07', july: '07', aug: '08', august: '08', sep: '09', september: '09',
+    oct: '10', october: '10', nov: '11', november: '11', dec: '12', december: '12',
+  };
+  // MMM dd, yyyy  or  MMMM dd, yyyy
+  const mdyMatch = cleaned.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
+  if (mdyMatch) {
+    const mon = monthNames[mdyMatch[1].toLowerCase()];
+    if (mon) return `${mdyMatch[3]}-${mon}-${mdyMatch[2].padStart(2, '0')}`;
+  }
+  // dd MMM yyyy  or  dd MMMM yyyy
+  const dmyMatch = cleaned.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
+  if (dmyMatch) {
+    const mon = monthNames[dmyMatch[2].toLowerCase()];
+    if (mon) return `${dmyMatch[3]}-${mon}-${dmyMatch[1].padStart(2, '0')}`;
+  }
+
   // Excel serial number
   if (/^\d+$/.test(cleaned)) {
     const serial = parseInt(cleaned, 10);
