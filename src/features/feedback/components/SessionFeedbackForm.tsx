@@ -596,9 +596,8 @@ export default function SessionFeedbackForm({
 
         {/* Anonymous Toggle — disabled in test mode */}
         {anonymousAllowed && !isTestMode && (
-          <label className="flex items-center gap-2 mb-4 cursor-pointer select-none">
+          <label className="flex items-center gap-2 mb-4 cursor-pointer select-none" onClick={() => setIsAnonymous(!isAnonymous)}>
             <div
-              onClick={() => setIsAnonymous(!isAnonymous)}
               className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
                 isAnonymous ? 'bg-purple-500' : 'bg-gray-300 dark:bg-gray-600'
               }`}

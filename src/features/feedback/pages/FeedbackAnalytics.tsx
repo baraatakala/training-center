@@ -17,7 +17,7 @@ type CorrectnessFilter = 'all' | 'correct' | 'partial' | 'incorrect' | 'not-grad
 type RatingRangeFilter = 'bad' | 'neutral' | 'good';
 type ViolationsFilter = 'all' | 'has_violations';
 
-type SortField = 'studentName' | 'attendanceDate' | 'checkInTime' | 'questionType' | 'questionText' | 'answer' | 'comment' | 'overallRating' | 'tabSwitchCount';
+type SortField = 'studentName' | 'attendanceDate' | 'checkInTime' | 'questionType' | 'questionText' | 'answer' | 'comment' | 'overallRating' | 'tabSwitchCount' | 'correctAnswer' | 'gradingMode' | 'isCorrect';
 type SortDirection = 'asc' | 'desc';
 
 interface SessionOption {
@@ -453,9 +453,23 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
     const sorted = [...displayRecords];
     if (sortField) {
       sorted.sort((a, b) => {
-        const valA = (a[sortField] ?? '').toString().toLowerCase();
-        const valB = (b[sortField] ?? '').toString().toLowerCase();
-        const cmp = valA.localeCompare(valB, undefined, { numeric: true });
+        const rawA = a[sortField];
+        const rawB = b[sortField];
+        // Nulls always last regardless of direction
+        if (rawA == null && rawB == null) return 0;
+        if (rawA == null) return 1;
+        if (rawB == null) return -1;
+        let cmp: number;
+        // Numeric fields — compare as numbers
+        if (sortField === 'overallRating' || sortField === 'tabSwitchCount') {
+          cmp = (Number(rawA) || 0) - (Number(rawB) || 0);
+        // Boolean-like field — map to sortable rank
+        } else if (sortField === 'isCorrect') {
+          const rank = (v: unknown) => v === true ? 0 : v === false ? 1 : 2;
+          cmp = rank(rawA) - rank(rawB);
+        } else {
+          cmp = String(rawA).toLowerCase().localeCompare(String(rawB).toLowerCase(), undefined, { numeric: true });
+        }
         return sortDirection === 'asc' ? cmp : -cmp;
       });
     }
@@ -794,9 +808,9 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                             { key: 'questionText' as SortField, label: t.question },
                             { key: 'answer' as SortField, label: t.answer },
                             ...(hasTestQuestions ? [
-                              { key: null, label: 'Correct Answer' },
-                              { key: null, label: 'Grading Mode' },
-                              { key: null, label: t.correct },
+                              { key: 'correctAnswer' as SortField, label: 'Correct Answer' },
+                              { key: 'gradingMode' as SortField, label: 'Grading Mode' },
+                              { key: 'isCorrect' as SortField, label: t.correct },
                             ] : []) as { key: SortField | null; label: string }[],
                             { key: 'comment' as SortField, label: t.comment },
                             { key: 'tabSwitchCount' as SortField, label: t.violations },
