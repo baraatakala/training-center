@@ -16,9 +16,9 @@ type QuestionTypeFilter = 'all' | 'rating' | 'text' | 'multiple_choice';
 type CorrectnessFilter = 'all' | 'correct' | 'partial' | 'incorrect' | 'not-graded';
 type RatingRangeFilter = 'bad' | 'neutral' | 'good';
 type ViolationsFilter = 'all' | 'has_violations';
-type SubmissionReasonFilter = 'all' | 'completed' | 'timer_expired' | 'tab_violation' | 'partial_timer' | 'skipped';
+type SubmissionReasonFilter = 'all' | 'completed' | 'timer_expired' | 'tab_violation' | 'partial_timer';
 
-type SortField = 'studentName' | 'attendanceDate' | 'checkInTime' | 'questionType' | 'questionText' | 'answer' | 'comment' | 'overallRating' | 'tabSwitchCount' | 'correctAnswer' | 'gradingMode' | 'isCorrect' | 'answerDuration' | 'submissionReason';
+type SortField = 'studentName' | 'attendanceDate' | 'checkInTime' | 'questionType' | 'questionText' | 'answer' | 'comment' | 'tabSwitchCount' | 'correctAnswer' | 'gradingMode' | 'isCorrect' | 'answerDuration' | 'submissionReason' | 'totalQuestions';
 type SortDirection = 'asc' | 'desc';
 
 interface SessionOption {
@@ -39,7 +39,6 @@ interface FlattenedRecord {
   isAnonymous: boolean;
   attendanceDate: string;
   checkInTime: string | null;
-  overallRating: number | null;
   questionType: string;
   questionText: string;
   answer: string;
@@ -57,17 +56,18 @@ interface FlattenedRecord {
   isAutoSubmitted: boolean;
   answerDuration: number | null;
   submissionReason: string;
+  /** how many questions were configured for this attendance date */
+  totalQuestions: number;
 }
 
 // ─── Simple sentiment detection ─────────────────────────────
 
 // ─── CSV export (one row per question-answer) ───────────────
 function exportFeedbackCSV(records: FlattenedRecord[], courseName: string, selectedDate?: string) {
-  const headers = ['Student', 'Date', 'Check-In Time', 'Overall Rating', 'Question Type', 'Question', 'Answer', 'Correct Answer', 'Grading Mode', 'Correct?', 'Violations', 'Auto-Submitted', 'Duration (s)', 'Reason', 'Comment'];
+  const headers = ['Student', 'Date', 'Check-In Time', 'Question Type', 'Question', 'Answer', 'Correct Answer', 'Grading Mode', 'Correct?', 'Violations', 'Auto-Submitted', 'Duration (s)', 'Reason', 'Total Questions', 'Comment'];
   const rows = records.map(r => [
     r.studentName, r.attendanceDate,
     r.checkInTime ? new Date(r.checkInTime).toLocaleTimeString() : '',
-    r.overallRating != null ? String(r.overallRating) : '',
     r.questionType, r.questionText, r.answer,
     r.correctAnswer || '',
     r.gradingMode ? ({ exact: 'Exact Match', partial: 'Partial Credit', any: 'Any Correct' }[r.gradingMode] ?? '') : '',
@@ -76,6 +76,7 @@ function exportFeedbackCSV(records: FlattenedRecord[], courseName: string, selec
     r.isAutoSubmitted ? 'Yes' : '',
     r.answerDuration != null ? String(r.answerDuration) : '',
     r.submissionReason || '',
+    String(r.totalQuestions),
     r.comment || '',
   ]);
   const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -152,6 +153,13 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
     of: 'من',
     violations: 'مخالفات',
     hasViolations: 'بها مخالفات',
+    duration: 'المدة',
+    reason: 'السبب',
+    totalQuestions: 'عدد الأسئلة',
+    reasonCompleted: '✅ مكتمل',
+    reasonTimerExpired: '⏱️ انتهى الوقت',
+    reasonTabViolation: '🚨 مخالفة تبويب',
+    reasonPartialTimer: '⏳ جزئي (مؤقت)',
   } : {
     feedbackAnalytics: 'Feedback Analytics',
     subtitle: 'Analyze student feedback responses per question, session, and date.',
@@ -204,6 +212,13 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
     of: 'of',
     violations: 'Violations',
     hasViolations: 'Has Violations',
+    duration: 'Duration',
+    reason: 'Reason',
+    totalQuestions: 'Questions',
+    reasonCompleted: '✅ Completed',
+    reasonTimerExpired: '⏱️ Timer Expired',
+    reasonTabViolation: '🚨 Tab Violation',
+    reasonPartialTimer: '⏳ Partial (Timer)',
   }, [arabicMode]);
 
   const [sessions, setSessions] = useState<SessionOption[]>([]);
@@ -365,74 +380,88 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
   const hasTestQuestions = useMemo(() => questions.some(q => q.correct_answer), [questions]);
 
   // ─── Flatten feedbacks into one row per question-answer ────
+  // Shows ALL questions for the attendance date, including unanswered ones
   const flattenedRecords = useMemo(() => {
-    const qMap = new Map(questions.map(q => [q.id, q]));
+    // Build questions per attendance_date (null = global, shown on every date)
+    const globalQuestions = questions.filter(q => q.attendance_date === null);
+    const dateSpecific = new Map<string, FeedbackQuestion[]>();
+    for (const q of questions) {
+      if (q.attendance_date != null) {
+        const list = dateSpecific.get(q.attendance_date) || [];
+        list.push(q);
+        dateSpecific.set(q.attendance_date, list);
+      }
+    }
+    // Get all applicable questions for a given date
+    function questionsForDate(date: string): FeedbackQuestion[] {
+      return [...globalQuestions, ...(dateSpecific.get(date) || [])];
+    }
+
     const rows: FlattenedRecord[] = [];
     for (const fb of filteredFeedbacks) {
-      const entries = Object.entries(fb.responses || {});
       const studentName = fb.is_anonymous ? 'Anonymous' : (fb.student_name || 'Unknown');
+      const responseMap = fb.responses || {};
+      const answeredIds = new Set(Object.keys(responseMap));
 
-      if (entries.length === 0 && (fb.overall_rating != null || fb.comment)) {
-        if (questionTypeFilter === 'all' || questionTypeFilter === 'rating') {
-          rows.push({
-            feedbackId: fb.id, studentName, isAnonymous: fb.is_anonymous,
-            attendanceDate: fb.attendance_date, checkInTime: fb.check_in_time ?? null,
-            overallRating: fb.overall_rating != null ? Number(fb.overall_rating) : null,
-            questionType: 'rating',
-            questionText: t.overallRating,
-            answer: fb.overall_rating != null ? String(fb.overall_rating) : '—',
-            comment: fb.comment,
-            isCorrect: null,
-            gradingDetail: null,
-            gradingScore: null,
-            gradingMode: null,
-            correctAnswer: null,
-            tabSwitchCount: fb.tab_switch_count ?? 0,
-            isAutoSubmitted: fb.is_auto_submitted ?? false,
-            answerDuration: fb.answer_duration_seconds ?? null,
-            submissionReason: fb.submission_reason ?? 'completed',
-          });
+      const dateQuestions = questionsForDate(fb.attendance_date);
+      const totalQuestions = dateQuestions.length;
+
+      if (dateQuestions.length === 0 && fb.comment) {
+        rows.push({
+          feedbackId: fb.id, studentName, isAnonymous: fb.is_anonymous,
+          attendanceDate: fb.attendance_date, checkInTime: fb.check_in_time ?? null,
+          questionType: '—', questionText: '—', answer: '—',
+          comment: fb.comment,
+          isCorrect: null, gradingDetail: null, gradingScore: null, gradingMode: null, correctAnswer: null,
+          tabSwitchCount: fb.tab_switch_count ?? 0,
+          isAutoSubmitted: fb.is_auto_submitted ?? false,
+          answerDuration: fb.answer_duration_seconds ?? null,
+          submissionReason: fb.submission_reason ?? 'completed',
+          totalQuestions,
+        });
+        continue;
+      }
+
+      // Iterate ALL questions for this date — answered AND unanswered
+      for (const q of dateQuestions) {
+        const qType = q.question_type?.replace('_', ' ') || '—';
+        if (questionTypeFilter !== 'all') {
+          const rawType = q.question_type || '';
+          if (rawType !== questionTypeFilter) continue;
         }
-      } else {
-        for (const [qId, val] of entries) {
-          const q = qMap.get(qId);
-          const qType = q?.question_type?.replace('_', ' ') || '—';
-          // Apply question type filter
-          if (questionTypeFilter !== 'all') {
-            const rawType = q?.question_type || '';
-            if (rawType !== questionTypeFilter) continue;
-          }
-          // Compute graded result using centralised grading utility
-          const gradeResult = q ? gradeAnswer(q, val) : { isCorrect: null, detail: null, score: null };
-          const isCorrect = gradeResult.isCorrect;
-          const correctAnswer = q?.correct_answer ?? null;
-          const gradingDetail = gradeResult.detail;
-          const gradingScore = gradeResult.score;
-          // Format answer for display
-          const displayAnswer = Array.isArray(val) ? val.join(', ') : (val != null ? String(val) : '—');
-          rows.push({
-            feedbackId: fb.id, studentName, isAnonymous: fb.is_anonymous,
-            attendanceDate: fb.attendance_date, checkInTime: fb.check_in_time ?? null,
-            overallRating: fb.overall_rating != null ? Number(fb.overall_rating) : null,
-            questionType: qType,
-            questionText: q?.question_text || '—',
-            answer: displayAnswer,
-            comment: fb.comment,
-            isCorrect,
-            correctAnswer,
-            gradingDetail,
-            gradingScore,
-            gradingMode: (q?.correct_answer != null ? (q?.grading_mode ?? null) : null),
-            tabSwitchCount: fb.tab_switch_count ?? 0,
-            isAutoSubmitted: fb.is_auto_submitted ?? false,
-            answerDuration: fb.answer_duration_seconds ?? null,
-            submissionReason: fb.submission_reason ?? 'completed',
-          });
-        }
+
+        const val = responseMap[q.id];
+        const wasAnswered = answeredIds.has(q.id) && val !== undefined && val !== null &&
+          (typeof val !== 'string' || val.trim().length > 0) &&
+          (!Array.isArray(val) || val.length > 0);
+
+        const gradeResult = wasAnswered ? gradeAnswer(q, val) : { isCorrect: q.correct_answer ? false : null, detail: null, score: q.correct_answer ? 0 : null };
+        const displayAnswer = wasAnswered
+          ? (Array.isArray(val) ? val.join(', ') : String(val))
+          : '—';
+
+        rows.push({
+          feedbackId: fb.id, studentName, isAnonymous: fb.is_anonymous,
+          attendanceDate: fb.attendance_date, checkInTime: fb.check_in_time ?? null,
+          questionType: qType,
+          questionText: q.question_text || '—',
+          answer: displayAnswer,
+          comment: fb.comment,
+          isCorrect: gradeResult.isCorrect,
+          correctAnswer: q.correct_answer ?? null,
+          gradingDetail: gradeResult.detail,
+          gradingScore: gradeResult.score,
+          gradingMode: (q.correct_answer != null ? (q.grading_mode ?? null) : null),
+          tabSwitchCount: fb.tab_switch_count ?? 0,
+          isAutoSubmitted: fb.is_auto_submitted ?? false,
+          answerDuration: fb.answer_duration_seconds ?? null,
+          submissionReason: fb.submission_reason ?? 'completed',
+          totalQuestions,
+        });
       }
     }
     return rows;
-  }, [filteredFeedbacks, questions, questionTypeFilter, t]);
+  }, [filteredFeedbacks, questions, questionTypeFilter]);
 
   // ─── Correctness + violations filtered records ─────────────
   const displayRecords = useMemo(() => {
@@ -451,11 +480,13 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
     if (submissionReasonFilter !== 'all') {
       result = result.filter(r => r.submissionReason === submissionReasonFilter);
     }
-    // Rating range — filter on per-row overallRating so only rating-type rows with matching bucket show
+    // Rating range — filter on rating-type question answers
     if (ratingRangeFilters.length > 0) {
       result = result.filter(r => {
-        if (r.overallRating == null) return false;
-        const bucket: RatingRangeFilter = r.overallRating <= 2 ? 'bad' : r.overallRating === 3 ? 'neutral' : 'good';
+        if (r.questionType !== 'rating') return false;
+        const ratingVal = Number(r.answer);
+        if (isNaN(ratingVal)) return false;
+        const bucket: RatingRangeFilter = ratingVal <= 2 ? 'bad' : ratingVal === 3 ? 'neutral' : 'good';
         return ratingRangeFilters.includes(bucket);
       });
     }
@@ -474,7 +505,7 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
         if (rawB == null) return -1;
         let cmp: number;
         // Numeric fields — compare as numbers
-        if (sortField === 'overallRating' || sortField === 'tabSwitchCount' || sortField === 'answerDuration') {
+        if (sortField === 'tabSwitchCount' || sortField === 'answerDuration' || sortField === 'totalQuestions') {
           cmp = (Number(rawA) || 0) - (Number(rawB) || 0);
         // Boolean-like field — map to sortable rank
         } else if (sortField === 'isCorrect') {
@@ -767,11 +798,10 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                 className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white"
               >
                 <option value="all">{t.allResults}</option>
-                <option value="completed">✅ Completed</option>
-                <option value="timer_expired">⏱️ Timer Expired</option>
-                <option value="tab_violation">🚨 Tab Violation</option>
-                <option value="partial_timer">⏳ Partial (Timer)</option>
-                <option value="skipped">⏭️ Skipped</option>
+                <option value="completed">{t.reasonCompleted}</option>
+                <option value="timer_expired">{t.reasonTimerExpired}</option>
+                <option value="tab_violation">{t.reasonTabViolation}</option>
+                <option value="partial_timer">{t.reasonPartialTimer}</option>
               </select>
             </div>
             {(questionTypeFilter === 'all' || questionTypeFilter === 'rating') && (
@@ -835,7 +865,7 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                             { key: 'studentName' as SortField, label: t.student },
                             { key: 'attendanceDate' as SortField, label: t.date },
                             { key: 'checkInTime' as SortField, label: 'Check-In' },
-                            { key: 'overallRating' as SortField, label: t.overallRating },
+                            { key: 'totalQuestions' as SortField, label: t.totalQuestions },
                             { key: 'questionType' as SortField, label: t.type },
                             { key: 'questionText' as SortField, label: t.question },
                             { key: 'answer' as SortField, label: t.answer },
@@ -846,8 +876,8 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                             ] : []) as { key: SortField | null; label: string }[],
                             { key: 'comment' as SortField, label: t.comment },
                             { key: 'tabSwitchCount' as SortField, label: t.violations },
-                            { key: 'answerDuration' as SortField, label: 'Duration' },
-                            { key: 'submissionReason' as SortField, label: 'Reason' },
+                            { key: 'answerDuration' as SortField, label: t.duration },
+                            { key: 'submissionReason' as SortField, label: t.reason },
                           ]).map(col => (
                             <th
                               key={col.label}
@@ -881,13 +911,7 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                               {row.checkInTime ? new Date(row.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
                             </td>
                             <td className="px-3 py-3 text-center whitespace-nowrap">
-                              {row.overallRating != null ? (
-                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                                  row.overallRating <= 2 ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
-                                  : row.overallRating === 3 ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400'
-                                  : 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'
-                                }`}>{'⭐'.repeat(row.overallRating)}</span>
-                              ) : <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>}
+                              <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">{row.totalQuestions}</span>
                             </td>
                             <td className="px-3 py-3">
                               <span className="px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-[10px] capitalize whitespace-nowrap">
@@ -970,7 +994,6 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                                   timer_expired: { icon: '⏱️', label: 'Timer', color: 'text-red-600 dark:text-red-400' },
                                   tab_violation: { icon: '🚨', label: 'Violation', color: 'text-red-600 dark:text-red-400' },
                                   partial_timer: { icon: '⏳', label: 'Partial', color: 'text-amber-600 dark:text-amber-400' },
-                                  skipped: { icon: '⏭️', label: 'Skipped', color: 'text-gray-500 dark:text-gray-400' },
                                 };
                                 const r = reasonMap[row.submissionReason] || { icon: '❓', label: row.submissionReason, color: 'text-gray-500' };
                                 return <span className={`text-[10px] font-semibold ${r.color}`}>{r.icon} {r.label}</span>;
