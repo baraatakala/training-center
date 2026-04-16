@@ -122,7 +122,6 @@ export const logInsert = async (
 export const getAuditLogs = async (filters?: {
   tableName?: string;
   operation?: string;
-  deletedBy?: string;
   startDate?: string;
   endDate?: string;
   limit?: number;
@@ -131,7 +130,7 @@ export const getAuditLogs = async (filters?: {
     let query = supabase
       .from('audit_log')
       .select('*')
-      .order('deleted_at', { ascending: false });
+      .order('changed_at', { ascending: false });
 
     if (filters?.tableName) {
       query = query.eq('table_name', filters.tableName);
@@ -139,14 +138,11 @@ export const getAuditLogs = async (filters?: {
     if (filters?.operation) {
       query = query.eq('operation', filters.operation);
     }
-    if (filters?.deletedBy) {
-      query = query.eq('deleted_by', filters.deletedBy);
-    }
     if (filters?.startDate) {
-      query = query.gte('deleted_at', filters.startDate);
+      query = query.gte('changed_at', filters.startDate);
     }
     if (filters?.endDate) {
-      query = query.lte('deleted_at', filters.endDate);
+      query = query.lte('changed_at', filters.endDate);
     }
     if (filters?.limit) {
       query = query.limit(filters.limit);

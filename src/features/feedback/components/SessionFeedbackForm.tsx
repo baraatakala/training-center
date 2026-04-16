@@ -40,7 +40,7 @@ export default function SessionFeedbackForm({
   // ─── Timer state ───────────────────────────────────────────
   const [feedbackTimeLimitSeconds, setFeedbackTimeLimitSeconds] = useState<number | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
-  const startTimeRef = useRef<number>(Date.now());
+  const startTimeRef = useRef<number>(0);
   const timerActive = feedbackTimeLimitSeconds != null && feedbackTimeLimitSeconds > 0;
 
   // ─── Anti-cheat state ──────────────────────────────────────
@@ -70,9 +70,9 @@ export default function SessionFeedbackForm({
       setMaxTabSwitches(configResult.maxTabSwitches ?? 3);
       const timeLimit = configResult.feedbackTimeLimitSeconds ?? null;
       setFeedbackTimeLimitSeconds(timeLimit);
+      startTimeRef.current = Date.now();
       if (timeLimit != null && timeLimit > 0) {
         setTimeRemaining(timeLimit);
-        startTimeRef.current = Date.now();
       }
       setAlreadySubmitted(hasSubmittedResult.alreadySubmitted);
       setLoadError(

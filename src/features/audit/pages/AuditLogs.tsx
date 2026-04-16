@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui
 import { Button } from '@/shared/components/ui/Button';
 import { useDebounce } from '@/shared/hooks/useDebounce';
 import { Select } from '@/shared/components/ui/Select';
-import { format, subDays, subMonths, isAfter, isBefore, parseISO } from 'date-fns';
+import { format, subDays, subMonths, parseISO } from 'date-fns';
 import { getAuditLogs, deleteAuditLog, deleteAuditLogs, type AuditLogEntry } from '@/shared/services/auditService';
 import { TableSkeleton } from '@/shared/components/ui/Skeleton';
 import { useIsTeacher } from '@/shared/hooks/useIsTeacher';
@@ -52,9 +52,26 @@ export function AuditLogs() {
   const loadLogs = useCallback(async () => {
     try {
       setLoading(true);
+      // Compute server-side date range
+      const now = new Date();
+      let startDate: string | undefined;
+      let endDate: string | undefined;
+      switch (filterDateRange) {
+        case '7d':  startDate = subDays(now, 7).toISOString(); break;
+        case '30d': startDate = subDays(now, 30).toISOString(); break;
+        case '90d': startDate = subDays(now, 90).toISOString(); break;
+        case '6m':  startDate = subMonths(now, 6).toISOString(); break;
+        case 'custom':
+          if (customStart) startDate = parseISO(customStart).toISOString();
+          if (customEnd) endDate = parseISO(customEnd).toISOString();
+          break;
+        // 'all' = no date filter
+      }
       const data = await getAuditLogs({
         tableName: filterTable || undefined,
         operation: filterOp || undefined,
+        startDate,
+        endDate,
         limit: 500,
       });
       setLogs(data);
@@ -65,7 +82,7 @@ export function AuditLogs() {
     } finally {
       setLoading(false);
     }
-  }, [filterTable, filterOp]);
+  }, [filterTable, filterOp, filterDateRange, customStart, customEnd]);
 
   useEffect(() => {
     loadLogs();
@@ -116,41 +133,9 @@ export function AuditLogs() {
     }
   };
 
-  // Client-side date range and search filter
+  // Client-side search and user filter (date range is now server-side)
   const filteredLogs = useMemo(() => {
     let result = [...logs];
-
-    // Date range filter
-    const now = new Date();
-    let rangeStart: Date | null = null;
-    let rangeEnd: Date | null = null;
-
-    switch (filterDateRange) {
-      case '7d':
-        rangeStart = subDays(now, 7);
-        break;
-      case '30d':
-        rangeStart = subDays(now, 30);
-        break;
-      case '90d':
-        rangeStart = subDays(now, 90);
-        break;
-      case '6m':
-        rangeStart = subMonths(now, 6);
-        break;
-      case 'custom':
-        if (customStart) rangeStart = parseISO(customStart);
-        if (customEnd) rangeEnd = parseISO(customEnd);
-        break;
-      // 'all' = no filter
-    }
-
-    if (rangeStart) {
-      result = result.filter((l) => l.deleted_at && isAfter(new Date(l.deleted_at), rangeStart!));
-    }
-    if (rangeEnd) {
-      result = result.filter((l) => l.deleted_at && isBefore(new Date(l.deleted_at), rangeEnd!));
-    }
 
     // Search across record data
     if (debouncedSearch.trim()) {
@@ -158,8 +143,8 @@ export function AuditLogs() {
       result = result.filter((l) => {
         const desc = describeAction(l).toLowerCase();
         const dataStr = JSON.stringify(l.old_data || l.new_data || {}).toLowerCase();
-        const user = (l.deleted_by || '').toLowerCase();
-        return desc.includes(q) || dataStr.includes(q) || user.includes(q) || l.table_name.includes(q);
+        const actor = getActor(l).toLowerCase();
+        return desc.includes(q) || dataStr.includes(q) || actor.includes(q) || l.table_name.includes(q);
       });
     }
 
@@ -169,7 +154,7 @@ export function AuditLogs() {
     }
 
     return result;
-  }, [logs, filterDateRange, customStart, customEnd, debouncedSearch, filterUser]);
+  }, [logs, debouncedSearch, filterUser]);
 
   // Unique actors list for the user filter dropdown
   const uniqueActors = useMemo(() => {
@@ -194,8 +179,9 @@ export function AuditLogs() {
     // Group by day for mini chart
     const byDay = new Map<string, number>();
     filteredLogs.forEach((l) => {
-      if (l.deleted_at) {
-        const day = format(new Date(l.deleted_at), 'MM/dd');
+      const ts = l.changed_at || l.deleted_at;
+      if (ts) {
+        const day = format(new Date(ts), 'MM/dd');
         byDay.set(day, (byDay.get(day) || 0) + 1);
       }
     });
@@ -213,14 +199,17 @@ export function AuditLogs() {
 
   const exportToCSV = useCallback(() => {
     const headers = ['Timestamp', 'Table', 'Operation', 'User', 'Description', 'Details'];
-    const rows = filteredLogs.map(l => [
-      l.deleted_at ? format(new Date(l.deleted_at), 'yyyy-MM-dd HH:mm:ss') : '',
-      l.table_name,
-      l.operation,
-      l.deleted_by || '',
-      describeAction(l),
-      JSON.stringify(l.new_data || l.old_data || {}),
-    ]);
+    const rows = filteredLogs.map(l => {
+      const ts = l.changed_at || l.deleted_at;
+      return [
+        ts ? format(new Date(ts), 'yyyy-MM-dd HH:mm:ss') : '',
+        l.table_name,
+        l.operation,
+        getActor(l),
+        describeAction(l),
+        JSON.stringify(l.new_data || l.old_data || {}),
+      ];
+    });
     const csvContent = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -235,7 +224,8 @@ export function AuditLogs() {
   const groupedByDate = useMemo(() => {
     const groups = new Map<string, AuditLogEntry[]>();
     pagedLogs.forEach((log) => {
-      const day = log.deleted_at ? format(new Date(log.deleted_at), 'yyyy-MM-dd') : 'Unknown';
+      const ts = log.changed_at || log.deleted_at;
+      const day = ts ? format(new Date(ts), 'yyyy-MM-dd') : 'Unknown';
       if (!groups.has(day)) groups.set(day, []);
       groups.get(day)!.push(log);
     });
@@ -411,18 +401,10 @@ export function AuditLogs() {
                   { value: 'session_recording', label: '🎬 Session Recording' },
                   { value: 'announcement', label: '📢 Announcement' },
                   { value: 'message', label: '💬 Message' },
-                  { value: 'excuse_request', label: '📝 Excuse Request' },
                   { value: 'scoring_config', label: '🎯 Scoring Config' },
                   { value: 'certificate_template', label: '📜 Certificate Template' },
                   { value: 'issued_certificate', label: '🏆 Issued Certificate' },
-                  { value: 'session_day_change', label: '🔄 Day Change' },
-                  { value: 'session_time_change', label: '⏰ Time Change' },
-                  { value: 'session_date_host', label: '🏠 Date Host' },
-                  { value: 'course_book_reference', label: '📖 Book Reference' },
                   { value: 'specialization', label: '🧪 Specialization' },
-                  { value: 'qr_sessions', label: '📱 QR Sessions' },
-                  { value: 'photo_checkin_sessions', label: '📸 Photo Check-in' },
-                  { value: 'teacher_host_schedule', label: '📆 Host Schedule' },
                 ]}
               />
             </div>
@@ -636,6 +618,11 @@ export function AuditLogs() {
                                       {format(new Date(log.deleted_at), 'HH:mm:ss')}
                                     </span>
                                   )}
+                                  {!log.deleted_at && log.changed_at && (
+                                    <span className="text-xs text-gray-400 dark:text-gray-500">
+                                      {format(new Date(log.changed_at), 'HH:mm:ss')}
+                                    </span>
+                                  )}
                                 </div>
                                 {/* Quick change preview for updates */}
                                 {log.operation === 'UPDATE' && changes.length > 0 && !isExpanded && (
@@ -801,7 +788,10 @@ export function AuditLogs() {
                             </td>
                           )}
                           <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                            {log.deleted_at ? format(new Date(log.deleted_at), 'MMM dd, HH:mm') : '—'}
+                            {(() => {
+                              const ts = log.changed_at || log.deleted_at;
+                              return ts ? format(new Date(ts), 'MMM dd, HH:mm') : '—';
+                            })()}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${getOpColor(log.operation)}`}>
@@ -902,24 +892,6 @@ export function AuditLogs() {
           </button>
         </div>
       )}
-
-      {/* Storage Efficiency Tips */}
-      <Card>
-        <CardContent className="pt-4">
-          <div className="flex items-start gap-3">
-            <span className="text-xl">💡</span>
-            <div>
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Storage & Performance Tips</p>
-              <ul className="mt-2 space-y-1 text-xs text-gray-500 dark:text-gray-500">
-                <li>• Audit logs currently store full record snapshots. Estimated ~{Math.round(logs.length * 0.5)}KB for {logs.length} records.</li>
-                <li>• For high-volume tables (attendance), consider setting up a Supabase cron job to purge logs older than 6 months.</li>
-                <li>• UPDATE logs can be optimized by storing only changed fields instead of full old/new data.</li>
-                <li>• Use <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">DELETE FROM audit_log WHERE deleted_at &lt; NOW() - INTERVAL '6 months'</code> to clean up.</li>
-              </ul>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Bulk Delete Bar (admin only) */}
       {isAdmin && selectedLogs.size > 0 && (
