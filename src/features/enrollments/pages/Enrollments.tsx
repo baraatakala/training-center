@@ -50,7 +50,7 @@ export function Enrollments() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'student' | 'course' | 'date' | 'status' | 'canHost'>('student');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const { isTeacher, isAdmin } = useIsTeacher();
+  const { isTeacher, isAdmin, loading: roleLoading } = useIsTeacher();
   const [error, setError] = useState<string | null>(null);
   const [deletingEnrollmentId, setDeletingEnrollmentId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -323,7 +323,7 @@ export function Enrollments() {
         </div>
       </div>
 
-      {!isTeacher && (
+      {!roleLoading && !isTeacher && (
         <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4">
           <p className="text-yellow-800 dark:text-yellow-200 text-sm">
             ⚠️ You are viewing as a student. Edit and add functions are disabled.

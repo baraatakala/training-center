@@ -271,13 +271,16 @@ export function PhotoCheckIn() {
 
       const courseData = session.course ? (Array.isArray(session.course) ? session.course[0] : session.course) : undefined;
       
+      // Resolve effective time (time change override or default session time)
+      const effectiveTime = await checkinService.getEffectiveTimeForDate(sessionId, date);
+      
       setCheckInData({
         session_id: sessionId,
         attendance_date: date,
         token: token!,
         session: {
           course: courseData,
-          time: session.time,
+          time: effectiveTime || session.time,
           location: session.location,
           grace_period_minutes: session.grace_period_minutes,
           proximity_radius: session.proximity_radius,

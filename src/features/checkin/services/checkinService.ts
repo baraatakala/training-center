@@ -199,4 +199,16 @@ export const checkinService = {
   createChannel(name: string) {
     return supabase.channel(name);
   },
+
+  async getEffectiveTimeForDate(sessionId: string, date: string) {
+    const { data } = await supabase
+      .from('session_time_change')
+      .select('new_time')
+      .eq('session_id', sessionId)
+      .lte('effective_date', date)
+      .order('effective_date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return data?.new_time ?? null;
+  },
 };

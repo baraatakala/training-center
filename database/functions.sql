@@ -337,6 +337,7 @@ DECLARE
   v_token UUID;
   v_qr_session_id UUID;
   v_session_time_str VARCHAR;
+  v_effective_time TEXT;
   v_session_time TIME;
   v_grace_period INTEGER;
   v_expires_at TIMESTAMPTZ;
@@ -361,10 +362,24 @@ BEGIN
   IF p_expires_at IS NOT NULL THEN
     v_expires_at := p_expires_at;
   ELSE
+    -- Get default session time and grace period
     SELECT time, grace_period_minutes
     INTO v_session_time_str, v_grace_period
     FROM session
     WHERE session_id = p_session_id;
+
+    -- Check for effective time override from session_time_change
+    SELECT new_time INTO v_effective_time
+    FROM session_time_change
+    WHERE session_id = p_session_id
+      AND effective_date <= p_attendance_date
+    ORDER BY effective_date DESC
+    LIMIT 1;
+
+    -- Use effective time if available, otherwise fall back to session default
+    IF v_effective_time IS NOT NULL THEN
+      v_session_time_str := v_effective_time;
+    END IF;
 
     IF v_session_time_str IS NULL OR v_session_time_str = '' THEN
       v_expires_at := now() + interval '2 hours';
