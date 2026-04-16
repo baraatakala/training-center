@@ -449,7 +449,7 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
     return result;
   }, [flattenedRecords, correctnessFilter, violationsFilter, ratingRangeFilters]);
 
-  const paginatedRecords = useMemo(() => {
+  const sortedRecords = useMemo(() => {
     const sorted = [...displayRecords];
     if (sortField) {
       sorted.sort((a, b) => {
@@ -473,9 +473,13 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
         return sortDirection === 'asc' ? cmp : -cmp;
       });
     }
+    return sorted;
+  }, [displayRecords, sortField, sortDirection]);
+
+  const paginatedRecords = useMemo(() => {
     const start = recordsPage * RECORDS_PER_PAGE;
-    return sorted.slice(start, start + RECORDS_PER_PAGE);
-  }, [displayRecords, recordsPage, sortField, sortDirection]);
+    return sortedRecords.slice(start, start + RECORDS_PER_PAGE);
+  }, [sortedRecords, recordsPage]);
 
   const totalPages = Math.ceil(displayRecords.length / RECORDS_PER_PAGE);
 
@@ -523,8 +527,8 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
             </button>
           )}
         </div>
-        {displayRecords.length > 0 && (
-          <Button variant="outline" size="sm" className="rounded-full self-start sm:self-auto" onClick={() => exportFeedbackCSV(displayRecords, selectedSession?.course_name || 'feedback', dateFrom && dateTo ? `${dateFrom}_to_${dateTo}` : dateFrom || dateTo || '')}>
+        {sortedRecords.length > 0 && (
+          <Button variant="outline" size="sm" className="rounded-full self-start sm:self-auto" onClick={() => exportFeedbackCSV(sortedRecords, selectedSession?.course_name || 'feedback', dateFrom && dateTo ? `${dateFrom}_to_${dateTo}` : dateFrom || dateTo || '')}>
             {t.exportCSV}
           </Button>
         )}
@@ -545,8 +549,8 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
             placeholder={t.selectSession}
           />
         </div>
-        {embedded && displayRecords.length > 0 && (
-          <Button variant="outline" size="sm" className="rounded-full shrink-0" onClick={() => exportFeedbackCSV(displayRecords, selectedSession?.course_name || 'feedback', dateFrom && dateTo ? `${dateFrom}_to_${dateTo}` : dateFrom || dateTo || '')}>
+        {embedded && sortedRecords.length > 0 && (
+          <Button variant="outline" size="sm" className="rounded-full shrink-0" onClick={() => exportFeedbackCSV(sortedRecords, selectedSession?.course_name || 'feedback', dateFrom && dateTo ? `${dateFrom}_to_${dateTo}` : dateFrom || dateTo || '')}>
             {t.exportCSV}
           </Button>
         )}
