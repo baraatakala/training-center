@@ -3356,7 +3356,7 @@ export function Attendance() {
                       return (
                     <div
                       key={record.attendance_id}
-                      className={`flex items-center gap-3 px-3 py-2.5 transition-colors group ${
+                      className={`flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 px-3 py-2.5 transition-colors group ${
                         isNotEnrolled
                           ? 'opacity-40 bg-gray-50 dark:bg-gray-900/30'
                           : selectedStudents.has(record.attendance_id)
@@ -3382,14 +3382,14 @@ export function Attendance() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm truncate dark:text-white">{record.student.name}</span>
+                          <span className="font-medium text-sm dark:text-white sm:truncate">{record.student.name}</span>
                           {studentExcuseReq && (
                             <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 animate-pulse" title={`Pending excuse: ${studentExcuseReq.reason}`}>
                               📋
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{record.student.email}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate hidden sm:block">{record.student.email}</p>
                       </div>
                       {record.check_in_time && (
                         <span className="hidden sm:inline-flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 shrink-0">
@@ -3430,6 +3430,7 @@ export function Attendance() {
                           </button>
                         )
                       )}
+                      <div className="flex items-center gap-1 sm:gap-2 w-full sm:w-auto justify-end sm:justify-start pl-6 sm:pl-0 mt-1 sm:mt-0">
                       <div className="shrink-0">{getStatusBadge(record.status)}</div>
                       {!isNotEnrolled && (
                         <div className="flex items-center gap-1 shrink-0">
@@ -3516,6 +3517,7 @@ export function Attendance() {
                       {isNotEnrolled && (
                         <Badge variant="default" size="sm" className="bg-gray-200 dark:bg-gray-700 text-gray-500 shrink-0">Not Enrolled</Badge>
                       )}
+                      </div>
                     </div>
                     );
                   })}

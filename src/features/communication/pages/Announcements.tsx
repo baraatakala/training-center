@@ -17,6 +17,7 @@ import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
 import { Pagination } from '@/shared/components/ui/Pagination';
 import { REACTION_EMOJIS, CATEGORIES, ANNOUNCEMENT_TEMPLATES, type CategoryType, type ExtendedAnnouncement } from '@/features/communication/constants/announcementConstants';
 import { uploadAnnouncementImage, getAnnouncementImageUrl } from '@/features/communication/utils/announcementImageUtils';
+import { dashboardService } from '@/features/dashboard/services/dashboardService';
 
 const DEFAULT_PAGE_SIZE = 9;
 
@@ -75,6 +76,14 @@ export function Announcements() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
+  // Operational pulse (teacher only)
+  const [pulse, setPulse] = useState<{
+    liveToday: number;
+    upcomingThisWeek: number;
+    todayStats: { total: number; onTime: number; late: number; absent: number };
+    pendingExcuses: number;
+  } | null>(null);
+
   // Load reactions for all announcements
   const loadReactionsForAllAnnouncements = useCallback(async (announcementsList: Announcement[], userId: string | null) => {
     if (!announcementsList.length) return;
@@ -123,6 +132,17 @@ export function Announcements() {
     setCourses(data || []);
   }, []);
 
+  const loadPulse = useCallback(async () => {
+    try {
+      const data = await dashboardService.getOperationalPulse();
+      const liveToday = data.upcomingSessions.filter((s: { isToday: boolean }) => s.isToday).length;
+      const upcomingThisWeek = data.upcomingSessions.filter((s: { isToday: boolean }) => !s.isToday).length;
+      setPulse({ liveToday, upcomingThisWeek, todayStats: data.todayStats, pendingExcuses: data.pendingExcuses });
+    } catch {
+      // Non-critical — silently fail
+    }
+  }, []);
+
   const checkUserAndLoadData = useCallback(async () => {
     try {
       setLoading(true);
@@ -141,15 +161,21 @@ export function Announcements() {
         setIsTeacher(true);
         setIsAdminUser(false);
         setCurrentUserId(role.teacher.teacher_id);
-        await loadAnnouncementsForTeacher(role.teacher.teacher_id);
-        await loadCourses();
+        await Promise.all([
+          loadAnnouncementsForTeacher(role.teacher.teacher_id),
+          loadCourses(),
+          loadPulse(),
+        ]);
       } else if (role.admin) {
         // Admin uses admin_id directly - no fake teacher record needed
         setIsTeacher(true);
         setIsAdminUser(true);
         setCurrentUserId(role.admin.admin_id);
-        await loadAnnouncementsForTeacher(role.admin.admin_id);
-        await loadCourses();
+        await Promise.all([
+          loadAnnouncementsForTeacher(role.admin.admin_id),
+          loadCourses(),
+          loadPulse(),
+        ]);
       } else if (role.student) {
         setIsTeacher(false);
         setCurrentUserId(role.student.student_id);
@@ -163,7 +189,7 @@ export function Announcements() {
     } finally {
       setLoading(false);
     }
-  }, [loadAnnouncementsForTeacher, loadAnnouncementsForStudent, loadCourses]);
+  }, [loadAnnouncementsForTeacher, loadAnnouncementsForStudent, loadCourses, loadPulse]);
 
   useEffect(() => {
     checkUserAndLoadData();
@@ -621,9 +647,50 @@ export function Announcements() {
         </CardContent>
       </Card>
 
-      {/* Stats */}
+      {/* Stats + Operational Pulse */}
       {isTeacher && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="space-y-3">
+          {/* Operational Pulse Bar */}
+          {pulse && (
+            <Card className="bg-gradient-to-r from-slate-50 to-blue-50 dark:from-slate-800/50 dark:to-blue-900/30 border-blue-200/50 dark:border-blue-700/30">
+              <CardContent className="py-3 px-4">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    Today's Pulse
+                  </div>
+                  <div className="flex items-center gap-4 flex-wrap text-sm">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-emerald-600 dark:text-emerald-400 font-bold">{pulse.liveToday}</span>
+                      <span className="text-gray-500 dark:text-gray-400">Live Sessions</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-blue-600 dark:text-blue-400 font-bold">{pulse.todayStats.total}</span>
+                      <span className="text-gray-500 dark:text-gray-400">Check-Ins</span>
+                      {pulse.todayStats.total > 0 && (
+                        <span className="text-xs text-gray-400 dark:text-gray-500">
+                          ({pulse.todayStats.onTime}✓ {pulse.todayStats.late}⏰ {pulse.todayStats.absent}✗)
+                        </span>
+                      )}
+                    </div>
+                    {pulse.pendingExcuses > 0 && (
+                      <a href="/excuse-requests" className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 hover:underline">
+                        <span className="font-bold">{pulse.pendingExcuses}</span>
+                        <span>Pending Excuses →</span>
+                      </a>
+                    )}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-purple-600 dark:text-purple-400 font-bold">{pulse.upcomingThisWeek}</span>
+                      <span className="text-gray-500 dark:text-gray-400">This Week</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Announcement Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="pt-4 text-center">
               <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{announcements.length}</div>
@@ -648,6 +715,7 @@ export function Announcements() {
               <div className="text-sm text-gray-600 dark:text-gray-400">Global</div>
             </CardContent>
           </Card>
+        </div>
         </div>
       )}
 

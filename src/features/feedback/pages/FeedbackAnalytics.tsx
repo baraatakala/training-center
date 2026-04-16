@@ -17,7 +17,7 @@ type CorrectnessFilter = 'all' | 'correct' | 'partial' | 'incorrect' | 'not-grad
 type RatingRangeFilter = 'bad' | 'neutral' | 'good';
 type ViolationsFilter = 'all' | 'has_violations';
 
-type SortField = 'studentName' | 'attendanceDate' | 'questionType' | 'questionText' | 'answer' | 'comment' | 'overallRating' | 'tabSwitchCount';
+type SortField = 'studentName' | 'attendanceDate' | 'checkInTime' | 'questionType' | 'questionText' | 'answer' | 'comment' | 'overallRating' | 'tabSwitchCount';
 type SortDirection = 'asc' | 'desc';
 
 interface SessionOption {
@@ -37,6 +37,7 @@ interface FlattenedRecord {
   studentName: string;
   isAnonymous: boolean;
   attendanceDate: string;
+  checkInTime: string | null;
   overallRating: number | null;
   questionType: string;
   questionText: string;
@@ -57,10 +58,12 @@ interface FlattenedRecord {
 
 // ─── CSV export (one row per question-answer) ───────────────
 function exportFeedbackCSV(records: FlattenedRecord[], courseName: string, selectedDate?: string) {
-  const headers = ['Student', 'Date', 'Question Type', 'Question', 'Answer', 'Correct?', 'Violations', 'Auto-Submitted', 'Comment'];
+  const headers = ['Student', 'Date', 'Check-In Time', 'Question Type', 'Question', 'Answer', 'Correct Answer', 'Correct?', 'Violations', 'Auto-Submitted', 'Comment'];
   const rows = records.map(r => [
     r.studentName, r.attendanceDate,
+    r.checkInTime ? new Date(r.checkInTime).toLocaleTimeString() : '',
     r.questionType, r.questionText, r.answer,
+    r.correctAnswer || '',
     r.isCorrect === null ? '' : r.isCorrect ? 'Yes' : (r.gradingScore !== null && r.gradingScore > 0) ? `Partial (${r.gradingDetail})` : 'No',
     String(r.tabSwitchCount),
     r.isAutoSubmitted ? 'Yes' : '',
@@ -368,7 +371,8 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
         if (questionTypeFilter === 'all' || questionTypeFilter === 'rating') {
           rows.push({
             feedbackId: fb.id, studentName, isAnonymous: fb.is_anonymous,
-            attendanceDate: fb.attendance_date, overallRating: fb.overall_rating != null ? Number(fb.overall_rating) : null,
+            attendanceDate: fb.attendance_date, checkInTime: fb.check_in_time ?? null,
+            overallRating: fb.overall_rating != null ? Number(fb.overall_rating) : null,
             questionType: 'rating',
             questionText: t.overallRating,
             answer: fb.overall_rating != null ? String(fb.overall_rating) : '—',
@@ -400,7 +404,8 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
           const displayAnswer = Array.isArray(val) ? val.join(', ') : (val != null ? String(val) : '—');
           rows.push({
             feedbackId: fb.id, studentName, isAnonymous: fb.is_anonymous,
-            attendanceDate: fb.attendance_date, overallRating: fb.overall_rating != null ? Number(fb.overall_rating) : null,
+            attendanceDate: fb.attendance_date, checkInTime: fb.check_in_time ?? null,
+            overallRating: fb.overall_rating != null ? Number(fb.overall_rating) : null,
             questionType: qType,
             questionText: q?.question_text || '—',
             answer: displayAnswer,
@@ -760,9 +765,11 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                           {([
                             { key: 'studentName' as SortField, label: t.student },
                             { key: 'attendanceDate' as SortField, label: t.date },
+                            { key: 'checkInTime' as SortField, label: 'Check-In' },
                             { key: 'questionType' as SortField, label: t.type },
                             { key: 'questionText' as SortField, label: t.question },
                             { key: 'answer' as SortField, label: t.answer },
+                            { key: null, label: 'Correct Answer' },
                             { key: null, label: t.correct },
                             { key: 'comment' as SortField, label: t.comment },
                             { key: 'tabSwitchCount' as SortField, label: t.violations },
@@ -795,6 +802,9 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                               )}
                             </td>
                             <td className="px-3 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">{row.attendanceDate}</td>
+                            <td className="px-3 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap text-[10px]">
+                              {row.checkInTime ? new Date(row.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+                            </td>
                             <td className="px-3 py-3">
                               <span className="px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-[10px] capitalize whitespace-nowrap">
                                 {row.questionType}
@@ -811,6 +821,11 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                                 : row.isCorrect === false ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
                                 : 'text-gray-900 dark:text-white'
                               }`} title={row.answer}>{row.answer}</span>
+                            </td>
+                            <td className="px-3 py-3 max-w-[140px]">
+                              {row.correctAnswer ? (
+                                <span className="text-green-700 dark:text-green-400 font-medium truncate block text-[10px]" title={row.correctAnswer}>{row.correctAnswer}</span>
+                              ) : <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>}
                             </td>
                             <td className="px-3 py-3 text-center">
                               {row.isCorrect === null ? (

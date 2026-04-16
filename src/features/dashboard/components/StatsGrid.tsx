@@ -6,9 +6,10 @@ import type { DashboardStats } from '../constants/dashboardConstants';
 interface StatsGridProps {
   stats: DashboardStats;
   pendingExcuses: number;
+  isTeacher: boolean;
 }
 
-export function StatsGrid({ stats, pendingExcuses }: StatsGridProps) {
+export function StatsGrid({ stats, pendingExcuses, isTeacher }: StatsGridProps) {
   return (
     <>
       {/* Stats Grid */}
@@ -90,8 +91,8 @@ export function StatsGrid({ stats, pendingExcuses }: StatsGridProps) {
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <Card>
+      {/* Quick Actions (Teacher/Admin only) */}
+      {isTeacher && <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
@@ -131,7 +132,7 @@ export function StatsGrid({ stats, pendingExcuses }: StatsGridProps) {
             </Link>
           </div>
         </CardContent>
-      </Card>
+      </Card>}
     </>
   );
 }

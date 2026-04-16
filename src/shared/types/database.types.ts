@@ -296,6 +296,7 @@ export interface SessionFeedback {
   is_auto_submitted: boolean;
   created_at: string;
   student_name?: string | null;
+  check_in_time?: string | null;
 }
 
 export interface FeedbackTemplate {

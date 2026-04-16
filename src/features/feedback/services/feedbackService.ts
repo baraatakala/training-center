@@ -414,18 +414,31 @@ export const feedbackService = {
   // ─── Analytics ───────────────────────────────────────────
   /** Get all feedback for a session */
   async getBySession(sessionId: string) {
-    const { data, error } = await supabase
-      .from('session_feedback')
-      .select('*, student:student_id(name)')
-      .eq('session_id', sessionId)
-      .order('created_at', { ascending: false });
+    const [fbResult, attResult] = await Promise.all([
+      supabase
+        .from('session_feedback')
+        .select('*, student:student_id(name)')
+        .eq('session_id', sessionId)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('attendance')
+        .select('student_id, attendance_date, check_in_time')
+        .eq('session_id', sessionId),
+    ]);
 
-    const mapped = data?.map((row: Record<string, unknown>) => {
+    // Build lookup: "studentId|date" → check_in_time
+    const attMap = new Map<string, string | null>();
+    for (const a of attResult.data ?? []) {
+      attMap.set(`${a.student_id}|${a.attendance_date}`, a.check_in_time);
+    }
+
+    const mapped = fbResult.data?.map((row: Record<string, unknown>) => {
       const student = row.student as { name: string } | null;
-      return { ...row, student_name: student?.name ?? null, student: undefined } as unknown as SessionFeedback;
+      const key = `${row.student_id}|${row.attendance_date}`;
+      return { ...row, student_name: student?.name ?? null, check_in_time: attMap.get(key) ?? null, student: undefined } as unknown as SessionFeedback;
     }) ?? null;
 
-    return { data: mapped, error: normalizeFeedbackError(error) };
+    return { data: mapped, error: normalizeFeedbackError(fbResult.error) };
   },
 
   /** Get feedback for a specific session+date */

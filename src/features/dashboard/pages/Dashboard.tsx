@@ -131,7 +131,7 @@ export function Dashboard() {
       )}
 
 
-      <StatsGrid stats={stats} pendingExcuses={pendingExcuses} />
+      <StatsGrid stats={stats} pendingExcuses={pendingExcuses} isTeacher={isTeacher ?? false} />
 
       {/* Operational Pulse (Teachers/Admins Only) */}
       {isTeacher && <OperationalPulse />}

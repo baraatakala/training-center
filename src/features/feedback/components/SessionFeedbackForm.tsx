@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { feedbackService, type FeedbackQuestion } from '@/features/feedback/services/feedbackService';
 import { gradeAnswer, type GradingResult } from '@/features/feedback/utils/grading';
 import { Button } from '@/shared/components/ui';
@@ -202,6 +202,24 @@ export default function SessionFeedbackForm({
     }
   };
 
+  // Auto-redirect countdown for auto-submitted tests (gives student time to review results)
+  const [autoRedirectSeconds, setAutoRedirectSeconds] = useState(12);
+  const autoRedirectRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    if (!submitted || !wasAutoSubmitted || gradedResults.length === 0) return;
+    autoRedirectRef.current = setInterval(() => {
+      setAutoRedirectSeconds(prev => {
+        if (prev <= 1) {
+          if (autoRedirectRef.current) clearInterval(autoRedirectRef.current);
+          onComplete();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => { if (autoRedirectRef.current) clearInterval(autoRedirectRef.current); };
+  }, [submitted, wasAutoSubmitted, gradedResults.length, onComplete]);
+
   if (loading) {
     return (
       <div className="animate-fade-in mt-6 p-4">
@@ -315,9 +333,9 @@ export default function SessionFeedbackForm({
           <button
             type="button"
             onClick={onComplete}
-            className="w-full py-2.5 text-sm font-medium text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 transition-colors"
+            className="w-full py-3 text-sm font-semibold rounded-xl bg-purple-600 hover:bg-purple-700 text-white transition-colors"
           >
-            Continue →
+            {wasAutoSubmitted ? `Return Home (${autoRedirectSeconds}s)` : 'Continue →'}
           </button>
         )}
       </div>
@@ -399,13 +417,13 @@ export default function SessionFeedbackForm({
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Leaving this page during a test is not allowed. Violation {tabSwitchCount} of {maxTabSwitches}.
             </p>
-            {tabSwitchCount < maxTabSwitches ? (
-              <p className="text-xs text-red-600 dark:text-red-400 font-medium">
-                After {maxTabSwitches} violations your answers will be auto-submitted.
-              </p>
-            ) : (
+            {tabSwitchCount >= maxTabSwitches ? (
               <p className="text-xs text-red-700 dark:text-red-300 font-bold">
                 Maximum violations reached. Auto-submitting your answers now...
+              </p>
+            ) : (
+              <p className="text-xs text-red-600 dark:text-red-400 font-medium">
+                After {maxTabSwitches} violations your answers will be auto-submitted.
               </p>
             )}
             {tabSwitchCount < maxTabSwitches && (
