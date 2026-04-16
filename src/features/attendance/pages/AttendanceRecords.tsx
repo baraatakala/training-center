@@ -26,6 +26,7 @@ interface AttendanceRecord {
   attendance_id: string;
   student_id: string;
   student_specialization?: string | null;
+  student_email?: string | null;
   session_id: string;
   attendance_date: string;
   status: 'on time' | 'absent' | 'late' | 'excused' | 'not enrolled';
@@ -4350,7 +4351,6 @@ export const AttendanceRecords = () => {
         fields: [
           { key: 'date', label: 'Date', labelAr: 'التاريخ', category: 'basic', defaultSelected: true },
           { key: 'dayOfWeek', label: 'Day of Week', labelAr: 'يوم الأسبوع', category: 'basic', defaultSelected: false },
-          { key: 'attendance_id', label: 'Record ID', labelAr: 'رقم السجل', category: 'basic', defaultSelected: false },
         ]
       },
       {
@@ -4360,7 +4360,8 @@ export const AttendanceRecords = () => {
         icon: '👤',
         fields: [
           { key: 'student_name', label: 'Student Name', labelAr: 'اسم الطالب', category: 'student', defaultSelected: true },
-          { key: 'student_id', label: 'Student ID', labelAr: 'رقم الطالب', category: 'student', defaultSelected: false },
+          { key: 'student_email', label: 'Student Email', labelAr: 'بريد الطالب', category: 'student', defaultSelected: false },
+          { key: 'student_specialization', label: 'Specialization', labelAr: 'التخصص', category: 'student', defaultSelected: false },
         ]
       },
       {
@@ -4370,7 +4371,6 @@ export const AttendanceRecords = () => {
         icon: '📚',
         fields: [
           { key: 'course_name', label: 'Course Name', labelAr: 'اسم الدورة', category: 'course', defaultSelected: true },
-          { key: 'course_id', label: 'Course ID', labelAr: 'رقم الدورة', category: 'course', defaultSelected: false },
           { key: 'instructor_name', label: 'Instructor', labelAr: 'المدرب', category: 'course', defaultSelected: true },
           { key: 'session_location', label: 'Session Location', labelAr: 'موقع الجلسة', category: 'course', defaultSelected: false },
         ]
@@ -4434,8 +4434,6 @@ export const AttendanceRecords = () => {
         fields: [
           { key: 'marked_by', label: 'Marked By', labelAr: 'سجل بواسطة', category: 'metadata', defaultSelected: false },
           { key: 'marked_at', label: 'Marked At', labelAr: 'وقت التسجيل', category: 'metadata', defaultSelected: true },
-          { key: 'session_id', label: 'Session ID', labelAr: 'رقم الجلسة', category: 'metadata', defaultSelected: false },
-          { key: 'teacher_id', label: 'Teacher ID', labelAr: 'رقم المدرب', category: 'metadata', defaultSelected: false },
         ]
       }
     ];
@@ -4910,10 +4908,10 @@ export const AttendanceRecords = () => {
         attendance_id: r.attendance_id,
         // Student Info
         student_name: r.student_name,
-        student_id: r.student_id,
+        student_email: r.student_email || '-',
+        student_specialization: r.student_specialization || '-',
         // Course Info
         course_name: r.course_name,
-        course_id: r.course_id,
         instructor_name: r.instructor_name,
         session_location: r.session_location || '-',
         // Book Coverage

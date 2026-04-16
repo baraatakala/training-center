@@ -4,6 +4,7 @@ export interface AttendanceRecordsPageRecord {
   attendance_id: string;
   student_id: string;
   student_specialization?: string | null;
+  student_email?: string | null;
   session_id: string;
   attendance_date: string;
   status: 'on time' | 'absent' | 'late' | 'excused' | 'not enrolled';
@@ -52,7 +53,7 @@ export async function loadAttendanceRecordsPageData(studentIds: string[]) {
       marked_by,
       marked_at,
       host_address,
-      student:student_id (name, specialization),
+      student:student_id (name, specialization, email),
       enrollment:enrollment_id (enrollment_date),
       session:session_id (
         location,
@@ -219,6 +220,7 @@ export async function loadAttendanceRecordsPageData(studentIds: string[]) {
       marked_at: (record.marked_at as string | null) ?? null,
       host_address: hostAddress,
       student_name: (student.name as string) || 'Unknown',
+      student_email: (student.email as string | null) || null,
       course_id: (session.course_id as string) || '',
       course_name: (course.course_name as string) || 'Unknown',
       teacher_id: (session.teacher_id as string) || '',

@@ -923,16 +923,37 @@ export class WordExportService {
     isArabic: boolean = false,
     theme?: DocumentTheme,
     colorColumns?: number[],  // Column indices to apply percentage coloring
-    tableFontSize?: number    // Font size in pt (default: header 11, body 10)
+    tableFontSize?: number,   // Font size in pt (default: header 11, body 10)
+    layoutOptions?: {
+      headerFontSizePt?: number;
+      headerBgColor?: string;
+      showGridlines?: boolean;
+      alternateRowColors?: boolean;
+      rowDensity?: 'compact' | 'normal' | 'comfortable';
+    }
   ): Table {
     const activeTheme = theme || this.defaultTheme;
-    const headerSizeHp = tableFontSize ? tableFontSize * 2 + 2 : 22; // half-points, header slightly larger
+    // Header font size: prefer layoutOptions.headerFontSizePt, then derive from tableFontSize
+    const headerSizeHp = layoutOptions?.headerFontSizePt
+      ? layoutOptions.headerFontSizePt * 2
+      : tableFontSize ? tableFontSize * 2 + 2 : 22; // half-points
     const bodySizeHp = tableFontSize ? tableFontSize * 2 : 20;       // half-points
-    const borderStyle = {
-      style: BorderStyle.SINGLE,
-      size: 1,
-      color: '000000',
-    };
+
+    // Header background: prefer layoutOptions.headerBgColor, then theme
+    const headerBgColor = layoutOptions?.headerBgColor || activeTheme.primary;
+
+    // Gridlines: default true
+    const showGridlines = layoutOptions?.showGridlines !== false;
+    const borderStyle = showGridlines
+      ? { style: BorderStyle.SINGLE, size: 1, color: '000000' }
+      : { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+
+    // Alternate row colors: default true
+    const useAlternateRows = layoutOptions?.alternateRowColors !== false;
+
+    // Row density → cell margin in twips (1 twip = 1/1440 inch)
+    const densityMarginMap = { compact: 20, normal: 60, comfortable: 120 };
+    const cellMarginTwips = densityMarginMap[layoutOptions?.rowDensity || 'normal'];
 
     // Create header row with theme color
     const headerRow = new TableRow({
@@ -958,14 +979,20 @@ export class WordExportService {
             ],
             shading: {
               type: ShadingType.CLEAR,
-              fill: activeTheme.primary,
-              color: activeTheme.primary,
+              fill: headerBgColor,
+              color: headerBgColor,
             },
             borders: {
               top: borderStyle,
               bottom: borderStyle,
               left: borderStyle,
               right: borderStyle,
+            },
+            margins: {
+              top: cellMarginTwips,
+              bottom: cellMarginTwips,
+              left: cellMarginTwips + 30,
+              right: cellMarginTwips + 30,
             },
           })
       ),
@@ -991,11 +1018,11 @@ export class WordExportService {
                 textColor = 'FFFFFF'; // White text for colored backgrounds
               } else {
                 // Use zebra striping if not a percentage
-                cellBgColor = rowIndex % 2 === 0 ? 'FFFFFF' : 'F9FAFB';
+                cellBgColor = useAlternateRows && rowIndex % 2 !== 0 ? 'F9FAFB' : 'FFFFFF';
               }
             } else {
-              // Default zebra striping
-              cellBgColor = rowIndex % 2 === 0 ? 'FFFFFF' : 'F9FAFB';
+              // Zebra striping (or plain white if disabled)
+              cellBgColor = useAlternateRows && rowIndex % 2 !== 0 ? 'F9FAFB' : 'FFFFFF';
             }
 
             return new TableCell({
@@ -1029,6 +1056,12 @@ export class WordExportService {
                 bottom: borderStyle,
                 left: borderStyle,
                 right: borderStyle,
+              },
+              margins: {
+                top: cellMarginTwips,
+                bottom: cellMarginTwips,
+                left: cellMarginTwips + 30,
+                right: cellMarginTwips + 30,
               },
             });
           }
@@ -1687,7 +1720,7 @@ export class WordExportService {
     }
 
     // Add the main data table
-    sections.push(this.createTable(headers, rows, isArabic, theme, colorColumns, layoutOptions?.bodyFontSizePt));
+    sections.push(this.createTable(headers, rows, isArabic, theme, colorColumns, layoutOptions?.bodyFontSizePt, layoutOptions));
 
     const doc = new Document({
       sections: [
