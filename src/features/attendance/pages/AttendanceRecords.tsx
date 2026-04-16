@@ -288,6 +288,23 @@ export const AttendanceRecords = () => {
     localStorage.setItem('sharedExportLayout', JSON.stringify(sharedLayoutSettings));
   }, [sharedLayoutSettings]);
 
+  // Shared coloring settings — written by whichever AdvancedExportBuilder the user last configured
+  const [sharedColoringSettings, setSharedColoringSettings] = useState<{
+    enableConditionalColoring?: boolean;
+    coloringTheme?: 'default' | 'traffic' | 'heatmap' | 'status';
+    coloringFields?: string[];
+  }>(() => {
+    try {
+      const saved = localStorage.getItem('sharedExportColoring');
+      if (saved) return JSON.parse(saved);
+    } catch { /* ignore */ }
+    return {};
+  });
+
+  useEffect(() => {
+    localStorage.setItem('sharedExportColoring', JSON.stringify(sharedColoringSettings));
+  }, [sharedColoringSettings]);
+
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<AttendanceRecord[]>([]);
   const hostGpsLookupRef = useRef(new Map<string, { lat: number; lon: number }>());
@@ -2538,7 +2555,7 @@ export const AttendanceRecords = () => {
       if (!settings.enableConditionalColoring) return { colorColumns: [], theme: settings.coloringTheme, enabled: false };
       
       if (settings.coloringFields.length > 0) {
-        // User explicitly selected fields to color — map field keys to column indices
+        // User explicitly selected fields to color for this type — map field keys to column indices
         const selectedKeys = getSelectedFieldsForType(dataType);
         const colorColumns = settings.coloringFields
           .map(fieldKey => selectedKeys.indexOf(fieldKey))
@@ -2546,7 +2563,19 @@ export const AttendanceRecords = () => {
         return { colorColumns, theme: settings.coloringTheme, enabled: true };
       }
       
-      // Auto-detect from headers
+      // Fallback: use shared coloring settings from the last builder the user configured
+      if (sharedColoringSettings.coloringFields && sharedColoringSettings.coloringFields.length > 0) {
+        const selectedKeys = getSelectedFieldsForType(dataType);
+        const colorColumns = sharedColoringSettings.coloringFields
+          .map(fieldKey => selectedKeys.indexOf(fieldKey))
+          .filter(idx => idx !== -1);
+        if (colorColumns.length > 0) {
+          const theme = sharedColoringSettings.coloringTheme || settings.coloringTheme;
+          return { colorColumns, theme, enabled: true };
+        }
+      }
+      
+      // Auto-detect from headers (only if no builder has ever set specific fields)
       return { colorColumns: detectPercentageColumns(headers), theme: settings.coloringTheme, enabled: true };
     };
 
@@ -3481,38 +3510,42 @@ export const AttendanceRecords = () => {
     }
 
     // Get per-type coloring settings for Word export
+    // Helper: resolve colorColumns with shared fallback (same logic as PDF resolveColorColumns)
+    const resolveWordColorColumns = (dataType: 'studentAnalytics' | 'dateAnalytics' | 'hostAnalytics' | 'specializationAnalytics') => {
+      const s = getColoringSettingsForType(dataType);
+      const selectedKeys = getSelectedFieldsForType(dataType);
+      if (s.coloringFields.length > 0) {
+        return { colorCols: s.coloringFields.map(fk => selectedKeys.indexOf(fk)).filter(i => i !== -1), theme: s.coloringTheme };
+      }
+      // Shared fallback
+      if (sharedColoringSettings.coloringFields && sharedColoringSettings.coloringFields.length > 0) {
+        const cols = sharedColoringSettings.coloringFields.map(fk => selectedKeys.indexOf(fk)).filter(i => i !== -1);
+        if (cols.length > 0) {
+          return { colorCols: cols, theme: sharedColoringSettings.coloringTheme || s.coloringTheme };
+        }
+      }
+      return { colorCols: [], theme: s.coloringTheme };
+    };
     const wordStudentColoring = (() => {
       const s = getColoringSettingsForType('studentAnalytics');
-      const selectedKeys = getSelectedFieldsForType('studentAnalytics');
-      const colorCols = s.coloringFields.length > 0
-        ? s.coloringFields.map(fk => selectedKeys.indexOf(fk)).filter(i => i !== -1)
-        : [];
-      return { enabled: s.enableConditionalColoring, theme: s.coloringTheme, colorColumns: colorCols };
+      const { colorCols, theme } = resolveWordColorColumns('studentAnalytics');
+      return { enabled: s.enableConditionalColoring, theme, colorColumns: colorCols };
     })();
     const wordDateColoring = (() => {
       const s = getColoringSettingsForType('dateAnalytics');
-      const selectedKeys = getSelectedFieldsForType('dateAnalytics');
-      const colorCols = s.coloringFields.length > 0
-        ? s.coloringFields.map(fk => selectedKeys.indexOf(fk)).filter(i => i !== -1)
-        : [];
-      return { enabled: s.enableConditionalColoring, theme: s.coloringTheme, colorColumns: colorCols };
+      const { colorCols, theme } = resolveWordColorColumns('dateAnalytics');
+      return { enabled: s.enableConditionalColoring, theme, colorColumns: colorCols };
     })();
     const wordHostColoring = (() => {
       const s = getColoringSettingsForType('hostAnalytics');
-      const selectedKeys = getSelectedFieldsForType('hostAnalytics');
-      const colorCols = s.coloringFields.length > 0
-        ? s.coloringFields.map(fk => selectedKeys.indexOf(fk)).filter(i => i !== -1)
-        : [];
-      return { enabled: s.enableConditionalColoring, theme: s.coloringTheme, colorColumns: colorCols };
+      const { colorCols, theme } = resolveWordColorColumns('hostAnalytics');
+      return { enabled: s.enableConditionalColoring, theme, colorColumns: colorCols };
     })();
     const wordAnyEnabled = wordStudentColoring.enabled || wordDateColoring.enabled || wordHostColoring.enabled;
     const wordSpecColoring = (() => {
       const s = getColoringSettingsForType('specializationAnalytics');
-      const selectedKeys = getSelectedFieldsForType('specializationAnalytics');
-      const colorCols = s.coloringFields.length > 0
-        ? s.coloringFields.map(fk => selectedKeys.indexOf(fk)).filter(i => i !== -1)
-        : [];
-      return { enabled: s.enableConditionalColoring, theme: s.coloringTheme, colorColumns: colorCols };
+      const { colorCols, theme } = resolveWordColorColumns('specializationAnalytics');
+      return { enabled: s.enableConditionalColoring, theme, colorColumns: colorCols };
     })();
 
     // Build cross-tab matrix data for Word export
@@ -5067,6 +5100,12 @@ export const AttendanceRecords = () => {
                   rowDensity: settings.rowDensity,
                 });
               }
+              // Sync coloring fields to shared state so global exports respect the last builder's selection
+              setSharedColoringSettings({
+                enableConditionalColoring: settings.enableConditionalColoring,
+                coloringTheme: settings.coloringTheme,
+                coloringFields: settings.coloringFields || [],
+              });
             }}
             rowFilterKey={exportDataType === 'dateAnalytics' ? 'date' : undefined}
             rowFilterLabel={exportDataType === 'dateAnalytics' ? t.dateRowsToExport : undefined}
