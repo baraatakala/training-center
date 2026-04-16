@@ -6,6 +6,7 @@
  */
 
 import { supabase } from '@/shared/lib/supabase';
+import { logInsert, logUpdate, logDelete } from '@/shared/services/auditService';
 
 // =====================================================
 // TYPES
@@ -181,10 +182,21 @@ class CertificateService {
       .select()
       .single();
 
+    if (!error && data) {
+      await logInsert('certificate_template', data.template_id, data as unknown as Record<string, unknown>);
+    }
+
     return { data: data as CertificateTemplate | null, error };
   }
 
   async updateTemplate(id: string, updates: Partial<CreateCertificateTemplate>) {
+    // Fetch old data for audit diff
+    const { data: oldData } = await supabase
+      .from('certificate_template')
+      .select('*')
+      .eq('template_id', id)
+      .single();
+
     const { data, error } = await supabase
       .from('certificate_template')
       .update(updates)
@@ -192,14 +204,28 @@ class CertificateService {
       .select()
       .single();
 
+    if (!error && data && oldData) {
+      await logUpdate('certificate_template', id, oldData as Record<string, unknown>, data as unknown as Record<string, unknown>);
+    }
+
     return { data: data as CertificateTemplate | null, error };
   }
 
   async deleteTemplate(id: string) {
+    const { data: oldData } = await supabase
+      .from('certificate_template')
+      .select('*')
+      .eq('template_id', id)
+      .single();
+
     const { error } = await supabase
       .from('certificate_template')
       .delete()
       .eq('template_id', id);
+
+    if (!error && oldData) {
+      await logDelete('certificate_template', id, oldData as Record<string, unknown>);
+    }
 
     return { error };
   }
@@ -428,6 +454,12 @@ class CertificateService {
 
   /** Revoke a certificate */
   async revokeCertificate(certificateId: string, reason: string) {
+    const { data: oldData } = await supabase
+      .from('issued_certificate')
+      .select('*')
+      .eq('certificate_id', certificateId)
+      .single();
+
     const { data, error } = await supabase
       .from('issued_certificate')
       .update({
@@ -438,6 +470,10 @@ class CertificateService {
       .eq('certificate_id', certificateId)
       .select()
       .single();
+
+    if (!error && data && oldData) {
+      await logUpdate('issued_certificate', certificateId, oldData as Record<string, unknown>, data as unknown as Record<string, unknown>, `Revoked: ${reason}`);
+    }
 
     return { data: data as IssuedCertificate | null, error };
   }

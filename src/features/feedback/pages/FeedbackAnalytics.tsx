@@ -16,8 +16,9 @@ type QuestionTypeFilter = 'all' | 'rating' | 'text' | 'multiple_choice';
 type CorrectnessFilter = 'all' | 'correct' | 'partial' | 'incorrect' | 'not-graded';
 type RatingRangeFilter = 'bad' | 'neutral' | 'good';
 type ViolationsFilter = 'all' | 'has_violations';
+type SubmissionReasonFilter = 'all' | 'completed' | 'timer_expired' | 'tab_violation' | 'partial_timer' | 'skipped';
 
-type SortField = 'studentName' | 'attendanceDate' | 'checkInTime' | 'questionType' | 'questionText' | 'answer' | 'comment' | 'overallRating' | 'tabSwitchCount' | 'correctAnswer' | 'gradingMode' | 'isCorrect';
+type SortField = 'studentName' | 'attendanceDate' | 'checkInTime' | 'questionType' | 'questionText' | 'answer' | 'comment' | 'overallRating' | 'tabSwitchCount' | 'correctAnswer' | 'gradingMode' | 'isCorrect' | 'answerDuration' | 'submissionReason';
 type SortDirection = 'asc' | 'desc';
 
 interface SessionOption {
@@ -54,13 +55,15 @@ interface FlattenedRecord {
   gradingMode: 'exact' | 'partial' | 'any' | null;
   tabSwitchCount: number;
   isAutoSubmitted: boolean;
+  answerDuration: number | null;
+  submissionReason: string;
 }
 
 // ─── Simple sentiment detection ─────────────────────────────
 
 // ─── CSV export (one row per question-answer) ───────────────
 function exportFeedbackCSV(records: FlattenedRecord[], courseName: string, selectedDate?: string) {
-  const headers = ['Student', 'Date', 'Check-In Time', 'Overall Rating', 'Question Type', 'Question', 'Answer', 'Correct Answer', 'Grading Mode', 'Correct?', 'Violations', 'Auto-Submitted', 'Comment'];
+  const headers = ['Student', 'Date', 'Check-In Time', 'Overall Rating', 'Question Type', 'Question', 'Answer', 'Correct Answer', 'Grading Mode', 'Correct?', 'Violations', 'Auto-Submitted', 'Duration (s)', 'Reason', 'Comment'];
   const rows = records.map(r => [
     r.studentName, r.attendanceDate,
     r.checkInTime ? new Date(r.checkInTime).toLocaleTimeString() : '',
@@ -71,6 +74,8 @@ function exportFeedbackCSV(records: FlattenedRecord[], courseName: string, selec
     r.isCorrect === null ? '' : r.isCorrect ? 'Yes' : (r.gradingScore !== null && r.gradingScore > 0) ? `Partial (${r.gradingDetail})` : 'No',
     String(r.tabSwitchCount),
     r.isAutoSubmitted ? 'Yes' : '',
+    r.answerDuration != null ? String(r.answerDuration) : '',
+    r.submissionReason || '',
     r.comment || '',
   ]);
   const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -218,6 +223,7 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
   const [studentFilter, setStudentFilter] = useState<string>('');
   const [correctnessFilter, setCorrectnessFilter] = useState<CorrectnessFilter>('all');
   const [violationsFilter, setViolationsFilter] = useState<ViolationsFilter>('all');
+  const [submissionReasonFilter, setSubmissionReasonFilter] = useState<SubmissionReasonFilter>('all');
   const [ratingRangeFilters, setRatingRangeFilters] = useState<RatingRangeFilter[]>([]);
 
   const [recordsPage, setRecordsPage] = useState(0);
@@ -383,6 +389,8 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
             correctAnswer: null,
             tabSwitchCount: fb.tab_switch_count ?? 0,
             isAutoSubmitted: fb.is_auto_submitted ?? false,
+            answerDuration: fb.answer_duration_seconds ?? null,
+            submissionReason: fb.submission_reason ?? 'completed',
           });
         }
       } else {
@@ -417,6 +425,8 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
             gradingMode: (q?.correct_answer != null ? (q?.grading_mode ?? null) : null),
             tabSwitchCount: fb.tab_switch_count ?? 0,
             isAutoSubmitted: fb.is_auto_submitted ?? false,
+            answerDuration: fb.answer_duration_seconds ?? null,
+            submissionReason: fb.submission_reason ?? 'completed',
           });
         }
       }
@@ -438,6 +448,9 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
     if (violationsFilter === 'has_violations') {
       result = result.filter(r => r.tabSwitchCount > 0);
     }
+    if (submissionReasonFilter !== 'all') {
+      result = result.filter(r => r.submissionReason === submissionReasonFilter);
+    }
     // Rating range — filter on per-row overallRating so only rating-type rows with matching bucket show
     if (ratingRangeFilters.length > 0) {
       result = result.filter(r => {
@@ -447,7 +460,7 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
       });
     }
     return result;
-  }, [flattenedRecords, correctnessFilter, violationsFilter, ratingRangeFilters]);
+  }, [flattenedRecords, correctnessFilter, violationsFilter, submissionReasonFilter, ratingRangeFilters]);
 
   const sortedRecords = useMemo(() => {
     const sorted = [...displayRecords];
@@ -461,7 +474,7 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
         if (rawB == null) return -1;
         let cmp: number;
         // Numeric fields — compare as numbers
-        if (sortField === 'overallRating' || sortField === 'tabSwitchCount') {
+        if (sortField === 'overallRating' || sortField === 'tabSwitchCount' || sortField === 'answerDuration') {
           cmp = (Number(rawA) || 0) - (Number(rawB) || 0);
         // Boolean-like field — map to sortable rank
         } else if (sortField === 'isCorrect') {
@@ -746,6 +759,21 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                 <option value="has_violations">⚠️ {t.hasViolations}</option>
               </select>
             </div>
+            <div className="min-w-[150px]">
+              <label className="text-[11px] text-gray-400 block mb-1">Reason</label>
+              <select
+                value={submissionReasonFilter}
+                onChange={e => { setSubmissionReasonFilter(e.target.value as SubmissionReasonFilter); setRecordsPage(0); }}
+                className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white"
+              >
+                <option value="all">{t.allResults}</option>
+                <option value="completed">✅ Completed</option>
+                <option value="timer_expired">⏱️ Timer Expired</option>
+                <option value="tab_violation">🚨 Tab Violation</option>
+                <option value="partial_timer">⏳ Partial (Timer)</option>
+                <option value="skipped">⏭️ Skipped</option>
+              </select>
+            </div>
             {(questionTypeFilter === 'all' || questionTypeFilter === 'rating') && (
             <div className="min-w-[130px]">
               <label className="text-[11px] text-gray-400 block mb-1">{t.ratingRange}</label>
@@ -777,9 +805,9 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
             </div>
             )}
 
-            {(feedbackSearch || dateFrom || dateTo || studentFilter || questionTypeFilter !== 'all' || correctnessFilter !== 'all' || violationsFilter !== 'all' || ratingRangeFilters.length > 0) && (
+            {(feedbackSearch || dateFrom || dateTo || studentFilter || questionTypeFilter !== 'all' || correctnessFilter !== 'all' || violationsFilter !== 'all' || submissionReasonFilter !== 'all' || ratingRangeFilters.length > 0) && (
               <button
-                onClick={() => { setFeedbackSearch(''); setDateFrom(''); setDateTo(''); setStudentFilter(''); setQuestionTypeFilter('all'); setCorrectnessFilter('all'); setViolationsFilter('all'); setRatingRangeFilters([]); setRecordsPage(0); }}
+                onClick={() => { setFeedbackSearch(''); setDateFrom(''); setDateTo(''); setStudentFilter(''); setQuestionTypeFilter('all'); setCorrectnessFilter('all'); setViolationsFilter('all'); setSubmissionReasonFilter('all'); setRatingRangeFilters([]); setRecordsPage(0); }}
                 className="text-xs text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 px-3 py-1.5 rounded-lg border border-purple-200 dark:border-purple-700 mt-auto"
               >
                 {t.clearFilters}
@@ -818,6 +846,8 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                             ] : []) as { key: SortField | null; label: string }[],
                             { key: 'comment' as SortField, label: t.comment },
                             { key: 'tabSwitchCount' as SortField, label: t.violations },
+                            { key: 'answerDuration' as SortField, label: 'Duration' },
+                            { key: 'submissionReason' as SortField, label: 'Reason' },
                           ]).map(col => (
                             <th
                               key={col.label}
@@ -925,6 +955,26 @@ export function FeedbackAnalytics({ embedded = false, arabicMode: arabicModeProp
                               ) : (
                                 <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>
                               )}
+                            </td>
+                            <td className="px-3 py-3 text-center whitespace-nowrap">
+                              {row.answerDuration != null ? (
+                                <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
+                                  {row.answerDuration >= 60 ? `${Math.floor(row.answerDuration / 60)}m ${row.answerDuration % 60}s` : `${row.answerDuration}s`}
+                                </span>
+                              ) : <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>}
+                            </td>
+                            <td className="px-3 py-3 whitespace-nowrap">
+                              {(() => {
+                                const reasonMap: Record<string, { icon: string; label: string; color: string }> = {
+                                  completed: { icon: '✅', label: 'Completed', color: 'text-green-600 dark:text-green-400' },
+                                  timer_expired: { icon: '⏱️', label: 'Timer', color: 'text-red-600 dark:text-red-400' },
+                                  tab_violation: { icon: '🚨', label: 'Violation', color: 'text-red-600 dark:text-red-400' },
+                                  partial_timer: { icon: '⏳', label: 'Partial', color: 'text-amber-600 dark:text-amber-400' },
+                                  skipped: { icon: '⏭️', label: 'Skipped', color: 'text-gray-500 dark:text-gray-400' },
+                                };
+                                const r = reasonMap[row.submissionReason] || { icon: '❓', label: row.submissionReason, color: 'text-gray-500' };
+                                return <span className={`text-[10px] font-semibold ${r.color}`}>{r.icon} {r.label}</span>;
+                              })()}
                             </td>
                           </tr>
                         ))}

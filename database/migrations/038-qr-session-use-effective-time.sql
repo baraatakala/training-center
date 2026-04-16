@@ -1,4 +1,4 @@
--- Migration 026: Fix generate_qr_session to use effective time from session_time_change
+-- Migration 038: Fix generate_qr_session to use effective time from session_time_change
 -- Previously it always used session.time, ignoring time change overrides.
 
 CREATE OR REPLACE FUNCTION public.generate_qr_session(

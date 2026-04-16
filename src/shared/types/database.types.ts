@@ -62,6 +62,7 @@ export interface Session {
   feedback_enabled?: boolean;
   feedback_anonymous_allowed?: boolean;
   max_tab_switches?: number;
+  feedback_time_limit_seconds?: number | null;
   teacher_can_host?: boolean;
   created_at: string;
   updated_at: string;
@@ -294,6 +295,8 @@ export interface SessionFeedback {
   check_in_method: string | null;
   tab_switch_count: number;
   is_auto_submitted: boolean;
+  answer_duration_seconds: number | null;
+  submission_reason: 'completed' | 'timer_expired' | 'tab_violation' | 'partial_timer' | 'skipped';
   created_at: string;
   student_name?: string | null;
   check_in_time?: string | null;

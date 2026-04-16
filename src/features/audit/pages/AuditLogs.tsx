@@ -411,6 +411,18 @@ export function AuditLogs() {
                   { value: 'session_recording', label: '🎬 Session Recording' },
                   { value: 'announcement', label: '📢 Announcement' },
                   { value: 'message', label: '💬 Message' },
+                  { value: 'excuse_request', label: '📝 Excuse Request' },
+                  { value: 'scoring_config', label: '🎯 Scoring Config' },
+                  { value: 'certificate_template', label: '📜 Certificate Template' },
+                  { value: 'issued_certificate', label: '🏆 Issued Certificate' },
+                  { value: 'session_day_change', label: '🔄 Day Change' },
+                  { value: 'session_time_change', label: '⏰ Time Change' },
+                  { value: 'session_date_host', label: '🏠 Date Host' },
+                  { value: 'course_book_reference', label: '📖 Book Reference' },
+                  { value: 'specialization', label: '🧪 Specialization' },
+                  { value: 'qr_sessions', label: '📱 QR Sessions' },
+                  { value: 'photo_checkin_sessions', label: '📸 Photo Check-in' },
+                  { value: 'teacher_host_schedule', label: '📆 Host Schedule' },
                 ]}
               />
             </div>

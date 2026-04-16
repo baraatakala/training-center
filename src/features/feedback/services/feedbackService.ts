@@ -66,6 +66,8 @@ export const feedbackService = {
     check_in_method?: string;
     tab_switch_count?: number;
     is_auto_submitted?: boolean;
+    answer_duration_seconds?: number | null;
+    submission_reason?: string;
   }) {
     if (!feedback.student_id) {
       return {
@@ -87,6 +89,8 @@ export const feedbackService = {
       check_in_method: feedback.check_in_method || null,
       tab_switch_count: feedback.tab_switch_count ?? 0,
       is_auto_submitted: feedback.is_auto_submitted ?? false,
+      answer_duration_seconds: feedback.answer_duration_seconds ?? null,
+      submission_reason: feedback.submission_reason || 'completed',
     };
 
     const { data, error } = await supabase
@@ -127,7 +131,7 @@ export const feedbackService = {
   async isEnabled(sessionId: string) {
     const { data, error } = await supabase
       .from('session')
-      .select('feedback_enabled, feedback_anonymous_allowed, max_tab_switches')
+      .select('feedback_enabled, feedback_anonymous_allowed, max_tab_switches, feedback_time_limit_seconds')
       .eq('session_id', sessionId)
       .single();
 
@@ -135,6 +139,7 @@ export const feedbackService = {
       enabled: data?.feedback_enabled ?? false,
       anonymousAllowed: data?.feedback_anonymous_allowed ?? true,
       maxTabSwitches: data?.max_tab_switches ?? 3,
+      feedbackTimeLimitSeconds: data?.feedback_time_limit_seconds ?? null,
       error: normalizeFeedbackError(error),
     };
   },

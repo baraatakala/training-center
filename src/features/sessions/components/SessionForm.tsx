@@ -41,6 +41,7 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
     feedback_enabled: initialData?.feedback_enabled ?? false,
     feedback_anonymous_allowed: initialData?.feedback_anonymous_allowed ?? true,
     max_tab_switches: initialData?.max_tab_switches ?? 3,
+    feedback_time_limit_seconds: initialData?.feedback_time_limit_seconds ?? null,
     teacher_can_host: initialData?.teacher_can_host ?? true,
   });
 
@@ -595,6 +596,59 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
                     <span className="text-xs text-gray-400">violations before auto-submit</span>
                   </div>
                   <p className="text-xs text-gray-400 dark:text-gray-500">Only active when feedback questions have correct answers (test mode).</p>
+                </div>
+              )}
+              {formData.feedback_enabled && (
+                <div className="ml-6 space-y-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.feedback_time_limit_seconds != null}
+                      onChange={(e) => setFormData({ ...formData, feedback_time_limit_seconds: e.target.checked ? 300 : null })}
+                      className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                    />
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">⏱️ Enable feedback timer</span>
+                  </label>
+                  {formData.feedback_time_limit_seconds != null && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min={10}
+                          max={7200}
+                          value={formData.feedback_time_limit_seconds}
+                          onChange={(e) => setFormData({ ...formData, feedback_time_limit_seconds: Math.min(7200, Math.max(10, Number(e.target.value) || 300)) })}
+                          className="w-24 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        />
+                        <span className="text-xs text-gray-500">seconds</span>
+                        <span className="text-xs text-gray-400">
+                          ({Math.floor((formData.feedback_time_limit_seconds || 0) / 60)}m {(formData.feedback_time_limit_seconds || 0) % 60}s)
+                        </span>
+                      </div>
+                      <div className="flex gap-1">
+                        {[
+                          { label: '1m', value: 60 },
+                          { label: '3m', value: 180 },
+                          { label: '5m', value: 300 },
+                          { label: '10m', value: 600 },
+                          { label: '15m', value: 900 },
+                          { label: '30m', value: 1800 },
+                        ].map(preset => (
+                          <button
+                            key={preset.value}
+                            type="button"
+                            onClick={() => setFormData({ ...formData, feedback_time_limit_seconds: preset.value })}
+                            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${formData.feedback_time_limit_seconds === preset.value ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                        <span>⚠️</span> When timer is active, "required" questions won't block submission — partial answers are recorded with a reason.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
               <p className="text-xs text-gray-500 dark:text-gray-400">

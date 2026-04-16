@@ -116,6 +116,78 @@ export const describeAction = (log: AuditLogEntry): string => {
     }
   }
 
+  if (log.table_name === 'excuse_request') {
+    const status = (data.status as string) || '';
+    const reason = (data.reason as string) || '';
+    const reasonPart = reason ? ` — "${reason.slice(0, 50)}"` : '';
+    switch (log.operation) {
+      case 'INSERT': return `Excuse request submitted${reasonPart}`;
+      case 'UPDATE': return `Excuse request ${status || 'updated'}${reasonPart}`;
+      case 'DELETE': return `Excuse request cancelled${reasonPart}`;
+    }
+  }
+
+  if (log.table_name === 'scoring_config') {
+    const comp = (data.component_key as string) || '';
+    const label = comp ? `Scoring component "${comp}"` : 'Scoring config';
+    switch (log.operation) {
+      case 'INSERT': return `${label} was configured`;
+      case 'UPDATE': return `${label} was updated`;
+      case 'DELETE': return log.reason || `${label} was reset`;
+    }
+  }
+
+  if (log.table_name === 'certificate_template') {
+    const tplName = String(data.name || '').trim();
+    const label = tplName ? `Certificate template "${tplName}"` : 'Certificate template';
+    switch (log.operation) {
+      case 'INSERT': return `${label} was created`;
+      case 'UPDATE': return `${label} was updated`;
+      case 'DELETE': return `${label} was deleted`;
+    }
+  }
+
+  if (log.table_name === 'issued_certificate') {
+    const student = (data.student_name as string) || '';
+    const studentPart = student ? ` for ${student}` : '';
+    switch (log.operation) {
+      case 'INSERT': return `Certificate issued${studentPart}`;
+      case 'UPDATE': return log.reason ? `Certificate revoked${studentPart} — ${log.reason}` : `Certificate updated${studentPart}`;
+      case 'DELETE': return `Certificate deleted${studentPart}`;
+    }
+  }
+
+  if (log.table_name === 'session_day_change') {
+    const from = (data.original_day as string) || '';
+    const to = (data.new_day as string) || '';
+    const changePart = from && to ? ` from ${from} to ${to}` : '';
+    switch (log.operation) {
+      case 'INSERT': return `Session day changed${changePart}`;
+      case 'DELETE': return `Session day change reverted${changePart}`;
+      default: return `Session day change updated${changePart}`;
+    }
+  }
+
+  if (log.table_name === 'session_time_change') {
+    const reason = (data.reason as string) || '';
+    const reasonPart = reason ? ` — ${reason}` : '';
+    switch (log.operation) {
+      case 'INSERT': return `Session time changed${reasonPart}`;
+      case 'DELETE': return `Session time change reverted${reasonPart}`;
+      default: return `Session time change updated${reasonPart}`;
+    }
+  }
+
+  if (log.table_name === 'specialization') {
+    const spName = String(data.name || '').trim();
+    const label = spName ? `Specialization "${spName}"` : 'Specialization';
+    switch (log.operation) {
+      case 'INSERT': return `${label} was created`;
+      case 'UPDATE': return `${label} was renamed`;
+      case 'DELETE': return `${label} was removed`;
+    }
+  }
+
   switch (log.operation) {
     case 'DELETE':
       return name ? `${entity} "${name}" was deleted` : `${article} ${log.table_name} record was deleted`;
@@ -165,6 +237,18 @@ export const getEntityRoute = (log: AuditLogEntry): string | null => {
       return '/sessions';
     case 'announcement': return '/announcements';
     case 'message': return '/messages';
+    case 'excuse_request': return '/excuses';
+    case 'scoring_config': return data.course_id ? `/scoring?course=${data.course_id}` : '/scoring';
+    case 'certificate_template': return '/certificates';
+    case 'issued_certificate': return '/certificates';
+    case 'session_day_change': return '/sessions';
+    case 'session_time_change': return '/sessions';
+    case 'session_date_host': return '/sessions';
+    case 'course_book_reference': return '/courses';
+    case 'specialization': return '/specializations';
+    case 'qr_sessions': return '/sessions';
+    case 'photo_checkin_sessions': return '/sessions';
+    case 'teacher_host_schedule': return '/sessions';
     default: return null;
   }
 };

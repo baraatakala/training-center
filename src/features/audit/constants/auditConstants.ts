@@ -11,6 +11,18 @@ export const TABLE_ICONS: Record<string, string> = {
   session_recording: '\u{1F3AC}',
   announcement: '\u{1F4E2}',
   message: '\u{1F4AC}',
+  excuse_request: '\u{1F4DD}',
+  scoring_config: '\u{1F3AF}',
+  certificate_template: '\u{1F4DC}',
+  issued_certificate: '\u{1F3C6}',
+  session_day_change: '\u{1F504}',
+  session_time_change: '\u23F0',
+  session_date_host: '\u{1F3E0}',
+  course_book_reference: '\u{1F4D6}',
+  specialization: '\u{1F9EA}',
+  qr_sessions: '\u{1F4F1}',
+  photo_checkin_sessions: '\u{1F4F8}',
+  teacher_host_schedule: '\u{1F4C6}',
 };
 
 export const OP_ICONS: Record<string, string> = {
@@ -96,5 +108,64 @@ export const TABLE_SUMMARY_FIELDS: Record<string, { field: string; label: string
   message: [
     { field: 'subject', label: 'Subject' },
     { field: 'content', label: 'Content' },
+  ],
+  excuse_request: [
+    { field: 'status', label: 'Status' },
+    { field: 'excuse_date', label: 'Date' },
+    { field: 'reason', label: 'Reason' },
+    { field: 'excuse_type', label: 'Type' },
+  ],
+  scoring_config: [
+    { field: 'component_key', label: 'Component' },
+    { field: 'weight', label: 'Weight' },
+    { field: 'max_score', label: 'Max Score' },
+    { field: 'is_enabled', label: 'Enabled' },
+  ],
+  certificate_template: [
+    { field: 'name', label: 'Name' },
+    { field: 'description', label: 'Description' },
+    { field: 'is_active', label: 'Active' },
+  ],
+  issued_certificate: [
+    { field: 'student_name', label: 'Student' },
+    { field: 'course_name', label: 'Course' },
+    { field: 'issue_date', label: 'Issued' },
+    { field: 'status', label: 'Status' },
+  ],
+  session_day_change: [
+    { field: 'original_day', label: 'Original Day' },
+    { field: 'new_day', label: 'New Day' },
+    { field: 'reason', label: 'Reason' },
+  ],
+  session_time_change: [
+    { field: 'original_start_time', label: 'Old Start' },
+    { field: 'new_start_time', label: 'New Start' },
+    { field: 'reason', label: 'Reason' },
+  ],
+  session_date_host: [
+    { field: 'session_date', label: 'Date' },
+    { field: 'host_address', label: 'Location' },
+  ],
+  course_book_reference: [
+    { field: 'book_title', label: 'Title' },
+    { field: 'author', label: 'Author' },
+    { field: 'pages', label: 'Pages' },
+  ],
+  specialization: [
+    { field: 'name', label: 'Name' },
+  ],
+  qr_sessions: [
+    { field: 'session_date', label: 'Date' },
+    { field: 'expires_at', label: 'Expires' },
+    { field: 'is_active', label: 'Active' },
+  ],
+  photo_checkin_sessions: [
+    { field: 'session_date', label: 'Date' },
+    { field: 'expires_at', label: 'Expires' },
+    { field: 'is_active', label: 'Active' },
+  ],
+  teacher_host_schedule: [
+    { field: 'day_of_week', label: 'Day' },
+    { field: 'host_address', label: 'Location' },
   ],
 };

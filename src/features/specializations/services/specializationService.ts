@@ -1,4 +1,5 @@
 import { supabase } from '@/shared/lib/supabase';
+import { logInsert, logUpdate, logDelete } from '@/shared/services/auditService';
 
 export interface Specialization {
   id: string;
@@ -16,11 +17,17 @@ export async function getAll() {
 
 /** Create a new specialization. */
 export async function create(name: string) {
-  return supabase
+  const { data, error } = await supabase
     .from('specialization')
     .insert({ name: name.trim() })
     .select()
     .single();
+
+  if (!error && data) {
+    await logInsert('specialization', data.id, data as Record<string, unknown>);
+  }
+
+  return { data, error };
 }
 
 /** Rename an existing specialization and cascade the change to students. */
@@ -53,6 +60,8 @@ export async function rename(id: string, newName: string) {
     .update({ specialization: newName.trim() })
     .eq('specialization', old.name);
 
+  await logUpdate('specialization', id, { name: old.name } as Record<string, unknown>, { name: newName.trim() } as Record<string, unknown>);
+
   return { data, error: null };
 }
 
@@ -82,6 +91,10 @@ export async function remove(id: string) {
     .from('specialization')
     .delete()
     .eq('id', id);
+
+  if (!error) {
+    await logDelete('specialization', id, { name: old.name } as Record<string, unknown>);
+  }
 
   return { error };
 }

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/Card';
 import { Button } from '@/shared/components/ui/Button';
@@ -9,21 +9,46 @@ import type { HealthCheck, HealthCheckCategory } from '../constants/dashboardCon
 import { HEALTH_CATEGORY_LABELS } from '../constants/dashboardConstants';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
 
+const CATEGORY_ORDER: HealthCheckCategory[] = ['data-integrity', 'feedback', 'tokens', 'config', 'workflow'];
+
+type ActiveTab = 'overview' | HealthCheckCategory;
+
+function getScoreTrend(currentScore: number): { direction: 'improving' | 'declining' | 'stable' | 'first'; prevScore: number | null } {
+  try {
+    const prev = localStorage.getItem('health_check_last_score');
+    if (prev === null) return { direction: 'first', prevScore: null };
+    const prevScore = parseInt(prev, 10);
+    if (isNaN(prevScore)) return { direction: 'first', prevScore: null };
+    if (currentScore > prevScore) return { direction: 'improving', prevScore };
+    if (currentScore < prevScore) return { direction: 'declining', prevScore };
+    return { direction: 'stable', prevScore };
+  } catch {
+    return { direction: 'first', prevScore: null };
+  }
+}
+
+function saveScore(score: number) {
+  try {
+    localStorage.setItem('health_check_last_score', String(score));
+    localStorage.setItem('health_check_last_scan', new Date().toISOString());
+  } catch { /* ignore */ }
+}
+
+function getLastScanTime(): string | null {
+  try {
+    return localStorage.getItem('health_check_last_scan');
+  } catch {
+    return null;
+  }
+}
+
 export function HealthCheckPanel() {
   const navigate = useNavigate();
   const [healthChecks, setHealthChecks] = useState<HealthCheck[]>([]);
   const [healthLoading, setHealthLoading] = useState(false);
   const [healthLoaded, setHealthLoaded] = useState(false);
-  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
-
-  const toggleCategory = useCallback((cat: string) => {
-    setCollapsedCategories(prev => {
-      const next = new Set(prev);
-      if (next.has(cat)) next.delete(cat);
-      else next.add(cat);
-      return next;
-    });
-  }, []);
+  const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
+  const [scanTimestamp, setScanTimestamp] = useState<string | null>(getLastScanTime());
 
   const loadHealthChecks = useCallback(async () => {
     setHealthLoading(true);
@@ -527,6 +552,7 @@ export function HealthCheckPanel() {
 
       setHealthChecks(checks);
       setHealthLoaded(true);
+      setScanTimestamp(new Date().toISOString());
     } catch (err) {
       console.error('Health check error:', err);
       toast.error('Failed to run health checks');
@@ -534,178 +560,325 @@ export function HealthCheckPanel() {
     setHealthLoading(false);
   }, []);
 
+  // ─── Derived data (memoized) ──────────────────────────
+  const { errorCount, warnCount, okCount, totalChecks, healthScore, grouped, radarData, trend } = useMemo(() => {
+    const ec = healthChecks.filter(c => c.status === 'error').length;
+    const wc = healthChecks.filter(c => c.status === 'warn').length;
+    const oc = healthChecks.filter(c => c.status === 'ok').length;
+    const tc = healthChecks.length;
+    const maxPts = tc * 3;
+    const lostPts = (ec * 3) + (wc * 1);
+    const score = maxPts > 0 ? Math.round(((maxPts - lostPts) / maxPts) * 100) : 100;
+
+    const grp = new Map<HealthCheckCategory, HealthCheck[]>();
+    for (const cat of CATEGORY_ORDER) grp.set(cat, []);
+    for (const check of healthChecks) {
+      const cat = check.category || 'config';
+      if (!grp.has(cat)) grp.set(cat, []);
+      grp.get(cat)!.push(check);
+    }
+    const statusOrder = { error: 0, warn: 1, ok: 2 };
+    for (const [, checks] of grp) {
+      checks.sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
+    }
+
+    const rd = CATEGORY_ORDER.map(cat => {
+      const catChecks = grp.get(cat) || [];
+      if (catChecks.length === 0) return { category: HEALTH_CATEGORY_LABELS[cat].label, score: 100, fullMark: 100 };
+      const catMax = catChecks.length * 3;
+      const catLost = catChecks.filter(c => c.status === 'error').length * 3 + catChecks.filter(c => c.status === 'warn').length;
+      return { category: HEALTH_CATEGORY_LABELS[cat].label, score: Math.round(((catMax - catLost) / catMax) * 100), fullMark: 100 };
+    });
+
+    // Save + get trend
+    if (tc > 0) saveScore(score);
+    const t = tc > 0 ? getScoreTrend(score) : { direction: 'first' as const, prevScore: null };
+
+    return { errorCount: ec, warnCount: wc, okCount: oc, totalChecks: tc, healthScore: score, grouped: grp, radarData: rd, trend: t };
+  }, [healthChecks]);
+
+  const scoreColor = healthScore >= 90 ? 'text-emerald-600 dark:text-emerald-400' : healthScore >= 70 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400';
+  const scoreBg = healthScore >= 90 ? 'from-emerald-50 to-emerald-100/50 dark:from-emerald-900/20 dark:to-emerald-900/10 border-emerald-200 dark:border-emerald-800' : healthScore >= 70 ? 'from-amber-50 to-amber-100/50 dark:from-amber-900/20 dark:to-amber-900/10 border-amber-200 dark:border-amber-800' : 'from-red-50 to-red-100/50 dark:from-red-900/20 dark:to-red-900/10 border-red-200 dark:border-red-800';
+  const scoreRing = healthScore >= 90 ? 'ring-emerald-400' : healthScore >= 70 ? 'ring-amber-400' : 'ring-red-400';
+
+  // Issues for overview tab (errors + warnings only)
+  const allIssues = useMemo(() => {
+    return healthChecks
+      .filter(c => c.status === 'error' || c.status === 'warn')
+      .sort((a, b) => (a.status === 'error' ? 0 : 1) - (b.status === 'error' ? 0 : 1));
+  }, [healthChecks]);
+
+  // Export health report as JSON
+  const exportReport = useCallback(() => {
+    const report = {
+      scanDate: scanTimestamp,
+      healthScore,
+      summary: { total: totalChecks, passed: okCount, warnings: warnCount, errors: errorCount },
+      categories: CATEGORY_ORDER.map(cat => ({
+        category: HEALTH_CATEGORY_LABELS[cat].label,
+        checks: (grouped.get(cat) || []).map(c => ({ label: c.label, status: c.status, count: c.count, detail: c.detail })),
+      })),
+    };
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `health-report-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Health report exported');
+  }, [scanTimestamp, healthScore, totalChecks, okCount, warnCount, errorCount, grouped]);
+
 
   return (
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <span className="text-lg">🩺</span>
-              Session Readiness Radar
-            </CardTitle>
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <span className="text-lg">🩺</span>
+            Session Readiness Radar
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            {healthLoaded && (
+              <Button size="sm" variant="ghost" onClick={exportReport} className="text-xs gap-1 h-7 px-2">
+                📋 Export
+              </Button>
+            )}
             <Button size="sm" variant="outline" onClick={loadHealthChecks} disabled={healthLoading}>
               {healthLoading ? 'Scanning...' : healthLoaded ? '🔄 Re-scan' : '▶️ Run Checks'}
             </Button>
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Deep diagnostic scan: data integrity, feedback pipeline, check-in tokens, enrollment health, scoring config, and workflow blockers.</p>
-        </CardHeader>
-        <CardContent>
-          {!healthLoaded && !healthLoading && (
-            <div className="text-center py-6 text-gray-400">
-              <span className="text-3xl block mb-2">🔍</span>
-              <p className="text-sm">Click <strong>Run Checks</strong> to run a deep diagnostic scan across attendance, feedback, enrollments, scoring, and tokens.</p>
-            </div>
+        </div>
+        <div className="flex items-center justify-between mt-1">
+          <p className="text-xs text-gray-500 dark:text-gray-400">Data integrity · Feedback pipeline · Tokens · Config · Workflow</p>
+          {scanTimestamp && (
+            <p className="text-[10px] text-gray-400 dark:text-gray-500">
+              Last scan: {new Date(scanTimestamp).toLocaleTimeString()}
+            </p>
           )}
-          {healthLoading && (
-            <div className="text-center py-6 text-gray-400 animate-pulse">
-              <span className="text-3xl block mb-2">⏳</span>
-              <p className="text-sm">Running deep diagnostic scan...</p>
-            </div>
-          )}
-          {healthLoaded && !healthLoading && (() => {
-            const errorCount = healthChecks.filter(c => c.status === 'error').length;
-            const warnCount = healthChecks.filter(c => c.status === 'warn').length;
-            const okCount = healthChecks.filter(c => c.status === 'ok').length;
-            const totalChecks = healthChecks.length;
-            // Weighted score: errors penalize 3x, warnings 1x
-            const maxPoints = totalChecks * 3;
-            const lostPoints = (errorCount * 3) + (warnCount * 1);
-            const healthScore = maxPoints > 0 ? Math.round(((maxPoints - lostPoints) / maxPoints) * 100) : 100;
-            const scoreColor = healthScore >= 90 ? 'text-emerald-600 dark:text-emerald-400' : healthScore >= 70 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400';
-            const scoreBg = healthScore >= 90 ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800' : healthScore >= 70 ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800';
-
-            // Group checks by category
-            const categoryOrder: HealthCheckCategory[] = ['data-integrity', 'feedback', 'tokens', 'config', 'workflow'];
-            const grouped = new Map<HealthCheckCategory, HealthCheck[]>();
-            for (const cat of categoryOrder) grouped.set(cat, []);
-            for (const check of healthChecks) {
-              const cat = check.category || 'config';
-              if (!grouped.has(cat)) grouped.set(cat, []);
-              grouped.get(cat)!.push(check);
-            }
-            // Sort within each group: errors first, then warnings, then ok
-            const statusOrder = { error: 0, warn: 1, ok: 2 };
-            for (const [, checks] of grouped) {
-              checks.sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
-            }
-
-            return (
-            <div className="space-y-3">
-              {/* Health Score + Summary */}
-              <div className={`rounded-xl border p-3 mb-1 ${scoreBg}`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className={`text-2xl font-bold ${scoreColor}`}>{healthScore}%</span>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900 dark:text-white">System Health</p>
-                      <p className="text-[11px] text-gray-500 dark:text-gray-400">{totalChecks} checks · {okCount} passed · {warnCount} warnings · {errorCount} blockers</p>
-                    </div>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-2">
+        {!healthLoaded && !healthLoading && (
+          <div className="text-center py-8 text-gray-400">
+            <span className="text-4xl block mb-3">🔍</span>
+            <p className="text-sm font-medium">Click <strong>Run Checks</strong> to scan</p>
+            <p className="text-xs mt-1 text-gray-400 dark:text-gray-500">Analyzes attendance, feedback, enrollments, scoring, tokens, and workflows.</p>
+          </div>
+        )}
+        {healthLoading && (
+          <div className="text-center py-8 text-gray-400 animate-pulse">
+            <span className="text-4xl block mb-3">⏳</span>
+            <p className="text-sm">Running deep diagnostic scan…</p>
+          </div>
+        )}
+        {healthLoaded && !healthLoading && (
+          <div className="space-y-3">
+            {/* ── Score Banner ── */}
+            <div className={`rounded-xl border bg-gradient-to-r p-4 ${scoreBg}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className={`relative w-16 h-16 rounded-full ring-4 ${scoreRing} ring-opacity-30 flex items-center justify-center bg-white dark:bg-gray-900`}>
+                    <span className={`text-xl font-black ${scoreColor}`}>{healthScore}</span>
+                    <span className={`text-[9px] font-bold absolute bottom-1 ${scoreColor}`}>%</span>
                   </div>
-                  <div className="flex gap-2 text-xs font-medium">
-                    <span className="text-emerald-600 dark:text-emerald-400">✅ {okCount}</span>
-                    <span className="text-amber-600 dark:text-amber-400">⚠️ {warnCount}</span>
-                    <span className="text-red-600 dark:text-red-400">🚨 {errorCount}</span>
+                  <div>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">System Health</p>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                      {totalChecks} checks · {okCount} passed · {warnCount} warnings · {errorCount} errors
+                    </p>
+                    {trend.direction !== 'first' && trend.prevScore !== null && (
+                      <p className={`text-[10px] mt-0.5 font-medium ${
+                        trend.direction === 'improving' ? 'text-emerald-600 dark:text-emerald-400' :
+                        trend.direction === 'declining' ? 'text-red-600 dark:text-red-400' :
+                        'text-gray-500'
+                      }`}>
+                        {trend.direction === 'improving' ? '📈' : trend.direction === 'declining' ? '📉' : '→'}{' '}
+                        {trend.direction === 'improving' ? `+${healthScore - trend.prevScore}` : trend.direction === 'declining' ? `${healthScore - trend.prevScore}` : 'No change'} vs last scan
+                      </p>
+                    )}
                   </div>
+                </div>
+                <div className="flex flex-col gap-1 text-xs font-semibold text-right">
+                  <span className="text-emerald-600 dark:text-emerald-400">✅ {okCount}</span>
+                  <span className="text-amber-600 dark:text-amber-400">⚠️ {warnCount}</span>
+                  <span className="text-red-600 dark:text-red-400">🚨 {errorCount}</span>
                 </div>
               </div>
-              {errorCount > 0 && (
-                <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-3 py-2.5 text-xs text-red-800 dark:text-red-200">
-                  <strong>{errorCount} blocking issue{errorCount > 1 ? 's' : ''}</strong> found. These indicate data integrity problems that need immediate attention.
-                </div>
-              )}
-              {/* Radar Chart — category health scores */}
-              {(() => {
-                const radarData = categoryOrder.map(cat => {
-                  const catChecks = grouped.get(cat) || [];
-                  if (catChecks.length === 0) return { category: HEALTH_CATEGORY_LABELS[cat].label, score: 100 };
-                  const catMax = catChecks.length * 3;
-                  const catLost = catChecks.filter(c => c.status === 'error').length * 3 + catChecks.filter(c => c.status === 'warn').length;
-                  return { category: HEALTH_CATEGORY_LABELS[cat].label, score: Math.round(((catMax - catLost) / catMax) * 100) };
-                });
-                return (
-                  <div className="flex justify-center">
-                    <ResponsiveContainer width="100%" height={220}>
-                      <RadarChart data={radarData} outerRadius="70%">
-                        <PolarGrid stroke="#d1d5db" />
-                        <PolarAngleAxis dataKey="category" tick={{ fontSize: 11, fill: '#6b7280' }} />
-                        <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 9 }} />
-                        <Radar name="Health" dataKey="score" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.25} />
-                      </RadarChart>
-                    </ResponsiveContainer>
-                  </div>
-                );
-              })()}
-              {/* Category-grouped checks */}
-              {categoryOrder.map(cat => {
+            </div>
+
+            {/* ── Tab Navigation ── */}
+            <div className="flex gap-1 overflow-x-auto pb-1 border-b border-gray-200 dark:border-gray-700 scrollbar-thin">
+              <button
+                type="button"
+                onClick={() => setActiveTab('overview')}
+                className={`shrink-0 px-3 py-1.5 text-xs font-medium rounded-t-lg transition-colors ${
+                  activeTab === 'overview'
+                    ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-b-2 border-purple-500'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
+                }`}
+              >
+                Overview
+                {allIssues.length > 0 && (
+                  <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-600 text-white">{allIssues.length}</span>
+                )}
+              </button>
+              {CATEGORY_ORDER.map(cat => {
                 const catChecks = grouped.get(cat) || [];
                 if (catChecks.length === 0) return null;
                 const catMeta = HEALTH_CATEGORY_LABELS[cat];
                 const catErrors = catChecks.filter(c => c.status === 'error').length;
                 const catWarns = catChecks.filter(c => c.status === 'warn').length;
-                const isCollapsed = collapsedCategories.has(cat);
-                const allOk = catErrors === 0 && catWarns === 0;
+                const hasIssues = catErrors > 0 || catWarns > 0;
                 return (
-                  <div key={cat}>
-                    <button
-                      type="button"
-                      onClick={() => toggleCategory(cat)}
-                      className="w-full flex items-center justify-between py-1.5 px-1 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <span>{catMeta.icon}</span>
-                        <span>{catMeta.label}</span>
-                        <span className="text-[10px] font-normal text-gray-400">({catChecks.length})</span>
-                      </span>
-                      <span className="flex items-center gap-2">
-                        {catErrors > 0 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-600 text-white">{catErrors}</span>}
-                        {catWarns > 0 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-600 text-white">{catWarns}</span>}
-                        {allOk && <span className="text-[10px] text-emerald-600 dark:text-emerald-400">All clear</span>}
-                        <span className="text-gray-400 text-[10px]">{isCollapsed ? '▸' : '▾'}</span>
-                      </span>
-                    </button>
-                    {!isCollapsed && (
-                      <div className="space-y-1.5 mb-2">
-                        {catChecks.map((check, i) => (
-                          <div key={i} className={`flex items-start gap-3 rounded-lg border px-3 py-2.5 ${
-                            check.status === 'error' ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20'
-                              : check.status === 'warn' ? 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20'
-                              : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/30'
-                          }`}>
-                            <span className="text-lg shrink-0 mt-0.5">{check.icon}</span>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <p className="text-sm font-medium text-gray-900 dark:text-white">{check.label}</p>
-                                {check.count > 0 && (
-                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                                    check.status === 'error' ? 'bg-red-600 text-white'
-                                      : check.status === 'warn' ? 'bg-amber-600 text-white'
-                                      : 'bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200'
-                                  }`}>{check.count}</span>
-                                )}
-                              </div>
-                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{check.detail}</p>
-                              {check.actionPath && check.actionLabel && (
-                                <button
-                                  type="button"
-                                  onClick={() => navigate(check.actionPath!)}
-                                  className="mt-2 text-[11px] font-medium text-purple-600 dark:text-purple-400 hover:underline"
-                                >
-                                  {check.actionLabel} →
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setActiveTab(cat)}
+                    className={`shrink-0 px-3 py-1.5 text-xs font-medium rounded-t-lg transition-colors flex items-center gap-1.5 ${
+                      activeTab === cat
+                        ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-b-2 border-purple-500'
+                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
+                    }`}
+                  >
+                    <span>{catMeta.icon}</span>
+                    <span className="hidden sm:inline">{catMeta.label}</span>
+                    {catErrors > 0 && <span className="text-[9px] font-bold px-1 py-0.5 rounded-full bg-red-600 text-white leading-none">{catErrors}</span>}
+                    {catWarns > 0 && !catErrors && <span className="text-[9px] font-bold px-1 py-0.5 rounded-full bg-amber-500 text-white leading-none">{catWarns}</span>}
+                    {!hasIssues && <span className="text-[9px] text-emerald-500">✓</span>}
+                  </button>
                 );
               })}
             </div>
-            );
-          })()}
-        </CardContent>
-      </Card>
+
+            {/* ── Tab Content ── */}
+            <div className="min-h-[200px]">
+              {/* Overview Tab */}
+              {activeTab === 'overview' && (
+                <div className="space-y-4">
+                  {/* Radar Chart */}
+                  <div className="flex justify-center">
+                    <ResponsiveContainer width="100%" height={240}>
+                      <RadarChart data={radarData} outerRadius="70%">
+                        <PolarGrid stroke="#d1d5db" />
+                        <PolarAngleAxis dataKey="category" tick={{ fontSize: 11, fill: '#6b7280' }} />
+                        <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 9 }} tickCount={5} />
+                        <Radar name="Health" dataKey="score" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.2} strokeWidth={2} />
+                      </RadarChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Category Score Cards */}
+                  <div className="grid grid-cols-5 gap-2">
+                    {CATEGORY_ORDER.map(cat => {
+                      const catChecks = grouped.get(cat) || [];
+                      const catMeta = HEALTH_CATEGORY_LABELS[cat];
+                      const catErrors = catChecks.filter(c => c.status === 'error').length;
+                      const catWarns = catChecks.filter(c => c.status === 'warn').length;
+                      const catMax = catChecks.length * 3;
+                      const catLost = catErrors * 3 + catWarns;
+                      const catScore = catMax > 0 ? Math.round(((catMax - catLost) / catMax) * 100) : 100;
+                      const catScoreColor = catScore >= 90 ? 'text-emerald-600 dark:text-emerald-400' : catScore >= 70 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400';
+                      return (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => setActiveTab(cat)}
+                          className="rounded-lg border border-gray-200 dark:border-gray-700 p-2 text-center hover:border-purple-300 dark:hover:border-purple-700 transition-colors"
+                        >
+                          <div className="text-base">{catMeta.icon}</div>
+                          <div className={`text-sm font-bold ${catScoreColor}`}>{catScore}%</div>
+                          <div className="text-[9px] text-gray-500 dark:text-gray-400 leading-tight mt-0.5">{catMeta.label}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Critical Issues Summary */}
+                  {allIssues.length > 0 ? (
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 flex items-center gap-1.5">
+                        <span>🔔</span> Issues requiring attention ({allIssues.length})
+                      </p>
+                      {allIssues.map((check, i) => (
+                        <CheckCard key={i} check={check} navigate={navigate} compact />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 text-emerald-600 dark:text-emerald-400">
+                      <span className="text-2xl block mb-1">🎉</span>
+                      <p className="text-sm font-medium">All systems healthy — no issues detected</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Category Tabs */}
+              {activeTab !== 'overview' && (() => {
+                const catChecks = grouped.get(activeTab as HealthCheckCategory) || [];
+                const catMeta = HEALTH_CATEGORY_LABELS[activeTab as HealthCheckCategory];
+                const catErrors = catChecks.filter(c => c.status === 'error').length;
+                const catWarns = catChecks.filter(c => c.status === 'warn').length;
+                const allOk = catErrors === 0 && catWarns === 0;
+                return (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 flex items-center gap-2">
+                        <span>{catMeta.icon}</span> {catMeta.label}
+                        <span className="text-[10px] font-normal text-gray-400">({catChecks.length} checks)</span>
+                      </p>
+                      {allOk && <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">✅ All clear</span>}
+                    </div>
+                    <div className="space-y-1.5">
+                      {catChecks.map((check, i) => (
+                        <CheckCard key={i} check={check} navigate={navigate} />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Reusable check card component */
+function CheckCard({ check, navigate, compact }: { check: HealthCheck; navigate: (path: string) => void; compact?: boolean }) {
+  const bgClass = check.status === 'error'
+    ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20'
+    : check.status === 'warn'
+    ? 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20'
+    : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/30';
+
+  return (
+    <div className={`flex items-start gap-3 rounded-lg border px-3 ${compact ? 'py-2' : 'py-2.5'} ${bgClass}`}>
+      <span className={`${compact ? 'text-base' : 'text-lg'} shrink-0 mt-0.5`}>{check.icon}</span>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <p className={`${compact ? 'text-xs' : 'text-sm'} font-medium text-gray-900 dark:text-white`}>{check.label}</p>
+          {check.count > 0 && (
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+              check.status === 'error' ? 'bg-red-600 text-white'
+                : check.status === 'warn' ? 'bg-amber-600 text-white'
+                : 'bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200'
+            }`}>{check.count}</span>
+          )}
+        </div>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">{check.detail}</p>
+        {check.actionPath && check.actionLabel && (
+          <button
+            type="button"
+            onClick={() => navigate(check.actionPath!)}
+            className="mt-1.5 text-[11px] font-medium text-purple-600 dark:text-purple-400 hover:underline"
+          >
+            {check.actionLabel} →
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 

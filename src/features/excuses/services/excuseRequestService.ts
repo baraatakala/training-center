@@ -525,6 +525,12 @@ class ExcuseRequestService {
    * Cancel a pending request (student action)
    */
   async cancel(requestId: string) {
+    const { data: oldData } = await supabase
+      .from('excuse_request')
+      .select('*')
+      .eq('request_id', requestId)
+      .maybeSingle();
+
     const { data, error } = await supabase
       .from('excuse_request')
       .update({ status: 'cancelled' })
@@ -532,6 +538,16 @@ class ExcuseRequestService {
       .eq('status', 'pending') // Only cancel pending requests
       .select()
       .single();
+
+    if (!error && data && oldData) {
+      await supabase.from('audit_log').insert({
+        table_name: 'excuse_request',
+        record_id: requestId,
+        operation: 'UPDATE',
+        old_data: oldData,
+        new_data: data,
+      });
+    }
 
     return { data, error };
   }

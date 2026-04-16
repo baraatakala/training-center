@@ -37,6 +37,12 @@ export default function SessionFeedbackForm({
   const primaryRatingQuestion = customQuestions.find((question) => question.question_type === 'rating') || null;
   const hasConfiguredQuestions = customQuestions.length > 0;
 
+  // ─── Timer state ───────────────────────────────────────────
+  const [feedbackTimeLimitSeconds, setFeedbackTimeLimitSeconds] = useState<number | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+  const startTimeRef = useRef<number>(Date.now());
+  const timerActive = feedbackTimeLimitSeconds != null && feedbackTimeLimitSeconds > 0;
+
   // ─── Anti-cheat state ──────────────────────────────────────
   const isTestMode = customQuestions.some(q => q.correct_answer);
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
@@ -62,6 +68,12 @@ export default function SessionFeedbackForm({
       setFeedbackEnabled(configResult.enabled);
       setAnonymousAllowed(configResult.anonymousAllowed);
       setMaxTabSwitches(configResult.maxTabSwitches ?? 3);
+      const timeLimit = configResult.feedbackTimeLimitSeconds ?? null;
+      setFeedbackTimeLimitSeconds(timeLimit);
+      if (timeLimit != null && timeLimit > 0) {
+        setTimeRemaining(timeLimit);
+        startTimeRef.current = Date.now();
+      }
       setAlreadySubmitted(hasSubmittedResult.alreadySubmitted);
       setLoadError(
         configError?.message ||
@@ -121,6 +133,31 @@ export default function SessionFeedbackForm({
     };
   }, [isTestMode, submitted, loading]);
 
+  // ─── Countdown timer ───────────────────────────────────────
+  const timerExpiredRef = useRef(false);
+  useEffect(() => {
+    if (!timerActive || submitted || loading || timeRemaining == null) return;
+    if (timeRemaining <= 0 && !timerExpiredRef.current) {
+      timerExpiredRef.current = true;
+      setWasAutoSubmitted(true);
+      setTimeout(() => {
+        const autoBtn = document.getElementById('feedback-auto-submit');
+        autoBtn?.click();
+      }, 0);
+      return;
+    }
+    const interval = setInterval(() => {
+      setTimeRemaining(prev => {
+        if (prev == null || prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [timerActive, submitted, loading, timeRemaining]);
+
   const handleSetResponse = useCallback((questionId: string, value: unknown) => {
     setResponses(prev => ({ ...prev, [questionId]: value }));
   }, []);
@@ -130,7 +167,7 @@ export default function SessionFeedbackForm({
       ? Number(responses[primaryRatingQuestion.id] || 0)
       : null;
 
-    // Skip validation for auto-submit (anti-cheat forced submission)
+    // Skip validation for auto-submit (anti-cheat forced submission or timer expiry)
     if (!isAutoSubmit) {
       if (!hasConfiguredQuestions) {
         setSubmissionError('No feedback questions are configured for this session date.');
@@ -142,26 +179,47 @@ export default function SessionFeedbackForm({
         return;
       }
 
-      const missingRequiredQuestions = customQuestions.filter((question) => {
-        if (!question.is_required) return false;
-        const answer = responses[question.id];
-        if (answer === undefined || answer === null) return true;
-        if (typeof answer === 'string') return answer.trim().length === 0;
-        if (Array.isArray(answer)) return answer.length === 0;
-        return false;
-      });
+      // When timer is active, skip required field enforcement (allow partial answers)
+      if (!timerActive) {
+        const missingRequiredQuestions = customQuestions.filter((question) => {
+          if (!question.is_required) return false;
+          const answer = responses[question.id];
+          if (answer === undefined || answer === null) return true;
+          if (typeof answer === 'string') return answer.trim().length === 0;
+          if (Array.isArray(answer)) return answer.length === 0;
+          return false;
+        });
 
-      if (missingRequiredQuestions.length > 0) {
-        const preview = missingRequiredQuestions
-          .slice(0, 2)
-          .map((question) => question.question_text)
-          .join(' / ');
-        setSubmissionError(
-          `Please answer all required questions before submitting.${preview ? ` Missing: ${preview}` : ''}`
-        );
-        return;
+        if (missingRequiredQuestions.length > 0) {
+          const preview = missingRequiredQuestions
+            .slice(0, 2)
+            .map((question) => question.question_text)
+            .join(' / ');
+          setSubmissionError(
+            `Please answer all required questions before submitting.${preview ? ` Missing: ${preview}` : ''}`
+          );
+          return;
+        }
       }
     }
+
+    // Determine submission reason
+    let submissionReason: string = 'completed';
+    if (isAutoSubmit && timeRemaining != null && timeRemaining <= 0) {
+      submissionReason = 'timer_expired';
+    } else if (isAutoSubmit) {
+      submissionReason = 'tab_violation';
+    } else if (timerActive && timeRemaining != null && timeRemaining > 0) {
+      // Student manually submitted while timer was still running
+      const answeredCount = customQuestions.filter(q => {
+        const a = responses[q.id];
+        return a !== undefined && a !== null && (typeof a !== 'string' || a.trim().length > 0) && (!Array.isArray(a) || a.length > 0);
+      }).length;
+      submissionReason = answeredCount < customQuestions.length ? 'partial_timer' : 'completed';
+    }
+
+    // Calculate answer duration
+    const answerDurationSeconds = Math.floor((Date.now() - startTimeRef.current) / 1000);
 
     setSubmissionError(null);
     setSubmitting(true);
@@ -176,6 +234,8 @@ export default function SessionFeedbackForm({
       check_in_method: checkInMethod,
       tab_switch_count: tabSwitchCount,
       is_auto_submitted: isAutoSubmit,
+      answer_duration_seconds: answerDurationSeconds,
+      submission_reason: submissionReason,
     });
 
     if (error) {
@@ -485,6 +545,42 @@ export default function SessionFeedbackForm({
           {tabSwitchCount > 0 && (
             <p className="text-xs font-semibold text-red-700 dark:text-red-300 mt-1 ml-6">
               ⚠️ Violations: {tabSwitchCount}/{maxTabSwitches}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Countdown timer bar */}
+      {timerActive && timeRemaining != null && !submitted && (
+        <div className="mb-4 rounded-xl border border-purple-200 dark:border-purple-700 bg-white dark:bg-gray-800/70 px-4 py-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className={`text-base ${timeRemaining <= 30 ? 'animate-pulse' : ''}`}>⏱️</span>
+              <span className="text-sm font-bold text-gray-800 dark:text-gray-200">
+                {Math.floor(timeRemaining / 60).toString().padStart(2, '0')}:{(timeRemaining % 60).toString().padStart(2, '0')}
+              </span>
+            </div>
+            {timeRemaining <= 60 && (
+              <span className="text-xs font-semibold text-red-600 dark:text-red-400 animate-pulse">
+                {timeRemaining <= 10 ? '🔴 Almost out of time!' : '⚠️ Less than 1 minute'}
+              </span>
+            )}
+          </div>
+          <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-1000 ease-linear ${
+                timeRemaining <= 30
+                  ? 'bg-red-500'
+                  : timeRemaining <= 60
+                  ? 'bg-amber-500'
+                  : 'bg-purple-500'
+              }`}
+              style={{ width: `${Math.max(0, (timeRemaining / (feedbackTimeLimitSeconds || 1)) * 100)}%` }}
+            />
+          </div>
+          {timerActive && (
+            <p className="text-[10px] text-gray-400 dark:text-gray-500">
+              Your form will be auto-submitted when time runs out. Partial answers will be saved.
             </p>
           )}
         </div>

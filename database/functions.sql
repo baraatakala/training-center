@@ -3,7 +3,7 @@
 -- ============================================================================
 -- Run order: 2 of 6 (after schema.sql)
 -- All database functions, trigger functions, and trigger bindings.
--- Synced with live Supabase as of 2026-04-06 (migration 022 applied).
+-- Synced with live Supabase as of 2025-07-15 (through migration 029).
 -- ============================================================================
 
 -- ============================================================================
@@ -546,7 +546,36 @@ END;
 $$;
 
 -- ============================================================================
--- 6. TRIGGER BINDINGS
+-- 6. REPORTING / ANALYTICS FUNCTIONS
+-- ============================================================================
+
+-- Aggregate attendance stats for a single session (used by dashboard & exports)
+CREATE OR REPLACE FUNCTION get_attendance_stats_by_session(p_session_id UUID)
+RETURNS TABLE (
+  total_records  BIGINT,
+  on_time_count  BIGINT,
+  late_count     BIGINT,
+  absent_count   BIGINT,
+  excused_count  BIGINT,
+  unique_dates   BIGINT,
+  unique_students BIGINT,
+  avg_late_minutes NUMERIC
+) LANGUAGE sql STABLE SECURITY INVOKER AS $$
+  SELECT
+    count(*)                                                    AS total_records,
+    count(*) FILTER (WHERE status = 'on time')                  AS on_time_count,
+    count(*) FILTER (WHERE status = 'late')                     AS late_count,
+    count(*) FILTER (WHERE status = 'absent')                   AS absent_count,
+    count(*) FILTER (WHERE status = 'excused')                  AS excused_count,
+    count(DISTINCT attendance_date)                              AS unique_dates,
+    count(DISTINCT student_id)                                  AS unique_students,
+    round(avg(late_minutes) FILTER (WHERE late_minutes > 0), 1) AS avg_late_minutes
+  FROM public.attendance
+  WHERE session_id = p_session_id;
+$$;
+
+-- ============================================================================
+-- 7. TRIGGER BINDINGS
 -- ============================================================================
 
 -- Generic updated_at triggers
