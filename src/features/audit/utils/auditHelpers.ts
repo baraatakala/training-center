@@ -4,9 +4,15 @@ import { TABLE_SUMMARY_FIELDS } from '@/features/audit/constants/auditConstants'
 /** Fields to skip in UPDATE diffs (technical noise) */
 export const NOISE_FIELDS = new Set(['updated_at', 'created_at', 'marked_at']);
 
-/** Extract the actor (who performed the action) from log data when deleted_by is null */
+/** Extract the actor (who performed the action) from the audit log entry */
 export const getActor = (log: AuditLogEntry): string => {
   if (log.deleted_by) return log.deleted_by;
+  // changed_by stores email for new entries (UUID for legacy entries)
+  if (log.changed_by && typeof log.changed_by === 'string') {
+    const val = String(log.changed_by);
+    // If it looks like an email, return it directly
+    if (val.includes('@')) return val;
+  }
   const newData = (log.new_data || {}) as Record<string, unknown>;
   const oldData = (log.old_data || {}) as Record<string, unknown>;
   const data = { ...oldData, ...newData };
@@ -14,7 +20,7 @@ export const getActor = (log: AuditLogEntry): string => {
     const val = data[field];
     if (typeof val === 'string' && val.trim()) {
       const clean = val.split(' - ')[0].trim();
-      return clean;
+      if (clean.includes('@')) return clean;
     }
   }
   return 'system';

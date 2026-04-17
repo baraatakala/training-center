@@ -492,7 +492,7 @@ export function Enrollments() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
-                      {isAdmin ? (
+                      {isTeacher ? (
                         enrollment.status === 'active' ? (
                           <div className="flex flex-col items-center gap-0.5">
                             <button
@@ -528,7 +528,7 @@ export function Enrollments() {
                     </TableCell>
                     <TableCell>
                                     <div className="flex gap-2 justify-end">
-                                      {isAdmin && (
+                                      {isTeacher && (
                                         <>
                                           <button
                                             className="text-sm border dark:border-gray-600 rounded px-2.5 py-1.5 min-h-[36px] bg-white dark:bg-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
@@ -550,6 +550,9 @@ export function Enrollments() {
                                         <option value="completed">Completed</option>
                                         <option value="dropped">Dropped</option>
                                       </select>
+                                        </>
+                                      )}
+                                      {isAdmin && (
                                           <button
                                             className="text-sm border border-red-300 dark:border-red-700 rounded px-2.5 py-1.5 min-h-[36px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30"
                                             onClick={() => handleDelete(enrollment.enrollment_id)}
@@ -557,7 +560,6 @@ export function Enrollments() {
                                           >
                                             Delete
                                           </button>
-                                        </>
                                       )}
                                       {!isTeacher && (
                                         <span className="text-xs text-gray-400 dark:text-gray-500 px-2">View only</span>

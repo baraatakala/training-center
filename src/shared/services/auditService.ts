@@ -47,7 +47,7 @@ const writeAuditEntry = async (entry: {
         new_data: entry.new_data || null,
         deleted_by: entry.operation === 'DELETE' ? user.email : null,
         deleted_at: entry.operation === 'DELETE' ? now : null,
-        changed_by: user.id,
+        changed_by: user.email,
         changed_at: now,
         reason: entry.reason || null,
       });

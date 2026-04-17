@@ -10,7 +10,7 @@ export function SessionTableRow({
   session,
   enrollmentCount,
   isTeacher,
-  isAdmin,
+  isAdmin: _isAdmin,
   onOpenSchedule,
   onOpenRecordings,
   onEdit,
@@ -124,26 +124,12 @@ export function SessionTableRow({
                   💬
                 </Button>
               )}
-            </>
-          )}
-          {isAdmin && (
-            <>
               <Button size="sm" variant="outline" onClick={() => onMerge(session)} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Merge attendance from another session into this one">
                 ⇄
               </Button>
               <Button size="sm" variant="outline" onClick={() => onEdit(session)} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Edit">
                 ✏️
               </Button>
-              {!isTeacher && (
-                <Button size="sm" variant="outline" onClick={() => onOpenRecordings(session)} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Recordings">
-                  🎥
-                </Button>
-              )}
-              {!isTeacher && session.feedback_enabled && (
-                <Button size="sm" variant="outline" onClick={() => navigate(`/feedback-analytics?session=${session.session_id}`)} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Feedback">
-                  💬
-                </Button>
-              )}
               <button
                 onClick={() => onDelete(session)}
                 className="px-2.5 py-1.5 text-xs rounded border min-h-[36px] text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
@@ -153,7 +139,7 @@ export function SessionTableRow({
               </button>
             </>
           )}
-          {!isTeacher && !isAdmin && (
+          {!isTeacher && (
             <div className="flex gap-1">
               {session.requires_recording && (
                 <Button size="sm" variant="outline" onClick={() => onOpenRecordings(session)} className="text-xs px-2.5 py-1.5 min-h-[36px]" title="Recordings">

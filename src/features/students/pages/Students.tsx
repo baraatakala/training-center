@@ -435,7 +435,7 @@ export function Students() {
                 </div>
 
                 <div className="grid grid-cols-1 gap-2" onClick={e => e.stopPropagation()}>
-                  {isAdmin && (
+                  {isTeacher && (
                     <>
                       <button
                         onClick={() => {
@@ -453,13 +453,15 @@ export function Students() {
                       <Button size="sm" variant="secondary" onClick={() => openEditModal(student)} className="w-full justify-center">
                         Edit Student
                       </Button>
-                      <button
-                        onClick={() => setDeletingStudent(student)}
-                        className="w-full px-3 py-2 text-sm rounded-lg border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
-                      >
-                        Delete
-                      </button>
                     </>
+                  )}
+                  {isAdmin && (
+                    <button
+                      onClick={() => setDeletingStudent(student)}
+                      className="w-full px-3 py-2 text-sm rounded-lg border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
+                    >
+                      Delete
+                    </button>
                   )}
                   {!isTeacher && (
                     <span className="text-xs text-gray-400 dark:text-gray-500 px-2 py-2">View only</span>
@@ -509,7 +511,7 @@ export function Students() {
                       <TableCell className="text-gray-600 dark:text-gray-300 hidden xl:table-cell">{student.age || '-'}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-1 md:gap-2 justify-end flex-nowrap" onClick={e => e.stopPropagation()}>
-                          {isAdmin && (
+                          {isTeacher && (
                             <>
                               <button
                                 onClick={() => {
@@ -535,15 +537,17 @@ export function Students() {
                               >
                                 Edit
                               </Button>
-                              <button
-                                onClick={() => setDeletingStudent(student)}
-                                className="px-2.5 md:px-3 py-1.5 text-xs md:text-sm rounded border min-h-[36px] text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
-                                title="Delete student"
-                                aria-label={`Delete ${student.name}`}
-                              >
-                                Delete
-                              </button>
                             </>
+                          )}
+                          {isAdmin && (
+                            <button
+                              onClick={() => setDeletingStudent(student)}
+                              className="px-2.5 md:px-3 py-1.5 text-xs md:text-sm rounded border min-h-[36px] text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
+                              title="Delete student"
+                              aria-label={`Delete ${student.name}`}
+                            >
+                              Delete
+                            </button>
                           )}
                           {!isTeacher && (
                             <span className="text-xs text-gray-400 dark:text-gray-500 px-2">View only</span>

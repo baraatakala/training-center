@@ -181,10 +181,6 @@ export function SessionCard({
                 💬 Feedback
               </Button>
             )}
-          </div>
-        )}
-        {isAdmin && (
-          <div className="grid grid-cols-2 xl:grid-cols-3 gap-2">
             <Button
               size="sm"
               variant="outline"
@@ -202,26 +198,6 @@ export function SessionCard({
             >
               ✏️ Edit
             </Button>
-            {!isTeacher && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => onOpenRecordings(session)}
-                className="w-full min-h-[36px] justify-center"
-              >
-                🎥 Recordings
-              </Button>
-            )}
-            {!isTeacher && session.feedback_enabled && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => navigate(`/feedback-analytics?session=${session.session_id}`)}
-                className="w-full min-h-[36px] justify-center"
-              >
-                💬 Feedback
-              </Button>
-            )}
             <button
               onClick={() => onDelete(session)}
               className="px-3 py-2 text-sm rounded border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors min-h-[36px]"
@@ -231,7 +207,7 @@ export function SessionCard({
             </button>
           </div>
         )}
-        {!isTeacher && !isAdmin && (
+        {!isTeacher && (
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
             {session.requires_recording && (

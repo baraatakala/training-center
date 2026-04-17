@@ -334,18 +334,18 @@ export function Teachers() {
                       </div>
                     </div>
                     <div className="grid grid-cols-1 gap-2">
+                      {isTeacher && (
+                        <Button size="sm" variant="secondary" onClick={() => openEditModal(teacher)} className="w-full justify-center">
+                          Edit Teacher
+                        </Button>
+                      )}
                       {isAdmin && (
-                        <>
-                          <Button size="sm" variant="secondary" onClick={() => openEditModal(teacher)} className="w-full justify-center">
-                            Edit Teacher
-                          </Button>
-                          <button
-                            onClick={() => setDeletingTeacher(teacher)}
-                            className="w-full px-3 py-2 text-sm rounded-lg border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
-                          >
-                            Delete
-                          </button>
-                        </>
+                        <button
+                          onClick={() => setDeletingTeacher(teacher)}
+                          className="w-full px-3 py-2 text-sm rounded-lg border text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
+                        >
+                          Delete
+                        </button>
                       )}
                       {!isTeacher && (
                         <span className="text-xs text-gray-400 dark:text-gray-500 px-2 py-2">View only</span>
@@ -396,26 +396,26 @@ export function Teachers() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1 md:gap-2 justify-end flex-nowrap">
+                          {isTeacher && (
+                            <Button 
+                              size="sm" 
+                              variant="secondary" 
+                              onClick={() => openEditModal(teacher)} 
+                              className="text-xs md:text-sm px-2.5 md:px-3 py-1.5 min-h-[36px]"
+                              aria-label={`Edit ${teacher.name}`}
+                            >
+                              Edit
+                            </Button>
+                          )}
                           {isAdmin && (
-                            <>
-                              <Button 
-                                size="sm" 
-                                variant="secondary" 
-                                onClick={() => openEditModal(teacher)} 
-                                className="text-xs md:text-sm px-2.5 md:px-3 py-1.5 min-h-[36px]"
-                                aria-label={`Edit ${teacher.name}`}
-                              >
-                                Edit
-                              </Button>
-                              <button
-                                onClick={() => setDeletingTeacher(teacher)}
-                                className="px-2.5 md:px-3 py-1.5 text-xs md:text-sm rounded border min-h-[36px] text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
-                                title="Delete teacher"
-                                aria-label={`Delete ${teacher.name}`}
-                              >
-                                Delete
-                              </button>
-                            </>
+                            <button
+                              onClick={() => setDeletingTeacher(teacher)}
+                              className="px-2.5 md:px-3 py-1.5 text-xs md:text-sm rounded border min-h-[36px] text-red-600 border-red-300 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 transition-colors"
+                              title="Delete teacher"
+                              aria-label={`Delete ${teacher.name}`}
+                            >
+                              Delete
+                            </button>
                           )}
                           {!isTeacher && (
                             <span className="text-xs text-gray-400 dark:text-gray-500 px-2">View only</span>
