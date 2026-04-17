@@ -129,6 +129,14 @@ async function resolveAnnouncementCreators(announcements: Announcement[]): Promi
     admins?.forEach(a => nameMap.set(a.admin_id, { name: a.name, email: a.email }));
   }
 
+  // Fallback: if admin creators couldn't be resolved (RLS blocks non-admin
+  // users from reading the admin table), show a generic "Admin" label.
+  for (const a of announcements) {
+    if (a.creator_type === 'admin' && !nameMap.has(a.created_by)) {
+      nameMap.set(a.created_by, { name: 'Admin', email: '' });
+    }
+  }
+
   return announcements.map(a => ({
     ...a,
     creator: nameMap.get(a.created_by) || undefined,
@@ -235,17 +243,29 @@ export const announcementService = {
       }
       const uniqueCourseIds = [...new Set(courseIds)];
 
-      // Get announcements that are global or for enrolled courses
-      const { data, error } = await supabase
+      // Get announcements that are global or for enrolled courses.
+      // Note: RLS already enforces enrollment-based access. The client-side
+      // course filter is kept as a defence-in-depth measure.
+      // Expiration is NOT filtered server-side — the UI shows an "expired"
+      // badge instead, consistent with the teacher/admin view.
+      let query = supabase
         .from('announcement')
         .select(`
           *,
           course:course_id (course_name)
         `)
-        .or(`course_id.is.null,course_id.in.(${uniqueCourseIds.join(',')})`)
-        .or('expires_at.is.null,expires_at.gt.now()')
         .order('is_pinned', { ascending: false })
         .order('created_at', { ascending: false });
+
+      // Only add course filter when student has enrollments
+      if (uniqueCourseIds.length > 0) {
+        query = query.or(`course_id.is.null,course_id.in.(${uniqueCourseIds.join(',')})`);
+      } else {
+        // No enrollments — can only see global announcements
+        query = query.is('course_id', null);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -418,6 +438,61 @@ export const announcementService = {
 // MESSAGE SERVICES
 // =====================================================
 
+/** Batch-resolve user names for a list of messages to avoid N+1 queries */
+async function batchResolveMessageUsers(messages: Message[]): Promise<Message[]> {
+  if (!messages.length) return messages;
+
+  const teacherIds = new Set<string>();
+  const studentIds = new Set<string>();
+  const adminIds = new Set<string>();
+
+  for (const msg of messages) {
+    for (const { type, id } of [
+      { type: msg.sender_type, id: msg.sender_id },
+      { type: msg.recipient_type, id: msg.recipient_id },
+    ]) {
+      if (!id) continue;
+      if (type === 'teacher') teacherIds.add(id);
+      else if (type === 'student') studentIds.add(id);
+      else if (type === 'admin') adminIds.add(id);
+    }
+  }
+
+  const nameMap = new Map<string, { name: string; email: string }>();
+
+  const queries: Promise<void>[] = [];
+  if (teacherIds.size > 0) {
+    queries.push((async () => {
+      const { data } = await supabase.from('teacher').select('teacher_id, name, email').in('teacher_id', [...teacherIds]);
+      data?.forEach(t => nameMap.set(t.teacher_id, { name: t.name, email: t.email }));
+    })());
+  }
+  if (studentIds.size > 0) {
+    queries.push((async () => {
+      const { data } = await supabase.from('student').select('student_id, name, email').in('student_id', [...studentIds]);
+      data?.forEach(s => nameMap.set(s.student_id, { name: s.name, email: s.email }));
+    })());
+  }
+  if (adminIds.size > 0) {
+    queries.push((async () => {
+      const { data } = await supabase.from('admin').select('admin_id, name, email').in('admin_id', [...adminIds]);
+      data?.forEach(a => nameMap.set(a.admin_id, { name: a.name, email: a.email }));
+    })());
+  }
+  await Promise.all(queries);
+
+  // Fallback for admin IDs that couldn't be resolved (RLS)
+  for (const id of adminIds) {
+    if (!nameMap.has(id)) nameMap.set(id, { name: 'Admin', email: '' });
+  }
+
+  return messages.map(msg => ({
+    ...msg,
+    sender: nameMap.get(msg.sender_id) || undefined,
+    recipient: nameMap.get(msg.recipient_id) || undefined,
+  }));
+}
+
 export const messageService = {
   /**
    * Get all messages for a user (inbox + sent)
@@ -432,15 +507,7 @@ export const messageService = {
 
       if (error) throw error;
 
-      // Fetch sender and recipient details
-      const messagesWithDetails = await Promise.all(
-        (data || []).map(async (msg) => {
-          const sender = await resolveUserName(msg.sender_type, msg.sender_id);
-          const recipient = await resolveUserName(msg.recipient_type, msg.recipient_id);
-          return { ...msg, sender, recipient };
-        })
-      );
-
+      const messagesWithDetails = await batchResolveMessageUsers(data || []);
       return { data: messagesWithDetails, error: null };
     } catch (error) {
       console.error('Error fetching messages:', error);
@@ -462,14 +529,7 @@ export const messageService = {
 
       if (error) throw error;
 
-      // Fetch sender details
-      const messagesWithSender = await Promise.all(
-        (data || []).map(async (msg) => {
-          const sender = await resolveUserName(msg.sender_type, msg.sender_id);
-          return { ...msg, sender };
-        })
-      );
-
+      const messagesWithSender = await batchResolveMessageUsers(data || []);
       return { data: messagesWithSender, error: null };
     } catch (error) {
       console.error('Error fetching inbox:', error);
@@ -491,17 +551,7 @@ export const messageService = {
 
       if (error) throw error;
 
-      // Fetch sender and recipient details
-      const messagesWithDetails = await Promise.all(
-        (data || []).map(async (msg) => {
-          const [sender, recipient] = await Promise.all([
-            resolveUserName(msg.sender_type, msg.sender_id),
-            resolveUserName(msg.recipient_type, msg.recipient_id),
-          ]);
-          return { ...msg, sender, recipient };
-        })
-      );
-
+      const messagesWithDetails = await batchResolveMessageUsers(data || []);
       return { data: messagesWithDetails, error: null };
     } catch (error) {
       console.error('Error fetching sent messages:', error);
@@ -1005,28 +1055,34 @@ export const announcementCommentService = {
 
       if (error) throw error;
 
-      // Fetch commenter details
-      const commentsWithDetails = await Promise.all(
-        (data || []).map(async (comment) => {
-          let commenter = null;
-          if (comment.commenter_type === 'teacher') {
-            const { data: t } = await supabase
-              .from('teacher')
-              .select('name, email')
-              .eq('teacher_id', comment.commenter_id)
-              .single();
-            commenter = t;
-          } else {
-            const { data: s } = await supabase
-              .from('student')
-              .select('name, email')
-              .eq('student_id', comment.commenter_id)
-              .single();
-            commenter = s;
-          }
-          return { ...comment, commenter } as AnnouncementComment;
-        })
-      );
+      // Batch-resolve commenter names (3 queries max instead of N)
+      const teacherIds = new Set<string>();
+      const studentIds = new Set<string>();
+      for (const c of data || []) {
+        if (c.commenter_type === 'teacher') teacherIds.add(c.commenter_id);
+        else studentIds.add(c.commenter_id);
+      }
+
+      const commenterMap = new Map<string, { name: string; email: string }>();
+      const batchQueries: Promise<void>[] = [];
+      if (teacherIds.size > 0) {
+        batchQueries.push((async () => {
+          const { data: t } = await supabase.from('teacher').select('teacher_id, name, email').in('teacher_id', [...teacherIds]);
+          t?.forEach(r => commenterMap.set(r.teacher_id, { name: r.name, email: r.email }));
+        })());
+      }
+      if (studentIds.size > 0) {
+        batchQueries.push((async () => {
+          const { data: s } = await supabase.from('student').select('student_id, name, email').in('student_id', [...studentIds]);
+          s?.forEach(r => commenterMap.set(r.student_id, { name: r.name, email: r.email }));
+        })());
+      }
+      await Promise.all(batchQueries);
+
+      const commentsWithDetails = (data || []).map(comment => ({
+        ...comment,
+        commenter: commenterMap.get(comment.commenter_id) || null,
+      } as AnnouncementComment));
 
       // Organize into threads (parent comments with replies)
       const parentComments = commentsWithDetails.filter(c => !c.parent_comment_id);

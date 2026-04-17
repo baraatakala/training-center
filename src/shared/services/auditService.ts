@@ -174,6 +174,7 @@ export const deleteAuditLog = async (auditId: string): Promise<void> => {
  * Delete multiple audit log entries (admin only)
  */
 export const deleteAuditLogs = async (auditIds: string[]): Promise<void> => {
+  if (auditIds.length === 0) return;
   const { error } = await supabase
     .from('audit_log')
     .delete()

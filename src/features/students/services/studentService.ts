@@ -68,10 +68,12 @@ export const studentService = {
 
   // Search students by name or email
   async search(query: string) {
+    // Escape PostgREST filter special characters to prevent syntax errors
+    const safe = query.replace(/[\\%_.*,()]/g, (c) => '\\' + c);
     return await supabase
       .from(Tables.STUDENT)
       .select('*')
-      .or(`name.ilike.%${query}%,email.ilike.%${query}%`)
+      .or(`name.ilike.%${safe}%,email.ilike.%${safe}%`)
       .order('name', { ascending: true });
   },
 

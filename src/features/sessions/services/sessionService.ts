@@ -606,20 +606,26 @@ export const sessionService = {
       try { await logDelete('session', id, session as Record<string, unknown>); } catch { /* audit non-critical */ }
     }
 
-    // Delete dependent records in FK order (most tables lack ON DELETE CASCADE)
-    await supabase.from(Tables.ATTENDANCE).delete().eq('session_id', id);
-    await supabase.from('qr_sessions').delete().eq('session_id', id);
-    await supabase.from('photo_checkin_sessions').delete().eq('session_id', id);
-    await supabase.from(Tables.SESSION_RECORDING).delete().eq('session_id', id);
-    await supabase.from(Tables.SESSION_DATE_HOST).delete().eq('session_id', id);
-    await supabase.from(Tables.SESSION_BOOK_COVERAGE).delete().eq('session_id', id);
-    await supabase.from(Tables.FEEDBACK_QUESTION).delete().eq('session_id', id);
-    await supabase.from(Tables.SESSION_FEEDBACK).delete().eq('session_id', id);
-    await supabase.from('excuse_request').delete().eq('session_id', id);
-    await supabase.from(Tables.TEACHER_HOST_SCHEDULE).delete().eq('session_id', id);
-    // session_day_change has ON DELETE CASCADE, but explicit delete is safe
-    await supabase.from('session_day_change').delete().eq('session_id', id);
-    await supabase.from(Tables.ENROLLMENT).delete().eq('session_id', id);
+    // Delete dependent records in FK order (most tables lack ON DELETE CASCADE).
+    // Log but don't abort on individual cascade failures.
+    const cascadeTables = [
+      { table: Tables.ATTENDANCE },
+      { table: 'qr_sessions' },
+      { table: 'photo_checkin_sessions' },
+      { table: Tables.SESSION_RECORDING },
+      { table: Tables.SESSION_DATE_HOST },
+      { table: Tables.SESSION_BOOK_COVERAGE },
+      { table: Tables.FEEDBACK_QUESTION },
+      { table: Tables.SESSION_FEEDBACK },
+      { table: 'excuse_request' },
+      { table: Tables.TEACHER_HOST_SCHEDULE },
+      { table: 'session_day_change' },
+      { table: Tables.ENROLLMENT },
+    ] as const;
+    for (const { table } of cascadeTables) {
+      const { error: delErr } = await supabase.from(table).delete().eq('session_id', id);
+      if (delErr) console.warn(`session.delete: failed to cascade-delete from ${table}:`, delErr.message);
+    }
 
     return await supabase
       .from(Tables.SESSION)
@@ -837,6 +843,7 @@ export const sessionService = {
   },
 
   async getActiveEnrollmentCounts(sessionIds: string[]) {
+    if (sessionIds.length === 0) return { data: [], error: null };
     return await supabase
       .from(Tables.ENROLLMENT)
       .select('session_id')

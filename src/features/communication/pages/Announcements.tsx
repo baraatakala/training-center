@@ -154,6 +154,7 @@ export function Announcements() {
         setIsTeacher(false);
         setCurrentUserId(role.student.student_id);
         await loadAnnouncementsForStudent(role.student.student_id);
+        await loadCourses();
       } else {
         setError('User not found in system');
       }
@@ -681,6 +682,9 @@ export function Announcements() {
                   {announcement.is_pinned && <span className="text-lg animate-pulse">📌</span>}
                   {getCategoryBadge(announcement.category)}
                   {getPriorityBadge(announcement.priority)}
+                  {announcement.expires_at && new Date(announcement.expires_at) < new Date() && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400">⏰ Expired</span>
+                  )}
                 </div>
               </div>
               

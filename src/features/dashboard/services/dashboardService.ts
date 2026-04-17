@@ -119,17 +119,19 @@ export const dashboardService = {
   },
 
   async invalidateExpiredQrTokens(rows: Array<{ session_id: string; attendance_date: string }>) {
-    for (const row of rows) {
-      await supabase.from('qr_sessions').update({ is_valid: false })
-        .eq('session_id', row.session_id).eq('attendance_date', row.attendance_date);
-    }
+    if (rows.length === 0) return;
+    // Batch by composite key — run in parallel for speed
+    await Promise.all(rows.map(row =>
+      supabase.from('qr_sessions').update({ is_valid: false })
+        .eq('session_id', row.session_id).eq('attendance_date', row.attendance_date)
+    ));
   },
 
   async invalidateExpiredPhotoTokens(tokens: string[]) {
-    for (const token of tokens) {
-      await supabase.from('photo_checkin_sessions').update({ is_valid: false })
-        .eq('token', token);
-    }
+    if (tokens.length === 0) return;
+    // Single batch update using .in() instead of N sequential updates
+    await supabase.from('photo_checkin_sessions').update({ is_valid: false })
+      .in('token', tokens);
   },
 
   async getOperationalPulse() {
