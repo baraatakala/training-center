@@ -466,6 +466,13 @@ export const sessionMergeService = {
         ? new Set(options.selected_dates)
         : null;
 
+      // Compute earliest attendance date being merged — used for enrollment_date
+      // so students don't show as "not enrolled" for transferred dates.
+      const earliestMergeDate = (dateFilter
+        ? [...dateFilter].sort()[0]
+        : (sourceAttendance || []).map((a) => a.attendance_date as string).sort()[0]
+      ) || targetStartDate;
+
       for (const att of (sourceAttendance || [])) {
         // Skip dates not in the teacher's selection
         if (dateFilter && !dateFilter.has(att.attendance_date)) {
@@ -500,11 +507,23 @@ export const sessionMergeService = {
             .maybeSingle();
 
           if (existingEnroll) {
-            // Reactivate if not already active
-            if (existingEnroll.status !== 'active') {
+            // Reactivate if not already active, and backdate enrollment_date if needed
+            const needsUpdate = existingEnroll.status !== 'active';
+            const { data: existEnrollFull } = await supabase
+              .from(Tables.ENROLLMENT)
+              .select('enrollment_date')
+              .eq('enrollment_id', existingEnroll.enrollment_id)
+              .single();
+            const needsBackdate = existEnrollFull && existEnrollFull.enrollment_date > earliestMergeDate;
+
+            if (needsUpdate || needsBackdate) {
+              const patch: Record<string, unknown> = {};
+              if (needsUpdate) patch.status = 'active';
+              if (needsBackdate) patch.enrollment_date = earliestMergeDate;
+
               const { error: reactivateErr } = await supabase
                 .from(Tables.ENROLLMENT)
-                .update({ status: 'active' })
+                .update(patch)
                 .eq('enrollment_id', existingEnroll.enrollment_id);
               if (reactivateErr) {
                 result.errors.push(
@@ -525,7 +544,7 @@ export const sessionMergeService = {
                 session_id: targetSessionId,
                 status: 'active',
                 can_host: sourceEnrollmentCanHost.get(att.student_id) ?? false,
-                enrollment_date: new Date().toISOString().split('T')[0],
+                enrollment_date: earliestMergeDate,
               })
               .select('enrollment_id')
               .single();
