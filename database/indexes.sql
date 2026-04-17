@@ -3,7 +3,7 @@
 -- ============================================================================
 -- Run order: 3 of 6 (after functions.sql)
 -- All performance indexes. Uses IF NOT EXISTS for idempotent re-runs.
--- Synced with live Supabase as of 2025-07-15 (through migration 029).
+-- Synced with live Supabase as of 2025-07-17 (through migration 041).
 --
 -- NOTE: Primary key indexes and UNIQUE constraint indexes are created
 -- automatically by schema.sql and are NOT repeated here.
@@ -156,6 +156,11 @@ CREATE INDEX IF NOT EXISTS idx_feedback_question_session     ON public.feedback_
 CREATE UNIQUE INDEX IF NOT EXISTS idx_feedback_question_unique_per_date
   ON public.feedback_question(session_id, attendance_date, question_text)
   WHERE attendance_date IS NOT NULL;
+
+-- feedback_template
+-- At most one default template globally
+CREATE UNIQUE INDEX IF NOT EXISTS idx_single_default_template
+  ON public.feedback_template(is_default) WHERE is_default = true;
 
 -- ============================================================================
 -- 8. CERTIFICATES

@@ -1,4 +1,4 @@
--- Migration: Add configurable max tab-switch violations to session table
+-- Migration 035: Add configurable max tab-switch violations to session table
 -- Allows admin/teacher to configure how many times a student can switch tabs
 -- before the anti-cheat system auto-submits their feedback test.
 

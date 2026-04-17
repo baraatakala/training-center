@@ -712,6 +712,7 @@ export function Sessions() {
                   default_recording_visibility: editingSession.default_recording_visibility,
                   feedback_enabled: editingSession.feedback_enabled,
                   feedback_anonymous_allowed: editingSession.feedback_anonymous_allowed,
+                  feedback_time_limit_seconds: editingSession.feedback_time_limit_seconds,
                   max_tab_switches: editingSession.max_tab_switches,
                   teacher_can_host: editingSession.teacher_can_host,
                 }

@@ -455,9 +455,10 @@ export function StudentCheckIn() {
             // 1. Before session start = on time (track early_minutes)
             // 2. Before grace period end = on time
             // 3. After grace period but before session end = late
-            // 4. After session end = absent
+            // 4. After session end = still late (student is actively checking in, so present)
             if (now > sessionEnd) {
-              attendanceStatus = 'absent';
+              attendanceStatus = 'late';
+              lateMinutes = Math.ceil((now.getTime() - sessionStart.getTime()) / (1000 * 60));
               checkInAfterSession = true;
             } else if (now > graceEnd) {
               attendanceStatus = 'late';
@@ -476,8 +477,9 @@ export function StudentCheckIn() {
             setSubmitting(false);
             return;
           } else {
-            // For past dates, mark as absent (retroactive check-in)
-            attendanceStatus = 'absent';
+            // For past dates, student is still actively checking in (QR/photo valid), mark as late
+            attendanceStatus = 'late';
+            lateMinutes = Math.ceil((now.getTime() - sessionStart.getTime()) / (1000 * 60));
             checkInAfterSession = true;
           }
         }
@@ -533,8 +535,7 @@ export function StudentCheckIn() {
 
       // Check if session has feedback enabled
       const { enabled } = await feedbackService.isEnabled(checkInData.session_id);
-      const feedbackAllowedForAttendance = attendanceStatus !== 'absent';
-      if (enabled && feedbackAllowedForAttendance) {
+      if (enabled) {
         setFeedbackEnabled(true);
         // Show feedback after a short delay so student sees success first
         setTimeout(() => setShowFeedback(true), 1200);

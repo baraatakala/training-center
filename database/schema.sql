@@ -4,7 +4,7 @@
 -- Run order: 1 of 6
 -- This file creates all 32 tables in dependency order.
 -- All UUID columns use gen_random_uuid() (native PostgreSQL 13+, no extensions).
--- Synced with live Supabase as of 2025-07-15 (through migration 029).
+-- Synced with live Supabase as of 2025-07-17 (through migration 041).
 -- ============================================================================
 
 -- ============================================================================
@@ -687,7 +687,7 @@ CREATE TABLE IF NOT EXISTS public.audit_log (
   deleted_at TIMESTAMPTZ DEFAULT now(),
   reason TEXT,
   changed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  changed_by UUID,
+  changed_by TEXT,
   CONSTRAINT audit_log_pkey PRIMARY KEY (audit_id),
   CONSTRAINT audit_log_operation_check CHECK (operation = ANY (ARRAY['DELETE', 'UPDATE', 'INSERT']))
 );

@@ -17,6 +17,7 @@ export type SessionWithDetails = {
   default_recording_visibility?: 'private_staff' | 'course_staff' | 'enrolled_students' | 'organization' | 'public_link' | null;
   feedback_enabled?: boolean;
   feedback_anonymous_allowed?: boolean;
+  feedback_time_limit_seconds?: number | null;
   max_tab_switches?: number;
   teacher_can_host?: boolean;
   course: {

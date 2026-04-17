@@ -730,7 +730,8 @@ export function PhotoCheckIn() {
             }
             
             if (now > sessionEnd) {
-              attendanceStatus = 'absent';
+              attendanceStatus = 'late';
+              lateMinutes = Math.ceil((now.getTime() - sessionStart.getTime()) / (1000 * 60));
               checkInAfterSession = true;
             } else if (now > graceEnd) {
               attendanceStatus = 'late';
@@ -746,7 +747,9 @@ export function PhotoCheckIn() {
             setSubmitting(false);
             return;
           } else {
-            attendanceStatus = 'absent';
+            // For past dates, student is still actively checking in (QR/photo valid), mark as late
+            attendanceStatus = 'late';
+            lateMinutes = Math.ceil((now.getTime() - sessionStart.getTime()) / (1000 * 60));
             checkInAfterSession = true;
           }
         }
@@ -798,8 +801,8 @@ export function PhotoCheckIn() {
       
       // Check if session has feedback enabled
       const { enabled } = await feedbackService.isEnabled(checkInData.session_id);
-      const feedbackAllowedForAttendance = attendanceStatus !== 'absent';
-      if (enabled && feedbackAllowedForAttendance) {
+
+      if (enabled) {
         setFeedbackEnabled(true);
         setTimeout(() => setShowFeedback(true), 1200);
       } else {

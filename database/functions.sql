@@ -3,7 +3,7 @@
 -- ============================================================================
 -- Run order: 2 of 6 (after schema.sql)
 -- All database functions, trigger functions, and trigger bindings.
--- Synced with live Supabase as of 2025-07-15 (through migration 029).
+-- Synced with live Supabase as of 2025-07-17 (through migration 041).
 -- ============================================================================
 
 -- ============================================================================
@@ -546,6 +546,24 @@ END;
 $$;
 
 -- ============================================================================
+-- 5b. FEEDBACK INTEGRITY
+-- ============================================================================
+
+-- When a student is deleted (student_id SET NULL on session_feedback),
+-- ensure is_anonymous is set to true so the row remains valid.
+CREATE OR REPLACE FUNCTION public.fn_feedback_anonymize_on_student_null()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.student_id IS NULL AND OLD.student_id IS NOT NULL THEN
+    NEW.is_anonymous := true;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+-- ============================================================================
 -- 6. REPORTING / ANALYTICS FUNCTIONS
 -- ============================================================================
 
@@ -665,3 +683,9 @@ DROP TRIGGER IF EXISTS trg_enforce_attendance_student_match ON attendance;
 CREATE TRIGGER trg_enforce_attendance_student_match
   BEFORE INSERT OR UPDATE OF student_id, enrollment_id ON attendance
   FOR EACH ROW EXECUTE FUNCTION fn_enforce_attendance_student_match();
+
+-- Feedback anonymization on student deletion
+DROP TRIGGER IF EXISTS trg_feedback_anonymize_on_student_null ON session_feedback;
+CREATE TRIGGER trg_feedback_anonymize_on_student_null
+  BEFORE UPDATE OF student_id ON session_feedback
+  FOR EACH ROW EXECUTE FUNCTION fn_feedback_anonymize_on_student_null();

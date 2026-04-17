@@ -41,7 +41,8 @@ Features: `attendance`, `auth`, `certificates`, `checkin`, `communication`, `cou
 4. **Type Safety**: Use types from `@/shared/types/` for all data models.
 5. **Database Truth Source**: Do not infer schema from archived SQL files when `database/schema.sql`, `database/functions.sql`, or `database/rls-policies.sql` already define it.
 6. **Migration Discipline**: New database changes go in `database/migrations/` first, then update consolidated SQL if the change becomes part of the new baseline.
-7. **Large Legacy Screens**: `Attendance.tsx` and `BulkScheduleTable.tsx` still contain transitional service facades; prefer extracting narrow service methods rather than expanding page/component query logic.
+7. **Post-Migration Sync**: After applying any migration to Supabase, **always** update the corresponding consolidated SQL file (`schema.sql`, `functions.sql`, `indexes.sql`, `rls-policies.sql`) and bump the header sync comment. Also add the migration entry to `database/README.md`.
+8. **Large Legacy Screens**: `Attendance.tsx` and `BulkScheduleTable.tsx` still contain transitional service facades; prefer extracting narrow service methods rather than expanding page/component query logic.
 
 ## Developer Workflows
 - `npm run dev` — Start Vite dev server with HMR
@@ -50,9 +51,10 @@ Features: `attendance`, `auth`, `certificates`, `checkin`, `communication`, `cou
 - `npx tsc -b --noEmit` — Type-check only
 
 ## Database
-- 32 tables with RLS policies. See `database/README.md` for full schema.
+- 32 tables, 139 RLS policies, 18 functions, 107 indexes, 41 migrations. See `database/README.md` for full details.
 - Run order: `schema.sql` → `functions.sql` → `indexes.sql` → `rls-policies.sql` → `storage.sql` → `seed-data.sql`
 - Historical migrations in `database/archive/`
+- Active migrations in `database/migrations/` (001–041)
 
 ## Naming Conventions
 - Services: `<entity>Service.ts` (e.g., `studentService.ts`)

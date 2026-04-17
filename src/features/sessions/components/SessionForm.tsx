@@ -124,6 +124,7 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
       default_recording_visibility: initialData?.default_recording_visibility || 'course_staff',
       feedback_enabled: initialData?.feedback_enabled ?? false,
       feedback_anonymous_allowed: initialData?.feedback_anonymous_allowed ?? true,
+      feedback_time_limit_seconds: initialData?.feedback_time_limit_seconds ?? null,
       max_tab_switches: initialData?.max_tab_switches ?? 3,
       teacher_can_host: initialData?.teacher_can_host ?? true,
     });

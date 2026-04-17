@@ -1,4 +1,4 @@
--- Migration 026: Anti-cheat tracking for test-mode feedback
+-- Migration 034: Anti-cheat tracking for test-mode feedback
 -- When feedback questions have correct_answer (test mode), the system detects
 -- tab switches and records violations. Auto-submit triggers after max violations.
 

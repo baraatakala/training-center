@@ -1,4 +1,4 @@
--- Migration 027: Add parent_session_id to track cloned sessions
+-- Migration 028: Add parent_session_id to track cloned sessions
 -- When a session is cloned, the new session stores the root (original) session_id
 -- so that AttendanceRecords can deduplicate: selecting a root shows all its clones too.
 

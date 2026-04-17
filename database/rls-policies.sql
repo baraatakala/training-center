@@ -1,6 +1,6 @@
 -- ============================================================================
 -- Training Center — Row Level Security Policies
--- Synced with live Supabase as of 2026-04-06 (migration 021 applied)
+-- Synced with live Supabase as of 2025-07-17 (through migration 041)
 -- ============================================================================
 -- Run order: 4 of 6 (after indexes.sql)
 -- Requires: functions.sql (is_admin, is_teacher, get_my_student_id)
@@ -717,6 +717,22 @@ CREATE POLICY "Teachers can manage their announcements" ON announcement
       SELECT 1 FROM teacher
       WHERE teacher.teacher_id = announcement.created_by
         AND LOWER(teacher.email) = LOWER(auth.jwt() ->> 'email')
+    )
+  );
+
+DROP POLICY IF EXISTS "Teachers can read all announcements" ON announcement;
+CREATE POLICY "Teachers can read all announcements" ON announcement
+  FOR SELECT TO authenticated
+  USING (
+    is_teacher() AND NOT is_admin()
+    AND (
+      course_id IS NULL
+      OR EXISTS (
+        SELECT 1 FROM session s
+        JOIN teacher t ON t.teacher_id = s.teacher_id
+        WHERE s.course_id = announcement.course_id
+          AND LOWER(t.email) = LOWER(auth.jwt() ->> 'email')
+      )
     )
   );
 

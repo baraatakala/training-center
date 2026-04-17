@@ -42,3 +42,15 @@ Sequential SQL files in `migrations/`. Each migration is wrapped in `BEGIN; ... 
 | 027 | Allow 'other' host_type in session_date_host |
 | 028 | parent_session_id for cloned sessions |
 | 029 | Integrity & performance: CHECK constraints, FK cascades, composite indexes, unique constraints, attendance stats function |
+| 030 | Feedback hardening: anonymize-on-delete trigger, redundant index cleanup |
+| 031 | Feedback constraint hardening: NOT NULL enforcement, multiple-choice options check, single default template |
+| 032 | Mega-hardening audit: drop duplicate constraints & redundant prefix indexes, SET NOT NULL on boolean columns |
+| 033 | Drop parent_session_id from session (unused) |
+| 034 | Feedback anti-cheat: tab_switch_count, is_auto_submitted on session_feedback |
+| 035 | Add max_tab_switches to session (configurable tab switch limit) |
+| 036 | Feedback allow_multiple on feedback_question |
+| 037 | Feedback grading_mode on feedback_question |
+| 038 | QR session: use effective time from session_time_change |
+| 039 | Feedback timer: feedback_time_limit_seconds, answer_duration_seconds, submission_reason |
+| 040 | Fix audit_log.changed_by UUID → TEXT |
+| 041 | Allow 'other' host_type in session_date_host |

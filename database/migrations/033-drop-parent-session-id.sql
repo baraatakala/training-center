@@ -1,4 +1,4 @@
--- Migration 026: Remove clone/parent_session_id infrastructure
+-- Migration 033: Remove clone/parent_session_id infrastructure
 -- The session cloning feature was never fully implemented and has been removed from the frontend.
 -- No sessions have parent_session_id set (verified before migration).
 

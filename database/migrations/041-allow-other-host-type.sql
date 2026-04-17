@@ -1,4 +1,4 @@
--- Migration 026: Allow 'other' host_type for stranger/custom hosts
+-- Migration 041: Allow 'other' host_type for stranger/custom hosts
 -- Expands the session_date_host.host_type CHECK to include 'other'
 
 ALTER TABLE public.session_date_host
