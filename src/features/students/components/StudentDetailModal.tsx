@@ -118,7 +118,7 @@ export function StudentDetailModal({ student, onClose }: StudentDetailModalProps
     }
     load();
     return () => { cancelled = true; };
-  }, [student.student_id]);
+  }, [student.student_id, student.address]);
 
   // Load signed photo URL
   useEffect(() => {
