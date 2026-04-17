@@ -150,7 +150,7 @@ export function SessionMergeModal({
   // ── Init selectedDates when preview loads (select all by default) ────────
   useEffect(() => {
     if (preview?.dates) {
-      setSelectedDates(new Set(preview.dates.map((d) => d.date)));
+      setSelectedDates(new Set(preview.dates.filter((d) => !d.out_of_range).map((d) => d.date)));
     }
   }, [preview]);
 
@@ -370,6 +370,8 @@ export function SessionMergeModal({
     const sourceName = selectedSession?.course?.course_name || 'Source';
 
     const toggleDate = (date: string) => {
+      const dateObj = allDates.find((d) => d.date === date);
+      if (dateObj?.out_of_range) return;
       setSelectedDates((prev) => {
         const next = new Set(prev);
         if (next.has(date)) next.delete(date);
@@ -397,6 +399,11 @@ export function SessionMergeModal({
             Choose which attendance dates to copy from{' '}
             <span className="font-medium text-gray-700 dark:text-gray-300">{sourceName}</span>.
           </p>
+          {preview?.target_start_date && preview?.target_end_date && allDates.some((d) => d.out_of_range) && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+              ⚠ Target session runs {preview.target_start_date} → {preview.target_end_date}. Dates outside this range are disabled.
+            </p>
+          )}
         </div>
 
         {/* Date list */}
@@ -409,7 +416,7 @@ export function SessionMergeModal({
               checked={selectedCount === totalDates && totalDates > 0}
               onChange={(e) => {
                 if (e.target.checked) {
-                  setSelectedDates(new Set(allDates.map((d) => d.date)));
+                  setSelectedDates(new Set(allDates.filter((d) => !d.out_of_range).map((d) => d.date)));
                 } else {
                   setSelectedDates(new Set());
                 }
@@ -425,7 +432,7 @@ export function SessionMergeModal({
               </span>
               <button
                 type="button"
-                onClick={() => setSelectedDates(new Set(allDates.map((d) => d.date)))}
+                onClick={() => setSelectedDates(new Set(allDates.filter((d) => !d.out_of_range).map((d) => d.date)))}
                 className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
               >
                 All
@@ -456,15 +463,18 @@ export function SessionMergeModal({
                 <div
                   key={d.date}
                   onClick={() => toggleDate(d.date)}
-                  className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors ${
-                    isSelected
-                      ? 'bg-blue-50/60 dark:bg-blue-900/10'
-                      : 'hover:bg-gray-50 dark:hover:bg-gray-700/40'
+                  className={`flex items-center gap-3 px-3 py-2.5 transition-colors ${
+                    d.out_of_range
+                      ? 'opacity-50 cursor-not-allowed bg-red-50/40 dark:bg-red-900/10'
+                      : isSelected
+                        ? 'cursor-pointer bg-blue-50/60 dark:bg-blue-900/10'
+                        : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40'
                   }`}
                 >
                   <input
                     type="checkbox"
                     checked={isSelected}
+                    disabled={d.out_of_range}
                     onChange={() => toggleDate(d.date)}
                     onClick={(e) => e.stopPropagation()}
                     className="text-blue-600 focus:ring-blue-500 rounded flex-shrink-0"
@@ -478,6 +488,13 @@ export function SessionMergeModal({
                       year: 'numeric',
                     })}
                   </span>
+
+                  {/* Out-of-range badge */}
+                  {d.out_of_range && (
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-medium flex-shrink-0">
+                      ⛔ Outside range
+                    </span>
+                  )}
 
                   {/* Content icons */}
                   {hasContent && (

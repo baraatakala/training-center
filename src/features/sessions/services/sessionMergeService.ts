@@ -32,12 +32,18 @@ export type MergeDatePreview = {
   has_day_change: boolean;               // session_day_change row with this effective_date
   has_recording: boolean;                // non-deleted session_recording for this date
   has_book_coverage: boolean;            // session_book_coverage row for this date
+  /** true when this date falls outside the target session's start_date..end_date range */
+  out_of_range: boolean;
 };
 
 export type MergePreview = {
   students: StudentMergePreview[];
   /** Per-date breakdown for the date-picker step. Sorted ascending by date. */
   dates: MergeDatePreview[];
+  /** Target session start_date (YYYY-MM-DD) — used by UI to show out-of-range warning */
+  target_start_date: string;
+  /** Target session end_date (YYYY-MM-DD) — used by UI to show out-of-range warning */
+  target_end_date: string;
   date_host_override_count: number;
   teacher_host_schedule_count: number;
   recording_count: number;
@@ -125,12 +131,14 @@ export const sessionMergeService = {
           supabase.from(Tables.SESSION_BOOK_COVERAGE).select('coverage_id', { count: 'exact', head: true }).eq('session_id', sourceSessionId),
           supabase.from(Tables.FEEDBACK_QUESTION).select('id', { count: 'exact', head: true }).eq('session_id', sourceSessionId),
           supabase.from(Tables.SESSION).select('course_id').eq('session_id', sourceSessionId).single(),
-          supabase.from(Tables.SESSION).select('course_id').eq('session_id', targetSessionId).single(),
+          supabase.from(Tables.SESSION).select('course_id, start_date, end_date').eq('session_id', targetSessionId).single(),
         ]);
         return {
           data: {
             students: [],
             dates: [],
+            target_start_date: (tgtSess?.start_date as string) || '',
+            target_end_date: (tgtSess?.end_date as string) || '',
             date_host_override_count: earlyOverrideCount || 0,
             teacher_host_schedule_count: earlyScheduleCount || 0,
             recording_count: earlyRecordingCount || 0,
@@ -301,7 +309,7 @@ export const sessionMergeService = {
         supabase.from(Tables.SESSION_TIME_CHANGE).select('effective_date').eq('session_id', sourceSessionId),
         supabase.from('session_day_change').select('effective_date').eq('session_id', sourceSessionId),
         supabase.from(Tables.SESSION).select('course_id').eq('session_id', sourceSessionId).single(),
-        supabase.from(Tables.SESSION).select('course_id').eq('session_id', targetSessionId).single(),
+        supabase.from(Tables.SESSION).select('course_id, start_date, end_date').eq('session_id', targetSessionId).single(),
       ]);
 
       const hostDateSet = new Set((hostDateRows || []).map((r) => r.attendance_date as string));
@@ -310,8 +318,16 @@ export const sessionMergeService = {
       const recordingDateSet = new Set((recordingDateRows || []).map((r) => r.attendance_date as string));
       const bookCoverageDateSet = new Set((bookCoverageDateRows || []).map((r) => r.attendance_date as string));
 
+      // Target session date range — dates outside this range are flagged as out_of_range
+      const targetStartDate = tgtSession?.start_date as string | undefined;
+      const targetEndDate = tgtSession?.end_date as string | undefined;
+
       const datePreviews: MergeDatePreview[] = [...dateGroupMap.keys()].sort().map((date) => {
         const dg = dateGroupMap.get(date)!;
+        const outOfRange = !!(
+          (targetStartDate && date < targetStartDate) ||
+          (targetEndDate && date > targetEndDate)
+        );
         return {
           date,
           transferable_count: dg.transferable,
@@ -323,6 +339,7 @@ export const sessionMergeService = {
           has_day_change: dayChangeDateSet.has(date),
           has_recording: recordingDateSet.has(date),
           has_book_coverage: bookCoverageDateSet.has(date),
+          out_of_range: outOfRange,
         };
       });
 
@@ -330,6 +347,8 @@ export const sessionMergeService = {
         data: {
           students: studentStatuses,
           dates: datePreviews,
+          target_start_date: targetStartDate || '',
+          target_end_date: targetEndDate || '',
           date_host_override_count: (hostDateRows || []).length,
           teacher_host_schedule_count: scheduleCount || 0,
           recording_count: (recordingDateRows || []).length,
@@ -377,6 +396,20 @@ export const sessionMergeService = {
     };
 
     try {
+      // ── 0. Fetch target session date range for validation ─────────────────
+      const { data: targetSession, error: tsErr } = await supabase
+        .from(Tables.SESSION)
+        .select('start_date, end_date')
+        .eq('session_id', targetSessionId)
+        .single();
+
+      if (tsErr || !targetSession) {
+        return { data: null, error: { message: tsErr?.message || 'Target session not found.' } };
+      }
+
+      const targetStartDate = targetSession.start_date as string;
+      const targetEndDate = targetSession.end_date as string;
+
       // ── 1. Re-fetch fresh target enrollments ──────────────────────────────
       const { data: targetEnrollments, error: teErr } = await supabase
         .from(Tables.ENROLLMENT)
@@ -436,6 +469,15 @@ export const sessionMergeService = {
       for (const att of (sourceAttendance || [])) {
         // Skip dates not in the teacher's selection
         if (dateFilter && !dateFilter.has(att.attendance_date)) {
+          continue;
+        }
+
+        // Skip dates outside the target session's date range
+        if (att.attendance_date < targetStartDate || att.attendance_date > targetEndDate) {
+          result.skipped++;
+          result.errors.push(
+            `Skipped ${att.attendance_date}: outside target session range (${targetStartDate} — ${targetEndDate})`,
+          );
           continue;
         }
 
@@ -588,9 +630,10 @@ export const sessionMergeService = {
           .select('*')
           .eq('session_id', sourceSessionId);
 
-        const sourceHostRows = dateFilter
+        const sourceHostRows = (dateFilter
           ? (allSourceHostRows || []).filter((r) => dateFilter.has(r.attendance_date))
-          : (allSourceHostRows || []);
+          : (allSourceHostRows || [])
+        ).filter((r) => r.attendance_date >= targetStartDate && r.attendance_date <= targetEndDate);
 
         for (const row of sourceHostRows) {
           const hostPayload = {
@@ -660,9 +703,10 @@ export const sessionMergeService = {
           .eq('session_id', sourceSessionId)
           .order('effective_date', { ascending: true });
 
-        const sourceTimeChanges = dateFilter
+        const sourceTimeChanges = (dateFilter
           ? (allSourceTimeChanges || []).filter((tc) => dateFilter.has(tc.effective_date))
-          : (allSourceTimeChanges || []);
+          : (allSourceTimeChanges || [])
+        ).filter((tc) => tc.effective_date >= targetStartDate && tc.effective_date <= targetEndDate);
 
         for (const tc of sourceTimeChanges) {
           // Delete any existing time-change on the same effective_date in target
@@ -694,9 +738,10 @@ export const sessionMergeService = {
           .eq('session_id', sourceSessionId)
           .order('effective_date', { ascending: true });
 
-        const sourceDayChanges = dateFilter
+        const sourceDayChanges = (dateFilter
           ? (allSourceDayChanges || []).filter((dc) => dateFilter.has(dc.effective_date))
-          : (allSourceDayChanges || []);
+          : (allSourceDayChanges || [])
+        ).filter((dc) => dc.effective_date >= targetStartDate && dc.effective_date <= targetEndDate);
 
         for (const dc of sourceDayChanges) {
           await supabase
@@ -752,9 +797,10 @@ export const sessionMergeService = {
           .eq('session_id', sourceSessionId)
           .is('deleted_at', null);
 
-        const sourceRecordings = dateFilter
+        const sourceRecordings = (dateFilter
           ? (allSourceRecordings || []).filter((r) => dateFilter.has(r.attendance_date))
-          : (allSourceRecordings || []);
+          : (allSourceRecordings || [])
+        ).filter((r) => r.attendance_date >= targetStartDate && r.attendance_date <= targetEndDate);
 
         // Pre-fetch existing target recordings to avoid duplicates
         const { data: existingTargetRecordings } = await supabase
@@ -802,9 +848,10 @@ export const sessionMergeService = {
             .select('*')
             .eq('session_id', sourceSessionId);
 
-          const sourceBookCoverage = dateFilter
+          const sourceBookCoverage = (dateFilter
             ? (allSourceBookCoverage || []).filter((c) => dateFilter.has(c.attendance_date))
-            : (allSourceBookCoverage || []);
+            : (allSourceBookCoverage || [])
+          ).filter((c) => c.attendance_date >= targetStartDate && c.attendance_date <= targetEndDate);
 
           for (const cov of sourceBookCoverage) {
             // Check by date + reference_id for proper dedup when multiple books per date
@@ -860,11 +907,12 @@ export const sessionMergeService = {
           .select('*')
           .eq('session_id', sourceSessionId);
 
-        const sourceFeedback = dateFilter
+        const sourceFeedback = (dateFilter
           ? (allSourceFeedback || []).filter(
               (q) => q.attendance_date === null || dateFilter.has(q.attendance_date),
             )
-          : (allSourceFeedback || []);
+          : (allSourceFeedback || [])
+        ).filter((q) => q.attendance_date === null || (q.attendance_date >= targetStartDate && q.attendance_date <= targetEndDate));
 
         // Pre-fetch existing target feedback questions to avoid duplicates
         const { data: existingTargetQuestions } = await supabase
