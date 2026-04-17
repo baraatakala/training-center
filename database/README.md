@@ -54,3 +54,4 @@ Sequential SQL files in `migrations/`. Each migration is wrapped in `BEGIN; ... 
 | 039 | Feedback timer: feedback_time_limit_seconds, answer_duration_seconds, submission_reason |
 | 040 | Fix audit_log.changed_by UUID → TEXT |
 | 041 | Allow 'other' host_type in session_date_host |
+| 042 | QA hardening: search_path on 11 functions, 4 FK indexes, token default, description min-length |

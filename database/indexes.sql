@@ -3,7 +3,7 @@
 -- ============================================================================
 -- Run order: 3 of 6 (after functions.sql)
 -- All performance indexes. Uses IF NOT EXISTS for idempotent re-runs.
--- Synced with live Supabase as of 2025-07-17 (through migration 041).
+-- Synced with live Supabase as of 2025-07-18 (through migration 026).
 --
 -- NOTE: Primary key indexes and UNIQUE constraint indexes are created
 -- automatically by schema.sql and are NOT repeated here.
@@ -216,3 +216,12 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_deleted_by   ON public.audit_log(delete
 CREATE INDEX IF NOT EXISTS idx_audit_log_operation    ON public.audit_log(operation);
 CREATE INDEX IF NOT EXISTS idx_audit_log_table_changed ON public.audit_log(table_name, changed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_log_changed_by   ON public.audit_log(changed_by);
+
+-- ============================================================================
+-- 11. CERTIFICATE & RECORDING FK INDEXES (migration 026)
+-- ============================================================================
+
+CREATE INDEX IF NOT EXISTS idx_issued_certificate_course_id        ON public.issued_certificate(course_id);
+CREATE INDEX IF NOT EXISTS idx_issued_certificate_signer_teacher_id ON public.issued_certificate(signer_teacher_id);
+CREATE INDEX IF NOT EXISTS idx_session_book_coverage_reference_id   ON public.session_book_coverage(reference_id);
+CREATE INDEX IF NOT EXISTS idx_session_recording_uploaded_by        ON public.session_recording(recording_uploaded_by);

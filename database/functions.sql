@@ -3,7 +3,7 @@
 -- ============================================================================
 -- Run order: 2 of 6 (after schema.sql)
 -- All database functions, trigger functions, and trigger bindings.
--- Synced with live Supabase as of 2025-07-17 (through migration 041).
+-- Synced with live Supabase as of 2025-07-18 (through migration 026).
 -- ============================================================================
 
 -- ============================================================================
@@ -55,7 +55,7 @@ BEGIN
   NEW.updated_at = now();
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 -- ============================================================================
 -- 3. BUSINESS LOGIC FUNCTIONS
@@ -128,7 +128,7 @@ BEGIN
 
   RETURN 0.50;
 END;
-$$ LANGUAGE plpgsql STABLE;
+$$ LANGUAGE plpgsql STABLE SET search_path = public;
 
 -- Late bracket info lookup (reads from scoring_config.late_brackets JSONB)
 CREATE OR REPLACE FUNCTION get_late_bracket_info(
@@ -189,7 +189,7 @@ BEGIN
     0.50::DECIMAL(3,2),
     '#ef4444'::VARCHAR(20);
 END;
-$$ LANGUAGE plpgsql STABLE;
+$$ LANGUAGE plpgsql STABLE SET search_path = public;
 
 -- Book reference parent-course validation
 CREATE OR REPLACE FUNCTION check_book_ref_same_course()
@@ -205,12 +205,13 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 -- Excuse request date validation against session schedule
 CREATE OR REPLACE FUNCTION public.validate_excuse_request_session_day()
 RETURNS TRIGGER
 LANGUAGE plpgsql
+SET search_path = public
 AS $$
 DECLARE
   v_session_day    TEXT;
@@ -301,7 +302,8 @@ CREATE OR REPLACE FUNCTION public.calculate_gps_distance(
   lon2 DOUBLE PRECISION
 )
 RETURNS DOUBLE PRECISION
-LANGUAGE plpgsql
+LANGUAGE plpgsql IMMUTABLE
+SET search_path = public
 AS $$
 DECLARE
   R CONSTANT DOUBLE PRECISION := 6371000; -- Earth radius in metres
@@ -489,6 +491,7 @@ $$;
 CREATE OR REPLACE FUNCTION public.cleanup_expired_qr_sessions()
 RETURNS INTEGER
 LANGUAGE plpgsql
+SET search_path = public
 AS $$
 DECLARE
   v_deleted_count INTEGER;
@@ -508,6 +511,7 @@ $$;
 CREATE OR REPLACE FUNCTION public.fn_enforce_can_host_on_status_change()
 RETURNS TRIGGER
 LANGUAGE plpgsql
+SET search_path = public
 AS $$
 BEGIN
   IF NEW.status <> 'active' AND NEW.can_host = true THEN
@@ -523,6 +527,7 @@ $$;
 CREATE OR REPLACE FUNCTION public.fn_enforce_attendance_student_match()
 RETURNS TRIGGER
 LANGUAGE plpgsql
+SET search_path = public
 AS $$
 DECLARE
   v_enrollment_student_id UUID;
@@ -554,6 +559,7 @@ $$;
 CREATE OR REPLACE FUNCTION public.fn_feedback_anonymize_on_student_null()
 RETURNS TRIGGER
 LANGUAGE plpgsql
+SET search_path = public
 AS $$
 BEGIN
   IF NEW.student_id IS NULL AND OLD.student_id IS NOT NULL THEN
@@ -578,7 +584,7 @@ RETURNS TABLE (
   unique_dates   BIGINT,
   unique_students BIGINT,
   avg_late_minutes NUMERIC
-) LANGUAGE sql STABLE SECURITY INVOKER AS $$
+) LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public AS $$
   SELECT
     count(*)                                                    AS total_records,
     count(*) FILTER (WHERE status = 'on time')                  AS on_time_count,

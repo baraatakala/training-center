@@ -1,21 +1,20 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Replace these with your actual Supabase project credentials
-// You can find these in your Supabase project settings
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('❌ Missing Supabase environment variables!');
-  console.error('Please add them to your .env file:');
-  console.error('VITE_SUPABASE_URL=your-project-url');
-  console.error('VITE_SUPABASE_ANON_KEY=your-anon-key');
-  console.error('Current values:', { supabaseUrl: supabaseUrl ? 'SET' : 'MISSING', supabaseAnonKey: supabaseAnonKey ? 'SET' : 'MISSING' });
-  
-  // Show alert to user
-  if (typeof window !== 'undefined') {
-    alert('⚠️ Supabase configuration missing! Check console for details.');
+  const msg = [
+    'Missing Supabase environment variables.',
+    `VITE_SUPABASE_URL: ${supabaseUrl ? 'SET' : 'MISSING'}`,
+    `VITE_SUPABASE_ANON_KEY: ${supabaseAnonKey ? 'SET' : 'MISSING'}`,
+    'Add them to your .env file. See docs/setup.md for details.',
+  ].join('\n');
+
+  if (import.meta.env.DEV) {
+    throw new Error(msg);
   }
+  console.error(msg);
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {

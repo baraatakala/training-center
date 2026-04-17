@@ -4,7 +4,7 @@
 -- Run order: 1 of 6
 -- This file creates all 32 tables in dependency order.
 -- All UUID columns use gen_random_uuid() (native PostgreSQL 13+, no extensions).
--- Synced with live Supabase as of 2025-07-17 (through migration 041).
+-- Synced with live Supabase as of 2025-07-18 (through migration 026).
 -- ============================================================================
 
 -- ============================================================================
@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS public.course (
   description_updated_at TIMESTAMPTZ,
   CONSTRAINT course_pkey PRIMARY KEY (course_id),
   CONSTRAINT course_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES public.teacher(teacher_id) ON DELETE SET NULL,
-  CONSTRAINT course_description_length_check CHECK (description IS NULL OR char_length(description) <= 6000),
+  CONSTRAINT course_description_length_check CHECK (description IS NULL OR (char_length(description) >= 10 AND char_length(description) <= 6000)),
   CONSTRAINT course_description_format_check CHECK (description_format = ANY (ARRAY['markdown', 'plain_text']))
 );
 
@@ -221,7 +221,7 @@ CREATE TABLE IF NOT EXISTS public.photo_checkin_sessions (
   id UUID NOT NULL DEFAULT gen_random_uuid(),
   session_id UUID NOT NULL,
   attendance_date DATE NOT NULL,
-  token TEXT NOT NULL UNIQUE,
+  token TEXT NOT NULL DEFAULT gen_random_uuid()::text UNIQUE,
   expires_at TIMESTAMPTZ NOT NULL,
   is_valid BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
