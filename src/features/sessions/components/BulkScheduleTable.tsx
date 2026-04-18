@@ -5,7 +5,7 @@ import { logDelete } from '@/shared/services/auditService';
 import { toast } from '@/shared/components/ui/toastUtils';
 import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
 import { format } from 'date-fns';
-import { generateAttendanceDates, type DayChange } from '@/shared/utils/attendanceGenerator';
+import { generateAttendanceDates, generateAttendanceDatesFromExceptions, type DayChange, type ScheduleDayException } from '@/shared/utils/attendanceGenerator';
 import type { EnrollmentRow, BulkScheduleTableProps } from '@/features/sessions/constants/bulkScheduleConstants';
 import { ExportDialog } from '@/features/sessions/components/ExportDialog';
 
@@ -39,22 +39,54 @@ export const BulkScheduleTable: React.FC<BulkScheduleTableProps> = ({ sessionId,
 
 
   useEffect(() => {
-    // Load day-change history and generate dates consistent with Attendance page
+    // Load schedule data and generate dates consistent with Attendance page
     const loadDates = async () => {
-      let dayChanges: DayChange[] = [];
-      try {
-        const { data } = await supabase
-          .from('session_day_change')
-          .select('old_day, new_day, effective_date')
+      // Try new tables first: session_schedule_day + session_schedule_exception
+      const [{ data: scheduleDays }, { data: exceptions }] = await Promise.all([
+        supabase.from(Tables.SESSION_SCHEDULE_DAY)
+          .select('day_of_week')
+          .eq('session_id', sessionId),
+        supabase.from(Tables.SESSION_SCHEDULE_EXCEPTION)
+          .select('original_date, new_day_of_week, old_day_of_week, exception_type')
           .eq('session_id', sessionId)
-          .order('effective_date', { ascending: true });
-        if (data) dayChanges = data;
-      } catch { /* non-critical */ }
+          .in('exception_type', ['day_change', 'time_and_day_change'])
+          .order('original_date', { ascending: true }),
+      ]);
 
-      const dates = generateAttendanceDates(
-        { session_id: sessionId, start_date: startDate, end_date: endDate, day: day ?? null, time: null, location: null },
-        dayChanges
-      ).map(d => d.date);
+      const baseDayNums = (scheduleDays || []).map(d => d.day_of_week);
+
+      let dates: string[];
+      if (baseDayNums.length > 0) {
+        const dayExceptions: ScheduleDayException[] = (exceptions || [])
+          .filter(e => e.new_day_of_week != null)
+          .map(e => ({
+            original_date: e.original_date,
+            new_day_of_week: e.new_day_of_week!,
+            old_day_of_week: e.old_day_of_week,
+          }));
+        dates = generateAttendanceDatesFromExceptions(
+          { session_id: sessionId, start_date: startDate, end_date: endDate, location: null },
+          baseDayNums,
+          dayExceptions,
+        ).map(d => d.date);
+      } else {
+        // Legacy fallback: session_day_change
+        let dayChanges: DayChange[] = [];
+        try {
+          const { data } = await supabase
+            .from('session_day_change')
+            .select('old_day, new_day, effective_date')
+            .eq('session_id', sessionId)
+            .order('effective_date', { ascending: true });
+          if (data) dayChanges = data;
+        } catch { /* non-critical */ }
+
+        dates = generateAttendanceDates(
+          { session_id: sessionId, start_date: startDate, end_date: endDate, day: day ?? null, time: null, location: null },
+          dayChanges
+        ).map(d => d.date);
+      }
+
       setFullDates(dates);
       setHostDateMap({});
     };

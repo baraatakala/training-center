@@ -91,6 +91,108 @@ function rangesOverlap(
   return left.start < right.end && right.start < left.end;
 }
 
+/** Extract structured start_time/end_time from "HH:MM-HH:MM" string */
+function extractTimeParts(time?: string | null): { start_time: string; end_time: string } | null {
+  if (!time) return null;
+  const [rawStart, rawEnd] = time.split('-').map((p) => p.trim());
+  if (!rawStart || !rawEnd) return null;
+  // Normalize to HH:MM:SS for TIME column
+  const norm = (v: string) => (v.length === 5 ? `${v}:00` : v);
+  return { start_time: norm(rawStart), end_time: norm(rawEnd) };
+}
+
+/** Convert comma-separated day names to day_of_week numbers (0=Sun…6=Sat) */
+function dayNamesToDayOfWeek(dayStr?: string | null): number[] {
+  if (!dayStr) return [];
+  const map: Record<string, number> = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
+  return dayStr.split(',').map((d) => map[d.trim().toLowerCase()]).filter((n): n is number => n != null);
+}
+
+/** Map day_of_week number (0=Sun…6=Sat) to day name */
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/**
+ * Upsert a schedule exception, merging with any existing exception on the same date.
+ * If an exception already exists (e.g. a time_change), and we add a day_change,
+ * the type is upgraded to time_and_day_change.
+ */
+async function upsertScheduleException(
+  sessionId: string,
+  originalDate: string,
+  timeOverride: { startTime: string; endTime: string } | null,
+  dayOverride: { dayOfWeek: number; oldDayOfWeek?: number } | null,
+  reason: string | null,
+  changedBy: string | null,
+): Promise<void> {
+  const { data: existing } = await supabase
+    .from(Tables.SESSION_SCHEDULE_EXCEPTION)
+    .select('new_start_time, new_end_time, new_day_of_week, old_day_of_week')
+    .eq('session_id', sessionId)
+    .eq('original_date', originalDate)
+    .maybeSingle();
+
+  const startTime = timeOverride?.startTime ?? existing?.new_start_time ?? null;
+  const endTime = timeOverride?.endTime ?? existing?.new_end_time ?? null;
+  const dayOfWeek = dayOverride?.dayOfWeek ?? existing?.new_day_of_week ?? null;
+  const oldDayOfWeek = dayOverride?.oldDayOfWeek ?? existing?.old_day_of_week ?? null;
+
+  const hasTime = startTime != null;
+  const hasDay = dayOfWeek != null;
+  const exceptionType = hasTime && hasDay ? 'time_and_day_change'
+    : hasDay ? 'day_change'
+    : 'time_change';
+
+  await supabase.from(Tables.SESSION_SCHEDULE_EXCEPTION).upsert({
+    session_id: sessionId,
+    original_date: originalDate,
+    exception_type: exceptionType,
+    new_start_time: startTime,
+    new_end_time: endTime,
+    new_day_of_week: dayOfWeek,
+    old_day_of_week: oldDayOfWeek,
+    reason,
+    changed_by: changedBy,
+  }, { onConflict: 'session_id,original_date' });
+}
+
+/** Remove day-related exceptions (delete pure day_change, downgrade time_and_day_change) */
+async function cleanupDayExceptions(
+  sessionId: string,
+  dateFilter?: { gte?: string; lte?: string },
+): Promise<void> {
+  let delQuery = supabase.from(Tables.SESSION_SCHEDULE_EXCEPTION)
+    .delete().eq('session_id', sessionId).eq('exception_type', 'day_change');
+  if (dateFilter?.gte) delQuery = delQuery.gte('original_date', dateFilter.gte);
+  if (dateFilter?.lte) delQuery = delQuery.lte('original_date', dateFilter.lte);
+  await delQuery;
+
+  let downgradeQuery = supabase.from(Tables.SESSION_SCHEDULE_EXCEPTION)
+    .update({ exception_type: 'time_change', new_day_of_week: null, old_day_of_week: null })
+    .eq('session_id', sessionId).eq('exception_type', 'time_and_day_change');
+  if (dateFilter?.gte) downgradeQuery = downgradeQuery.gte('original_date', dateFilter.gte);
+  if (dateFilter?.lte) downgradeQuery = downgradeQuery.lte('original_date', dateFilter.lte);
+  await downgradeQuery;
+}
+
+/** Remove time-related exceptions (delete pure time_change, downgrade time_and_day_change) */
+async function cleanupTimeExceptions(
+  sessionId: string,
+  dateFilter?: { gte?: string; lte?: string },
+): Promise<void> {
+  let delQuery = supabase.from(Tables.SESSION_SCHEDULE_EXCEPTION)
+    .delete().eq('session_id', sessionId).eq('exception_type', 'time_change');
+  if (dateFilter?.gte) delQuery = delQuery.gte('original_date', dateFilter.gte);
+  if (dateFilter?.lte) delQuery = delQuery.lte('original_date', dateFilter.lte);
+  await delQuery;
+
+  let downgradeQuery = supabase.from(Tables.SESSION_SCHEDULE_EXCEPTION)
+    .update({ exception_type: 'day_change', new_start_time: null, new_end_time: null })
+    .eq('session_id', sessionId).eq('exception_type', 'time_and_day_change');
+  if (dateFilter?.gte) downgradeQuery = downgradeQuery.gte('original_date', dateFilter.gte);
+  if (dateFilter?.lte) downgradeQuery = downgradeQuery.lte('original_date', dateFilter.lte);
+  await downgradeQuery;
+}
+
 function normalizeSessionMutationError(error: { message?: string; details?: string; hint?: string } | null) {
   if (!error) return null;
 
@@ -212,9 +314,16 @@ export const sessionService = {
 
   // Create new session
   async create(session: CreateSession) {
+    // Dual-write: populate structured time columns from legacy time string
+    const timeParts = extractTimeParts(session.time);
+    const sessionPayload = {
+      ...session,
+      ...(timeParts && { start_time: timeParts.start_time, end_time: timeParts.end_time }),
+    };
+
     const result = await supabase
       .from(Tables.SESSION)
-      .insert(session)
+      .insert(sessionPayload)
       .select()
       .single();
 
@@ -224,6 +333,16 @@ export const sessionService = {
 
     if (result.data) {
       try { await logInsert('session', result.data.session_id, result.data as Record<string, unknown>); } catch { /* audit non-critical */ }
+
+      // Dual-write: populate session_schedule_day from legacy day string
+      const dayNums = dayNamesToDayOfWeek(session.day);
+      if (dayNums.length > 0) {
+        try {
+          await supabase.from(Tables.SESSION_SCHEDULE_DAY).insert(
+            dayNums.map((d) => ({ session_id: result.data.session_id, day_of_week: d }))
+          );
+        } catch { /* non-critical dual-write */ }
+      }
     }
     return result;
   },
@@ -259,9 +378,19 @@ export const sessionService = {
       .eq('session_id', id)
       .maybeSingle();
 
+    // Dual-write: populate structured time columns when time changes
+    const augmented = { ...updates };
+    if (updates.time !== undefined) {
+      const timeParts = extractTimeParts(updates.time);
+      if (timeParts) {
+        (augmented as Record<string, unknown>).start_time = timeParts.start_time;
+        (augmented as Record<string, unknown>).end_time = timeParts.end_time;
+      }
+    }
+
     const result = await supabase
       .from(Tables.SESSION)
-      .update(updates)
+      .update(augmented)
       .eq('session_id', id)
       .select()
       .single();
@@ -303,6 +432,8 @@ export const sessionService = {
         if (strategy === 'from_start') {
           // Wipe ALL day-change history — new day covers the entire session range
           await deleteAllChanges();
+          // Dual-write: clean day-related exceptions (preserve time-only exceptions)
+          try { await cleanupDayExceptions(id); } catch { /* non-critical */ }
           // No new record needed: session.day already updated to new value
         } else {
           // Compute effective_date based on strategy
@@ -355,6 +486,16 @@ export const sessionService = {
                 changed_by: user?.email || null,
                 reason: 'Date range end (revert)',
               });
+              // Dual-write: exception table for date range
+              const newDayNums = dayNamesToDayOfWeek(updates.day);
+              const oldDayNums = dayNamesToDayOfWeek(rangePrevDay);
+              await cleanupDayExceptions(id, { gte: dayChangeCutoffDate, lte: revertDateStr });
+              await upsertScheduleException(id, dayChangeCutoffDate, null,
+                newDayNums[0] != null ? { dayOfWeek: newDayNums[0], oldDayOfWeek: oldDayNums[0] } : null,
+                'Date range start', user?.email || null);
+              await upsertScheduleException(id, revertDateStr, null,
+                oldDayNums[0] != null ? { dayOfWeek: oldDayNums[0], oldDayOfWeek: newDayNums[0] } : null,
+                'Date range end (revert)', user?.email || null);
             } catch { /* day range log non-critical */ }
           } else {
             // from_date, from_today, after_last_attended: single-record insert
@@ -399,14 +540,22 @@ export const sessionService = {
 
             try {
               const { data: { user } } = await supabase.auth.getUser();
+              const dayReason = strategy === 'after_last_attended' ? 'After last attended date' : 'From today';
               await supabase.from('session_day_change').insert({
                 session_id: id,
                 old_day: preservedOldDay,
                 new_day: updates.day,
                 effective_date: effectiveDate,
                 changed_by: user?.email || null,
-                reason: strategy === 'after_last_attended' ? 'After last attended date' : 'From today',
+                reason: dayReason,
               });
+              // Dual-write: exception table
+              await cleanupDayExceptions(id, { gte: effectiveDate });
+              const newDayNums = dayNamesToDayOfWeek(updates.day);
+              const oldDayNums = dayNamesToDayOfWeek(preservedOldDay);
+              await upsertScheduleException(id, effectiveDate, null,
+                newDayNums[0] != null ? { dayOfWeek: newDayNums[0], oldDayOfWeek: oldDayNums[0] } : null,
+                dayReason, user?.email || null);
             } catch { /* day change log non-critical */ }
           }
         }
@@ -419,6 +568,10 @@ export const sessionService = {
           await supabase.from('session_day_change').delete()
             .eq('session_id', id)
             .lt('effective_date', updates.start_date);
+          // Dual-write: also clean exceptions before new start_date
+          await supabase.from(Tables.SESSION_SCHEDULE_EXCEPTION).delete()
+            .eq('session_id', id)
+            .lt('original_date', updates.start_date);
         } catch { /* cleanup non-critical */ }
       }
 
@@ -453,6 +606,8 @@ export const sessionService = {
           if (timeStrategy === 'from_start') {
             // Wipe ALL time-change history — new time covers the entire session range
             await deleteAllTimeChanges();
+            // Dual-write: clean time-related exceptions (preserve day-only exceptions)
+            await cleanupTimeExceptions(id);
           } else {
             let effectiveDate = new Date().toISOString().split('T')[0]; // default: today
 
@@ -498,6 +653,16 @@ export const sessionService = {
                 changed_by: user?.email || null,
                 reason: 'Date range end (revert)',
               });
+              // Dual-write: exception table for time date range
+              const newTimeParts = extractTimeParts(updates.time);
+              const revertTimeParts = extractTimeParts(rangePrevTime);
+              await cleanupTimeExceptions(id, { gte: timeChangeCutoffDate, lte: revertDateStr });
+              await upsertScheduleException(id, timeChangeCutoffDate,
+                newTimeParts ? { startTime: newTimeParts.start_time, endTime: newTimeParts.end_time } : null,
+                null, 'Date range start', user?.email || null);
+              await upsertScheduleException(id, revertDateStr,
+                revertTimeParts ? { startTime: revertTimeParts.start_time, endTime: revertTimeParts.end_time } : null,
+                null, 'Date range end (revert)', user?.email || null);
             } else {
               // from_date, from_today, after_last_attended: single-record insert
               if (timeStrategy === 'from_date' && timeChangeCutoffDate) {
@@ -535,26 +700,62 @@ export const sessionService = {
               await deleteFutureTimeChanges(effectiveDate);
 
               const { data: { user } } = await supabase.auth.getUser();
+              const timeReason = timeStrategy === 'after_last_attended' ? 'After last attended date' : 'From today';
               await supabase.from(Tables.SESSION_TIME_CHANGE).insert({
                 session_id: id,
                 old_time: preservedOldTime,
                 new_time: updates.time,
                 effective_date: effectiveDate,
                 changed_by: user?.email || null,
-                reason: timeStrategy === 'after_last_attended' ? 'After last attended date' : 'From today',
+                reason: timeReason,
               });
+              // Dual-write: exception table
+              await cleanupTimeExceptions(id, { gte: effectiveDate });
+              const timeParts = extractTimeParts(updates.time);
+              await upsertScheduleException(id, effectiveDate,
+                timeParts ? { startTime: timeParts.start_time, endTime: timeParts.end_time } : null,
+                null, timeReason, user?.email || null);
             }
           }
         } catch { /* time change log non-critical */ }
+      }
+
+      // Dual-write: sync session_schedule_day when day changes (all strategies update session.day)
+      if (updates.day !== undefined && oldData.day !== updates.day) {
+        try {
+          await supabase.from(Tables.SESSION_SCHEDULE_DAY).delete().eq('session_id', id);
+          const dayNums = dayNamesToDayOfWeek(updates.day);
+          if (dayNums.length > 0) {
+            await supabase.from(Tables.SESSION_SCHEDULE_DAY).insert(
+              dayNums.map((d) => ({ session_id: id, day_of_week: d }))
+            );
+          }
+        } catch { /* non-critical dual-write */ }
       }
     }
     return result;
   },
 
-  // Get the effective session time for a specific date by checking session_time_change records.
-  // Returns the most recent new_time where effective_date <= date, or null (use session.time).
+  // Get the effective session time for a specific date.
+  // Checks session_schedule_exception first (new), falls back to session_time_change (legacy).
+  // Returns "HH:MM-HH:MM" override or null (meaning use session.time).
   async getEffectiveTimeForDate(sessionId: string, date: string): Promise<string | null> {
     try {
+      // 1. Check new exception table for time overrides on this date
+      const { data: exception } = await supabase
+        .from(Tables.SESSION_SCHEDULE_EXCEPTION)
+        .select('new_start_time, new_end_time, exception_type')
+        .eq('session_id', sessionId)
+        .eq('original_date', date)
+        .maybeSingle();
+
+      if (exception && exception.new_start_time && exception.new_end_time) {
+        const start = exception.new_start_time.slice(0, 5); // "HH:MM:SS" → "HH:MM"
+        const end = exception.new_end_time.slice(0, 5);
+        return `${start}-${end}`;
+      }
+
+      // 2. Fall back to legacy session_time_change
       const { data } = await supabase
         .from(Tables.SESSION_TIME_CHANGE)
         .select('new_time')
@@ -563,7 +764,67 @@ export const sessionService = {
         .order('effective_date', { ascending: false })
         .limit(1)
         .maybeSingle();
-      return data?.new_time ?? null;
+
+      if (data?.new_time) return data.new_time;
+
+      // 3. If no change ≤ this date but changes exist AFTER this date,
+      //    the selected date predates all changes — use old_time from the earliest change
+      const { data: earliest } = await supabase
+        .from(Tables.SESSION_TIME_CHANGE)
+        .select('old_time')
+        .eq('session_id', sessionId)
+        .order('effective_date', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      return earliest?.old_time ?? null;
+    } catch {
+      return null;
+    }
+  },
+
+  /**
+   * Get the effective day name for a specific date.
+   * If the date falls before a day change, returns the old day.
+   * Returns null if no day changes exist (caller should use session.day).
+   */
+  async getEffectiveDayForDate(sessionId: string, date: string): Promise<string | null> {
+    try {
+      // 1. Check new exception table for day override on this date
+      const { data: exception } = await supabase
+        .from(Tables.SESSION_SCHEDULE_EXCEPTION)
+        .select('new_day_of_week, old_day_of_week, exception_type')
+        .eq('session_id', sessionId)
+        .eq('original_date', date)
+        .in('exception_type', ['day_change', 'time_and_day_change'])
+        .maybeSingle();
+
+      if (exception && exception.new_day_of_week != null) {
+        return DAY_NAMES[exception.new_day_of_week] ?? null;
+      }
+
+      // 2. Fall back to legacy session_day_change
+      const { data } = await supabase
+        .from('session_day_change')
+        .select('new_day')
+        .eq('session_id', sessionId)
+        .lte('effective_date', date)
+        .order('effective_date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (data?.new_day) return data.new_day;
+
+      // 3. If no change ≤ this date but changes exist after, return old_day from earliest
+      const { data: earliest } = await supabase
+        .from('session_day_change')
+        .select('old_day')
+        .eq('session_id', sessionId)
+        .order('effective_date', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      return earliest?.old_day ?? null;
     } catch {
       return null;
     }
@@ -620,6 +881,8 @@ export const sessionService = {
       { table: 'excuse_request' },
       { table: Tables.TEACHER_HOST_SCHEDULE },
       { table: 'session_day_change' },
+      { table: Tables.SESSION_SCHEDULE_DAY },
+      { table: Tables.SESSION_SCHEDULE_EXCEPTION },
       { table: Tables.ENROLLMENT },
     ] as const;
     for (const { table } of cascadeTables) {

@@ -139,7 +139,7 @@ export const dashboardService = {
     const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
     const todayDayName = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
 
-    const [upcomingRes, dayChangesRes, todayAttendanceRes, recentExcusesRes] = await Promise.all([
+    const [upcomingRes, dayChangesRes, scheduleDaysRes, todayAttendanceRes, recentExcusesRes] = await Promise.all([
       supabase.from('session')
         .select('session_id, start_date, end_date, feedback_enabled, day, time, course:course_id(course_name), teacher:teacher_id(name)')
         .lte('start_date', nextWeek)
@@ -150,6 +150,8 @@ export const dashboardService = {
         .select('session_id, new_day, effective_date')
         .lte('effective_date', today)
         .order('effective_date', { ascending: false }),
+      supabase.from('session_schedule_day')
+        .select('session_id, day_of_week'),
       supabase.from('attendance')
         .select('status', { count: 'exact' })
         .eq('attendance_date', today),
@@ -158,7 +160,14 @@ export const dashboardService = {
         .eq('status', 'pending'),
     ]);
 
-    // Build a map of latest day change per session
+    // Build map: session_id → Set of day-of-week numbers from new table
+    const scheduleDayMap = new Map<string, Set<number>>();
+    for (const sd of (scheduleDaysRes.data || [])) {
+      if (!scheduleDayMap.has(sd.session_id)) scheduleDayMap.set(sd.session_id, new Set());
+      scheduleDayMap.get(sd.session_id)!.add(sd.day_of_week);
+    }
+
+    // Build a map of latest day change per session (legacy)
     const latestDayChange = new Map<string, string>();
     for (const dc of (dayChangesRes.data || [])) {
       if (!latestDayChange.has(dc.session_id)) {
@@ -184,10 +193,22 @@ export const dashboardService = {
         const endDate = String(s.end_date || '');
         const inDateRange = startDate <= today && endDate >= today;
 
-        // Determine effective session day(s) — use day change if it exists
-        const effectiveDay = latestDayChange.get(sessionId) || (s.day as string) || '';
-        const sessionDayNames = effectiveDay.split(',').map(d => d.trim().toLowerCase());
-        const runsToday = inDateRange && sessionDayNames.some(d => d === todayDayName);
+        // Determine if session runs today — prefer new schedule_day table, fall back to legacy
+        const newDays = scheduleDayMap.get(sessionId);
+        const todayDow = new Date().getDay(); // 0=Sunday
+        let runsToday: boolean;
+        let effectiveDay: string;
+
+        if (newDays && newDays.size > 0) {
+          runsToday = inDateRange && newDays.has(todayDow);
+          const dowNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+          effectiveDay = [...newDays].sort().map(d => dowNames[d]).join(', ');
+        } else {
+          // Legacy: use day change or session.day
+          effectiveDay = latestDayChange.get(sessionId) || (s.day as string) || '';
+          const sessionDayNames = effectiveDay.split(',').map(d => d.trim().toLowerCase());
+          runsToday = inDateRange && sessionDayNames.some(d => d === todayDayName);
+        }
 
         return {
           session_id: sessionId,

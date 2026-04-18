@@ -51,10 +51,45 @@ Features: `attendance`, `auth`, `certificates`, `checkin`, `communication`, `cou
 - `npx tsc -b --noEmit` — Type-check only
 
 ## Database
-- 32 tables, 139 RLS policies, 18 functions, 107 indexes, 41 migrations. See `database/README.md` for full details.
+- 38 tables, ~145 RLS policies, 19 functions, ~112 indexes, 48 migrations. See `database/README.md` for full details.
 - Run order: `schema.sql` → `functions.sql` → `indexes.sql` → `rls-policies.sql` → `storage.sql` → `seed-data.sql`
 - Historical migrations in `database/archive/`
-- Active migrations in `database/migrations/` (001–041)
+- Active migrations in `database/migrations/` (001–046)
+
+## Supabase MCP (Database Agent Workflow)
+Use the Supabase MCP tools **proactively** for all database work — never guess at live state.
+
+### When to use `mcp_supabase_execute_sql`
+- **Verify migrations**: After applying a migration, run `SELECT` queries to confirm tables/columns/constraints exist.
+- **Test RLS policies**: Query as different roles to confirm policies work (`SET ROLE authenticated; SET request.jwt.claims = '...';`).
+- **Diagnose bugs**: When a service returns unexpected data, query the table directly to isolate DB vs code issues.
+- **Validate backfills**: After data migrations, count rows, check NULLs, and spot-check values.
+- **CRUD smoke-tests**: Insert/select/update/delete test rows to verify constraints, triggers, and RLS.
+- **Schema inspection**: `SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_name = '...'`.
+- **Index/constraint verification**: Query `pg_indexes`, `pg_constraint`, `information_schema.table_constraints`.
+
+### When to use `mcp_supabase_apply_migration`
+- **All DDL changes**: CREATE TABLE, ALTER TABLE, CREATE INDEX, CREATE POLICY, CREATE FUNCTION.
+- Never use `execute_sql` for DDL — always `apply_migration` so it's tracked in `supabase_migrations.schema_migrations`.
+
+### When to use `mcp_supabase_list_tables`
+- Quick schema overview. Use `verbose: true` to see columns, PKs, and FKs.
+- Compare live schema against `database/schema.sql` to detect drift.
+
+### When to use `mcp_supabase_list_migrations`
+- Verify which migrations have been applied.
+- Cross-reference with `database/migrations/` to detect unapplied files.
+
+### Standard verification flow after any migration:
+1. `mcp_supabase_list_migrations` — confirm it appears
+2. `mcp_supabase_list_tables verbose:true` — confirm schema changes
+3. `mcp_supabase_execute_sql` — run SELECT queries to verify data, constraints, RLS
+4. Update consolidated SQL files + `database/README.md`
+
+### Test data references (for verification queries):
+- Teacher Ahmad: `teacher_id = '18ff66f1-738d-4fb8-9243-2c3af2168f16'`
+- Session: `session_id = 'f5e1425a-a78e-4576-8fc3-3a742d2237d1'`
+- Student asmaatakala: `student_id = '5e2d1197-2536-4e7b-8f23-2387946c7c81'`
 
 ## Naming Conventions
 - Services: `<entity>Service.ts` (e.g., `studentService.ts`)

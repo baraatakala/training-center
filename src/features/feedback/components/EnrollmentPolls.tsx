@@ -25,7 +25,11 @@ function aggregateQuestion(question: FeedbackQuestion, feedbacks: SessionFeedbac
   }
   if (question.question_type === 'multiple_choice') {
     const dist: Record<string, number> = {};
-    for (const v of values) dist[String(v)] = (dist[String(v)] || 0) + 1;
+    for (const v of values) {
+      // Multi-select answers come as arrays; count each option individually
+      const items = Array.isArray(v) ? v : [v];
+      for (const item of items) dist[String(item)] = (dist[String(item)] || 0) + 1;
+    }
     return { type: 'multiple_choice' as const, distribution: dist, total: values.length };
   }
   return { type: 'text' as const, answers: values.map(String), total: values.length };

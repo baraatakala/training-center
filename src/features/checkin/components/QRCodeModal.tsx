@@ -29,6 +29,8 @@ export function QRCodeModal({
   const [refreshCount, setRefreshCount] = useState<number>(0);
   const modalRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<Element | null>(null);
+  const qrTokenRef = useRef<string | null>(null);
+  const faceTokenRef = useRef<string | null>(null);
 
   // Unified mode state
   const [checkInMode, setCheckInMode] = useState<CheckInMode>('qr_code');
@@ -41,6 +43,7 @@ export function QRCodeModal({
 
   const clearPhotoState = useCallback(() => {
     setFaceToken(null);
+    faceTokenRef.current = null;
     setFaceCheckInUrl('');
     setFaceCopied(false);
   }, []);
@@ -81,7 +84,10 @@ export function QRCodeModal({
   }, [faceToken]);
 
   /* -------------------- QR CODE -------------------- */
+  const generatingRef = useRef(false);
   const generateQRCode = useCallback(async (mode: CheckInMode = checkInMode, isRefresh = false) => {
+    if (generatingRef.current) return; // prevent concurrent calls
+    generatingRef.current = true;
     try {
       setLoading(true);
       setError(null);
@@ -145,11 +151,13 @@ export function QRCodeModal({
       const expires = new Date(qrSession.expires_at);
       
       setQrToken(token);
+      qrTokenRef.current = token;
       setExpiresAt(expires);
       setCheckInMode(mode);
 
       if (mode === 'photo' && linkedPhotoToken) {
         setFaceToken(linkedPhotoToken);
+        faceTokenRef.current = linkedPhotoToken;
         setFaceCheckInUrl(linkedPhotoUrl);
       }
 
@@ -177,6 +185,7 @@ export function QRCodeModal({
     } finally {
       setLoading(false);
       setFaceLoading(false);
+      generatingRef.current = false;
     }
   }, [sessionId, date, checkInMode, createPhotoSession, clearPhotoState, invalidateFaceSession]);
 
@@ -295,9 +304,13 @@ export function QRCodeModal({
     return () => {
       mounted = false;
       cleanupRealtime();
-      // Invalidate QR session on unmount
-      invalidateQRSession();
-      invalidateFaceSession();
+      // Invalidate sessions on unmount using refs (avoids stale closure)
+      if (qrTokenRef.current) {
+        checkinService.invalidateQrSession(qrTokenRef.current).catch(console.error);
+      }
+      if (faceTokenRef.current) {
+        checkinService.invalidatePhotoSession(faceTokenRef.current).catch(console.error);
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, date]);

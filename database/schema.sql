@@ -2,7 +2,7 @@
 -- Training Center — Schema Definition
 -- ============================================================================
 -- Run order: 1 of 6
--- This file creates all 32 tables in dependency order.
+-- This file creates all 34 tables in dependency order.
 -- All UUID columns use gen_random_uuid() (native PostgreSQL 13+, no extensions).
 -- Synced with live Supabase as of 2025-07-18 (through migration 026).
 -- ============================================================================
@@ -109,6 +109,9 @@ CREATE TABLE IF NOT EXISTS public.session (
   max_tab_switches INTEGER NOT NULL DEFAULT 3,
   feedback_time_limit_seconds INTEGER,
   teacher_can_host BOOLEAN NOT NULL DEFAULT true,
+  start_time TIME,
+  end_time TIME,
+  timezone TEXT NOT NULL DEFAULT 'Asia/Dubai',
   CONSTRAINT session_pkey PRIMARY KEY (session_id),
   CONSTRAINT session_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.course(course_id) ON DELETE CASCADE,
   CONSTRAINT session_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES public.teacher(teacher_id) ON DELETE CASCADE,
@@ -124,7 +127,8 @@ CREATE TABLE IF NOT EXISTS public.session (
   ),
   CONSTRAINT session_recording_visibility_check CHECK (default_recording_visibility IS NULL OR (default_recording_visibility = ANY (ARRAY['private_staff', 'course_staff', 'enrolled_students', 'organization', 'public_link']))),
   CONSTRAINT session_max_tab_switches_check CHECK (max_tab_switches >= 1 AND max_tab_switches <= 20),
-  CONSTRAINT chk_feedback_time_limit_range CHECK (feedback_time_limit_seconds IS NULL OR (feedback_time_limit_seconds >= 10 AND feedback_time_limit_seconds <= 7200))
+  CONSTRAINT chk_feedback_time_limit_range CHECK (feedback_time_limit_seconds IS NULL OR (feedback_time_limit_seconds >= 10 AND feedback_time_limit_seconds <= 7200)),
+  CONSTRAINT chk_session_time_order CHECK (start_time IS NULL OR end_time IS NULL OR end_time > start_time)
 );
 
 CREATE TABLE IF NOT EXISTS public.enrollment (
@@ -279,6 +283,35 @@ CREATE TABLE IF NOT EXISTS public.session_time_change (
   CONSTRAINT session_time_change_pkey PRIMARY KEY (change_id),
   CONSTRAINT session_time_change_session_date_unique UNIQUE (session_id, effective_date),
   CONSTRAINT session_time_change_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.session(session_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS public.session_schedule_day (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id  UUID NOT NULL REFERENCES public.session(session_id) ON DELETE CASCADE,
+  day_of_week SMALLINT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT session_schedule_day_unique UNIQUE (session_id, day_of_week),
+  CONSTRAINT chk_day_of_week_range CHECK (day_of_week BETWEEN 0 AND 6)
+);
+
+CREATE TABLE IF NOT EXISTS public.session_schedule_exception (
+  exception_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id      UUID NOT NULL REFERENCES public.session(session_id) ON DELETE CASCADE,
+  original_date   DATE NOT NULL,
+  exception_type  TEXT NOT NULL,
+  new_date        DATE,
+  new_start_time  TIME,
+  new_end_time    TIME,
+  new_day_of_week SMALLINT,
+  old_day_of_week SMALLINT,
+  reason          TEXT,
+  changed_by      TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT session_schedule_exception_unique UNIQUE (session_id, original_date),
+  CONSTRAINT chk_exception_type CHECK (exception_type IN ('cancelled', 'rescheduled', 'time_change', 'day_change', 'time_and_day_change')),
+  CONSTRAINT chk_exception_new_day_range CHECK (new_day_of_week IS NULL OR (new_day_of_week BETWEEN 0 AND 6)),
+  CONSTRAINT chk_exception_old_day_range CHECK (old_day_of_week IS NULL OR (old_day_of_week BETWEEN 0 AND 6)),
+  CONSTRAINT chk_exception_time_order CHECK (new_start_time IS NULL OR new_end_time IS NULL OR new_end_time > new_start_time)
 );
 
 CREATE TABLE IF NOT EXISTS public.teacher_host_schedule (
@@ -709,6 +742,8 @@ COMMENT ON TABLE public.photo_checkin_sessions IS 'Face-recognition check-in ses
 COMMENT ON TABLE public.session_date_host IS 'Per-date host assignment and location override for a session';
 COMMENT ON TABLE public.session_day_change IS 'Audit trail of session schedule day changes with effective dates';
 COMMENT ON TABLE public.session_time_change IS 'Audit trail of session schedule time changes with effective dates';
+COMMENT ON TABLE public.session_schedule_day IS 'Normalized session day-of-week. 0=Sunday, 6=Saturday. Replaces comma-separated session.day TEXT.';
+COMMENT ON TABLE public.session_schedule_exception IS 'Unified schedule exceptions replacing session_time_change + session_day_change. One exception per date.';
 COMMENT ON TABLE public.teacher_host_schedule IS 'Teacher-hosted session dates (when teacher_can_host is enabled)';
 COMMENT ON TABLE public.session_recording IS 'Session recordings with visibility controls and soft-delete';
 COMMENT ON TABLE public.course_book_reference IS 'Hierarchical book/page references linked to a course';

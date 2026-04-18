@@ -70,14 +70,6 @@ export const teacherService = {
       .eq('teacher_id', teacherId);
   },
 
-  async getStudents(teacherId: string) {
-    return await supabase
-      .from(Tables.STUDENT)
-      .select('*')
-      .eq('teacher_id', teacherId)
-      .order('name');
-  },
-
   async getCourses(teacherId: string) {
     return await supabase
       .from(Tables.COURSE)

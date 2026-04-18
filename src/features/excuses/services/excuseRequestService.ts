@@ -7,7 +7,8 @@
  */
 
 import { supabase } from '@/shared/lib/supabase';
-import { generateAttendanceDates, type SessionSchedule, type DayChange } from '@/shared/utils/attendanceGenerator';
+import { generateAttendanceDates, generateAttendanceDatesFromExceptions, type SessionSchedule, type DayChange, type ScheduleDayException } from '@/shared/utils/attendanceGenerator';
+import { Tables } from '@/shared/types/database.types';
 
 export interface ExcuseRequest {
   request_id: string;
@@ -93,6 +94,39 @@ class ExcuseRequestService {
       return { dates: new Set(), error: sessionError as Error || new Error('Session not found') };
     }
 
+    // Try new tables first: schedule_day + schedule_exception
+    const [{ data: scheduleDays }, { data: exceptions }] = await Promise.all([
+      supabase.from(Tables.SESSION_SCHEDULE_DAY)
+        .select('day_of_week')
+        .eq('session_id', sessionId),
+      supabase.from(Tables.SESSION_SCHEDULE_EXCEPTION)
+        .select('original_date, new_day_of_week, old_day_of_week, exception_type')
+        .eq('session_id', sessionId)
+        .in('exception_type', ['day_change', 'time_and_day_change'])
+        .order('original_date', { ascending: true }),
+    ]);
+
+    const baseDayNums = (scheduleDays || []).map(d => d.day_of_week);
+
+    if (baseDayNums.length > 0) {
+      // New-table path: use exception-based generator
+      const dayExceptions: ScheduleDayException[] = (exceptions || [])
+        .filter(e => e.new_day_of_week != null)
+        .map(e => ({
+          original_date: e.original_date,
+          new_day_of_week: e.new_day_of_week!,
+          old_day_of_week: e.old_day_of_week,
+        }));
+
+      const attendanceDates = generateAttendanceDatesFromExceptions(
+        session,
+        baseDayNums,
+        dayExceptions,
+      );
+      return { dates: new Set(attendanceDates.map(d => d.date)), error: null };
+    }
+
+    // Legacy fallback: session_day_change
     const { data: changes } = await supabase
       .from('session_day_change')
       .select('old_day, new_day, effective_date')

@@ -18,6 +18,8 @@ export const TABLE_ICONS: Record<string, string> = {
   session_day_change: '\u{1F504}',
   session_time_change: '\u23F0',
   session_date_host: '\u{1F3E0}',
+  session_schedule_day: '\u{1F4C5}',
+  session_schedule_exception: '\u26A0\uFE0F',
   course_book_reference: '\u{1F4D6}',
   specialization: '\u{1F9EA}',
   qr_sessions: '\u{1F4F1}',
@@ -140,6 +142,17 @@ export const TABLE_SUMMARY_FIELDS: Record<string, { field: string; label: string
   session_time_change: [
     { field: 'original_start_time', label: 'Old Start' },
     { field: 'new_start_time', label: 'New Start' },
+    { field: 'reason', label: 'Reason' },
+  ],
+  session_schedule_day: [
+    { field: 'day_of_week', label: 'Day of Week' },
+  ],
+  session_schedule_exception: [
+    { field: 'original_date', label: 'Date' },
+    { field: 'exception_type', label: 'Type' },
+    { field: 'new_start_time', label: 'New Start' },
+    { field: 'new_end_time', label: 'New End' },
+    { field: 'new_day_of_week', label: 'New Day' },
     { field: 'reason', label: 'Reason' },
   ],
   session_date_host: [

@@ -51,6 +51,9 @@ export interface Session {
   end_date: string;
   day: string | null;
   time: string | null;
+  start_time?: string | null;  // TIME as "HH:MM:SS" string
+  end_time?: string | null;    // TIME as "HH:MM:SS" string
+  timezone?: string;           // IANA timezone e.g. "Asia/Dubai", defaults to "Asia/Dubai"
   location: string | null;
   grace_period_minutes?: number;
   proximity_radius?: number; // Max distance in meters for check-in (default 50m)
@@ -110,25 +113,6 @@ export interface SessionBookCoverage {
   updated_at: string;
 }
 
-export interface Location {
-  location_id: string;
-  location_name: string;
-  address: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface SessionLocation {
-  id: string;
-  session_id: string;
-  location_id: string;
-  date: string;
-  start_time: string;
-  end_time: string;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface Enrollment {
   enrollment_id: string;
   student_id: string;
@@ -149,8 +133,8 @@ export interface Attendance {
   session_id: string;
   attendance_date: string;
   student_id: string;
-  // 'pending' is used for UI placeholders before attendance is marked
-  status: 'on time' | 'absent' | 'late' | 'excused' | 'not enrolled' | 'pending';
+  // Attendance status as stored in DB (pending is UI-only, not persisted)
+  status: 'on time' | 'absent' | 'late' | 'excused' | 'not enrolled';
   check_in_time: string | null;
   notes: string | null;
   // Reason for excused absence (sick, abroad, on working, etc.)
@@ -161,8 +145,8 @@ export interface Attendance {
   late_minutes?: number | null;
   // Early arrival tracking - number of minutes early before session start
   early_minutes?: number | null;
-  // How the attendance was recorded: qr_code, photo, manual, bulk
-  check_in_method?: 'qr_code' | 'photo' | 'manual' | 'bulk' | null;
+  // How the attendance was recorded
+  check_in_method?: 'qr_code' | 'photo' | 'manual' | 'bulk' | 'face_recognition' | 'gps' | 'auto' | null;
   // Distance in meters from host location when checked in
   distance_from_host?: number | null;
   gps_latitude: number | null;
@@ -190,22 +174,16 @@ export interface SessionWithDetails extends Session {
   teacher?: Teacher;
 }
 
-export interface SessionLocationWithDetails extends SessionLocation {
-  session?: SessionWithDetails;
-  location?: Location;
-}
-
 export interface AttendanceWithDetails extends Attendance {
   student?: Student;
   enrollment?: Enrollment;
-  session_location?: SessionLocationWithDetails;
 }
 
 // Create/Update types (without generated fields)
 export type CreateTeacher = Omit<Teacher, 'teacher_id' | 'created_at' | 'updated_at'>;
 export type UpdateTeacher = Partial<CreateTeacher>;
 
-export type CreateStudent = Omit<Student, 'student_id' | 'created_at' | 'updated_at' | 'teacher_id'>;
+export type CreateStudent = Omit<Student, 'student_id' | 'created_at' | 'updated_at'>;
 export type UpdateStudent = Partial<CreateStudent>;
 
 export type CreateCourse = Omit<Course, 'course_id' | 'created_at' | 'updated_at'>;
@@ -223,12 +201,6 @@ export type UpdateCourseBookReference = Partial<CreateCourseBookReference>;
 export type CreateSessionBookCoverage = Omit<SessionBookCoverage, 'coverage_id' | 'created_at' | 'updated_at'>;
 export type UpdateSessionBookCoverage = Partial<CreateSessionBookCoverage>;
 
-export type CreateLocation = Omit<Location, 'location_id' | 'created_at' | 'updated_at'>;
-export type UpdateLocation = Partial<CreateLocation>;
-
-export type CreateSessionLocation = Omit<SessionLocation, 'id' | 'created_at' | 'updated_at'>;
-export type UpdateSessionLocation = Partial<CreateSessionLocation>;
-
 export type CreateEnrollment = Omit<Enrollment, 'enrollment_id' | 'created_at' | 'updated_at'>;
 export type UpdateEnrollment = Partial<CreateEnrollment>;
 
@@ -241,7 +213,7 @@ export interface SessionDateHost {
   session_id: string;
   attendance_date: string;
   host_id: string | null;
-  host_type: 'student' | 'teacher' | 'other';
+  host_type: 'student' | 'teacher' | 'other' | null;
   host_address: string | null;          // nullable: NULL when row exists only for a time override (migration 009)
   host_latitude?: number | null;
   host_longitude?: number | null;
@@ -251,6 +223,28 @@ export interface SessionDateHost {
 
 export type CreateSessionDateHost = Omit<SessionDateHost, 'id' | 'created_at' | 'updated_at'>;
 export type UpdateSessionDateHost = Partial<CreateSessionDateHost>;
+
+export interface SessionScheduleDay {
+  id: string;
+  session_id: string;
+  day_of_week: number; // 0=Sunday, 6=Saturday
+  created_at: string;
+}
+
+export interface SessionScheduleException {
+  exception_id: string;
+  session_id: string;
+  original_date: string;
+  exception_type: 'cancelled' | 'rescheduled' | 'time_change' | 'day_change' | 'time_and_day_change';
+  new_date: string | null;
+  new_start_time: string | null;
+  new_end_time: string | null;
+  new_day_of_week: number | null;
+  old_day_of_week: number | null;
+  reason: string | null;
+  changed_by: string | null;
+  created_at: string;
+}
 
 export interface SessionTimeChange {
   change_id: string;
@@ -308,6 +302,7 @@ export interface FeedbackTemplate {
   description: string | null;
   questions: Array<{ type: string; text: string; required: boolean; options?: string[]; correct_answer?: string | null }>;
   is_default: boolean;
+  created_by: string | null;
   created_at: string;
 }
 
@@ -341,9 +336,41 @@ export interface FeedbackComparison {
   overallAvg: number;
 }
 
+// ─── Admin ────────────────────────────────────────────────
+export interface Admin {
+  admin_id: string;
+  email: string;
+  name: string;
+  auth_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── Session Day Change (legacy) ──────────────────────────
+export interface SessionDayChange {
+  change_id: string;
+  session_id: string;
+  old_day: string | null;
+  new_day: string;
+  effective_date: string;
+  reason: string | null;
+  changed_by: string | null;
+  created_at: string;
+}
+
+// ─── Teacher Host Schedule ────────────────────────────────
+export interface TeacherHostSchedule {
+  id: string;
+  teacher_id: string;
+  session_id: string;
+  host_date: string;
+  created_at: string;
+  updated_at: string;
+}
+
 // ─── QR / Photo Check-in Types ────────────────────────────
 export interface QRSession {
-  id: string;
+  qr_session_id: string;
   session_id: string;
   attendance_date: string;
   token: string;
@@ -351,6 +378,9 @@ export interface QRSession {
   is_valid: boolean;
   check_in_mode: 'qr_code' | 'photo';
   linked_photo_token: string | null;
+  used_count: number;
+  last_used_at: string | null;
+  created_by: string | null;
   created_at: string;
 }
 
@@ -362,10 +392,12 @@ export interface PhotoCheckinSession {
   expires_at: string;
   is_valid: boolean;
   created_at: string;
+  updated_at: string;
 }
 
 // Database table names
 export const Tables = {
+  ADMIN: 'admin',
   TEACHER: 'teacher',
   TEACHER_HOST_SCHEDULE: 'teacher_host_schedule',
   STUDENT: 'student',
@@ -373,13 +405,16 @@ export const Tables = {
   SESSION_BOOK_COVERAGE: 'session_book_coverage',
   SESSION_DATE_HOST: 'session_date_host',
   SESSION_TIME_CHANGE: 'session_time_change',
+  SESSION_DAY_CHANGE: 'session_day_change',
+  SESSION_SCHEDULE_DAY: 'session_schedule_day',
+  SESSION_SCHEDULE_EXCEPTION: 'session_schedule_exception',
   SESSION_RECORDING: 'session_recording',
   COURSE: 'course',
   SESSION: 'session',
-  LOCATION: 'location',
-  SESSION_LOCATION: 'session_location',
   ENROLLMENT: 'enrollment',
   ATTENDANCE: 'attendance',
+  QR_SESSIONS: 'qr_sessions',
+  PHOTO_CHECKIN_SESSIONS: 'photo_checkin_sessions',
   SESSION_FEEDBACK: 'session_feedback',
   FEEDBACK_QUESTION: 'feedback_question',
   FEEDBACK_TEMPLATE: 'feedback_template',

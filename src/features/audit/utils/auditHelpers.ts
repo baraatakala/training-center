@@ -184,6 +184,28 @@ export const describeAction = (log: AuditLogEntry): string => {
     }
   }
 
+  if (log.table_name === 'session_schedule_day') {
+    const dow = data.day_of_week as number;
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayLabel = dow != null ? dayNames[dow] || String(dow) : '';
+    switch (log.operation) {
+      case 'INSERT': return dayLabel ? `Schedule day ${dayLabel} added` : 'Schedule day added';
+      case 'DELETE': return dayLabel ? `Schedule day ${dayLabel} removed` : 'Schedule day removed';
+      default: return 'Schedule day updated';
+    }
+  }
+
+  if (log.table_name === 'session_schedule_exception') {
+    const type = (data.exception_type as string) || '';
+    const date = (data.original_date as string) || '';
+    const label = type.replace(/_/g, ' ');
+    switch (log.operation) {
+      case 'INSERT': return date ? `Schedule exception (${label}) on ${date}` : `Schedule exception (${label}) added`;
+      case 'DELETE': return date ? `Schedule exception removed for ${date}` : 'Schedule exception removed';
+      default: return date ? `Schedule exception updated for ${date}` : 'Schedule exception updated';
+    }
+  }
+
   if (log.table_name === 'specialization') {
     const spName = String(data.name || '').trim();
     const label = spName ? `Specialization "${spName}"` : 'Specialization';
@@ -249,6 +271,8 @@ export const getEntityRoute = (log: AuditLogEntry): string | null => {
     case 'issued_certificate': return '/certificates';
     case 'session_day_change': return '/sessions';
     case 'session_time_change': return '/sessions';
+    case 'session_schedule_day': return '/sessions';
+    case 'session_schedule_exception': return '/sessions';
     case 'session_date_host': return '/sessions';
     case 'course_book_reference': return '/courses';
     case 'specialization': return '/specializations';

@@ -8,6 +8,9 @@ export type SessionWithDetails = {
   end_date: string;
   day: string | null;
   time: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  timezone: string;
   location: string | null;
   grace_period_minutes?: number;
   learning_method?: 'face_to_face' | 'online' | 'hybrid';
@@ -17,8 +20,8 @@ export type SessionWithDetails = {
   default_recording_visibility?: 'private_staff' | 'course_staff' | 'enrolled_students' | 'organization' | 'public_link' | null;
   feedback_enabled?: boolean;
   feedback_anonymous_allowed?: boolean;
-  feedback_time_limit_seconds?: number | null;
   max_tab_switches?: number;
+  feedback_time_limit_seconds?: number | null;
   teacher_can_host?: boolean;
   course: {
     course_name: string;

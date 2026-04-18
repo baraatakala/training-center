@@ -97,6 +97,17 @@ CREATE INDEX IF NOT EXISTS idx_session_day_change_effective ON public.session_da
 CREATE INDEX IF NOT EXISTS idx_session_time_change_session   ON public.session_time_change(session_id);
 CREATE INDEX IF NOT EXISTS idx_session_time_change_effective ON public.session_time_change(effective_date);
 
+-- session_schedule_day (Migration 046)
+CREATE INDEX IF NOT EXISTS idx_session_schedule_day_session ON public.session_schedule_day(session_id);
+CREATE INDEX IF NOT EXISTS idx_session_schedule_day_dow     ON public.session_schedule_day(day_of_week);
+
+-- session_schedule_exception (Migration 046)
+CREATE INDEX IF NOT EXISTS idx_session_schedule_exception_session_date ON public.session_schedule_exception(session_id, original_date);
+
+-- session structured time (Migration 046)
+CREATE INDEX IF NOT EXISTS idx_session_start_time ON public.session(start_time) WHERE start_time IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_session_end_time   ON public.session(end_time)   WHERE end_time IS NOT NULL;
+
 -- teacher_host_schedule
 CREATE INDEX IF NOT EXISTS idx_teacher_host_schedule_teacher_id ON public.teacher_host_schedule(teacher_id);
 CREATE INDEX IF NOT EXISTS idx_teacher_host_schedule_session_id ON public.teacher_host_schedule(session_id);
@@ -225,3 +236,4 @@ CREATE INDEX IF NOT EXISTS idx_issued_certificate_course_id        ON public.iss
 CREATE INDEX IF NOT EXISTS idx_issued_certificate_signer_teacher_id ON public.issued_certificate(signer_teacher_id);
 CREATE INDEX IF NOT EXISTS idx_session_book_coverage_reference_id   ON public.session_book_coverage(reference_id);
 CREATE INDEX IF NOT EXISTS idx_session_recording_uploaded_by        ON public.session_recording(recording_uploaded_by);
+

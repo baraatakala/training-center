@@ -151,20 +151,40 @@ class SmartSchedulingService {
 
     const { data: existingSessions } = await query;
 
+    // Fetch session_schedule_day for all matched sessions (new table)
+    const sessionIds = (existingSessions || []).map((s: Record<string, unknown>) => s.session_id as string);
+    const scheduleDayMap = new Map<string, Set<number>>();
+    if (sessionIds.length > 0) {
+      const { data: sdRows } = await supabase
+        .from('session_schedule_day')
+        .select('session_id, day_of_week')
+        .in('session_id', sessionIds);
+      for (const row of (sdRows || [])) {
+        if (!scheduleDayMap.has(row.session_id)) scheduleDayMap.set(row.session_id, new Set());
+        scheduleDayMap.get(row.session_id)!.add(row.day_of_week);
+      }
+    }
+
     if (existingSessions) {
       for (const session of existingSessions) {
-        const sessionDays = (session.day || '').split(',').map((d: string) => d.trim());
+        const newDays = scheduleDayMap.get(session.session_id);
         const sessionStart = new Date(session.start_date);
         const sessionEnd = new Date(session.end_date);
 
         for (const dateStr of dates) {
           const date = new Date(dateStr);
-          const dayName = DAY_NAMES[date.getDay()];
+          const dayOfWeek = date.getDay();
+          const dayName = DAY_NAMES[dayOfWeek];
+
+          // Prefer new schedule_day table, fall back to legacy day column
+          const matchesDay = newDays && newDays.size > 0
+            ? newDays.has(dayOfWeek)
+            : (session.day || '').split(',').map((d: string) => d.trim()).includes(dayName);
 
           if (
             date >= sessionStart &&
             date <= sessionEnd &&
-            sessionDays.includes(dayName)
+            matchesDay
           ) {
             conflicts.push({
               type: 'teacher',

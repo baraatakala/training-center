@@ -301,11 +301,14 @@ export function StudentCheckIn() {
       const { data: hostData } = await checkinService
         .getSessionDateHost(checkInData.session_id, checkInData.attendance_date);
 
-      // Load coordinates from student/teacher table (persistent storage)
+      // Load coordinates: prefer session_date_host overrides, fall back to student/teacher table
       let hostLat: number | null = null;
       let hostLon: number | null = null;
       
-      if (hostData?.host_id) {
+      if (hostData?.host_latitude && hostData?.host_longitude) {
+        hostLat = Number(hostData.host_latitude);
+        hostLon = Number(hostData.host_longitude);
+      } else if (hostData?.host_id) {
         const isTeacher = hostData.host_type === 'teacher';
         
         const { data: coordData } = await checkinService
@@ -421,17 +424,17 @@ export function StudentCheckIn() {
         
         if (startTime && endTime) {
           // Create session start and end times using the ATTENDANCE DATE (not current date)
-          const sessionStart = new Date(checkInData.attendance_date);
+          const sessionStart = new Date(checkInData.attendance_date + 'T00:00:00');
           sessionStart.setHours(startTime.hours, startTime.minutes, 0, 0);
           
-          const sessionEnd = new Date(checkInData.attendance_date);
+          const sessionEnd = new Date(checkInData.attendance_date + 'T00:00:00');
           sessionEnd.setHours(endTime.hours, endTime.minutes, 0, 0);
           
           // Add configurable grace period to start time
           const graceEnd = new Date(sessionStart.getTime() + gracePeriodMinutes * 60 * 1000);
           
           // Compare current time with session times
-          const attendanceDate = new Date(checkInData.attendance_date);
+          const attendanceDate = new Date(checkInData.attendance_date + 'T00:00:00');
           attendanceDate.setHours(0, 0, 0, 0); // Reset to start of day for date-only comparison
           
           const todayDate = new Date();
@@ -531,6 +534,7 @@ export function StudentCheckIn() {
       setWasLate(attendanceStatus !== 'on time');
       setCheckedInAfterSession(checkInAfterSession);
       setActualLateMinutes(lateMinutes);
+      setSubmitting(false);
       setSuccess(true);
 
       // Check if session has feedback enabled
@@ -678,7 +682,7 @@ export function StudentCheckIn() {
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Date</p>
                 <p className="font-semibold text-gray-900 dark:text-white">
-                  {checkInData?.attendance_date && format(new Date(checkInData.attendance_date), 'EEEE, MMMM dd, yyyy')}
+                  {checkInData?.attendance_date && format(new Date(checkInData.attendance_date + 'T00:00:00'), 'EEEE, MMMM dd, yyyy')}
                 </p>
               </div>
             </div>

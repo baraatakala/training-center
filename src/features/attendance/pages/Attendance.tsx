@@ -168,6 +168,8 @@ export function Attendance() {
 
   // Effective session time for the selected date (resolved from session_time_change)
   const [effectiveTimeForDate, setEffectiveTimeForDate] = useState<string | null>(null);
+  // Effective session day for the selected date (resolved from session_day_change)
+  const [effectiveDayForDate, setEffectiveDayForDate] = useState<string | null>(null);
   const [pendingExcuseRequests, setPendingExcuseRequests] = useState<ExcuseRequest[]>([]);
 
   // Recording URL for this attendance date
@@ -490,7 +492,7 @@ export function Attendance() {
     try {
 
       // Load host data, attendance records, and effective time in parallel
-      const [hostResult, attendanceResult, effectiveTime] = await Promise.all([
+      const [hostResult, attendanceResult, effectiveTime, effectiveDay] = await Promise.all([
         supabase
           .from(Tables.SESSION_DATE_HOST)
           .select('host_id, host_type, host_address, host_latitude, host_longitude')
@@ -517,13 +519,15 @@ export function Attendance() {
           .eq('session_id', sessionId)
           .eq('attendance_date', selectedDate),
         sessionService.getEffectiveTimeForDate(sessionId, selectedDate),
+        sessionService.getEffectiveDayForDate(sessionId, selectedDate),
       ]);
 
       const hostData = hostResult.data;
       const existingAttendance = attendanceResult.data;
 
-      // Store effective time for this date (null means use session.time)
+      // Store effective time/day for this date (null means use session.time/session.day)
       setEffectiveTimeForDate(effectiveTime);
+      setEffectiveDayForDate(effectiveDay);
 
       if (attendanceResult.error) {
         console.error('Error loading attendance:', attendanceResult.error);
@@ -2067,8 +2071,9 @@ export function Attendance() {
               <span className="text-3xl">📋</span> Mark Attendance
             </h1>
             <p className="text-white/80 text-sm mt-1">
-              {courseName} &bull; {session.day || ''} {(effectiveTimeForDate ?? session.time) ? `@ ${effectiveTimeForDate ?? session.time}` : ''}
+              {courseName} &bull; {effectiveDayForDate || session.day || ''} {(effectiveTimeForDate ?? session.time) ? `@ ${effectiveTimeForDate ?? session.time}` : ''}
               {effectiveTimeForDate && effectiveTimeForDate !== session.time && <span className="ml-2 text-xs bg-white/20 rounded px-1.5 py-0.5">⏱ Time change active</span>}
+              {effectiveDayForDate && effectiveDayForDate !== session.day && <span className="ml-2 text-xs bg-white/20 rounded px-1.5 py-0.5">📅 Day change active</span>}
             </p>
           </div>
           {selectedDate && !sessionNotHeld && (

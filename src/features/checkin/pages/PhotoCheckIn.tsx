@@ -28,14 +28,6 @@ type CheckInData = {
   };
 };
 
-type HostInfo = {
-  student_id: string;
-  student_name: string;
-  address: string | null;
-  host_date: string | null;
-  is_teacher?: boolean;
-};
-
 type FaceMatchResult = {
   matched: boolean;
   confidence: number;
@@ -58,7 +50,6 @@ export function PhotoCheckIn() {
   const [checkInData, setCheckInData] = useState<CheckInData | null>(null);
   const [studentInfo, setStudentInfo] = useState<{ student_id: string; name: string; email: string; photo_url: string | null } | null>(null);
   const [signedPhotoUrl, setSignedPhotoUrl] = useState<string | null>(null); // Signed URL for display/comparison
-  const [hostAddresses, setHostAddresses] = useState<HostInfo[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<string>('');
   const [feedbackEnabled, setFeedbackEnabled] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
@@ -214,43 +205,6 @@ export function PhotoCheckIn() {
         setLoading(false);
         return;
       }
-
-      // Load ALL host addresses (students with addresses + teacher)
-      // First, get session's teacher info
-      const { data: sessionData } = await checkinService.getSessionTeacherInfo(sessionId);
-
-      // Load ALL students with non-null addresses
-      const { data: allStudentsWithAddress } = await checkinService.getStudentsWithAddresses();
-
-      const hostList: HostInfo[] = [];
-
-      // Add teacher as first option if they have address
-      const teacher = Array.isArray(sessionData?.teacher) ? sessionData?.teacher[0] : sessionData?.teacher;
-      if (teacher?.address && teacher.address.trim() !== '') {
-        hostList.push({
-          student_id: teacher.teacher_id,
-          student_name: `🎓 ${teacher.name} (Teacher)`,
-          address: teacher.address,
-          host_date: null,
-          is_teacher: true
-        });
-      }
-
-      // Add all students with addresses
-      if (allStudentsWithAddress) {
-        const studentHosts: HostInfo[] = allStudentsWithAddress
-          .map((s: { student_id: string; name: string; address: string }) => ({
-            student_id: s.student_id,
-            student_name: s.name,
-            address: s.address,
-            host_date: null,
-            is_teacher: false
-          }))
-          .sort((a, b) => a.student_name.localeCompare(b.student_name));
-        hostList.push(...studentHosts);
-      }
-
-      setHostAddresses(hostList);
 
       // Check if host is already set for this date in session_date_host table
       const { data: hostData } = await checkinService.getSessionDateHost(sessionId, date);
@@ -516,12 +470,11 @@ export function PhotoCheckIn() {
       const confidence = Math.round(Math.max(0, Math.min(100, (1 - distance) * 120 - 5)));
       
       // Adaptive threshold based on detection quality:
-      // - Both detections have high score → be slightly more lenient (0.55)
-      // - Normal case → standard threshold (0.50)
-      // - This reduces false negatives for good-quality photos
+      // - Both detections have high score → stricter threshold (0.60)
+      // - Normal case → standard threshold (0.55)
       const capScore = capturedDetection.detection.score;
       const bothHighQuality = refScore > 0.85 && capScore > 0.85;
-      const threshold = bothHighQuality ? 0.55 : 0.50;
+      const threshold = bothHighQuality ? 0.60 : 0.55;
       
       const matched = distance < threshold;
 
@@ -589,11 +542,14 @@ export function PhotoCheckIn() {
       // Get host info from session_date_host
       const { data: hostData } = await checkinService.getSessionDateHost(checkInData.session_id, checkInData.attendance_date);
 
-      // Load coordinates from student/teacher table (persistent storage)
+      // Load coordinates: prefer session_date_host overrides, fall back to student/teacher table
       let hostLat: number | null = null;
       let hostLon: number | null = null;
       
-      if (hostData?.host_id) {
+      if (hostData?.host_latitude && hostData?.host_longitude) {
+        hostLat = Number(hostData.host_latitude);
+        hostLon = Number(hostData.host_longitude);
+      } else if (hostData?.host_id) {
         const isTeacher = hostData.host_type === 'teacher';
         
         const { data: coordData } = await checkinService.getHostCoordinates(hostData.host_id, isTeacher);
@@ -702,15 +658,15 @@ export function PhotoCheckIn() {
         const endTime = timeParts[1] ? parseTime(timeParts[1].trim()) : null;
         
         if (startTime && endTime) {
-          const sessionStart = new Date(checkInData.attendance_date);
+          const sessionStart = new Date(checkInData.attendance_date + 'T00:00:00');
           sessionStart.setHours(startTime.hours, startTime.minutes, 0, 0);
           
-          const sessionEnd = new Date(checkInData.attendance_date);
+          const sessionEnd = new Date(checkInData.attendance_date + 'T00:00:00');
           sessionEnd.setHours(endTime.hours, endTime.minutes, 0, 0);
           
           const graceEnd = new Date(sessionStart.getTime() + gracePeriodMinutes * 60 * 1000);
           
-          const attendanceDate = new Date(checkInData.attendance_date);
+          const attendanceDate = new Date(checkInData.attendance_date + 'T00:00:00');
           attendanceDate.setHours(0, 0, 0, 0);
           
           const todayDate = new Date();
@@ -943,7 +899,7 @@ export function PhotoCheckIn() {
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Date</p>
                 <p className="font-semibold text-gray-900 dark:text-white text-sm">
-                  {checkInData?.attendance_date && format(new Date(checkInData.attendance_date), 'EEE, MMM dd, yyyy')}
+                  {checkInData?.attendance_date && format(new Date(checkInData.attendance_date + 'T00:00:00'), 'EEE, MMM dd, yyyy')}
                 </p>
               </div>
             </div>
@@ -1076,7 +1032,7 @@ export function PhotoCheckIn() {
               faceMatchResult?.matched ? (
                 <Button
                   onClick={handleCheckIn}
-                  disabled={submitting || (hostAddresses.length > 0 && !selectedAddress)}
+                  disabled={submitting || !selectedAddress}
                   className="w-full py-4 bg-green-600 hover:bg-green-700 text-lg font-bold"
                 >
                   {submitting ? (

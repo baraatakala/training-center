@@ -2,23 +2,29 @@
 // Single source of truth for attendance status values across the app.
 // Eliminates magic strings and ensures consistency.
 
+// DB-valid attendance statuses
 export const ATTENDANCE_STATUS = {
   ON_TIME: 'on time',
   ABSENT: 'absent',
   LATE: 'late',
   EXCUSED: 'excused',
   NOT_ENROLLED: 'not enrolled',
-  SESSION_NOT_HELD: 'session not held',
 } as const;
 
 export type AttendanceStatus = typeof ATTENDANCE_STATUS[keyof typeof ATTENDANCE_STATUS];
 
-// Check-in methods
+// UI-only status used for display when a session date was cancelled
+export const UI_STATUS_SESSION_NOT_HELD = 'session not held' as const;
+
+// Check-in methods (must match DB CHECK constraint)
 export const CHECK_IN_METHOD = {
   MANUAL: 'manual',
   QR_CODE: 'qr_code',
   PHOTO: 'photo',
   BULK: 'bulk',
+  FACE_RECOGNITION: 'face_recognition',
+  GPS: 'gps',
+  AUTO: 'auto',
 } as const;
 
 export type CheckInMethod = typeof CHECK_IN_METHOD[keyof typeof CHECK_IN_METHOD];

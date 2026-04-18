@@ -6,7 +6,7 @@ Consolidated SQL files for the Training Center Supabase database.
 
 | # | File | Description |
 |---|------|-------------|
-| 1 | `schema.sql` | All 32 table definitions in dependency order with table comments |
+| 1 | `schema.sql` | All 36 table definitions in dependency order with table comments |
 | 2 | `functions.sql` | Helper functions (SECURITY DEFINER + search_path hardened), trigger functions, and trigger bindings |
 | 3 | `indexes.sql` | All performance indexes (functional, composite, partial) |
 | 4 | `rls-policies.sql` | Row Level Security policies for all tables |
@@ -16,11 +16,11 @@ Consolidated SQL files for the Training Center Supabase database.
 ## Architecture
 
 - **Roles**: Admin (full access via `FOR ALL`), Teacher (scoped read + write), Student (scoped read)
-- **Auth**: Policies use `is_admin()`, `is_teacher()`, `get_my_student_id()` — all SECURITY DEFINER with `SET search_path = public`
+- **Auth**: Policies use `is_admin()`, `is_teacher()`, `get_my_student_id()`, `get_my_teacher_id()` — all SECURITY DEFINER with `SET search_path = public`
 - **UUIDs**: All primary keys use `gen_random_uuid()` (native PostgreSQL 13+, no extensions)
 - **Timestamps**: `created_at` / `updated_at` are NOT NULL on all tables; `updated_at` triggers via shared `update_updated_at_column()`
 - **Validation**: Business-logic triggers enforce data integrity (excuse date ↔ session day, book reference ↔ course, enrollment host status)
-- **Self-documenting**: All 32 tables have `COMMENT ON TABLE` metadata (queryable via `\dt+` in psql)
+- **Self-documenting**: All 36 tables have `COMMENT ON TABLE` metadata (queryable via `\dt+` in psql)
 
 ## Migrations
 
@@ -55,3 +55,15 @@ Sequential SQL files in `migrations/`. Each migration is wrapped in `BEGIN; ... 
 | 040 | Fix audit_log.changed_by UUID → TEXT |
 | 041 | Allow 'other' host_type in session_date_host |
 | 042 | QA hardening: search_path on 11 functions, 4 FK indexes, token default, description min-length |
+| 043 | ~~Assessment module~~ (REVERTED by 049) |
+| 044 | ~~Fix assessment RLS~~ (REVERTED by 049) — `get_my_teacher_id()` kept for 046+ |
+| 045 | ~~Drop test-mode columns~~ (REVERTED by 049) |
+| 046 | Structured time/day: start_time/end_time TIME on session, session_schedule_day, session_schedule_exception tables |
+| 047 | Fix exception backfill: populate new_day_of_week, correct exception_type where old_day == new_day |
+| 048 | Add old_day_of_week to session_schedule_exception for date-generation segment reconstruction |
+| 049 | Revert assessment system (undo 043-045): drop 4 assessment tables, restore test-mode columns |
+| 050 | Fix QR session race condition: ON CONFLICT upsert, session_schedule_exception time lookup |
+| 051 | Fix QR session function: correct column name (new_start_time, not new_time) |
+| 052 | Self-registration: register_system_user() function for pre-registered emails |
+| 053 | Fix register_system_user: omit generated columns (confirmed_at, identities.email) |
+| 054 | Fix register_system_user: omit auth.identities.email generated column |

@@ -201,6 +201,21 @@ export const checkinService = {
   },
 
   async getEffectiveTimeForDate(sessionId: string, date: string) {
+    // 1. Check new exception table for time overrides on this date
+    const { data: exception } = await supabase
+      .from('session_schedule_exception')
+      .select('new_start_time, new_end_time, exception_type')
+      .eq('session_id', sessionId)
+      .eq('original_date', date)
+      .maybeSingle();
+
+    if (exception && exception.new_start_time && exception.new_end_time) {
+      const start = (exception.new_start_time as string).slice(0, 5);
+      const end = (exception.new_end_time as string).slice(0, 5);
+      return `${start}-${end}`;
+    }
+
+    // 2. Fall back to legacy session_time_change
     const { data } = await supabase
       .from('session_time_change')
       .select('new_time')

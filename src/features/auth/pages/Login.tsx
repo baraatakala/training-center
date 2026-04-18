@@ -342,7 +342,13 @@ export const Login: React.FC = () => {
         </div>
 
         <p className="text-center text-gray-500 dark:text-gray-400 text-sm mt-6">
-          Need an account? <a href="mailto:baraatakala2004@gmail.com" className="text-blue-600 dark:text-blue-400 hover:underline font-medium">Contact administrator</a>
+          First time?{' '}
+          <a
+            href={`/signup${returnUrl !== '/' ? `?returnUrl=${encodeURIComponent(returnUrl)}` : ''}`}
+            className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+          >
+            Create your account
+          </a>
         </p>
       </div>
     </div>

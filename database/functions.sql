@@ -3,7 +3,7 @@
 -- ============================================================================
 -- Run order: 2 of 6 (after schema.sql)
 -- All database functions, trigger functions, and trigger bindings.
--- Synced with live Supabase as of 2025-07-18 (through migration 026).
+-- Synced with live Supabase as of 2025-07-18 (through migration 054).
 -- ============================================================================
 
 -- ============================================================================
@@ -42,6 +42,22 @@ BEGIN
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+CREATE OR REPLACE FUNCTION get_my_teacher_id()
+RETURNS UUID
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN (
+    SELECT teacher_id FROM public.teacher
+    WHERE LOWER(email) = LOWER(auth.jwt()->>'email')
+    LIMIT 1
+  );
+END;
+$$;
 
 -- ============================================================================
 -- 2. TIMESTAMP TRIGGER FUNCTIONS
@@ -370,13 +386,25 @@ BEGIN
     FROM session
     WHERE session_id = p_session_id;
 
-    -- Check for effective time override from session_time_change
-    SELECT new_time INTO v_effective_time
-    FROM session_time_change
+    -- Check session_schedule_exception FIRST (new 046-048 table)
+    SELECT new_start_time::TEXT INTO v_effective_time
+    FROM session_schedule_exception
     WHERE session_id = p_session_id
-      AND effective_date <= p_attendance_date
-    ORDER BY effective_date DESC
+      AND original_date = p_attendance_date
+      AND exception_type IN ('time_change', 'time_and_day_change')
+      AND new_start_time IS NOT NULL
+    ORDER BY created_at DESC
     LIMIT 1;
+
+    -- Fall back to legacy session_time_change
+    IF v_effective_time IS NULL THEN
+      SELECT new_time INTO v_effective_time
+      FROM session_time_change
+      WHERE session_id = p_session_id
+        AND effective_date <= p_attendance_date
+      ORDER BY effective_date DESC
+      LIMIT 1;
+    END IF;
 
     -- Use effective time if available, otherwise fall back to session default
     IF v_effective_time IS NOT NULL THEN
@@ -397,9 +425,7 @@ BEGIN
 
   v_token := gen_random_uuid();
 
-  -- Invalidate any existing active token for the same session/date/mode slot
-  -- to prevent 23505 from qr_sessions_active_unique (partial index on is_valid=true)
-  -- when a teacher reopens the QR modal without the previous one being closed cleanly.
+  -- Invalidate any existing active token for this session+date+mode
   UPDATE public.qr_sessions
   SET is_valid = false
   WHERE session_id = p_session_id
@@ -407,6 +433,7 @@ BEGIN
     AND check_in_mode = v_mode
     AND is_valid = true;
 
+  -- Insert new token with ON CONFLICT to handle race condition
   INSERT INTO public.qr_sessions (
     token, session_id, attendance_date, expires_at,
     created_by, check_in_mode, linked_photo_token
@@ -415,6 +442,15 @@ BEGIN
     v_token, p_session_id, p_attendance_date, v_expires_at,
     p_created_by, v_mode, v_linked_photo_token
   )
+  ON CONFLICT (session_id, attendance_date, check_in_mode) WHERE (is_valid = true)
+  DO UPDATE SET
+    token = EXCLUDED.token,
+    expires_at = EXCLUDED.expires_at,
+    created_by = EXCLUDED.created_by,
+    linked_photo_token = EXCLUDED.linked_photo_token,
+    used_count = 0,
+    created_at = now(),
+    last_used_at = NULL
   RETURNING qr_session_id INTO v_qr_session_id;
 
   RETURN json_build_object(
@@ -599,6 +635,112 @@ RETURNS TABLE (
 $$;
 
 -- ============================================================================
+-- 6b. SELF-REGISTRATION (auth account creation for pre-registered emails)
+-- ============================================================================
+
+-- Allows students/teachers/admins whose email exists in system tables
+-- to create their own Supabase Auth account without admin intervention.
+CREATE OR REPLACE FUNCTION public.register_system_user(
+  p_email TEXT,
+  p_password TEXT
+)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, extensions
+AS $$
+DECLARE
+  v_role TEXT;
+  v_user_id UUID;
+  v_encrypted_password TEXT;
+  v_lower_email TEXT;
+BEGIN
+  v_lower_email := LOWER(TRIM(p_email));
+
+  IF v_lower_email IS NULL OR v_lower_email = '' THEN
+    RAISE EXCEPTION 'Email is required.';
+  END IF;
+
+  IF p_password IS NULL OR length(p_password) < 6 THEN
+    RAISE EXCEPTION 'Password must be at least 6 characters.';
+  END IF;
+
+  -- Check if email exists in system tables
+  IF EXISTS (SELECT 1 FROM public.admin WHERE LOWER(email) = v_lower_email) THEN
+    v_role := 'admin';
+  ELSIF EXISTS (SELECT 1 FROM public.teacher WHERE LOWER(email) = v_lower_email) THEN
+    v_role := 'teacher';
+  ELSIF EXISTS (SELECT 1 FROM public.student WHERE LOWER(email) = v_lower_email) THEN
+    v_role := 'student';
+  ELSE
+    RAISE EXCEPTION 'Email not registered in the system. Contact your administrator to add your email first.';
+  END IF;
+
+  -- Check if already has auth account
+  IF EXISTS (SELECT 1 FROM auth.users WHERE LOWER(email) = v_lower_email) THEN
+    RAISE EXCEPTION 'An account with this email already exists. Use the login form or reset your password.';
+  END IF;
+
+  v_user_id := gen_random_uuid();
+  v_encrypted_password := extensions.crypt(p_password, extensions.gen_salt('bf'));
+
+  -- Insert auth user (omitting confirmed_at — it is a generated column)
+  INSERT INTO auth.users (
+    id, instance_id, email, encrypted_password, email_confirmed_at,
+    aud, role, raw_app_meta_data, raw_user_meta_data,
+    created_at, updated_at,
+    confirmation_token, recovery_token,
+    email_change_token_current, email_change_token_new, reauthentication_token,
+    is_sso_user, is_anonymous
+  )
+  VALUES (
+    v_user_id,
+    '00000000-0000-0000-0000-000000000000',
+    v_lower_email,
+    v_encrypted_password,
+    now(),
+    'authenticated',
+    'authenticated',
+    jsonb_build_object('provider', 'email', 'providers', ARRAY['email']),
+    jsonb_build_object('email_verified', true),
+    now(), now(),
+    '', '',
+    '', '', '',
+    false, false
+  );
+
+  -- Insert identity (omitting email — it is generated from identity_data)
+  INSERT INTO auth.identities (
+    id, user_id, identity_data, provider, provider_id,
+    last_sign_in_at, created_at, updated_at
+  )
+  VALUES (
+    gen_random_uuid(),
+    v_user_id,
+    jsonb_build_object('sub', v_user_id::text, 'email', v_lower_email, 'email_verified', true),
+    'email',
+    v_user_id::text,
+    now(), now(), now()
+  );
+
+  -- If admin, backfill auth_user_id
+  IF v_role = 'admin' THEN
+    UPDATE public.admin SET auth_user_id = v_user_id WHERE LOWER(email) = v_lower_email AND auth_user_id IS NULL;
+  END IF;
+
+  RETURN json_build_object(
+    'user_id', v_user_id,
+    'role', v_role,
+    'message', 'Account created successfully. You can now log in.'
+  );
+END;
+$$;
+
+-- Grant to anon (unauthenticated users need to register)
+GRANT EXECUTE ON FUNCTION public.register_system_user(TEXT, TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION public.register_system_user(TEXT, TEXT) TO authenticated;
+
+-- ============================================================================
 -- 7. TRIGGER BINDINGS
 -- ============================================================================
 
@@ -695,3 +837,4 @@ DROP TRIGGER IF EXISTS trg_feedback_anonymize_on_student_null ON session_feedbac
 CREATE TRIGGER trg_feedback_anonymize_on_student_null
   BEFORE UPDATE OF student_id ON session_feedback
   FOR EACH ROW EXECUTE FUNCTION fn_feedback_anonymize_on_student_null();
+

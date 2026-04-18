@@ -20,6 +20,8 @@ export interface Announcement {
   created_at: string;
   updated_at: string;
   category?: string;
+  attachments?: unknown[];
+  view_count?: number;
   image_url?: string | null;
   // Resolved creator info (not from FK join)
   creator?: {

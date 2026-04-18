@@ -34,4 +34,13 @@ export const authService = {
   async getCoursesLookup() {
     return await supabase.from('course').select('course_id, course_name').order('course_name');
   },
+
+  /** Self-registration: create auth account for pre-registered system emails */
+  async registerUser(email: string, password: string) {
+    const { data, error } = await supabase.rpc('register_system_user', {
+      p_email: email,
+      p_password: password,
+    });
+    return { data, error };
+  },
 };

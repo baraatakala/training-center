@@ -1,6 +1,6 @@
 -- ============================================================================
 -- Training Center — Row Level Security Policies
--- Synced with live Supabase as of 2025-07-17 (through migration 041)
+-- Synced with live Supabase as of 2025-07-17 (through migration 043)
 -- ============================================================================
 -- Run order: 4 of 6 (after indexes.sql)
 -- Requires: functions.sql (is_admin, is_teacher, get_my_student_id)
@@ -281,6 +281,42 @@ CREATE POLICY "Teachers can delete time changes" ON session_time_change
 DROP POLICY IF EXISTS "Students can read time changes" ON session_time_change;
 CREATE POLICY "Students can read time changes" ON session_time_change
   FOR SELECT TO authenticated USING (NOT is_teacher() AND NOT is_admin());
+
+-- session_schedule_day (Migration 046) ----------------------------------
+ALTER TABLE session_schedule_day ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Admin full access to session_schedule_day" ON session_schedule_day;
+CREATE POLICY "Admin full access to session_schedule_day" ON session_schedule_day
+  FOR ALL TO authenticated USING (is_admin()) WITH CHECK (is_admin());
+
+DROP POLICY IF EXISTS "Teachers manage own session schedule days" ON session_schedule_day;
+CREATE POLICY "Teachers manage own session schedule days" ON session_schedule_day
+  FOR ALL TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.session s WHERE s.session_id = session_schedule_day.session_id AND s.teacher_id = get_my_teacher_id()))
+  WITH CHECK (EXISTS (SELECT 1 FROM public.session s WHERE s.session_id = session_schedule_day.session_id AND s.teacher_id = get_my_teacher_id()));
+
+DROP POLICY IF EXISTS "Students read enrolled session schedule days" ON session_schedule_day;
+CREATE POLICY "Students read enrolled session schedule days" ON session_schedule_day
+  FOR SELECT TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.enrollment e WHERE e.session_id = session_schedule_day.session_id AND e.status = 'active' AND e.student_id = get_my_student_id()));
+
+-- session_schedule_exception (Migration 046) ----------------------------
+ALTER TABLE session_schedule_exception ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Admin full access to session_schedule_exception" ON session_schedule_exception;
+CREATE POLICY "Admin full access to session_schedule_exception" ON session_schedule_exception
+  FOR ALL TO authenticated USING (is_admin()) WITH CHECK (is_admin());
+
+DROP POLICY IF EXISTS "Teachers manage own session schedule exceptions" ON session_schedule_exception;
+CREATE POLICY "Teachers manage own session schedule exceptions" ON session_schedule_exception
+  FOR ALL TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.session s WHERE s.session_id = session_schedule_exception.session_id AND s.teacher_id = get_my_teacher_id()))
+  WITH CHECK (EXISTS (SELECT 1 FROM public.session s WHERE s.session_id = session_schedule_exception.session_id AND s.teacher_id = get_my_teacher_id()));
+
+DROP POLICY IF EXISTS "Students read enrolled session schedule exceptions" ON session_schedule_exception;
+CREATE POLICY "Students read enrolled session schedule exceptions" ON session_schedule_exception
+  FOR SELECT TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.enrollment e WHERE e.session_id = session_schedule_exception.session_id AND e.status = 'active' AND e.student_id = get_my_student_id()));
 
 -- teacher_host_schedule -------------------------------------------------
 ALTER TABLE teacher_host_schedule ENABLE ROW LEVEL SECURITY;

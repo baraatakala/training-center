@@ -784,6 +784,56 @@ export const sessionMergeService = {
           }
         }
 
+        // 5d. Transfer session_schedule_day rows (new table)
+        const { data: sourceScheduleDays } = await supabase
+          .from('session_schedule_day')
+          .select('day_of_week')
+          .eq('session_id', sourceSessionId);
+
+        for (const sd of (sourceScheduleDays || [])) {
+          const { error: sdErr } = await supabase
+            .from('session_schedule_day')
+            .upsert({
+              session_id: targetSessionId,
+              day_of_week: sd.day_of_week,
+            }, { onConflict: 'session_id,day_of_week' });
+          if (sdErr) {
+            result.errors.push(`Schedule day transfer failed for dow ${sd.day_of_week}: ${sdErr.message}`);
+          }
+        }
+
+        // 5e. Transfer session_schedule_exception rows (new table)
+        const { data: allSourceExceptions } = await supabase
+          .from('session_schedule_exception')
+          .select('*')
+          .eq('session_id', sourceSessionId)
+          .order('original_date', { ascending: true });
+
+        const sourceExceptions = (dateFilter
+          ? (allSourceExceptions || []).filter((ex: Record<string, unknown>) => dateFilter.has(ex.original_date as string))
+          : (allSourceExceptions || [])
+        ).filter((ex: Record<string, unknown>) => (ex.original_date as string) >= targetStartDate && (ex.original_date as string) <= targetEndDate);
+
+        for (const ex of sourceExceptions) {
+          await supabase
+            .from('session_schedule_exception')
+            .delete()
+            .eq('session_id', targetSessionId)
+            .eq('original_date', (ex as Record<string, unknown>).original_date);
+
+          const { exception_id: _eid, session_id: _sesid2, created_at: _ca3, ...exRest } = ex as Record<string, unknown>;
+          const { error: exErr } = await supabase
+            .from('session_schedule_exception')
+            .insert({
+              ...exRest,
+              session_id: targetSessionId,
+              reason: exRest.reason ? `${exRest.reason} (merged)` : 'Transferred from merged session',
+            });
+          if (exErr) {
+            result.errors.push(`Schedule exception transfer failed for ${(ex as Record<string, unknown>).original_date}: ${exErr.message}`);
+          }
+        }
+
         // Also transfer teacher host schedule rows
         const { data: sourceSchedule } = await supabase
           .from(Tables.TEACHER_HOST_SCHEDULE)
@@ -976,6 +1026,8 @@ export const sessionMergeService = {
           await supabase.from(Tables.SESSION_RECORDING).delete().eq('session_id', sourceSessionId);
           await supabase.from(Tables.SESSION_DATE_HOST).delete().eq('session_id', sourceSessionId);
           await supabase.from('session_day_change').delete().eq('session_id', sourceSessionId);
+          await supabase.from('session_schedule_day').delete().eq('session_id', sourceSessionId);
+          await supabase.from('session_schedule_exception').delete().eq('session_id', sourceSessionId);
           await supabase.from(Tables.SESSION_BOOK_COVERAGE).delete().eq('session_id', sourceSessionId);
           // These tables have FK → session_id and must be deleted before the session row
           await supabase.from(Tables.FEEDBACK_QUESTION).delete().eq('session_id', sourceSessionId);
