@@ -127,8 +127,8 @@ CREATE TABLE IF NOT EXISTS public.session (
   ),
   CONSTRAINT session_recording_visibility_check CHECK (default_recording_visibility IS NULL OR (default_recording_visibility = ANY (ARRAY['private_staff', 'course_staff', 'enrolled_students', 'organization', 'public_link']))),
   CONSTRAINT session_max_tab_switches_check CHECK (max_tab_switches >= 1 AND max_tab_switches <= 20),
-  CONSTRAINT chk_feedback_time_limit_range CHECK (feedback_time_limit_seconds IS NULL OR (feedback_time_limit_seconds >= 10 AND feedback_time_limit_seconds <= 7200)),
-  CONSTRAINT chk_session_time_order CHECK (start_time IS NULL OR end_time IS NULL OR end_time > start_time)
+  CONSTRAINT chk_feedback_time_limit_range CHECK (feedback_time_limit_seconds IS NULL OR (feedback_time_limit_seconds >= 10 AND feedback_time_limit_seconds <= 7200))
+  -- chk_session_time_order removed (migration 053): overnight sessions are valid (e.g. 23:04–00:04)
 );
 
 CREATE TABLE IF NOT EXISTS public.enrollment (
