@@ -877,8 +877,8 @@ export function SessionMergeModal({
                 />
                 <span className="text-sm text-gray-700 dark:text-gray-300">
                   <span className="font-medium">Transfer scheduling data</span> — copy per-date
-                  host address &amp; identity ({dateHostOverrideCount} date{dateHostOverrideCount !== 1 ? 's' : ''}), teacher host schedule
-                  ({preview.teacher_host_schedule_count} entries), and any time-change records from the source session.
+                  host address &amp; identity ({dateHostOverrideCount} date{dateHostOverrideCount !== 1 ? 's' : ''})
+                  and teacher host schedule ({preview.teacher_host_schedule_count} entries).
                 </span>
               </label>
             </div>
@@ -1037,7 +1037,14 @@ export function SessionMergeModal({
           {result.date_host_overrides_transferred > 0 && (
             <StatCard
               value={result.date_host_overrides_transferred}
-              label="Overrides transferred"
+              label="Host assignments transferred"
+              color="purple"
+            />
+          )}
+          {result.teacher_schedule_transferred > 0 && (
+            <StatCard
+              value={result.teacher_schedule_transferred}
+              label="Teacher schedule entries"
               color="purple"
             />
           )}

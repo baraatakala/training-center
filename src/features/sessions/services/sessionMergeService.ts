@@ -82,7 +82,10 @@ export type MergeResult = {
   skipped: number;
   /** Records that failed due to DB errors (constraint violations, network, etc.) */
   failed: number;
+  /** Number of session_date_host rows transferred (per-date host address overrides) */
   date_host_overrides_transferred: number;
+  /** Number of teacher_host_schedule rows transferred */
+  teacher_schedule_transferred: number;
   recordings_transferred: number;
   book_coverages_transferred: number;
   feedback_questions_transferred: number;
@@ -388,6 +391,7 @@ export const sessionMergeService = {
       skipped: 0,
       failed: 0,
       date_host_overrides_transferred: 0,
+      teacher_schedule_transferred: 0,
       recordings_transferred: 0,
       book_coverages_transferred: 0,
       feedback_questions_transferred: 0,
@@ -715,126 +719,7 @@ export const sessionMergeService = {
           }
         }
 
-        // 5b. Transfer session_time_change records from source to target
-        const { data: allSourceTimeChanges } = await supabase
-          .from(Tables.SESSION_TIME_CHANGE)
-          .select('*')
-          .eq('session_id', sourceSessionId)
-          .order('effective_date', { ascending: true });
-
-        const sourceTimeChanges = (dateFilter
-          ? (allSourceTimeChanges || []).filter((tc) => dateFilter.has(tc.effective_date))
-          : (allSourceTimeChanges || [])
-        ).filter((tc) => tc.effective_date >= targetStartDate && tc.effective_date <= targetEndDate);
-
-        for (const tc of sourceTimeChanges) {
-          // Delete any existing time-change on the same effective_date in target
-          await supabase
-            .from(Tables.SESSION_TIME_CHANGE)
-            .delete()
-            .eq('session_id', targetSessionId)
-            .eq('effective_date', tc.effective_date);
-
-          const { error: tcErr } = await supabase
-            .from(Tables.SESSION_TIME_CHANGE)
-            .insert({
-              session_id: targetSessionId,
-              old_time: tc.old_time,
-              new_time: tc.new_time,
-              effective_date: tc.effective_date,
-              reason: tc.reason ? `${tc.reason} (merged)` : 'Transferred from merged session',
-              changed_by: tc.changed_by,
-            });
-          if (tcErr) {
-            result.errors.push(`Time change transfer failed for ${tc.effective_date}: ${tcErr.message}`);
-          }
-        }
-
-        // 5c. Transfer session_day_change records from source to target
-        const { data: allSourceDayChanges } = await supabase
-          .from('session_day_change')
-          .select('*')
-          .eq('session_id', sourceSessionId)
-          .order('effective_date', { ascending: true });
-
-        const sourceDayChanges = (dateFilter
-          ? (allSourceDayChanges || []).filter((dc) => dateFilter.has(dc.effective_date))
-          : (allSourceDayChanges || [])
-        ).filter((dc) => dc.effective_date >= targetStartDate && dc.effective_date <= targetEndDate);
-
-        for (const dc of sourceDayChanges) {
-          await supabase
-            .from('session_day_change')
-            .delete()
-            .eq('session_id', targetSessionId)
-            .eq('effective_date', dc.effective_date);
-
-          const { error: dcErr } = await supabase
-            .from('session_day_change')
-            .insert({
-              session_id: targetSessionId,
-              old_day: dc.old_day,
-              new_day: dc.new_day,
-              effective_date: dc.effective_date,
-              reason: dc.reason ? `${dc.reason} (merged)` : 'Transferred from merged session',
-              changed_by: dc.changed_by,
-            });
-          if (dcErr) {
-            result.errors.push(`Day change transfer failed for ${dc.effective_date}: ${dcErr.message}`);
-          }
-        }
-
-        // 5d. Transfer session_schedule_day rows (new table)
-        const { data: sourceScheduleDays } = await supabase
-          .from('session_schedule_day')
-          .select('day_of_week')
-          .eq('session_id', sourceSessionId);
-
-        for (const sd of (sourceScheduleDays || [])) {
-          const { error: sdErr } = await supabase
-            .from('session_schedule_day')
-            .upsert({
-              session_id: targetSessionId,
-              day_of_week: sd.day_of_week,
-            }, { onConflict: 'session_id,day_of_week' });
-          if (sdErr) {
-            result.errors.push(`Schedule day transfer failed for dow ${sd.day_of_week}: ${sdErr.message}`);
-          }
-        }
-
-        // 5e. Transfer session_schedule_exception rows (new table)
-        const { data: allSourceExceptions } = await supabase
-          .from('session_schedule_exception')
-          .select('*')
-          .eq('session_id', sourceSessionId)
-          .order('original_date', { ascending: true });
-
-        const sourceExceptions = (dateFilter
-          ? (allSourceExceptions || []).filter((ex: Record<string, unknown>) => dateFilter.has(ex.original_date as string))
-          : (allSourceExceptions || [])
-        ).filter((ex: Record<string, unknown>) => (ex.original_date as string) >= targetStartDate && (ex.original_date as string) <= targetEndDate);
-
-        for (const ex of sourceExceptions) {
-          await supabase
-            .from('session_schedule_exception')
-            .delete()
-            .eq('session_id', targetSessionId)
-            .eq('original_date', (ex as Record<string, unknown>).original_date);
-
-          const { exception_id: _eid, session_id: _sesid2, created_at: _ca3, ...exRest } = ex as Record<string, unknown>;
-          const { error: exErr } = await supabase
-            .from('session_schedule_exception')
-            .insert({
-              ...exRest,
-              session_id: targetSessionId,
-              reason: exRest.reason ? `${exRest.reason} (merged)` : 'Transferred from merged session',
-            });
-          if (exErr) {
-            result.errors.push(`Schedule exception transfer failed for ${(ex as Record<string, unknown>).original_date}: ${exErr.message}`);
-          }
-        }
-
-        // Also transfer teacher host schedule rows
+        // 5b. Transfer teacher_host_schedule rows (teacher's planned hosting dates)
         const { data: sourceSchedule } = await supabase
           .from(Tables.TEACHER_HOST_SCHEDULE)
           .select('*')
@@ -848,12 +733,15 @@ export const sessionMergeService = {
             ...schedRest
           } = row;
 
-          await supabase
+          const { error: schedErr } = await supabase
             .from(Tables.TEACHER_HOST_SCHEDULE)
             .upsert(
               { ...schedRest, session_id: targetSessionId },
               { onConflict: 'session_id,host_date', ignoreDuplicates: true },
             );
+          if (!schedErr) {
+            result.teacher_schedule_transferred++;
+          }
         }
       }
 
