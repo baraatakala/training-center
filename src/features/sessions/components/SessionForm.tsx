@@ -185,10 +185,11 @@ export function SessionForm({ onSubmit, onCancel, initialData }: SessionFormProp
       setError('Please select both a start and end time, or leave the time range empty.');
       return;
     }
-    if (timeParts.length === 2 && timeParts[1] <= timeParts[0]) {
-      setError('End time must be later than start time.');
+    if (timeParts.length === 2 && timeParts[1] === timeParts[0]) {
+      setError('Start time and end time cannot be the same.');
       return;
     }
+    // Allow cross-midnight sessions (e.g. 23:00–01:00) — only reject equal times
     if (formData.learning_method === 'face_to_face' && formData.virtual_meeting_link) {
       setError('Face-to-face sessions cannot have a virtual meeting link.');
       return;
